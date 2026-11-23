@@ -70,6 +70,20 @@ describe('desk rules route', () => {
     expect(screen.queryByRole('complementary')).toBeNull();
   });
 
+  it("the Desk sidebar header shows the current project's name, not the generic Desk label", async () => {
+    await renderRoute(rulesPage);
+    const desk = await screen.findByRole('navigation', { name: 'Desk' });
+    expect(await within(desk).findByText('invoicer-api', { selector: 'div' })).toBeInTheDocument();
+    expect(within(desk).queryByText('Desk')).toBeNull();
+  });
+
+  it('the Desk sidebar header follows the project in the route', async () => {
+    await renderRoute(`/o/alice/p/${ids.project.invoicerWeb}/desk/rules`);
+    const desk = await screen.findByRole('navigation', { name: 'Desk' });
+    expect(await within(desk).findByText('invoicer-web', { selector: 'div' })).toBeInTheDocument();
+    expect(within(desk).queryByText('Desk')).toBeNull();
+  });
+
   it('no rules shows the empty state', async () => {
     mockDb.state.rules = mockDb.state.rules.filter((r) => r.projectId !== projectId);
     await renderRoute(rulesPage);
