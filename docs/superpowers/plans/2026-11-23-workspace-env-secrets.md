@@ -715,9 +715,9 @@ Covers: BR-27 (TC-27.1 to TC-27.6). The extensions to `lists-paging.spec.ts` and
 
 Covers: BR-6 (TC-6.1, TC-6.3), BR-7 (TC-7.1, TC-7.3), BR-8 (TC-8.1, TC-8.3), BR-12 variables (TC-12.1 to TC-12.9), BR-13 variables (TC-13.1, TC-13.3, TC-13.4, TC-13.5), BR-14 (TC-14.1, TC-14.2, TC-14.5), BR-25 variables (TC-25.1, TC-25.3). Persistence is proved by leaving the tab and returning by click, never by reload.
 
-- [ ] **Step 1: Write the spec** with `it.each`-style generated tests where cases differ only by input (TC-12.2 to TC-12.4 share the Name error; TC-12.7 to TC-12.9 add valid names), titles `BR-<n>: ...`.
-- [ ] **Step 2: Run** the build as in Task 19, then `pnpm --filter @agentdesk/web exec playwright test e2e/mock/desk-setup-environment-vars.spec.ts`. Expected: PASS.
-- [ ] **Step 3: Commit**: `test(web): mock e2e for Environment variables flow`.
+- [x] **Step 1: Write the spec** with `it.each`-style generated tests where cases differ only by input (TC-12.2 to TC-12.4 share the Name error; TC-12.7 to TC-12.9 add valid names), titles `BR-<n>: ...`.
+- [x] **Step 2: Run** the build as in Task 19, then `pnpm --filter @agentdesk/web exec playwright test e2e/mock/desk-setup-environment-vars.spec.ts`. Expected: PASS.
+- [x] **Step 3: Commit**: `test(web): mock e2e for Environment variables flow`.
 
 ---
 
@@ -733,9 +733,9 @@ Covers: BR-6 (TC-6.1, TC-6.3), BR-7 (TC-7.1, TC-7.3), BR-8 (TC-8.1, TC-8.3), BR-
 
 Covers: BR-9 (TC-9.1), BR-10 (TC-10.1, TC-10.2, TC-10.3), BR-11 (TC-11.1, TC-11.3), BR-12 secret (TC-12.10), BR-13 secret (TC-13.2), BR-14 secret (TC-14.3, TC-14.4), BR-15 (TC-15.1 to TC-15.5), BR-17 (TC-17.1 to TC-17.4), BR-25 secrets (TC-25.2, TC-25.4). Each case that types a value also asserts the page text never contains it after save or failed submit.
 
-- [ ] **Step 1: Write the spec** following the TC rows (TC-10.3: Save disabled while "New value" is empty, Cancel leaves the "Set ... by ..." line unchanged).
-- [ ] **Step 2: Run** the build as in Task 19, then `pnpm --filter @agentdesk/web exec playwright test e2e/mock/desk-setup-environment-secrets.spec.ts`. Expected: PASS.
-- [ ] **Step 3: Commit**: `test(web): mock e2e for Environment secrets flow`.
+- [x] **Step 1: Write the spec** following the TC rows (TC-10.3: Save disabled while "New value" is empty, Cancel leaves the "Set ... by ..." line unchanged).
+- [x] **Step 2: Run** the build as in Task 19, then `pnpm --filter @agentdesk/web exec playwright test e2e/mock/desk-setup-environment-secrets.spec.ts`. Expected: PASS.
+- [x] **Step 3: Commit**: `test(web): mock e2e for Environment secrets flow`.
 
 ---
 
