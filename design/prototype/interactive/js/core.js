@@ -42,6 +42,10 @@
     stOk: '<svg aria-hidden="true" width="12" height="12" viewBox="0 0 16 16"><circle cx="8" cy="8" r="7" fill="currentColor"/><path d="M4.8 8.2l2.2 2.2 4.2-4.6" fill="none" stroke="#0F1A13" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>',
     stFail: '<svg aria-hidden="true" width="12" height="12" viewBox="0 0 16 16"><circle cx="8" cy="8" r="7" fill="currentColor"/><path d="M5.6 5.6l4.8 4.8M10.4 5.6l-4.8 4.8" stroke="#1E0E0C" stroke-width="1.8" stroke-linecap="round"/></svg>',
     stIdle: '<svg aria-hidden="true" width="14" height="14" viewBox="0 0 16 16"><circle cx="8" cy="8" r="7" fill="currentColor"/><rect x="7.1" y="4" width="1.8" height="8" rx=".6" fill="#1A1405"/></svg>',
+    // Platform admin area (Platform* boards): the lock of the boards' secret rows, and the "Suspended" status glyph.
+    lock15: s(15, '<rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/>'),
+    lock16: s(16, '<rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/>'),
+    stSusp: '<svg aria-hidden="true" width="12" height="12" viewBox="0 0 16 16"><circle cx="8" cy="8" r="7" fill="currentColor"/><path d="M6.2 5.2v5.6M9.8 5.2v5.6" stroke="#1F130A" stroke-width="1.8" stroke-linecap="round"/></svg>',
   };
 
   /* ---------- fake clock: the boards are drawn at 22 Nov 2026, about 11:00 ---------- */
@@ -169,7 +173,7 @@
     { id: 'lee-park', label: 'Project admin', hint: 'Lee Park, no org role, admin on invoicer-api only' },
     { id: 'mira-chen', label: 'Member', hint: 'Mira Chen, member of Harbor Labs (no role in Northwind)' },
     { id: 'theo-brandt', label: 'Viewer', hint: 'Theo Brandt, viewer in Harbor Labs' },
-    { id: 'ops-admin', label: 'Platform admin', hint: 'ops-admin (Morgan Avery), creates orgs, no org role' },
+    { id: 'ops-admin', label: 'Platform admin', hint: 'ops-admin (Morgan Avery), creates orgs, no org role; "Platform admin" in the org menu opens the platform area' },
     { id: 'dana-ortiz', label: 'New user with invitations', hint: 'Dana Ortiz, no org yet, 2 pending invitations' },
     { id: 'jo-marsh', label: 'Visitor with no invitation', hint: 'Jo Marsh, sign-in is refused' },
   ];

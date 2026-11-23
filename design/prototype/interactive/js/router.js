@@ -45,9 +45,19 @@
     if (p[0] === 'invitations' && n === 2) return { screen: 'accept', params: { token: p[1] } };
     if (p[0] === 'gallery' && p[1] === 'pagination') return { screen: 'gallery', params: {} };
     if (p[0] === 'b' && p[1]) return { screen: 'snapshot', params: { board: p[1] } };
+    // Platform admin area (platform-admin-dashboard spec): outside any org, its own layout. The org detail uses the org id.
+    if (p[0] === 'platform') {
+      if (n === 1) return { screen: 'platform.index', params: {} };
+      if (p[1] === 'admins' && n === 2) return { screen: 'platform.admins', params: {} };
+      if (p[1] === 'audit' && n === 2) return { screen: 'platform.audit', params: {} };
+      if (p[1] === 'orgs' && n === 2) return { screen: 'platform.orgs', params: {} };
+      if (p[1] === 'orgs' && p[2] && n <= 4) return { screen: 'platform.org', params: { orgId: p[2], tab: p[3] || 'overview' } };
+    }
     if (p[0] === 'o' && p[1]) {
       const org = p[1];
       const rest = p.slice(2);
+      // A suspended organization shows the fixed "suspended" message on every one of its URLs (BR-37).
+      if (AD.orgSuspendedView && AD.orgSuspendedView(org, route.q)) return { screen: 'orgsuspended', params: { org } };
       if (rest[0] === 'projects' && rest.length === 1) return { screen: 'projects', params: { org } };
       if (rest[0] === 'projects' && rest[1] === 'new' && rest[2]) return { screen: 'setup', params: { org, step: rest[2] } };
       if (rest[0] === 'needs-you') return { screen: 'needsyou', params: { org } };

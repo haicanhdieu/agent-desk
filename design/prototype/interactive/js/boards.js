@@ -38,6 +38,17 @@
     if (/^MyInvitations/.test(name)) return v('/invitations', 'MyInvitations');
     if (/^NeedsYou/.test(name)) return v(o('/needs-you'), 'NeedsYou');
     if (name === 'Pagination' || name === 'RouteError' || name === 'RouteLoading') return v('/gallery/pagination', 'Pagination');
+    // Platform admin area (Platform* boards) and the tenant "organization suspended" page.
+    if (/^PlatformAdmins/.test(name)) return v('/platform/admins', 'PlatformAdmins');
+    if (/^PlatformOrgs/.test(name)) return v('/platform/orgs', 'PlatformOrgs');
+    if (/^PlatformAudit/.test(name)) return v('/platform/audit', 'PlatformAudit');
+    if (/^PlatformOrgEdit/.test(name)) return { path: '/platform/orgs/' + (AD.platformOrgId ? AD.platformOrgId('harbor-labs') : 'harbor-labs'), q: { s: name } };
+    if ((m = /^PlatformOrg(Overview|Projects|Members|Invitations)/.exec(name))) {
+      const tab = m[1].toLowerCase();
+      const id = AD.platformOrgId ? AD.platformOrgId(/Suspended$|Reactivate/.test(name) ? 'bluefin-health' : 'harbor-labs') : 'harbor-labs';
+      return { path: '/platform/orgs/' + id + (tab === 'overview' ? '' : '/' + tab), q: name === 'PlatformOrg' + m[1] ? {} : { s: name } };
+    }
+    if (/^OrgSuspended/.test(name)) return { path: o('/projects'), q: { s: name } };
     if (/^Projects/.test(name)) return v(o('/projects'), 'Projects');
     if ((m = /^Setup([1-4])$/.exec(name))) return { path: o('/projects/new/' + m[1]), q: {} };
     if (/^Setup1(Polling|PollingOk)$/.test(name)) return { path: o('/projects/new/1'), q: { s: name } };

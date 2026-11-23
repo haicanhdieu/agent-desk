@@ -32,7 +32,7 @@ A dashed panel at the bottom right, collapsible (it remembers its state in the b
 | Org admin | yes | General, Members, Invitations, Audit log | No Owner card; no actions on owner rows |
 | Project admin | yes | Invitations only | Sees and invites only for projects they administer; other tabs show "You don't have access" inside the Settings layout; sees only their projects |
 | Member, Viewer | no | none | A typed Settings URL shows "You don't have access" under the same bar |
-| Platform admin | no | none | "Create organization" in the org switcher; holds no org role, so org Settings shows "You don't have access" |
+| Platform admin | no | none | "Platform admin" and "Create organization" in the org switcher; holds no org role, so org Settings shows "You don't have access". "Platform admin" opens the platform area (`#/platform/...`), which every other role sees as "You don't have access" |
 
 ## Navigation (Option A)
 
@@ -69,7 +69,7 @@ Clicks, as the proposal promises: Projects <-> Settings is one click with the ta
 - Settings is a tab (org pages) and an org-menu item (every page). The Settings button on the Projects page header is gone by default (a proposal toggle brings it back). The avatar-menu Settings item and its toggle are dropped.
 - The run page crumb "invoicer-api" no longer leads to the all-projects list; the crumbs are now the org and project switchers followed by "Runs" (the project's Runs list).
 - The needs-you page has the bar. My invitations is reached from sign-in, not from the account menu. "Sign out" is now "Logout" everywhere (the code uses "Logout").
-- The 246 static boards are still drawn inside the live bar: the bar of each board's header strip is replaced by the live one (122 org-level, 93 project-level, 21 run-level). Boards drawn without a bar and now given one: the needs-you explainer (org bar) and the page-crash and loading boards (bar of the current area). Boards that stay barless: Main (index), the two sign-in boards, Pagination and RunTranscriptStates (explainers). The check script counts the bars of every board: exactly one, never two.
+- The 319 static boards are still drawn inside the live bar: the bar of each board's header strip is replaced by the live one (195 org-level, 93 project-level, 21 run-level). Boards drawn without a bar and now given one: the needs-you explainer (org bar) and the page-crash and loading boards (bar of the current area). Boards that stay barless: Main (index), the two sign-in boards, Pagination and RunTranscriptStates (explainers). The check script counts the bars of every board: exactly one, never two.
 - Board text changes done at display time (the boards stay untouched): "This list is one click away on the logo." reads "... on the Projects tab." on Projects boards, and the Settings or Invitations button in the head of the Projects boards is hidden unless the first proposal toggle is on.
 
 ### Proposals to review (open questions 2 and 3 of the proposal, not decided)
@@ -89,6 +89,15 @@ The proposal's question 1 (is "Settings two clicks from inside a project" accept
 | `#/invitations` | My invitations (accept and decline work) | MyInvitations* |
 | `#/invitations/<token>` | Accept an invitation | InvitationAccept* |
 | `#/orgs/new` | Create organization (platform admin) | CreateOrg* |
+| `#/platform` | Redirects to the Organizations directory (platform admin only) | n/a |
+| `#/platform/orgs` | Platform admin > Organizations: search and status filter in the URL (`?q=`, `?status=`), Create organization | PlatformOrgs* |
+| `#/platform/orgs/<orgId>` | Organization detail > Overview: status, Edit organization (name and URL, URL-change confirm; also on a suspended org), Suspend / Reactivate with a reason, View audit log. After a URL change the old `/o/<old-slug>` shows not found | PlatformOrgOverview*, PlatformOrgEdit* |
+| `#/platform/orgs/<orgId>/projects` | Organization detail > Projects (id and name only) | PlatformOrgProjects* |
+| `#/platform/orgs/<orgId>/members` | Organization detail > Members: roles with scopes; row menu Add assignment, Remove one assignment | PlatformOrgMembers* |
+| `#/platform/orgs/<orgId>/invitations` | Organization detail > Invitations (same actions as Settings > Invitations; Owner may be invited) | PlatformOrgInvitations* |
+| `#/platform/admins` | Platform admins: add (404 / 422 field errors), revoke, revoke yourself, last working admin | PlatformAdmins* |
+| `#/platform/audit` | Platform audit log: Action select (`?action=`), org chip (`?org=<orgId>`) | PlatformAudit* |
+| `#/o/<suspended org>/...` | Every URL of a suspended org shows "This organization is suspended"; the switcher marks it "Suspended" | OrgSuspended* |
 | `#/o/<org>/projects` | Projects list, banners, checklist, org switcher | Projects* |
 | `#/o/<org>/projects/new/1..4`, `ready`, `workspace` | New project setup | Setup* |
 | `#/o/<org>/needs-you` | Needs you outside the run page (under the org bar) | NeedsYou* |
@@ -108,7 +117,7 @@ The proposal's question 1 (is "Settings two clicks from inside a project" accept
 | `#/index` | Index of all boards | Main |
 | `#/gallery/pagination` | Pagination and route loading/error boards | Pagination, RouteLoading, RouteError |
 
-Orgs in the data: `harbor-labs` (Harbor Labs, main one), `northwind` (Northwind Analytics, empty, with a getting-started checklist), `riverside` (long name, Kim Hale is only a member). Projects: invoicer-api, invoicer-web, docs-site, billing-jobs.
+Orgs in the data: `harbor-labs` (Harbor Labs, main one), `northwind` (Northwind Analytics, empty, with a getting-started checklist), `riverside` (long name, Kim Hale is only a member). The platform directory also lists `acme-rockets` (no owner yet) and `bluefin-health` (suspended); those two exist only in the platform area. In Add platform admin, `jo.marsh@example.com` has no account (404) and `new.hire@agentdesk.example` is not verified (422); any persona or member email works. Projects: invoicer-api, invoicer-web, docs-site, billing-jobs.
 
 ## What is real and what is faked
 
@@ -128,7 +137,7 @@ Faked or static:
 
 ## Coverage of every board
 
-There are 246 boards in `design/prototype/project/`. Every one is reproduced: each is reachable through the route in the table and also from the Scenario selector on its screen. "Live screen" means the default route is the working, stateful screen. "Board snapshot" means the route shows the board as drawn inside the live header and navigation. Where a board's states can be produced live, the last column says how. Routes assume `harbor-labs` and `invoicer-api`; the Screen map and the Scenario selector build them for the current org and project.
+There are 319 boards in `design/prototype/project/`. Every one is reproduced: each is reachable through the route in the table and also from the Scenario selector on its screen. "Live screen" means the default route is the working, stateful screen. "Board snapshot" means the route shows the board as drawn inside the live header and navigation. Where a board's states can be produced live, the last column says how. Routes assume `harbor-labs` and `invoicer-api`; the Screen map and the Scenario selector build them for the current org and project.
 
 Three default routes depend on the role: CreateOrg (Platform admin; others see CreateOrgForbidden), MyInvitations (New user with invitations; others see the empty board) and InvitationAccept (New user with invitations; others see "not available"). Their other boards are reachable with `?s=`.
 
@@ -165,14 +174,14 @@ Boards not reproduced: none. Closest to not reproduced: `OrgInvitationsInviteTab
 | `index.html` | Entry; loads the CSS and scripts in order |
 | `board-styles.css` | Union of the boards' shared CSS (generated) |
 | `styles.css` | Prototype-only styles: sticky bar, name truncation in the bar, menus, toasts, controls panel, screen map (tokens only) |
-| `data/boards.js` | The 246 boards' markup (generated) |
+| `data/boards.js` | The 319 boards' markup (generated) |
 | `js/core.js` | Fake data, roles, permission rules, fake API |
 | `js/router.js` | Hash router |
 | `js/boards.js` | Board lookup, board-to-route mapping, generic states |
 | `js/chrome.js` | The top bar (org and project crumbs, tabs, run bar), account, org and project menus, dialogs, toasts, pager |
 | `js/controls.js` | Prototype controls panel and screen map |
 | `js/main.js` | Render pipeline, click and input handlers |
-| `screens/*.js` | Settings, invitations, projects, sign-in and invitation screens, board-backed screens; `screens/desksetup.js` is the live Desk > Workspace setup (tab strip and Environment tab) |
+| `screens/*.js` | Settings, invitations, projects, sign-in and invitation screens, board-backed screens; `screens/platform.js` is the platform admin area and the suspended-org page; `screens/desksetup.js` is the live Desk > Workspace setup (tab strip and Environment tab) |
 | `_checks/` | Screenshots from the headless Chrome run (not needed to use the prototype). `_checks/nav-check.mjs` re-runs the navigation checks (Option A) and writes `_checks/nav/*.png`; it needs playwright-core and a headless Chromium (read-only use of the repo's `node_modules`). |
 
 ## Coverage table
@@ -286,6 +295,7 @@ No routes changed with the Option A navigation update, so every row below still 
 | `MyInvitationsAccepting` | `#/invitations?s=MyInvitationsAccepting` | Board snapshot, live header and navigation | Live: Accept (0.7 s) |
 | `MyInvitationsEmpty` | `#/invitations?s=MyInvitationsEmpty` | Board snapshot, live header and navigation | Live: persona Org owner, open #/invitations |
 | `MyInvitationsEmptyPlatformAdmin` | `#/invitations?s=MyInvitationsEmptyPlatformAdmin` | Board snapshot, live header and navigation | Live: persona Platform admin, open #/invitations |
+| `MyInvitationsEmptyPlatformAdminMenu` | `#/invitations?s=MyInvitationsEmptyPlatformAdminMenu` | Board snapshot, live header and navigation | Live: as Platform admin open #/orgs/new and the "No organization" menu |
 | `MyInvitationsError` | `#/invitations?s=MyInvitationsError` | Board snapshot, live header and navigation | Board snapshot (static) |
 | `MyInvitationsLoading` | `#/invitations?s=MyInvitationsLoading` | Board snapshot, live header and navigation | Board snapshot (static) |
 | `NeedsYou` | `#/o/harbor-labs/needs-you` | Board snapshot, under the live org bar (new) | Static board (not stateful in this prototype) |
@@ -299,6 +309,8 @@ No routes changed with the Option A navigation update, so every row below still 
 | `OrgAuditInvitationProjects` | `#/o/harbor-labs/settings/audit?s=OrgAuditInvitationProjects` | Board snapshot, live header and navigation | Board snapshot (static): invitation sentences name the listed projects (rbac-project-admin-space spec); the live Audit log still draws the old sentences |
 | `OrgAuditLoading` | `#/o/harbor-labs/settings/audit?s=OrgAuditLoading` | Board snapshot, live header and navigation | Scenario selector: Loading |
 | `OrgAuditPaged` | `#/o/harbor-labs/settings/audit?s=OrgAuditPaged` | Board snapshot, live header and navigation | Live: 25 entries, page size 20, page 2 |
+| `OrgAuditPlatformEdit` | `#/o/harbor-labs/settings/audit?s=OrgAuditPlatformEdit` | Board snapshot, live header and navigation | Live: as Platform admin edit Harbor Labs, then Settings > Audit log as Org owner (at the new URL) |
+| `OrgAuditPlatformSuspend` | `#/o/harbor-labs/settings/audit?s=OrgAuditPlatformSuspend` | Board snapshot, live header and navigation | Live: suspend and reactivate Harbor Labs as Platform admin, then Settings > Audit log as Org owner |
 | `OrgGeneral` | `#/o/harbor-labs/settings/general` | Live screen | Live: Settings > General |
 | `OrgGeneralFieldErrors` | `#/o/harbor-labs/settings/general?s=OrgGeneralFieldErrors` | Board snapshot, live header and navigation | Live: clear the name, enter a bad URL, Save |
 | `OrgGeneralForbidden` | `#/o/harbor-labs/settings/general?s=OrgGeneralForbidden` | Board snapshot, live header and navigation | Live: sign in as Member/Viewer and open the URL; project admin gets it inside the Settings layout |
@@ -360,7 +372,76 @@ No routes changed with the Option A navigation update, so every row below still 
 | `OrgMembersRowMenu` | `#/o/harbor-labs/settings/members?s=OrgMembersRowMenu` | Board snapshot, live header and navigation | Live: row menu on another member |
 | `OrgMembersRowMenuSelf` | `#/o/harbor-labs/settings/members?s=OrgMembersRowMenuSelf` | Board snapshot, live header and navigation | Live: row menu on your own row |
 | `OrgMembersStepDown` | `#/o/harbor-labs/settings/members?s=OrgMembersStepDown` | Board snapshot, live header and navigation | Live: as owner, Change role on your own row, pick a lower role |
+| `OrgSuspended` | `#/o/harbor-labs/projects?s=OrgSuspended` | Board snapshot, live header and navigation | Live: as Platform admin suspend Harbor Labs, then switch persona to Org owner |
+| `OrgSuspendedPlatformAdmin` | `#/o/harbor-labs/projects?s=OrgSuspendedPlatformAdmin` | Board snapshot, live header and navigation | Live: as Platform admin open #/o/harbor-labs/projects after suspending it, then the org switcher |
+| `OrgSuspendedSwitcher` | `#/o/harbor-labs/projects?s=OrgSuspendedSwitcher` | Board snapshot, live header and navigation | Live: on the suspended page open the org switcher |
 | `Pagination` | `#/gallery/pagination` | Board snapshot, live header and navigation | Static board (not stateful in this prototype) |
+| `PlatformAdmins` | `#/platform/admins` | Live screen (Platform admin) | Live: persona Platform admin, org menu > Platform admin > Platform admins |
+| `PlatformAdminsAdd` | `#/platform/admins?s=PlatformAdminsAdd` | Board snapshot, live header and navigation | Live: Add platform admin |
+| `PlatformAdminsAddError` | `#/platform/admins?s=PlatformAdminsAddError` | Board snapshot, live header and navigation | Live: Fail the next action with 500 or 403, then Add |
+| `PlatformAdminsAddFieldErrors` | `#/platform/admins?s=PlatformAdminsAddFieldErrors` | Board snapshot, live header and navigation | Live: Add with jo.marsh@example.com (no account) or new.hire@agentdesk.example (not verified) |
+| `PlatformAdminsAddSaving` | `#/platform/admins?s=PlatformAdminsAddSaving` | Board snapshot, live header and navigation | Live: Add with a known email, e.g. jordan.wu@harborlabs.dev (0.6 s) |
+| `PlatformAdminsEmpty` | `#/platform/admins?s=PlatformAdminsEmpty` | Board snapshot, live header and navigation | Scenario Empty |
+| `PlatformAdminsError` | `#/platform/admins?s=PlatformAdminsError` | Board snapshot, live header and navigation | Scenario Error (live banner with Retry) |
+| `PlatformAdminsForbidden` | `#/platform/admins?s=PlatformAdminsForbidden` | Board snapshot, live header and navigation | Live: any other persona types #/platform/admins |
+| `PlatformAdminsLastAdmin` | `#/platform/admins?s=PlatformAdminsLastAdmin` | Board snapshot, live header and navigation | Live: revoke Priya Natarajan; your own Revoke is then disabled with "Last admin" |
+| `PlatformAdminsLoading` | `#/platform/admins?s=PlatformAdminsLoading` | Board snapshot, live header and navigation | Scenario Loading (live skeleton in the layout) |
+| `PlatformAdminsPaged` | `#/platform/admins?s=PlatformAdminsPaged` | Board snapshot, live header and navigation | Board snapshot (static); live list has 3 admins |
+| `PlatformAdminsRevokeConfirm` | `#/platform/admins?s=PlatformAdminsRevokeConfirm` | Board snapshot, live header and navigation | Live: Revoke on Priya Natarajan |
+| `PlatformAdminsRevokeSelf` | `#/platform/admins?s=PlatformAdminsRevokeSelf` | Board snapshot, live header and navigation | Live: Revoke on your own row (needs another working admin; confirming goes to the home page) |
+| `PlatformAdminsRevoking` | `#/platform/admins?s=PlatformAdminsRevoking` | Board snapshot, live header and navigation | Live: confirm Revoke (0.6 s) |
+| `PlatformAudit` | `#/platform/audit` | Live screen (Platform admin) | Live: persona Platform admin, Platform admin > Audit log |
+| `PlatformAuditEmpty` | `#/platform/audit?s=PlatformAuditEmpty` | Board snapshot, live header and navigation | Scenario Empty |
+| `PlatformAuditEmptyFiltered` | `#/platform/audit?s=PlatformAuditEmptyFiltered` | Board snapshot, live header and navigation | Live: pick an action with no entries, e.g. after a reset none match "Invitation resent" for Bluefin Health |
+| `PlatformAuditError` | `#/platform/audit?s=PlatformAuditError` | Board snapshot, live header and navigation | Scenario Error |
+| `PlatformAuditLoading` | `#/platform/audit?s=PlatformAuditLoading` | Board snapshot, live header and navigation | Scenario Loading |
+| `PlatformAuditOrgChip` | `#/platform/audit?s=PlatformAuditOrgChip` | Board snapshot, live header and navigation | Live: org detail > View audit log; the chip x removes the filter |
+| `PlatformAuditOrgChipUnknown` | `#/platform/audit?s=PlatformAuditOrgChipUnknown` | Board snapshot, live header and navigation | Live: #/platform/audit?org=<unknown id> |
+| `PlatformAuditPaged` | `#/platform/audit?s=PlatformAuditPaged` | Board snapshot, live header and navigation | Live: page 2 |
+| `PlatformOrgEdit` | `#/platform/orgs/0f6d2a91-3c4b-4e8a-9b1d-7a2c5e8f4b10?s=PlatformOrgEdit` | Board snapshot, live header and navigation | Live: org detail > Edit organization (Save stays disabled until a value changes) |
+| `PlatformOrgEditError` | `#/platform/orgs/0f6d2a91-3c4b-4e8a-9b1d-7a2c5e8f4b10?s=PlatformOrgEditError` | Board snapshot, live header and navigation | Live: Fail the next action with 500 or 403, then Save (404 gives the "Organization not found" toast) |
+| `PlatformOrgEditFieldErrors` | `#/platform/orgs/0f6d2a91-3c4b-4e8a-9b1d-7a2c5e8f4b10?s=PlatformOrgEditFieldErrors` | Board snapshot, live header and navigation | Live: clear the Name or type -harbor- as URL, then Save |
+| `PlatformOrgEditSaving` | `#/platform/orgs/0f6d2a91-3c4b-4e8a-9b1d-7a2c5e8f4b10?s=PlatformOrgEditSaving` | Board snapshot, live header and navigation | Live: change the Name, Save (0.6 s) |
+| `PlatformOrgEditSlugConfirm` | `#/platform/orgs/0f6d2a91-3c4b-4e8a-9b1d-7a2c5e8f4b10?s=PlatformOrgEditSlugConfirm` | Board snapshot, live header and navigation | Live: change the URL, Save (Cancel returns to the dialog with the input kept) |
+| `PlatformOrgEditSlugTaken` | `#/platform/orgs/0f6d2a91-3c4b-4e8a-9b1d-7a2c5e8f4b10?s=PlatformOrgEditSlugTaken` | Board snapshot, live header and navigation | Live: URL northwind, Save, Change URL |
+| `PlatformOrgInvitations` | `#/platform/orgs/0f6d2a91-3c4b-4e8a-9b1d-7a2c5e8f4b10/invitations` | Live screen (Platform admin) | Live: detail > Invitations (same actions as Settings > Invitations) |
+| `PlatformOrgInvitationsCopyFailed` | `#/platform/orgs/0f6d2a91-3c4b-4e8a-9b1d-7a2c5e8f4b10/invitations?s=PlatformOrgInvitationsCopyFailed` | Board snapshot, live header and navigation | Live: Fail the next action with "Clipboard blocked", then row menu > Copy link |
+| `PlatformOrgInvitationsEmpty` | `#/platform/orgs/0f6d2a91-3c4b-4e8a-9b1d-7a2c5e8f4b10/invitations?s=PlatformOrgInvitationsEmpty` | Board snapshot, live header and navigation | Scenario Empty, or Bluefin Health |
+| `PlatformOrgInvitationsError` | `#/platform/orgs/0f6d2a91-3c4b-4e8a-9b1d-7a2c5e8f4b10/invitations?s=PlatformOrgInvitationsError` | Board snapshot, live header and navigation | Scenario Error |
+| `PlatformOrgInvitationsInvite` | `#/platform/orgs/0f6d2a91-3c4b-4e8a-9b1d-7a2c5e8f4b10/invitations?s=PlatformOrgInvitationsInvite` | Board snapshot, live header and navigation | Live: Invite people (Owner is offered) |
+| `PlatformOrgInvitationsLoading` | `#/platform/orgs/0f6d2a91-3c4b-4e8a-9b1d-7a2c5e8f4b10/invitations?s=PlatformOrgInvitationsLoading` | Board snapshot, live header and navigation | Scenario Loading |
+| `PlatformOrgInvitationsPaged` | `#/platform/orgs/0f6d2a91-3c4b-4e8a-9b1d-7a2c5e8f4b10/invitations?s=PlatformOrgInvitationsPaged` | Board snapshot, live header and navigation | Board snapshot (static) |
+| `PlatformOrgInvitationsResending` | `#/platform/orgs/0f6d2a91-3c4b-4e8a-9b1d-7a2c5e8f4b10/invitations?s=PlatformOrgInvitationsResending` | Board snapshot, live header and navigation | Live: row menu > Resend (0.7 s) |
+| `PlatformOrgMembers` | `#/platform/orgs/0f6d2a91-3c4b-4e8a-9b1d-7a2c5e8f4b10/members` | Live screen (Platform admin) | Live: detail > Members |
+| `PlatformOrgMembersAddAssignment` | `#/platform/orgs/0f6d2a91-3c4b-4e8a-9b1d-7a2c5e8f4b10/members?s=PlatformOrgMembersAddAssignment` | Board snapshot, live header and navigation | Live: row menu > Add assignment |
+| `PlatformOrgMembersEmpty` | `#/platform/orgs/0f6d2a91-3c4b-4e8a-9b1d-7a2c5e8f4b10/members?s=PlatformOrgMembersEmpty` | Board snapshot, live header and navigation | Scenario Empty, or Acme Rockets |
+| `PlatformOrgMembersError` | `#/platform/orgs/0f6d2a91-3c4b-4e8a-9b1d-7a2c5e8f4b10/members?s=PlatformOrgMembersError` | Board snapshot, live header and navigation | Scenario Error |
+| `PlatformOrgMembersLoading` | `#/platform/orgs/0f6d2a91-3c4b-4e8a-9b1d-7a2c5e8f4b10/members?s=PlatformOrgMembersLoading` | Board snapshot, live header and navigation | Scenario Loading |
+| `PlatformOrgMembersPaged` | `#/platform/orgs/0f6d2a91-3c4b-4e8a-9b1d-7a2c5e8f4b10/members?s=PlatformOrgMembersPaged` | Board snapshot, live header and navigation | Live: Harbor Labs page 2 |
+| `PlatformOrgMembersRemoveConfirm` | `#/platform/orgs/0f6d2a91-3c4b-4e8a-9b1d-7a2c5e8f4b10/members?s=PlatformOrgMembersRemoveConfirm` | Board snapshot, live header and navigation | Live: row menu > Remove <assignment> |
+| `PlatformOrgMembersRemoving` | `#/platform/orgs/0f6d2a91-3c4b-4e8a-9b1d-7a2c5e8f4b10/members?s=PlatformOrgMembersRemoving` | Board snapshot, live header and navigation | Live: confirm Remove (0.6 s); removing the last owner is allowed and the directory shows "No owner yet" |
+| `PlatformOrgMembersRowMenu` | `#/platform/orgs/0f6d2a91-3c4b-4e8a-9b1d-7a2c5e8f4b10/members?s=PlatformOrgMembersRowMenu` | Board snapshot, live header and navigation | Live: a row menu |
+| `PlatformOrgOverview` | `#/platform/orgs/0f6d2a91-3c4b-4e8a-9b1d-7a2c5e8f4b10` | Live screen (Platform admin) | Live: directory > Harbor Labs |
+| `PlatformOrgOverviewError` | `#/platform/orgs/0f6d2a91-3c4b-4e8a-9b1d-7a2c5e8f4b10?s=PlatformOrgOverviewError` | Board snapshot, live header and navigation | Scenario Error |
+| `PlatformOrgOverviewLoading` | `#/platform/orgs/0f6d2a91-3c4b-4e8a-9b1d-7a2c5e8f4b10?s=PlatformOrgOverviewLoading` | Board snapshot, live header and navigation | Scenario Loading |
+| `PlatformOrgOverviewNotFound` | `#/platform/orgs/0f6d2a91-3c4b-4e8a-9b1d-7a2c5e8f4b10?s=PlatformOrgOverviewNotFound` | Board snapshot, live header and navigation | Live: #/platform/orgs/<unknown id> |
+| `PlatformOrgOverviewReactivateDialog` | `#/platform/orgs/b47d9c62-1e5f-4a38-9d6b-2f8a4c7e1d93?s=PlatformOrgOverviewReactivateDialog` | Board snapshot, live header and navigation | Live: Reactivate organization on Bluefin Health |
+| `PlatformOrgOverviewSuspendDialog` | `#/platform/orgs/0f6d2a91-3c4b-4e8a-9b1d-7a2c5e8f4b10?s=PlatformOrgOverviewSuspendDialog` | Board snapshot, live header and navigation | Live: Suspend organization |
+| `PlatformOrgOverviewSuspendError` | `#/platform/orgs/0f6d2a91-3c4b-4e8a-9b1d-7a2c5e8f4b10?s=PlatformOrgOverviewSuspendError` | Board snapshot, live header and navigation | Live: Suspend with an empty reason (or over 500 characters) |
+| `PlatformOrgOverviewSuspendFormError` | `#/platform/orgs/0f6d2a91-3c4b-4e8a-9b1d-7a2c5e8f4b10?s=PlatformOrgOverviewSuspendFormError` | Board snapshot, live header and navigation | Live: Fail the next action with 500 or 403, then Suspend (404 gives the "Organization not found" toast) |
+| `PlatformOrgOverviewSuspendSaving` | `#/platform/orgs/0f6d2a91-3c4b-4e8a-9b1d-7a2c5e8f4b10?s=PlatformOrgOverviewSuspendSaving` | Board snapshot, live header and navigation | Live: Suspend with a reason (0.6 s) |
+| `PlatformOrgOverviewSuspended` | `#/platform/orgs/b47d9c62-1e5f-4a38-9d6b-2f8a4c7e1d93?s=PlatformOrgOverviewSuspended` | Board snapshot, live header and navigation | Live: directory > Bluefin Health, or suspend any org |
+| `PlatformOrgProjects` | `#/platform/orgs/0f6d2a91-3c4b-4e8a-9b1d-7a2c5e8f4b10/projects` | Live screen (Platform admin) | Live: detail > Projects |
+| `PlatformOrgProjectsEmpty` | `#/platform/orgs/0f6d2a91-3c4b-4e8a-9b1d-7a2c5e8f4b10/projects?s=PlatformOrgProjectsEmpty` | Board snapshot, live header and navigation | Scenario Empty, or Acme Rockets |
+| `PlatformOrgProjectsError` | `#/platform/orgs/0f6d2a91-3c4b-4e8a-9b1d-7a2c5e8f4b10/projects?s=PlatformOrgProjectsError` | Board snapshot, live header and navigation | Scenario Error |
+| `PlatformOrgProjectsLoading` | `#/platform/orgs/0f6d2a91-3c4b-4e8a-9b1d-7a2c5e8f4b10/projects?s=PlatformOrgProjectsLoading` | Board snapshot, live header and navigation | Scenario Loading |
+| `PlatformOrgProjectsPaged` | `#/platform/orgs/0f6d2a91-3c4b-4e8a-9b1d-7a2c5e8f4b10/projects?s=PlatformOrgProjectsPaged` | Board snapshot, live header and navigation | Board snapshot (static) |
+| `PlatformOrgs` | `#/platform/orgs` | Live screen (Platform admin) | Live: persona Platform admin, org menu > Platform admin |
+| `PlatformOrgsEmpty` | `#/platform/orgs?s=PlatformOrgsEmpty` | Board snapshot, live header and navigation | Scenario Empty |
+| `PlatformOrgsEmptyFiltered` | `#/platform/orgs?s=PlatformOrgsEmptyFiltered` | Board snapshot, live header and navigation | Live: search for a name that matches nothing; Clear filters |
+| `PlatformOrgsError` | `#/platform/orgs?s=PlatformOrgsError` | Board snapshot, live header and navigation | Scenario Error |
+| `PlatformOrgsLoading` | `#/platform/orgs?s=PlatformOrgsLoading` | Board snapshot, live header and navigation | Scenario Loading |
+| `PlatformOrgsPaged` | `#/platform/orgs?s=PlatformOrgsPaged` | Board snapshot, live header and navigation | Board snapshot (static); live directory has 5 orgs plus the ones you create |
 | `Projects` | `#/o/harbor-labs/projects` | Live screen | Live: Projects |
 | `ProjectsChecklist` | `#/o/harbor-labs/projects?s=ProjectsChecklist` | Board snapshot, live header and navigation | Live: Northwind as Kim Hale (the drawn Settings or Invitations head button is hidden unless the proposal toggle is on) |
 | `ProjectsChecklistDone` | `#/o/harbor-labs/projects?s=ProjectsChecklistDone` | Board snapshot, live header and navigation | Board snapshot (static) (the drawn Settings or Invitations head button is hidden unless the proposal toggle is on) |
@@ -374,6 +455,7 @@ No routes changed with the Option A navigation update, so every row below still 
 | `ProjectsMember` | `#/o/harbor-labs/projects?s=ProjectsMember` | Board snapshot, live header and navigation | Live: sign in as Member |
 | `ProjectsNoAccess` | `#/o/harbor-labs/projects?s=ProjectsNoAccess` | Board snapshot, live header and navigation | Live: Mira Chen in Northwind (no role) |
 | `ProjectsOrgSwitchAdmin` | `#/o/harbor-labs/projects?s=ProjectsOrgSwitchAdmin` | Board snapshot, live header and navigation | Live: org switcher as Platform admin (the drawn Settings or Invitations head button is hidden unless the proposal toggle is on) |
+| `ProjectsOrgSwitchAdminPlatform` | `#/o/harbor-labs/projects?s=ProjectsOrgSwitchAdminPlatform` | Board snapshot, live header and navigation | Live: org switcher as Platform admin |
 | `ProjectsOrgSwitchOpen` | `#/o/harbor-labs/projects?s=ProjectsOrgSwitchOpen` | Board snapshot, live header and navigation | Live: open the org switcher (the drawn Settings or Invitations head button is hidden unless the proposal toggle is on) |
 | `ProjectsPaged` | `#/o/harbor-labs/projects?s=ProjectsPaged` | Board snapshot, live header and navigation | Board snapshot (static) |
 | `ProjectsSwitching` | `#/o/harbor-labs/projects?s=ProjectsSwitching` | Board snapshot, live header and navigation | Live: choose another org (0.7 s) |
