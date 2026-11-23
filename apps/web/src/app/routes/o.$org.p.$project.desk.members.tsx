@@ -1,3 +1,4 @@
+import { useEffect, useRef, useState } from 'react';
 import { useQuery, useSuspenseQuery } from '@tanstack/react-query';
 import { ApiError } from '@agentdesk/contracts/client';
 import { createFileRoute, useNavigate } from '@tanstack/react-router';
@@ -10,8 +11,9 @@ import {
   usePaginationProps,
 } from '@/app/pagination';
 import { requireProjectPermission } from '@/features/access/guards';
-import { sessionQuery } from '@/features/auth/session';
+import { orgsQuery, sessionQuery } from '@/features/auth/session';
 import { useDeskFrame } from '@/features/desk/frame';
+import { AddMemberDialog } from '@/features/projectMembers/AddMemberDialog';
 import { toProjectMemberRow } from '@/features/projectMembers/map';
 import { projectMembersQuery } from '@/features/projectMembers/queries';
 import { useNow } from '@/app/useNow';
@@ -27,9 +29,12 @@ export const Route = createFileRoute('/o/$org/p/$project/desk/members')({
 
 const noop = () => {};
 
+const findAddButton = () =>
+  [...document.querySelectorAll<HTMLButtonElement>('main button')].find((b) => b.textContent === 'Add member');
+
 /**
- * The Members page's data and wiring: the frame, the list query and the screen state. Tasks 25 to 27 extend it with the
- * Add, Invite, Change role and Remove actions.
+ * The Members page's data and wiring: the frame, the list query and the screen state. Task 25 wires Add; Tasks 26 and 27 extend
+ * it with Invite, Change role and Remove.
  */
 export function useDeskMembersState(org: string, projectId: string): Omit<DeskMembersProps, 'headingRef'> {
   const search = Route.useSearch();
@@ -40,6 +45,17 @@ export function useDeskMembersState(org: string, projectId: string): Omit<DeskMe
   const frame = useDeskFrame(org, projectId, now);
   const { data: session } = useSuspenseQuery(sessionQuery);
   const list = useQuery(projectMembersQuery(org, projectId, { page, pageSize }));
+  const { data: orgs } = useSuspenseQuery(orgsQuery);
+  const orgId = orgs.find((o) => o.slug === org)?.id;
+  const [adding, setAdding] = useState(false);
+  const [notice, setNotice] = useState<{ title: string } | null>(null);
+  const refocusAdd = useRef(false);
+  // After a successful add the dialog is gone: focus goes back to "Add member".
+  useEffect(() => {
+    if (adding || !refocusAdd.current) return;
+    refocusAdd.current = false;
+    findAddButton()?.focus();
+  }, [adding]);
 
   const go = (p: number, replace = false) =>
     void navigate({ search: (prev) => ({ ...prev, page: pageToSearch(p) }), replace });
@@ -73,16 +89,32 @@ export function useDeskMembersState(org: string, projectId: string): Omit<DeskMe
     };
   }
 
-  // Add, Invite and the row actions are wired by the next tasks.
+  // Invite and the row actions are wired by the next tasks.
   return {
     frame,
     orgName: frame.org.current?.name ?? org,
     projectName: frame.project.name,
     state,
-    onAdd: noop,
+    onAdd: () => setAdding(true),
     onInvite: noop,
     onChangeRole: noop,
     onRemove: noop,
+    ...(notice && { notice: { tone: 'ok' as const, title: notice.title, onDismiss: () => setNotice(null) } }),
+    children: adding && orgId !== undefined && (
+      <AddMemberDialog
+        org={org}
+        orgId={orgId}
+        orgName={frame.org.current?.name ?? org}
+        projectId={projectId}
+        projectName={frame.project.name}
+        onAdded={(dto, roleName) => {
+          refocusAdd.current = true;
+          setNotice({ title: `${dto.name} added as ${roleName}` });
+          setAdding(false);
+        }}
+        onCancel={() => setAdding(false)}
+      />
+    ),
   };
 }
 

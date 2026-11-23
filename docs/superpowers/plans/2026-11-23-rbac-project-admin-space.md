@@ -1062,15 +1062,15 @@ export function useAddProjectMember(org: string, projectId: string): UseMutation
 export function useAddMemberForm(org: string, projectId: string, onAdded: (dto: ProjectMemberDto, roleName: string) => void); // TanStack Form validated by AddProjectMemberRequest
 ```
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
   - `picker.test.ts` (BR-7): `memberSearchQuery('', P, 1)` and `('   ', P, 1)` have no `q`; `(' al ', P, 2)` → `{ q: 'al', excludeProject: P, page: 2, pageSize: 20 }`.
   - `roleCards.test.ts` (BR-6): only Admin, Member, Viewer; Owner and roles without `project` scope left out; texts from the spec.
   - `addForm.test.ts`: empty submit → "Choose a person." and "Choose a role."; `/userId` and `/roleId` problems map to the fields.
   - `add.route.test.tsx`: first picker request has no `q`; typing debounces 250 ms (fake timers); Review Focus 2: a slow "al" response arriving after "ali" never replaces the "ali" options; Add success → toast "<name> added as Member", list refetched, focus back on "Add member"; 409 → Banner "This person already has a role on this project." / "Use Change role to change it.", Person cleared, role kept, list and picker refetched; 422 `/userId` → "This person is no longer in the organization." and picker refetched; 403 (demotedMeanwhile, BR-25) → Banner with request id, input kept; the dialog cannot close while saving.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/features/projectMembers`. Expected: FAIL.
-- [ ] **Step 3: Implement** the modules and wire the dialog into the route (picker query enabled only while the dialog is open; `useInfiniteQuery` with `getNextPageParam` from `total`; previous results kept with state `searching`).
-- [ ] **Step 4: Run** Step 2's command and `pnpm --filter @agentdesk/web typecheck`. Expected: PASS. E2E: Task 29.
-- [ ] **Step 5: Commit**: `feat(web): add an org member to a project from Members`.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/features/projectMembers`. Expected: FAIL.
+- [x] **Step 3: Implement** the modules and wire the dialog into the route (picker query enabled only while the dialog is open; `useInfiniteQuery` with `getNextPageParam` from `total`; previous results kept with state `searching`).
+- [x] **Step 4: Run** Step 2's command and `pnpm --filter @agentdesk/web typecheck`. Expected: PASS. E2E: Task 29.
+- [x] **Step 5: Commit**: `feat(web): add an org member to a project from Members`.
 
 ---
 
