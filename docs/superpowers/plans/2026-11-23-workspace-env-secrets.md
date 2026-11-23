@@ -789,7 +789,7 @@ Covers: BR-6 (TC-6.2), BR-7 (TC-7.2), BR-8 (TC-8.2), BR-9 (TC-9.2), BR-11 (TC-11
 
 Covers: BR-10 local (TC-10.4, TC-10.5), BR-18 (TC-18.1, TC-18.2, TC-18.3), BR-19 (TC-19.1, TC-19.2), BR-20 local (TC-20.3, TC-20.4, TC-20.5: `POST /api/runs/:id/stop` then `POST /api/runs/:id/resume`), BR-21 (TC-21.1 with `--fake-fail` and `setAutoResumeMax(0)`, TC-21.2 admin stop, change, resume, TC-21.3 stop a run and resume it with no value change since: the resumed Pod's hash line equals the one before). Setup-test side of BR-18, setup log and transcript of BR-19 are Not e2e (Task 11 and Task 4).
 
-- [ ] **Step 1: Write the specs** (titles `BR-<n>: ...`), reading `podLogLines(runId)` through `expect.poll`; assert raw secret values never appear in `GET /api/runs/:id/log` or `postedComments`.
-- [ ] **Step 2: Run** with the stack up: `pnpm --filter @agentdesk/web exec playwright test e2e/local/project-env-runs.spec.ts`. Expected: PASS. Report honestly if the stack cannot start.
+- [x] **Step 1: Write the specs** (titles `BR-<n>: ...`), reading `podLogLines(runId)` through `expect.poll`; assert raw secret values never appear in `GET /api/runs/:id/log` or `postedComments`.
+- [x] **Step 2: Run** with the stack up: `pnpm --filter @agentdesk/web exec playwright test e2e/local/project-env-runs.spec.ts`. Expected: PASS. Report honestly if the stack cannot start.
 - [ ] **Step 3: Run** `pnpm typecheck` and `pnpm test` for touched packages once (or `devbox run check`) and report real results.
 - [ ] **Step 4: Commit**: `test(web): local e2e for project env injection and redaction`.
