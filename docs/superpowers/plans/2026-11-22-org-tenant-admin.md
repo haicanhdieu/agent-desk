@@ -1182,13 +1182,13 @@ export function roleCards(roles: RoleDto[], callerIsOwner: boolean): RoleCardOpt
 
   Both invalidate `membersListKey(org)` on success and on 404/409; a change to the caller's own row also invalidates `['org', slug, 'access']`.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
   - `roleCards.test.ts`: owner caller → five cards in order with the spec descriptions; admin caller → no Owner card.
   - `members.route.test.tsx`: BR-3 change role → toast "Role changed", list refetched; BR-40 owner picks Owner → note shown; BR-42 own row step-down → warning, save, access refetched, Settings follows; BR-5 MSW 409 on change → Banner "An organization needs at least one owner.", dialog stays open; BR-5 MSW 409 on remove → toast with the problem title and refetch; BR-8 404 → dialog closes, error toast "Member is no longer in the organization", refetch; 200 after a concurrent change → refetch; BR-36 403 → dialog Banner with the request id, then no-access after the access refetch; BR-6 remove → confirm, toast "<name> removed", focus on the "Members" heading; the two-tab 409 shows the T12 toast with the choice kept; Review Focus 3 (`an admin who demotes themselves to Viewer sees no-access after the save`); Review Focus 5 (`removing the only row on the last page shows the previous page`).
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/features/members`. Expected: FAIL.
-- [ ] **Step 3: Implement** the mutations (`mutateAsync`, no optimistic update; the row menu disabled and the dialog unclosable while in flight) and wire the dialog and confirm into the route.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/features/members`. Expected: FAIL.
+- [x] **Step 3: Implement** the mutations (`mutateAsync`, no optimistic update; the row menu disabled and the dialog unclosable while in flight) and wire the dialog and confirm into the route.
 - [ ] **Step 4: Run** the Step 2 command and `pnpm --filter @agentdesk/web typecheck`. Expected: PASS. E2E: Tasks 31, 32 and 35.
-- [ ] **Step 5: Commit** `feat(web): change a member's role and remove members`.
+- [x] **Step 5: Commit** `feat(web): change a member's role and remove members`.
 
 ---
 
