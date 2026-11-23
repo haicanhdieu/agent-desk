@@ -14,7 +14,7 @@ const row = (over: Partial<MemberRowView> & Pick<MemberRowView, 'name' | 'handle
 const role = (key: OrgRoleKey) => ({ key, name: key[0].toUpperCase() + key.slice(1) });
 
 const ownerView = (): MemberRowView[] => [
-  row({ name: 'Alice Doe', handle: 'alice', you: true, role: role('owner'), canRemove: false }),
+  row({ name: 'Alice Doe', handle: 'alice', you: true, role: role('owner'), canChangeRole: false, canRemove: false }),
   row({ name: 'Priya Raman', handle: 'priya', role: role('owner') }),
   row({ name: 'Ben Okafor', handle: 'ben', role: role('admin') }),
   row({
@@ -32,13 +32,13 @@ const ownerView = (): MemberRowView[] => [
   }),
 ];
 
-// The admin caller (Ben) cannot act on owners (BR-4); their own row keeps Change role only.
+// The admin caller (Ben) cannot act on owners (BR-4); nobody has actions on their own row.
 const adminView = (): MemberRowView[] =>
   ownerView().map((m) =>
     m.role?.key === 'owner'
       ? { ...m, you: false, canChangeRole: false, canRemove: false }
       : m.name === 'Ben Okafor'
-        ? { ...m, you: true, canRemove: false }
+        ? { ...m, you: true, canChangeRole: false, canRemove: false }
         : m,
   );
 
@@ -46,7 +46,7 @@ export const memberRows: Record<'owner' | 'admin' | 'paged', MemberRowView[]> = 
   owner: ownerView(),
   admin: adminView(),
   paged: [
-    row({ name: 'Alice Doe', handle: 'alice', you: true, role: role('owner'), canRemove: false }),
+    row({ name: 'Alice Doe', handle: 'alice', you: true, role: role('owner'), canChangeRole: false, canRemove: false }),
     ...Array.from({ length: 24 }, (_, i) =>
       row({ name: `Member ${String(i + 1).padStart(2, '0')}`, handle: `member${i + 1}` }),
     ),

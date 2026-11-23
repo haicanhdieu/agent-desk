@@ -89,6 +89,12 @@ describe('MemberRow', () => {
     expect(screen.queryByRole('button', { name: 'Remove from organization' })).toBeNull();
   });
 
+  it('has no menu on the own row when neither action is offered (no role change on yourself)', () => {
+    renderRow({ you: true, canChangeRole: false, canRemove: false });
+    expect(screen.getByText('You')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Actions for/ })).toBeNull();
+  });
+
   it('has no menu button when no action is allowed (BR-4)', () => {
     renderRow({ canChangeRole: false, canRemove: false });
     expect(screen.queryByRole('button', { name: /Actions for/ })).toBeNull();

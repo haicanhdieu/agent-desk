@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { NotFoundException } from '@nestjs/common';
+import { ForbiddenException, NotFoundException } from '@nestjs/common';
 import pino from 'pino';
 import { and, eq, inArray } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -403,8 +403,6 @@ async function buildOwnerlessCast(slug: string): Promise<Cast> {
   return f;
 }
 
-const LAST_OWNER = 'The organization needs at least one owner';
-
 describe('changing a member org role', () => {
   it('BR-3: an owner sets a member to admin, keeps project roles and audits once', async () => {
     const f = await buildCast('mr-set');
@@ -437,7 +435,7 @@ describe('changing a member org role', () => {
     expect(await auditRows(f.orgId, 'member.role_changed', f.ids.v)).toHaveLength(1);
   });
 
-  it('BR-40, BR-41, BR-42: owners give owner, demote each other and step down', async () => {
+  it('BR-40, BR-41, BR-42: owners give owner and demote each other, but never themselves', async () => {
     const f = await buildCast('mr-owners');
     const r = await roleIdsOf(t, f.o, f.orgId);
     expect((await changeRole(t, f.o, f.orgId, f.ids.b, r.owner)).statusCode).toBe(200);
@@ -445,20 +443,85 @@ describe('changing a member org role', () => {
     expect((await changeRole(t, f.b, f.orgId, f.ids.v, r.owner)).statusCode).toBe(200);
     expect((await changeRole(t, f.b, f.orgId, f.ids.o, r.admin)).statusCode).toBe(200);
     expect(await orgScopeRoles(f.orgId, f.ids.o)).toEqual(['admin']);
-    // V and B are owners; B steps down while V stays
-    expect((await changeRole(t, f.b, f.orgId, f.ids.b, r.admin)).statusCode).toBe(200);
+    // V and B are owners; B cannot step down, V can demote B, and B as an admin cannot touch owner V
+    expect((await changeRole(t, f.b, f.orgId, f.ids.b, r.admin)).statusCode).toBe(403);
+    expect(await orgScopeRoles(f.orgId, f.ids.b)).toEqual(['owner']);
+    expect((await changeRole(t, f.v, f.orgId, f.ids.b, r.admin)).statusCode).toBe(200);
     expect((await changeRole(t, f.b, f.orgId, f.ids.v, r.member)).statusCode).toBe(403);
   });
 
-  it('BR-5: demoting the only owner, self included, is 409 and changes nothing', async () => {
+  it('BR-5: the only owner cannot demote themselves: 403 (own role), nothing changes', async () => {
     const f = await buildCast('mr-last');
     const r = await roleIdsOf(t, f.o, f.orgId);
-    const res = await changeRole(t, f.o, f.orgId, f.ids.o, r.admin);
-    expect(res.statusCode).toBe(409);
-    expect(res.json<{ detail: string }>().detail).toBe(LAST_OWNER);
-    expect((await changeRole(t, f.o, f.orgId, f.ids.o, null)).statusCode).toBe(409);
+    expect((await changeRole(t, f.o, f.orgId, f.ids.o, r.admin)).statusCode).toBe(403);
+    expect((await changeRole(t, f.o, f.orgId, f.ids.o, null)).statusCode).toBe(403);
     expect(await orgScopeRoles(f.orgId, f.ids.o)).toEqual(['owner']);
     expect(await auditRows(f.orgId, 'member.role_changed', f.ids.o)).toHaveLength(0);
+  });
+
+  it('NO-3: nobody changes their own org role: owner, org admin, project admin, member and viewer get 403 and nothing changes', async () => {
+    const f = await buildCast('mr-self');
+    const r = await roleIdsOf(t, f.o, f.orgId);
+    // a second owner, so the refusal is the self rule and not the last-owner 409
+    expect((await changeRole(t, f.o, f.orgId, f.ids.v, r.owner)).statusCode).toBe(200);
+    const orgAdmin = await inviteAndLogin(t, f.orgId, 'mr-self-oa', 'admin', { type: 'org' });
+    const oaId = await userIdOf(t, 'mr-self-oa');
+    const viewer = await inviteAndLogin(t, f.orgId, 'mr-self-vw', 'viewer', { type: 'org' });
+    const viewerId = await userIdOf(t, 'mr-self-vw');
+    const actors: [string, string][] = [
+      [f.o, f.ids.o],
+      [f.v, f.ids.v],
+      [orgAdmin, oaId],
+      [f.a, f.ids.a],
+      [f.b, f.ids.b],
+      [viewer, viewerId],
+    ];
+    for (const [cookie, userId] of actors) {
+      const before = await orgScopeRoles(f.orgId, userId);
+      for (const roleId of [r.owner, r.admin, r.member, r.viewer, null]) {
+        expect((await changeRole(t, cookie, f.orgId, userId, roleId)).statusCode).toBe(403);
+      }
+      expect(await orgScopeRoles(f.orgId, userId)).toEqual(before);
+    }
+    expect(await auditRows(f.orgId, 'member.role_changed', f.ids.o)).toHaveLength(0);
+    expect(await auditRows(f.orgId, 'member.role_changed', oaId)).toHaveLength(0);
+    // only the grant of owner to V above was audited
+    expect(await auditRows(f.orgId, 'member.role_changed', f.ids.v)).toHaveLength(1);
+  });
+
+  it('NO-3: the service refuses a self change for an owner before any lookup, change or audit', async () => {
+    const f = await buildCast('mr-self-svc');
+    const r = await roleIdsOf(t, f.o, f.orgId);
+    const service = t.app.get(MembersService, { strict: false });
+    const accO = await accessOf(f.orgId, f.ids.o);
+    await expect(service.updateRole(accO, f.orgId, f.ids.o, r.owner)).rejects.toBeInstanceOf(ForbiddenException);
+    await expect(service.updateRole(accO, f.orgId, f.ids.o, r.admin)).rejects.toBeInstanceOf(ForbiddenException);
+    expect(await orgScopeRoles(f.orgId, f.ids.o)).toEqual(['owner']);
+    expect(await auditRows(f.orgId, 'member.role_changed', f.ids.o)).toHaveLength(0);
+  });
+
+  it('NO-3: a body that names another actor does not bypass the rule; the session user is the actor', async () => {
+    const f = await buildCast('mr-self-spoof');
+    const r = await roleIdsOf(t, f.o, f.orgId);
+    const other = await t.app.inject({
+      method: 'PUT',
+      url: `/api/orgs/${f.orgId}/members/${f.ids.b}/role`,
+      headers: { cookie: f.o, 'x-org-id': f.orgId },
+      payload: { roleId: r.admin, actorUserId: f.ids.v, userId: f.ids.v },
+    });
+    // the session user is O and the target in the path is B: allowed, and the audit actor is O, not the spoofed id
+    expect(other.statusCode).toBe(200);
+    expect((await auditRows(f.orgId, 'member.role_changed', f.ids.b))[0]?.actorUserId).toBe(f.ids.o);
+    const self = await t.app.inject({
+      method: 'PUT',
+      url: `/api/orgs/${f.orgId}/members/${f.ids.b}/role`,
+      headers: { cookie: f.b, 'x-org-id': f.orgId },
+      payload: { roleId: r.viewer, actorUserId: f.ids.o, userId: f.ids.o },
+    });
+    // B is an org admin now and may give viewer to others, but not to itself
+    expect(self.statusCode).toBe(403);
+    expect(await orgScopeRoles(f.orgId, f.ids.b)).toEqual(['admin']);
+    expect(await auditRows(f.orgId, 'member.role_changed', f.ids.b)).toHaveLength(1);
   });
 
   it('BR-18: lower roles get the same 403 for any user id; an org admin cannot touch owner', async () => {
@@ -585,24 +648,6 @@ describe('changing a member org role', () => {
     expect(owners).toHaveLength(1);
   });
 
-  it('NO-1 (c): an owner stepping down while the same owner removes the other owner leaves one owner', async () => {
-    const f = await buildCast('mr-race2');
-    const r = await roleIdsOf(t, f.o, f.orgId);
-    await changeRole(t, f.o, f.orgId, f.ids.b, r.owner);
-    const res = await Promise.all([
-      changeRole(t, f.o, f.orgId, f.ids.o, r.admin),
-      removeMember(t, f.o, f.orgId, f.ids.b),
-    ]);
-    const codes = res.map((x) => x.statusCode);
-    // the loser is 409 when its owner rights were still in place at the guard, 403 when the step-down had already landed
-    expect(codes.filter((c) => c === 200 || c === 204)).toHaveLength(1);
-    expect(codes.filter((c) => c === 409 || c === 403)).toHaveLength(1);
-    const owners = [...(await orgScopeRoles(f.orgId, f.ids.o)), ...(await orgScopeRoles(f.orgId, f.ids.b))].filter(
-      (k) => k === 'owner',
-    );
-    expect(owners).toHaveLength(1);
-  });
-
   it('NO-1 (a): two owners that both passed the guard demote each other; exactly one 409, one owner left', async () => {
     const f = await buildCast('mr-race-svc');
     const r = await roleIdsOf(t, f.o, f.orgId);
@@ -627,47 +672,6 @@ describe('changing a member org role', () => {
         (await auditRows(f.orgId, 'member.role_changed', f.ids.b)).length,
     ).toBe(2 /* the owner grant to B above plus the one winning demotion */);
   });
-
-  it.each([
-    ['the step-down queues first', true],
-    ['the removal queues first', false],
-  ])(
-    'NO-1 (c): A steps down while A removes owner B, both past the guard (%s); exactly one 409, one owner left',
-    async (_name, stepDownFirst) => {
-      const f = await buildCast(stepDownFirst ? 'mr-race2-svc-a' : 'mr-race2-svc-b');
-      const r = await roleIdsOf(t, f.o, f.orgId);
-      await changeRole(t, f.o, f.orgId, f.ids.b, r.owner);
-      const accO = await accessOf(f.orgId, f.ids.o);
-      const service = t.app.get(MembersService, { strict: false });
-      const stepDown = () => service.updateRole(accO, f.orgId, f.ids.o, r.admin);
-      const removal = () => service.remove(accO, f.orgId, f.ids.b);
-      const res = await queueBehindOwnerLock(f.orgId, stepDownFirst ? [stepDown, removal] : [removal, stepDown]);
-      expect(res.filter((x) => x.status === 'fulfilled')).toHaveLength(1);
-      const lost = res.filter((x): x is PromiseRejectedResult => x.status === 'rejected');
-      expect(lost).toHaveLength(1);
-      expect(lost[0]?.reason).toBeInstanceOf(ConflictProblemException);
-      expect((lost[0]?.reason as ConflictProblemException).message).toBe(LAST_OWNER);
-      // exactly one owner is left, and only the call that succeeded changed anything
-      const oRoles = await orgScopeRoles(f.orgId, f.ids.o);
-      const bRoles = await orgScopeRoles(f.orgId, f.ids.b);
-      expect([...oRoles, ...bRoles].filter((k) => k === 'owner')).toHaveLength(1);
-      const stepDownAudit = await auditRows(f.orgId, 'member.role_changed', f.ids.o);
-      const removalAudit = await auditRows(f.orgId, 'member.removed', f.ids.b);
-      if (stepDownFirst) {
-        expect(oRoles).toEqual(['admin']);
-        expect(bRoles).toEqual(['owner']);
-        expect(await memberCount(f.orgId, f.ids.b)).toBe(1);
-        expect(stepDownAudit).toHaveLength(1);
-        expect(removalAudit).toHaveLength(0);
-      } else {
-        expect(oRoles).toEqual(['owner']);
-        expect(await memberCount(f.orgId, f.ids.b)).toBe(0);
-        expect(await assignmentCount(f.orgId, f.ids.b)).toBe(0);
-        expect(stepDownAudit).toHaveLength(0);
-        expect(removalAudit).toHaveLength(1);
-      }
-    },
-  );
 
   it('BR-8, BR-10: a role change queued behind the removal of the same member finds no member and writes nothing', async () => {
     const f = await buildCast('mr-after-rm');

@@ -64,12 +64,14 @@ describe('toMemberRow: actions (BR-4, BR-9)', () => {
     ['owner caller, owner row', ownerCaller, 'owner', true, true],
     ['admin caller, owner row', adminCaller, 'owner', false, false],
     ['admin caller, member row', adminCaller, 'member', true, true],
-    ['owner caller, own row: no Remove', ownerCaller, 'self', true, false],
+    ['owner caller, own row: no Change role and no Remove', ownerCaller, 'self', false, false],
+    ['admin caller, own row: no Change role and no Remove', adminCaller, 'self', false, false],
     ['caller without update or delete', { ...adminCaller, canUpdate: false, canDelete: false }, 'member', false, false],
     ['update only', { ...adminCaller, canDelete: false }, 'member', true, false],
     ['delete only', { ...adminCaller, canUpdate: false }, 'member', false, true],
   ])('%s', (_n, caller, kind, change, remove) => {
-    const row = kind === 'self' ? member('me', [asg('owner', org)]) : member('t', [asg(kind, org)]);
+    const row =
+      kind === 'self' ? member('me', [asg(caller.owner ? 'owner' : 'admin', org)]) : member('t', [asg(kind, org)]);
     expect(toMemberRow(row, caller, names)).toMatchObject({ canChangeRole: change, canRemove: remove });
   });
 });

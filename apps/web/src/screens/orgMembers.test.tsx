@@ -110,22 +110,22 @@ describe('OrgMembers', () => {
     expect(screen.getByRole('button', { name: 'Actions for Ben Okafor' })).toBeEnabled();
   });
 
-  it('openMenuUserId opens that row menu; on the caller own row it has Change role only', async () => {
-    const me = memberRows.owner.find((r) => r.you);
-    if (!me) throw new Error('fixture has no caller row');
-    render(<OrgMembers {...props({ openMenuUserId: me.userId })} />);
+  it('openMenuUserId opens that row menu', async () => {
+    const other = memberRows.owner[3];
+    render(<OrgMembers {...props({ openMenuUserId: other.userId })} />);
     expect(await screen.findByRole('button', { name: 'Change role' })).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Remove from organization' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Remove from organization' })).toBeInTheDocument();
   });
 
-  it('TC-9.2: on the admin caller own row the menu has Change role only, with the You tag', async () => {
-    const me = memberRows.admin.find((r) => r.you);
+  it.each([
+    ['owner', memberRows.owner],
+    ['admin', memberRows.admin],
+  ] as const)('TC-9.2: on the %s caller own row there is a You tag and no menu', (_name, rows) => {
+    const me = rows.find((r) => r.you);
     if (!me) throw new Error('fixture has no caller row');
-    render(<OrgMembers {...props({ state: { kind: 'ready', rows: memberRows.admin, busyUserId: null } })} />);
+    render(<OrgMembers {...props({ state: { kind: 'ready', rows, busyUserId: null } })} />);
     expect(within(rowElement(me.name)).getByText('You')).toBeInTheDocument();
-    await userEvent.click(screen.getByRole('button', { name: `Actions for ${me.name}` }));
-    expect(screen.getByRole('button', { name: 'Change role' })).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Remove from organization' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: `Actions for ${me.name}` })).not.toBeInTheDocument();
   });
 
   it('renders a hostile name as text, never as markup', () => {

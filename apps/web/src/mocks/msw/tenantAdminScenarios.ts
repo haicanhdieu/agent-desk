@@ -254,7 +254,7 @@ function syncSeat(db: MockDb, orgId: string, userId: string, roleKey: string | n
 }
 
 /**
- * `members.updateRole`: replaces the member's org-scope assignments with one of `roleId` (or none). Only an owner gives
+ * `members.updateRole`: nobody changes their own role (403). Replaces the member's org-scope assignments with one of `roleId` (or none). Only an owner gives
  * or takes `owner`. The same role again is a 200 that changes nothing, after that owner check. The change may not leave the org with no owner.
  */
 export function changeMemberRole(
@@ -263,6 +263,8 @@ export function changeMemberRole(
   userId: string,
   roleId: string | null,
 ): MemberDto {
+  // nobody changes their own role (403, before any lookup)
+  if (userId === caller.userId) throw forbidden();
   const { orgId } = caller;
   const target = targetOf(db, orgId, userId);
   const role = roleId === null ? null : roleFixtures.find((r) => r.id === roleId);
