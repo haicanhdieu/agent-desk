@@ -355,7 +355,7 @@ describe('TopBar account menu', () => {
       </SignOutProvider>,
     );
     await events.click(trigger());
-    expect(within(screen.getByRole('menu', { name: 'Account' })).getAllByText('kim-hale').length).toBeGreaterThan(0);
+    expect(within(screen.getByRole('menu', { name: 'Account' })).getAllByText('kim-hale')).toHaveLength(2);
   });
 
   it('keeps the avatar static when nothing can sign the user out (no provider)', () => {
