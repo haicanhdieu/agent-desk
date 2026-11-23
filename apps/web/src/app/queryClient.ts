@@ -1,7 +1,7 @@
 import { ApiError } from '@agentdesk/contracts/client';
 import { QueryClient, type DefaultOptions } from '@tanstack/react-query';
 
-const MAX_RETRIES = 2;
+export const MAX_RETRIES = 2;
 
 /** Network failures (status 0) and 5xx are worth retrying; 4xx answers will not change. */
 export function isRetryable(error: unknown): boolean {

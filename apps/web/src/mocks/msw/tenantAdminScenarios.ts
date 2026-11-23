@@ -3,6 +3,7 @@ import { roleFixtures, tenantMemberFixtures } from '../dto/access';
 import { pagedAuditFixtures } from '../dto/audit';
 import { ids } from '../dto/ids';
 import { NO_ROLE, freshTenantAdmin, type MockDb, type MockState } from './db';
+import { MAX_RETRIES } from '../../app/queryClient';
 import { Problem, conflict, notFound } from './http';
 
 // The tenant-admin mock scenarios and the store rules behind the members, org and audit routes (spec "Fakes and
@@ -12,6 +13,13 @@ import { Problem, conflict, notFound } from './http';
 // the member is in it (404), then who may touch owners (403) and the last-owner rule (409).
 
 export const TENANT_ADMIN_SCENARIO_KEY = 'agentdesk.mock.tenantAdmin';
+
+/**
+ * How many times an error scenario fails a list. The app retries a 5xx MAX_RETRIES times on its own, so the first load
+ * has to fail MAX_RETRIES + 1 times for the error state to show; the failures are then used up, so the manual Retry
+ * (a new request) gets the list.
+ */
+const FAILURES_TO_SHOW_ERROR = MAX_RETRIES + 1;
 
 export const TENANT_ADMIN_SCENARIOS = [
   'soleOwner',
@@ -130,7 +138,7 @@ const seeders: Record<TenantAdminScenario, (db: MockDb) => void> = {
   },
   membersError(db) {
     seed(db, 'owner', twoOwners);
-    db.state.tenantAdmin.failuresLeft.members = 1;
+    db.state.tenantAdmin.failuresLeft.members = FAILURES_TO_SHOW_ERROR;
   },
   membersSlow(db) {
     seed(db, 'owner', twoOwners);
@@ -143,7 +151,7 @@ const seeders: Record<TenantAdminScenario, (db: MockDb) => void> = {
   },
   auditError(db) {
     seed(db, 'owner', twoOwners);
-    db.state.tenantAdmin.failuresLeft.audit = 1;
+    db.state.tenantAdmin.failuresLeft.audit = FAILURES_TO_SHOW_ERROR;
   },
   auditSlow(db) {
     seed(db, 'owner', twoOwners);

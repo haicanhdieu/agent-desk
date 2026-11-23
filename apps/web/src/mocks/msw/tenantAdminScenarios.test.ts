@@ -2,6 +2,7 @@
 import { ApiError, createApi } from '@agentdesk/contracts/client';
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
+import { MAX_RETRIES } from '../../app/queryClient';
 import { roleFixtures } from '../dto/access';
 import { ids } from '../dto/ids';
 import { mockDb } from './db';
@@ -293,21 +294,23 @@ describe('changes meanwhile', () => {
 });
 
 describe('error and slow scenarios', () => {
-  it('membersError answers 500 with a request id once, then the list', async () => {
-    apply('membersError');
-    const err = await rejection(members());
-    expect(err.status).toBe(500);
-    expect(err.requestId).toMatch(/^req-mock-/);
-    expect((await members()).total).toBeGreaterThan(0);
-  });
-
-  it('auditError answers 500 with a request id once, then the list', async () => {
-    apply('auditError');
-    const err = await rejection(api.audit.list({ params, query: {} }));
-    expect(err.status).toBe(500);
-    expect(err.requestId).toMatch(/^req-mock-/);
-    expect((await api.audit.list({ params, query: {} })).total).toBeGreaterThan(0);
-  });
+  // The app retries a 5xx MAX_RETRIES times by itself, so the first load must fail MAX_RETRIES + 1 times to show the
+  // error state; the manual Retry (the next request) then gets the list.
+  it.each([
+    ['membersError', () => members()],
+    ['auditError', () => api.audit.list({ params, query: {} })],
+  ] as const)(
+    '%s fails every automatic attempt with a request id, then the manual Retry gets the list',
+    async (name, call) => {
+      apply(name);
+      for (let attempt = 0; attempt <= MAX_RETRIES; attempt += 1) {
+        const err = await rejection(call());
+        expect(err.status).toBe(500);
+        expect(err.requestId).toMatch(/^req-mock-/);
+      }
+      expect((await call()).total).toBeGreaterThan(0);
+    },
+  );
 
   it.each([
     ['membersSlow', () => members()],
