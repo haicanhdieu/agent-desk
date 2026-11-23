@@ -1737,6 +1737,86 @@
    "h": 900,
    "title": "Desk \u2014 members, added, list refetched, toast",
    "expand": "fill"
+  },
+  "DeskMembersInvite.dc.html": {
+   "x": 1520,
+   "y": 53040,
+   "w": 1440,
+   "h": 900,
+   "title": "Desk \u2014 members, invite dialog, this project fixed, project roles only",
+   "expand": "fill"
+  },
+  "DeskMembersInviteCreated.dc.html": {
+   "x": 3040,
+   "y": 53040,
+   "w": 1440,
+   "h": 900,
+   "title": "Desk \u2014 members, invite dialog, invitation created",
+   "expand": "fill"
+  },
+  "DeskMembersChangeRole.dc.html": {
+   "x": 4560,
+   "y": 53040,
+   "w": 1440,
+   "h": 900,
+   "title": "Desk \u2014 members, change role dialog, current role preselected",
+   "expand": "fill"
+  },
+  "DeskMembersChangeRoleSaving.dc.html": {
+   "x": 0,
+   "y": 54320,
+   "w": 1440,
+   "h": 900,
+   "title": "Desk \u2014 members, change role dialog, saving",
+   "expand": "fill"
+  },
+  "DeskMembersChangeRoleError.dc.html": {
+   "x": 1520,
+   "y": 54320,
+   "w": 1440,
+   "h": 900,
+   "title": "Desk \u2014 members, change role dialog, refused (403)",
+   "expand": "fill"
+  },
+  "DeskMembersRoleChanged.dc.html": {
+   "x": 3040,
+   "y": 54320,
+   "w": 1440,
+   "h": 900,
+   "title": "Desk \u2014 members, role changed, list refetched, toast",
+   "expand": "fill"
+  },
+  "DeskMembersRemoveConfirm.dc.html": {
+   "x": 4560,
+   "y": 54320,
+   "w": 1440,
+   "h": 900,
+   "title": "Desk \u2014 members, remove from project confirmation",
+   "expand": "fill"
+  },
+  "DeskMembersRemoving.dc.html": {
+   "x": 0,
+   "y": 55600,
+   "w": 1440,
+   "h": 900,
+   "title": "Desk \u2014 members, removing",
+   "expand": "fill"
+  },
+  "DeskMembersRemoved.dc.html": {
+   "x": 1520,
+   "y": 55600,
+   "w": 1440,
+   "h": 900,
+   "title": "Desk \u2014 members, removed, list refetched, toast",
+   "expand": "fill"
+  },
+  "DeskMembersGone.dc.html": {
+   "x": 3040,
+   "y": 55600,
+   "w": 1440,
+   "h": 900,
+   "title": "Desk \u2014 members, member removed meanwhile, error toast",
+   "expand": "fill"
   }
  },
  "order": [
@@ -1955,7 +2035,17 @@
   "DeskMembersAddSaving.dc.html",
   "DeskMembersAddFormError.dc.html",
   "DeskMembersAddAlreadyOnProject.dc.html",
-  "DeskMembersAdded.dc.html"
+  "DeskMembersAdded.dc.html",
+  "DeskMembersInvite.dc.html",
+  "DeskMembersInviteCreated.dc.html",
+  "DeskMembersChangeRole.dc.html",
+  "DeskMembersChangeRoleSaving.dc.html",
+  "DeskMembersChangeRoleError.dc.html",
+  "DeskMembersRoleChanged.dc.html",
+  "DeskMembersRemoveConfirm.dc.html",
+  "DeskMembersRemoving.dc.html",
+  "DeskMembersRemoved.dc.html",
+  "DeskMembersGone.dc.html"
  ],
  "notes": {
   "t-intro": {

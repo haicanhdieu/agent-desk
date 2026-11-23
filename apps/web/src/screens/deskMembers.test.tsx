@@ -161,4 +161,68 @@ describe('DeskMembers', () => {
     expect(screen.getByRole('combobox')).toHaveFocus();
     expect(screen.getByText('Mira Chen added as Member').closest('[role="status"]')).not.toBeNull();
   });
+  it('BR-8: the remove confirm names the person and project, keeps the org role, and confirms or cancels', async () => {
+    const onConfirm = vi.fn();
+    const onCancel = vi.fn();
+    render(
+      <DeskMembers
+        {...ready(
+          {},
+          {
+            removeConfirm: {
+              memberName: 'Cleo Martin',
+              projectName: 'invoicer-api',
+              orgName: 'Harbor Labs',
+              onConfirm,
+              onCancel,
+            },
+          },
+        )}
+      />,
+    );
+    const dialog = screen.getByRole('dialog', { name: 'Remove Cleo Martin from invoicer-api?' });
+    expect(
+      within(dialog).getByText('They lose their role on this project. A role they hold in Harbor Labs stays.'),
+    ).toBeInTheDocument();
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Remove' }));
+    expect(onConfirm).toHaveBeenCalledTimes(1);
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }));
+    expect(onCancel).toHaveBeenCalledTimes(1);
+  });
+
+  it('BR-8: while removing the confirm shows Removing… and cannot be closed or repeated', async () => {
+    const onConfirm = vi.fn();
+    const onCancel = vi.fn();
+    render(
+      <DeskMembers
+        {...ready(
+          {},
+          {
+            removeConfirm: {
+              memberName: 'Cleo Martin',
+              projectName: 'invoicer-api',
+              orgName: 'Harbor Labs',
+              busy: true,
+              onConfirm,
+              onCancel,
+            },
+          },
+        )}
+      />,
+    );
+    const dialog = screen.getByRole('dialog', { name: 'Remove Cleo Martin from invoicer-api?' });
+    expect(within(dialog).getByRole('button', { name: 'Removing…' })).toBeDisabled();
+    expect(within(dialog).getByRole('button', { name: 'Cancel' })).toBeDisabled();
+    await userEvent.keyboard('{Escape}');
+    expect(onCancel).not.toHaveBeenCalled();
+  });
+
+  it('BR-8: the gone notice is an error toast reading Member is no longer on this project', () => {
+    render(
+      <DeskMembers
+        {...ready({}, { notice: { tone: 'error', title: 'Member is no longer on this project', onDismiss: vi.fn() } })}
+      />,
+    );
+    expect(screen.getByText('Member is no longer on this project').closest('[role="status"]')).not.toBeNull();
+  });
 });

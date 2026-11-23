@@ -924,11 +924,11 @@ export interface DeskMembersProps {
 - Consumes: `InviteDialog`, `InviteLink`, `ChangeRoleDialog` (unchanged; options `projectRoleCards`, `self=false`, `currentIsOwner=false`), `projectRoleCards` (Task 11).
 - Produces: `DeskMembersProps.removeConfirm?: { memberName: string; projectName: string; orgName: string; busy?: boolean; onConfirm: () => void; onCancel: () => void }`.
 
-- [ ] **Step 1: Write the failing test** in `deskMembers.test.tsx`: remove confirm title "Remove <name> from <project>?", body "They lose their role on this project. A role they hold in <Org> stays.", buttons "Cancel" and "Remove" (`solid-danger`), busy → "Removing…" and cannot close; gone notice "Member is no longer on this project".
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/screens/deskMembers.test.tsx`. Expected: FAIL.
-- [ ] **Step 3: Implement** `removeConfirm` and stories DeskMembersInvite, DeskMembersInviteCreated, DeskMembersChangeRole, DeskMembersChangeRoleSaving, DeskMembersChangeRoleError, DeskMembersRoleChanged, DeskMembersRemoveConfirm, DeskMembersRemoving, DeskMembersRemoved, DeskMembersGone; register the 10 boards (+10).
+- [x] **Step 1: Write the failing test** in `deskMembers.test.tsx`: remove confirm title "Remove <name> from <project>?", body "They lose their role on this project. A role they hold in <Org> stays.", buttons "Cancel" and "Remove" (`solid-danger`), busy → "Removing…" and cannot close; gone notice "Member is no longer on this project".
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/screens/deskMembers.test.tsx`. Expected: FAIL.
+- [x] **Step 3: Implement** `removeConfirm` and stories DeskMembersInvite, DeskMembersInviteCreated, DeskMembersChangeRole, DeskMembersChangeRoleSaving, DeskMembersChangeRoleError, DeskMembersRoleChanged, DeskMembersRemoveConfirm, DeskMembersRemoving, DeskMembersRemoved, DeskMembersGone; register the 10 boards (+10).
 - [ ] **Step 4: Run** Step 2's command, `pnpm --filter @agentdesk/web exec vitest run src/test/coverage.test.ts src/test/stories.smoke.test.tsx`, `pnpm --filter @agentdesk/web build-storybook && pnpm --filter @agentdesk/web parity`, then compare `parity-out/<board>.{story,proto}.png` for DeskMembersInvite, DeskMembersRemoveConfirm (never commit `parity-out/`). Expected: PASS.
-- [ ] **Step 5: Commit**: `feat(web): invite, change role and remove boards for project members in Storybook`.
+- [x] **Step 5: Commit**: `feat(web): invite, change role and remove boards for project members in Storybook`.
 
 ---
 
@@ -949,15 +949,15 @@ export interface DeskMembersProps {
 - Consumes: `DeskLinks.members|audit` (Task 13), `'project-audit:read'` (Task 1), role fixtures (Task 11).
 - Produces: `projectPaths(org, projectId)` gains `members: \`${projectPath}/desk/members\``, `audit: \`${projectPath}/desk/audit\``; `DeskRights` gains `members: boolean` (`assignment:read`), `audit: boolean` (`project-audit:read`); `export function deskRightsOf(access: Access | undefined, projectId: string): DeskRights`; `useDeskFrame` sets `links.members` / `links.audit` only when the right holds.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
   - `agent.route.test.tsx` (BR-21 bug fix, failing first): `it('shows no Delete project control to an admin of this project only')`; owner and org admin still see "Delete project".
   - `frame.test.ts` (BR-1, BR-26): `deskRightsOf` for owner, org admin, P admin → `members` and `audit` true; member, viewer, undefined → false; P1 admin on P2 → false; org viewer + P1 admin → true on P1.
   - `deskAccess.route.test.tsx`: owner, admin and projectAdmin see "Members" and "Audit log" in nav "Desk"; member and viewer see no Settings tab.
   - `desk-access.spec.ts` (mock): TC-21.1, TC-21.2, TC-21.3.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/features/desk src/features/access`. Expected: FAIL (TC-21.1 fails today: the route passes `onDeleteProject` unconditionally).
-- [ ] **Step 3: Implement** the paths, rights and links; the agent route passes `onDeleteProject` only with `can(access, 'project:delete')`.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/features/desk src/features/access`. Expected: FAIL (TC-21.1 fails today: the route passes `onDeleteProject` unconditionally).
+- [x] **Step 3: Implement** the paths, rights and links; the agent route passes `onDeleteProject` only with `can(access, 'project:delete')`.
 - [ ] **Step 4: Run** Step 2's command, `pnpm --filter @agentdesk/web typecheck`, `pnpm --filter @agentdesk/web exec vite build --mode mock` then `pnpm --filter @agentdesk/web exec playwright test e2e/mock/desk-access.spec.ts`. Expected: PASS.
-- [ ] **Step 5: Commit**: `fix(web): hide Delete project from project admins and show the Access menu by rights`.
+- [x] **Step 5: Commit**: `fix(web): hide Delete project from project admins and show the Access menu by rights`.
 
 ---
 

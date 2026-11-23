@@ -14,7 +14,7 @@ import {
   useSaveLimits,
 } from '@/features/desk/agent.form';
 import { checkNowMessage, failedPollMessage } from '@/features/desk/checkNow';
-import { requirePermission } from '@/features/access/guards';
+import { requirePermission, useCan } from '@/features/access/guards';
 import { useDeskFrame } from '@/features/desk/frame';
 import { forgetProject, useCheckNow, useDeleteProject, useSaveTrigger } from '@/features/desk/mutations';
 import { deskQueries } from '@/features/desk/queries';
@@ -43,6 +43,8 @@ function DeskAgentPage() {
   const toast = useToast();
   const now = useNow();
   const frame = useDeskFrame(org, projectId, now);
+  // Delete project is an org-level permission: a project admin never sees it (the API refuses it anyway).
+  const mayDelete = useCan(org, 'project:delete');
   const { data: project } = useSuspenseQuery(projectsQueries.detail(org, projectId));
   const { data: connection } = useSuspenseQuery(projectsQueries.connection(org, projectId));
   const { data: agent } = useSuspenseQuery(deskQueries.agent(org, projectId));
@@ -147,7 +149,7 @@ function DeskAgentPage() {
       onReplaceCredential={credential.replace}
       credentialError={credential.error}
       addressError={credential.addressError}
-      onDeleteProject={onDeleteProject}
+      onDeleteProject={mayDelete ? onDeleteProject : undefined}
     />
   );
 }

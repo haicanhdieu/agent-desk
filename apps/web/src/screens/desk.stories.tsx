@@ -2,8 +2,13 @@ import type { Meta, StoryObj } from '@storybook/react-vite';
 import {
   AddProjectMemberDialog,
   AppShell,
+  ChangeRoleDialog,
+  InviteDialog,
   TopBar,
   type AddProjectMemberDialogProps,
+  type ChangeRoleDialogProps,
+  type InviteDialogStep,
+  type InviteDialogValues,
   type PaginationProps,
 } from '@/components';
 import type { Actor, ProjectMemberRowView } from '@/mocks/types';
@@ -13,6 +18,9 @@ import {
   connectionCopy,
   connections,
   deskFrame as plainDeskFrame,
+  inviteProjectOptions,
+  inviteRoleOptions,
+  invitationLink,
   orgSwitchFixtures,
   pagedRules,
   pagedSkills,
@@ -960,4 +968,114 @@ export const DeskMembersAdded: Story = {
     ]),
     { notice: { tone: 'ok', title: 'Mira Chen added as Member', onDismiss: noop } },
   ),
+};
+
+// Invite, change role and remove over the Members page (Lee Park, project admin). Dialogs are always open boards.
+const invitePersonValues: InviteDialogValues = {
+  email: '',
+  roleId: '',
+  scope: 'projects',
+  projectIds: inviteProjectOptions.slice(0, 1).map((p) => p.id),
+};
+const inviteDialog = (step: InviteDialogStep) => (
+  <InviteDialog
+    open
+    step={step}
+    roles={inviteRoleOptions.projectAdmin}
+    projects={inviteProjectOptions.slice(0, 1).map((p) => ({ ...p, label: 'invoicer-api' }))}
+    projectsOnly
+    onChange={noop}
+    onSubmit={noop}
+    onCancel={noop}
+    onCopy={noop}
+    onDone={noop}
+  />
+);
+const changeRoleDialog = (over: Partial<ChangeRoleDialogProps> = {}) => (
+  <ChangeRoleDialog
+    memberName="Cleo Martin"
+    orgName="Harbor Labs"
+    options={projectRoleCards}
+    current={memberRole}
+    self={false}
+    currentIsOwner={false}
+    saving={false}
+    onSave={noop}
+    onCancel={noop}
+    {...over}
+  />
+);
+const removeConfirm = (busy = false): NonNullable<DeskMembersProps['removeConfirm']> => ({
+  memberName: 'Cleo Martin',
+  projectName: 'invoicer-api',
+  orgName: 'Harbor Labs',
+  busy,
+  onConfirm: noop,
+  onCancel: noop,
+});
+const membersWithout = (userId: string) => projectMemberRows.filter((r) => r.userId !== userId);
+
+export const DeskMembersInvite: Story = {
+  name: 'Members, invite dialog: this project fixed, project roles only',
+  ...members(membersReady(projectMemberRows), {
+    children: inviteDialog({
+      kind: 'form',
+      values: invitePersonValues,
+      errors: {},
+      saving: false,
+    }),
+  }),
+};
+export const DeskMembersInviteCreated: Story = {
+  name: 'Members, invite dialog: invitation created',
+  ...members(membersReady(projectMemberRows), {
+    children: inviteDialog({
+      kind: 'created',
+      email: 'new.person@example.com',
+      expiresOn: '23 Nov, 14:05',
+      link: invitationLink,
+    }),
+  }),
+};
+export const DeskMembersChangeRole: Story = {
+  name: 'Members, change role dialog: Admin, Member, Viewer, current preselected',
+  ...members(membersReady(projectMemberRows), { children: changeRoleDialog() }),
+};
+export const DeskMembersChangeRoleSaving: Story = {
+  name: 'Members, change role dialog: saving',
+  ...members(membersReady(projectMemberRows), {
+    children: changeRoleDialog({ current: projectRoleCards[2]?.roleId ?? null, saving: true }),
+  }),
+};
+export const DeskMembersChangeRoleError: Story = {
+  name: 'Members, change role dialog: refused (403), Banner in the dialog',
+  ...members(membersReady(projectMemberRows), {
+    children: changeRoleDialog({ error: { kind: 'forbidden', requestId: 'req_01JD7Q3M8V2K' } }),
+  }),
+};
+export const DeskMembersRoleChanged: Story = {
+  name: 'Members, role changed: list refetched, toast',
+  ...members(membersReady(projectMemberRows), {
+    notice: { tone: 'ok', title: 'Role changed', onDismiss: noop },
+  }),
+};
+export const DeskMembersRemoveConfirm: Story = {
+  name: 'Members, remove from project confirmation',
+  ...members(membersReady(projectMemberRows), { removeConfirm: removeConfirm() }),
+};
+export const DeskMembersRemoving: Story = {
+  name: 'Members, removing',
+  ...members(membersReady(projectMemberRows), { removeConfirm: removeConfirm(true) }),
+};
+export const DeskMembersRemoved: Story = {
+  name: 'Members, removed: list refetched, toast, focus on the heading',
+  ...members(membersReady(membersWithout('user-tenant-4')), {
+    notice: { tone: 'ok', title: 'Cleo Martin removed from invoicer-api', onDismiss: noop },
+  }),
+};
+export const DeskMembersGone: Story = {
+  name: 'Members, member removed meanwhile: dialog closed, list refetched, error toast',
+  ...members(membersReady(membersWithout('user-tenant-4')), {
+    notice: { tone: 'error', title: 'Member is no longer on this project', onDismiss: noop },
+  }),
 };

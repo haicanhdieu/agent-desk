@@ -232,6 +232,16 @@ export const boardStories = {
   DeskMembersAddFormError: { title: desk, exportName: 'DeskMembersAddFormError' },
   DeskMembersAddAlreadyOnProject: { title: desk, exportName: 'DeskMembersAddAlreadyOnProject' },
   DeskMembersAdded: { title: desk, exportName: 'DeskMembersAdded' },
+  DeskMembersInvite: { title: desk, exportName: 'DeskMembersInvite' },
+  DeskMembersInviteCreated: { title: desk, exportName: 'DeskMembersInviteCreated' },
+  DeskMembersChangeRole: { title: desk, exportName: 'DeskMembersChangeRole' },
+  DeskMembersChangeRoleSaving: { title: desk, exportName: 'DeskMembersChangeRoleSaving' },
+  DeskMembersChangeRoleError: { title: desk, exportName: 'DeskMembersChangeRoleError' },
+  DeskMembersRoleChanged: { title: desk, exportName: 'DeskMembersRoleChanged' },
+  DeskMembersRemoveConfirm: { title: desk, exportName: 'DeskMembersRemoveConfirm' },
+  DeskMembersRemoving: { title: desk, exportName: 'DeskMembersRemoving' },
+  DeskMembersRemoved: { title: desk, exportName: 'DeskMembersRemoved' },
+  DeskMembersGone: { title: desk, exportName: 'DeskMembersGone' },
 } as const satisfies Record<string, BoardStory>;
 
 export type BoardName = keyof typeof boardStories;

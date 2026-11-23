@@ -1,5 +1,5 @@
 import { useEffect, useRef, type ReactNode, type Ref } from 'react';
-import { Button, Skeleton, Toast, ToastRegion } from '@/ds';
+import { Button, Dialog, Skeleton, Toast, ToastRegion } from '@/ds';
 import {
   DataTable,
   EmptyState,
@@ -31,9 +31,20 @@ export interface DeskMembersProps {
   openMenuUserId?: string;
   /** The outcome of the last action, shown as a dismissible toast. */
   notice?: { tone: 'ok' | 'error'; title: string; onDismiss: () => void };
+  /** The remove confirm. While its request is in flight (`busy`) it cannot be closed or repeated. */
+  removeConfirm?: {
+    memberName: string;
+    projectName: string;
+    orgName: string;
+    busy?: boolean;
+    onConfirm: () => void;
+    onCancel: () => void;
+  };
   /** The dialogs of the page. */
   children?: ReactNode;
 }
+
+const noop = () => {};
 
 /** The project's Members page inside the Desk: who holds a project role, the row actions, and the states around it. */
 export function DeskMembers({
@@ -47,6 +58,7 @@ export function DeskMembers({
   headingRef,
   openMenuUserId,
   notice,
+  removeConfirm,
   children,
 }: DeskMembersProps) {
   const tableRef = useRef<HTMLDivElement>(null);
@@ -127,6 +139,33 @@ export function DeskMembers({
         )}
       </main>
       {children}
+      {removeConfirm && (
+        <Dialog
+          open
+          title={`Remove ${removeConfirm.memberName} from ${removeConfirm.projectName}?`}
+          width={440}
+          onClose={removeConfirm.busy ? noop : removeConfirm.onCancel}
+          footer={
+            <>
+              <Button variant="ghost" disabled={removeConfirm.busy === true} onClick={removeConfirm.onCancel}>
+                Cancel
+              </Button>
+              <Button
+                variant="solid-danger"
+                disabled={removeConfirm.busy === true}
+                aria-busy={removeConfirm.busy === true}
+                onClick={removeConfirm.onConfirm}
+              >
+                {removeConfirm.busy ? 'Removing…' : 'Remove'}
+              </Button>
+            </>
+          }
+        >
+          <p className="muted">
+            They lose their role on this project. A role they hold in {removeConfirm.orgName} stays.
+          </p>
+        </Dialog>
+      )}
       {notice && (
         <ToastRegion>
           <Toast
