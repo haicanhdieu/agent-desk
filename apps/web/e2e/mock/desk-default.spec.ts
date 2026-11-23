@@ -13,3 +13,12 @@ test('the Settings tab opens Routing rules, the first item in the Desk menu', as
   await expect(items.first()).toHaveAttribute('aria-current', 'page');
   await expect(items.nth(1)).toHaveText('Skills');
 });
+
+test("the Desk sidebar header shows the project's name, not the generic Desk label", async ({ page }) => {
+  await page.goto(`/o/${ORG}/p/${INVOICER_API}/desk/rules`);
+  await expect(page.getByRole('heading', { name: 'Routing rules', level: 1 })).toBeVisible();
+
+  const sidebar = page.getByRole('navigation', { name: 'Desk' });
+  await expect(sidebar.locator('div', { hasText: /^invoicer-api$/ })).toBeVisible();
+  await expect(sidebar.getByText('Desk', { exact: true })).toHaveCount(0);
+});
