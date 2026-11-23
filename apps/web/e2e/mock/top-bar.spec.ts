@@ -42,9 +42,9 @@ test.describe('BR-43: top-bar tabs per level', () => {
     await expect(tab(page, 'Settings')).toHaveCount(0);
   });
 
-  test('TC-43.4: the owner on a project page sees the tabs Runs and Desk', async ({ page }) => {
+  test('TC-43.4: the owner on a project page sees the tabs Runs and Settings', async ({ page }) => {
     await open(page, 'twoOwners', `${PROJECT}/runs`);
-    await expect(mainNav(page).getByRole('link')).toHaveText([/^Runs/, 'Desk']);
+    await expect(mainNav(page).getByRole('link')).toHaveText([/^Runs/, 'Settings']);
     await expect(tab(page, 'Projects')).toHaveCount(0);
   });
 
@@ -53,7 +53,6 @@ test.describe('BR-43: top-bar tabs per level', () => {
     await expect(page.getByRole('navigation', { name: 'Breadcrumb' })).toBeVisible();
     await expect(mainNav(page)).toHaveCount(0);
     await expect(bar(page).getByRole('navigation')).toHaveCount(1);
-    await expect(page.getByRole('link', { name: 'Desk', exact: true })).toHaveCount(0);
     await expect(page.getByRole('link', { name: 'Projects', exact: true })).toHaveCount(0);
     await expect(page.getByRole('link', { name: 'Settings', exact: true })).toHaveCount(0);
   });

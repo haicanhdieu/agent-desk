@@ -66,7 +66,7 @@ export function useDeskFrame(org: string, projectId: string, now: Date): DeskFra
     links: {
       projects: paths.projects,
       runs: paths.runs,
-      // The Desk tab opens the rules page, so it shows only for roles that may read it.
+      // The Settings tab opens the rules page, so it shows only for roles that may read it.
       ...(rights.rules && { desk: paths.rules }),
       skills: paths.skills,
       rules: paths.rules,

@@ -207,7 +207,7 @@ describe('runs route', () => {
     );
   });
 
-  it('TC-43.4, TC-48.1: the project bar shows the org crumb, Runs and Desk, and the logo goes to the org projects', async () => {
+  it('TC-43.4, TC-48.1: the project bar shows the org crumb, Runs and Settings, and the logo goes to the org projects', async () => {
     await renderRoute(`${base}/runs`);
     await screen.findByRole('heading', { level: 1, name: 'Runs' });
     const bar = screen.getByRole('banner');
@@ -215,15 +215,15 @@ describe('runs route', () => {
     expect(within(bar).getByRole('button', { name: /^Switch project, currently/ })).toBeVisible();
     const tabs = within(bar).getByRole('navigation', { name: 'Main' });
     expect(within(tabs).getByRole('link', { name: /^Runs/ })).toHaveAttribute('aria-current', 'page');
-    expect(within(tabs).getByRole('link', { name: 'Desk' })).toBeVisible();
+    expect(within(tabs).getByRole('link', { name: 'Settings' })).toBeVisible();
     expect(within(bar).getAllByRole('link', { name: /Agent Desk/ })[0]).toHaveAttribute('href', '/o/alice/projects');
   });
 
-  it('the Desk tab opens Routing rules, not Skills', async () => {
+  it('the Settings tab opens Routing rules, not Skills', async () => {
     await renderRoute(`${base}/runs`);
     await screen.findByRole('heading', { level: 1, name: 'Runs' });
     const tabs = screen.getByRole('navigation', { name: 'Main' });
-    expect(within(tabs).getByRole('link', { name: /Desk/ })).toHaveAttribute('href', `${base}/desk/rules`);
+    expect(within(tabs).getByRole('link', { name: 'Settings' })).toHaveAttribute('href', `${base}/desk/rules`);
   });
 
   it('clicking a filter chip gives a clean URL that the route reads back', async () => {

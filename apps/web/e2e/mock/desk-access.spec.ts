@@ -5,7 +5,7 @@ import { seedOnboarding } from './mock';
 
 /*
  * Issue 216: a member or viewer cannot open the Desk configuration pages or the new-project wizard. Each Desk route
- * and the wizard shows the Forbidden page for a direct URL, no Desk data is requested, and the Desk tab and the
+ * and the wizard shows the Forbidden page for a direct URL, no Desk data is requested, and the Settings tab and the
  * project Settings entry are not there. An admin still opens every page. Mock mode: MSW answers the API, and answers
  * 403 to a role without the permission, as the real guard does (see the local spec rbac-desk-access.spec.ts for the API).
  *
@@ -60,10 +60,12 @@ for (const role of ['member', 'viewer'] as const) {
       expect(seen.filter((p) => p.startsWith('/api/connections'))).toEqual([]);
     });
 
-    test('has no Desk tab on the runs page and no Desk data is requested there', async ({ page }) => {
+    test('has no Settings tab on the runs page and no Desk data is requested there', async ({ page }) => {
       const seen = await open(page, role, `/o/acme/p/${P1}/runs`);
       await expect(page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: /^Runs/ })).toBeVisible();
-      await expect(page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Desk' })).toHaveCount(0);
+      await expect(page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Settings' })).toHaveCount(
+        0,
+      );
       expect(seen.filter((p) => DESK_DATA.test(p))).toEqual([]);
     });
 
@@ -80,12 +82,14 @@ test.describe('an admin', () => {
   for (const tab of TABS) {
     test(`opens the Desk ${tab} page by direct URL`, async ({ page }) => {
       await open(page, 'orgAdmin', `/o/acme/p/${P1}/desk/${tab}`);
-      await expect(page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Desk' })).toBeVisible();
+      await expect(
+        page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Settings' }),
+      ).toBeVisible();
       await expect(forbidden(page)).toHaveCount(0);
     });
   }
 
-  test('opens the new project wizard and sees the Desk tab and Settings entry', async ({ page }) => {
+  test('opens the new project wizard and sees the Settings tab and Settings entry', async ({ page }) => {
     await open(page, 'orgAdmin', '/o/acme/projects/new/repo');
     await expect(page.getByRole('heading', { level: 1, name: 'Connect a repository' })).toBeVisible();
     await expect(forbidden(page)).toHaveCount(0);

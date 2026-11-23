@@ -40,7 +40,7 @@ From the approved navigation proposal ("go with option A"). One top bar on every
 
 ```
 Org page      [logo] | Harbor Labs v |  Projects   Settings                         bell (KH)
-Project page  [logo] | Harbor Labs v / invoicer-api v |  Runs   Desk    Repo on GitHub  bell (KH)
+Project page  [logo] | Harbor Labs v / invoicer-api v |  Runs   Settings    Repo on GitHub  bell (KH)
 Run page      [logo] | Harbor Labs v / invoicer-api v / Runs 1 / Run 62   status, actions   (KH)
 Personal      [logo] | Harbor Labs v                                                 bell (KH)   (My invitations: org tabs, none active)
 Create org    [logo] | No organization v                                             bell (KH)   (no tabs)
@@ -53,14 +53,14 @@ No org (Dana) [logo] | No organization                                          
 | Org crumb "Harbor Labs v" | Always a button, also for people in one org. Menu: the org name, Projects, Settings (only for roles that may open it), then "Switch organization" (2+ orgs, or platform admin), then "Create organization" (platform admin). |
 | Project crumb "invoicer-api v" | Project switcher with needs-you counts and "All projects". Shows only the project name (the org has its own crumb). |
 | Tabs, org level | Projects, Settings. Settings opens the first tab the role may open (project admin: Invitations). Members, viewers and platform admins get no Settings tab and no Settings item in the org menu. |
-| Tabs, project level | Runs (with "1 needs you"), Desk, plus the "Repo on GitHub" link. |
+| Tabs, project level | Runs (with "1 needs you"), Settings, plus the "Repo on GitHub" link. |
 | Run page | Compact bar with the org and project crumbs, then "Runs" (goes to the project's Runs list) and "Run N". No tabs, so the terminal keeps its height. |
 | Account menu (avatar) | Name with the full email under it, "Logout" (with an icon). No Settings here: Settings belongs to the org. |
 | Settings side menu | `<nav aria-label="Organization settings">`; the tabs in the bar are `<nav aria-label="Main">`. |
 | Needs you page (`/o/<org>/needs-you`) | Now under the org bar (no tab is active, because it is not one of the tabs). |
 | New project setup | Org bar, Projects tab active. |
 
-Clicks, as the proposal promises: Projects <-> Settings is one click with the tabs. From Runs, Desk or a run to Settings: org menu, Settings (2 clicks). To another org: org menu, org (2 clicks). To another project: project menu, project (2 clicks). The browser back button follows every step.
+Clicks, as the proposal promises: Projects <-> Settings is one click with the tabs. From Runs, Settings (project) or a run to org Settings: org menu, Settings (2 clicks). To another org: org menu, org (2 clicks). To another project: project menu, project (2 clicks). The browser back button follows every step.
 
 ### What changed from the first prototype
 

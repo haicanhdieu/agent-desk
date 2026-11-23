@@ -51,7 +51,7 @@ const artboard = (height: number): NonNullable<Story['decorators']> => [
   ),
 ];
 
-/** The Desk boards under the app bar: the org crumb, the account menu, and the Runs and Desk tabs with Desk active. */
+/** The Desk boards under the app bar: the org crumb, the account menu, and the Runs and Settings tabs with Settings active. */
 const deskFrame: DeskFrameData = {
   ...plainDeskFrame,
   org: { ...orgSwitchFixtures.severalOrgsSettings, orgHref: (o) => `#${o.slug}`, createHref: '#new-org' },

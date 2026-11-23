@@ -767,12 +767,12 @@ describe('Desk under the app bar (BR-43)', () => {
   const links = { projects: '/p', runs: '/r', desk: '/d', skills: 's', rules: 'r', agent: 'a' };
   const org = { ...orgSwitchFixtures.oneOrgSettings, orgHref: () => '/o', createHref: '/new' };
 
-  it('with org: the org crumb, the project crumb, Runs and Desk tabs with Desk current', () => {
+  it('with org: the org crumb, the project crumb, Runs and Settings tabs with Settings current', () => {
     render(<DeskSkills frame={{ ...deskFrame, org, links }} skills={skills} activeName="code-build" />);
     const bar = screen.getByRole('banner');
     expect(within(bar).getByRole('button', { name: /^Organization menu, Acme/ })).toBeInTheDocument();
     const tabs = within(bar).getByRole('navigation', { name: 'Main' });
-    expect(within(tabs).getByRole('link', { name: 'Desk' })).toHaveAttribute('aria-current', 'page');
+    expect(within(tabs).getByRole('link', { name: 'Settings' })).toHaveAttribute('aria-current', 'page');
     expect(within(tabs).getByRole('link', { name: /^Runs/ })).not.toHaveAttribute('aria-current');
   });
 

@@ -140,7 +140,7 @@ for (const [persona, want] of Object.entries(ROLES)) {
   await login(p, 'kim-hale', '/o/harbor-labs/p/invoicer-api/runs');
   eq(await hdrCount(p), 1, 'Runs one bar');
   eq(await crumbs(p), ['Harbor Labs', 'invoicer-api'], 'Runs crumbs');
-  eq(await tabs(p), ['Runs1 needs you', 'Desk'], 'Runs tabs');
+  eq(await tabs(p), ['Runs1 needs you', 'Settings'], 'Runs tabs');
   eq(await activeTab(p), ['Runs'], 'Runs active');
   await shot(p, '40-runs-owner');
   // Settings in 2 clicks (org menu, Settings)
@@ -149,7 +149,7 @@ for (const [persona, want] of Object.entries(ROLES)) {
   eq(await hash(p), '#/o/harbor-labs/settings/general', 'Runs -> org menu -> Settings (2 clicks)');
   // another org from a project, 2 clicks + switch delay
   await go(p, '/o/harbor-labs/p/invoicer-api/desk/skills');
-  eq(await activeTab(p), ['Desk'], 'Desk active');
+  eq(await activeTab(p), ['Settings'], 'Settings active');
   await openOrg(p); await p.click('header.top .pop a[data-org="northwind"]'); await p.waitForTimeout(1000);
   eq(await hash(p), '#/o/northwind/projects', 'project -> org menu -> Northwind');
   eq((await crumbs(p))[0], 'Northwind Analytics', 'Northwind crumb');

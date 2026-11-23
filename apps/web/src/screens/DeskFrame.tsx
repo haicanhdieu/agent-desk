@@ -8,7 +8,7 @@ import styles from './Screens.module.css';
 export interface DeskLinks {
   projects: string;
   runs: string;
-  /** The top bar's Desk tab; hidden without it. */
+  /** The top bar's Settings tab; hidden without it. */
   desk?: string;
   skills: string;
   rules: string;

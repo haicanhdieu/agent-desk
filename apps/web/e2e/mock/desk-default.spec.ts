@@ -1,9 +1,9 @@
 import { expect, test } from '@playwright/test';
 import { INVOICER_API, ORG } from './mock';
 
-test('the Desk tab opens Routing rules, the first item in the Desk menu', async ({ page }) => {
+test('the Settings tab opens Routing rules, the first item in the Desk menu', async ({ page }) => {
   await page.goto(`/o/${ORG}/p/${INVOICER_API}/runs`);
-  await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Desk' }).click();
+  await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Settings' }).click();
 
   await expect(page).toHaveURL(new RegExp(`/o/${ORG}/p/${INVOICER_API}/desk/rules$`));
   await expect(page.getByRole('heading', { name: 'Routing rules', level: 1 })).toBeVisible();

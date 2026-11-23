@@ -1,5 +1,5 @@
 /* App chrome (Option A navigation): ONE top bar on every page. The crumbs say where you are ("Org v / Project v") and the tabs
-   are the sections of the last crumb: Projects and Settings on org pages; Runs and Desk on project pages. Org menu: Projects,
+   are the sections of the last crumb: Projects and Settings on org pages; Runs and Settings on project pages. Org menu: Projects,
    Settings, switch organization, create organization. Account menu: name, email, Logout. Markup and classes are the
    ones of the boards (header.top, .switch, .tabs, .avatar, .pop, .banner). */
 (function () {
@@ -107,7 +107,7 @@
     const sample = (AD.state.projects[slug] || []).find((p) => p.id === proj);
     const needs = sample ? sample.needs : 0;
     const base = '/o/' + slug + '/p/' + proj;
-    return `<nav class="tabs" aria-label="Main">${tab(AD.href(base + '/runs'), which === 'runs', I.runs, 'Runs', needs ? `<span class="count-idle" title="${needs} run needs you">${needs} needs you</span>` : '')}${tab(AD.href(base + '/desk/skills'), which === 'desk', I.desk, 'Desk')}</nav>`;
+    return `<nav class="tabs" aria-label="Main">${tab(AD.href(base + '/runs'), which === 'runs', I.runs, 'Runs', needs ? `<span class="count-idle" title="${needs} run needs you">${needs} needs you</span>` : '')}${tab(AD.href(base + '/desk/skills'), which === 'desk', I.sliders, 'Settings')}</nav>`;
   };
 
   /* ---------- the bar ---------- */

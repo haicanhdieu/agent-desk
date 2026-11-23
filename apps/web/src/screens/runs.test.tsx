@@ -533,7 +533,7 @@ describe('PR state colours on the Runs screen', () => {
 });
 
 describe('Runs under the app bar (BR-43)', () => {
-  it('with org: the org crumb, the project crumb, Runs current with the needs-you count, and Desk', () => {
+  it('with org: the org crumb, the project crumb, Runs current with the needs-you count, and Settings', () => {
     render(<Runs {...base} filter="all" org={org} links={{ desk: '/desk' }} />);
     const bar = screen.getByRole('banner');
     expect(within(bar).getByRole('button', { name: /^Switch organization, currently Acme/ })).toBeInTheDocument();
@@ -541,7 +541,7 @@ describe('Runs under the app bar (BR-43)', () => {
     const tabs = within(bar).getByRole('navigation', { name: 'Main' });
     expect(within(tabs).getByRole('link', { name: /^Runs/ })).toHaveAttribute('aria-current', 'page');
     expect(within(tabs).getByRole('link', { name: /^Runs/ })).toHaveTextContent('1');
-    expect(within(tabs).getByRole('link', { name: 'Desk' })).not.toHaveAttribute('aria-current');
+    expect(within(tabs).getByRole('link', { name: 'Settings' })).not.toHaveAttribute('aria-current');
   });
 
   it('without org: no org crumb and no owner text, only the project', () => {
@@ -566,6 +566,6 @@ describe('Runs under the app bar (BR-43)', () => {
   it('NeedsYou has one Main nav: the example strip in the page is labelled apart from the bar', () => {
     render(<NeedsYou project={project} projects={projects} topBar={{ user, org }} />);
     expect(screen.getAllByRole('navigation', { name: 'Main' })).toHaveLength(1);
-    expect(screen.getByRole('navigation', { name: 'Runs and Desk tabs, example' })).toBeInTheDocument();
+    expect(screen.getByRole('navigation', { name: 'Runs and Settings tabs, example' })).toBeInTheDocument();
   });
 });
