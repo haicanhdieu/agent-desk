@@ -4,7 +4,7 @@ import { SubNav } from './SubNav';
 import styles from './Chrome.module.css';
 
 export interface DeskLayoutProps {
-  active: 'skills' | 'rules' | 'agent' | 'setup';
+  active: 'skills' | 'rules' | 'agent' | 'setup' | 'members' | 'audit';
   repo: {
     org: string;
     name: string;
@@ -16,8 +16,9 @@ export interface DeskLayoutProps {
   /**
    * Sub-nav hrefs; default to the relative "skills", "rules", "setup" and "agent". "Workspace setup" shows only when
    * `setup` is set, so callers without that route keep the three-item nav.
+   * The "Access" group (Members, Audit log) shows only the items whose link is set, and not at all when neither is.
    */
-  links?: { skills: string; rules: string; agent: string; setup?: string };
+  links?: { skills: string; rules: string; agent: string; setup?: string; members?: string; audit?: string };
   /** The project's name for the sidebar header; the generic "Desk" when not given. */
   projectName?: string;
   children?: ReactNode;
@@ -50,6 +51,28 @@ export function DeskLayout({ active, repo, projectName, links = relativeLinks, c
               { label: 'Agent & settings', href: links.agent, icon: 'bot', active: active === 'agent' },
             ],
           },
+          ...(links.members || links.audit
+            ? [
+                {
+                  heading: 'Access',
+                  items: [
+                    ...(links.members
+                      ? [
+                          {
+                            label: 'Members',
+                            href: links.members,
+                            icon: 'users' as const,
+                            active: active === 'members',
+                          },
+                        ]
+                      : []),
+                    ...(links.audit
+                      ? [{ label: 'Audit log', href: links.audit, icon: 'clock' as const, active: active === 'audit' }]
+                      : []),
+                  ],
+                },
+              ]
+            : []),
           {
             heading: 'Repository',
             content: (

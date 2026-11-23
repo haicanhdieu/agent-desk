@@ -8,6 +8,7 @@ import {
   type AgentDto,
   type Page,
   type ProjectDto,
+  type RoleDto,
   type RouteKey,
   type RuleDto,
 } from '@agentdesk/contracts';
@@ -37,6 +38,8 @@ let runP2Number: number;
 let agentP2: string;
 let ruleP2: string;
 let setupTestP2: string;
+let memUserId: string;
+let memberRoleId: string;
 
 async function seedRun(projectId: string, ref: string): Promise<{ id: string; number: number }> {
   return withOrg(t.db, orgId, async (tx) => {
@@ -80,6 +83,11 @@ beforeAll(async () => {
   adm = await inviteAndLogin(t, orgId, 'sco-adm', 'admin', { type: 'project', projectIds: [p1] });
   mem = await inviteAndLogin(t, orgId, 'sco-mem', 'member', { type: 'project', projectIds: [p1, p2] });
   vw = await inviteAndLogin(t, orgId, 'sco-vw', 'viewer', { type: 'org' });
+  memUserId = await userIdOf(t, 'sco-mem');
+  const rolesRes = await send('GET', `/api/orgs/${orgId}/roles`, owner);
+  const memberRole = rolesRes.json<RoleDto[]>().find((r) => r.key === 'member');
+  if (!memberRole) throw new Error('no member role');
+  memberRoleId = memberRole.id;
   runP1 = (await seedRun(p1, 'sco-1')).id;
   const r2 = await seedRun(p2, 'sco-2');
   runP2 = r2.id;
@@ -197,6 +205,11 @@ describe('BR-28: a project outside the caller scope is 404', () => {
     ['runs.closeSession', 'POST', `/api/runs/${runP2}/close-session`, undefined],
     ['runs.transcript', 'GET', `/api/runs/${runP2}/transcript`, undefined],
     ['runs.events', 'GET', `/api/runs/${runP2}/events`, undefined],
+    ['projectMembers.list', 'GET', `/api/projects/${p2}/members`, undefined],
+    ['projectMembers.add', 'POST', `/api/projects/${p2}/members`, { userId: memUserId, roleId: memberRoleId }],
+    ['projectMembers.setRole', 'PUT', `/api/projects/${p2}/members/${memUserId}/role`, { roleId: memberRoleId }],
+    ['projectMembers.remove', 'DELETE', `/api/projects/${p2}/members/${memUserId}`, undefined],
+    ['projects.audit', 'GET', `/api/projects/${p2}/audit`, undefined],
   ];
   // Exclusions: WebSocket upgrades cannot be driven through inject; their out-of-scope close codes are tested in terminal.int.test.ts.
   const excluded: Record<string, string> = {

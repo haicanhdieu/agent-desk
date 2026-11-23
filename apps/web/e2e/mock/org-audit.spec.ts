@@ -127,3 +127,33 @@ test('TC-24.5: an org with no entries shows "No activity yet"', async ({ page })
   await expect(page.getByRole('heading', { name: 'No activity yet' })).toBeVisible();
   await expect(page.locator('tbody tr')).toHaveCount(0);
 });
+
+test('TC-27.6: an invitation listing 4 projects reads "... to p1, p2, p3 and 1 more" and the cell title lists all four', async ({
+  page,
+}) => {
+  await open(page, 'twoOwners');
+  await loaded(page);
+  const what = rowOf(page, 'wide.team@contractor.io').getByRole('cell').nth(2);
+  await expect(what).toHaveText(
+    'Alice Doe invited wide.team@contractor.io as Member to billing-jobs, docs-site, invoicer-api and 1 more',
+  );
+  await expect(what.locator('[title]')).toHaveAttribute(
+    'title',
+    'Alice Doe invited wide.team@contractor.io as Member to billing-jobs, docs-site, invoicer-api, invoicer-web',
+  );
+});
+
+test('TC-27.7: project-scoped invitation sentences name their projects; the org-scope one has no " to ..." part', async ({
+  page,
+}) => {
+  await open(page, 'twoOwners');
+  await loaded(page);
+  const scoped = rowOf(page, 'sam.reyes@contractor.io').getByRole('cell').nth(2);
+  await expect(scoped).toHaveText('Alice Doe invited sam.reyes@contractor.io as Viewer to invoicer-api, invoicer-web');
+  const markup = rowOf(page, 'markup.guest@contractor.io').getByRole('cell').nth(2);
+  await expect(markup).toHaveText('Alice Doe invited markup.guest@contractor.io as Admin to <i>markup-project</i>');
+  const label = `<b>${'long-invitee-'.repeat(8)}</b>@example.com`;
+  const orgScope = rowOf(page, 'long-invitee-').getByRole('cell').nth(2);
+  await expect(orgScope).toHaveText(`Priya Raman invited ${label} as Member`);
+  await expect(orgScope).not.toContainText(/ as Member to /);
+});

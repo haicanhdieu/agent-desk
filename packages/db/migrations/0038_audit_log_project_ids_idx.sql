@@ -1,0 +1,1 @@
+CREATE INDEX "audit_log_project_ids_idx" ON "audit_log" USING gin ("project_ids");

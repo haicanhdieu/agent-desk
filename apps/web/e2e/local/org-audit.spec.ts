@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { expect, test, type Browser, type Locator, type Page } from '@playwright/test';
-import { AuditEntryDto, MemberDto, OrgDto, pageOf } from '@agentdesk/contracts';
+import { AuditEntryDto, MemberDto, OrgDto, ProjectDto, pageOf } from '@agentdesk/contracts';
 import {
   API,
   acceptViaApi,
@@ -11,12 +11,12 @@ import {
   type InviteScope,
   type RoleKey,
 } from './helpers';
-import { disposeSecondOrg, roleIdsOf, secondOrg, type Actor } from './rbac-cast';
+import { REPO_P1, REPO_P2, disposeSecondOrg, installFake, roleIdsOf, secondOrg, type Actor } from './rbac-cast';
 import { withScope, type Org, type Scope } from './onboarding-scope';
 
 /*
  * Local end-to-end for the org Audit log and cross-org isolation (spec 2026-11-22-org-tenant-admin-design.md "E2E
- * requirements": TC-20.1, TC-20.2, TC-21.1 to TC-21.5, TC-22.1, TC-22.2, TC-23.1 to TC-23.6, TC-25.1 to TC-25.4).
+ * requirements": TC-20.1, TC-20.2, TC-21.1 to TC-21.5, TC-22.1, TC-22.2, TC-23.1 to TC-23.6, TC-25.1 to TC-25.4; and 2026-11-23-rbac-project-admin-space-design.md: TC-27.12).
  *
  * Every test builds its own org with random `e2e-<rand>` handles and only the people it needs, one browser context per
  * person, and closes every context it opened. The Givens use the API; the Steps go through the UI, except that the
@@ -349,6 +349,8 @@ test('TC-22.2: O changes the URL from old to new; the Audit log at the new URL r
 });
 
 // ---- BR-23: invitation events ----
+// TC-23.1 invites to two projects (the new sentence); TC-23.2 to TC-23.6 use whole-organization invitations, whose
+// sentences carry no " to ..." part and are unchanged.
 
 const inviteDialog = (page: Page): Locator => page.getByRole('dialog', { name: 'Invite people' });
 
@@ -362,20 +364,38 @@ async function pendingInvitation(w: World, email: string, role: RoleKey): Promis
   return (await inviteViaApi(w.o.api, w.org.id, email, role, { type: 'org' }, 'tenant')).id;
 }
 
-test('TC-23.1: O invites a person as Viewer; the Audit log reads "O invited <email> as Viewer", the email as plain text', async ({
+/** Two projects of the world's org on the fake connection, made as O; `both` is their names sorted, as the log lists them. */
+async function twoProjects(w: World): Promise<{ ids: string[]; names: string[]; both: string }> {
+  const connectionId = await installFake(w.o);
+  const create = async (repoPath: string): Promise<{ id: string; name: string }> =>
+    ProjectDto.parse(
+      await ok(
+        await w.o.api.post('/api/projects', { data: { connectionId, repoPath, triggerMode: 'webhook' } }),
+        201,
+        `create project ${repoPath}`,
+      ),
+    );
+  const projects = [await create(REPO_P1), await create(REPO_P2)];
+  const names = projects.map((p) => p.name).sort((x, y) => x.localeCompare(y));
+  return { ids: projects.map((p) => p.id), names, both: names.join(', ') };
+}
+
+test('TC-23.1: O invites a person as Viewer to two projects; the Audit log reads "O invited <email> as Viewer to P1, P2", the email as plain text', async ({
   browser,
 }) => {
   await withWorld(browser, async (w) => {
     const nameO = await nameOf(w, w.o.userId);
     const email = w.scope.email('sam');
+    const projects = await twoProjects(w);
     const page = w.o.page;
     await openInvitations(page, w.org.slug);
     await page.getByRole('button', { name: 'Invite people' }).first().click();
     const dialog = inviteDialog(page);
     await expect(dialog).toBeVisible();
     await dialog.getByLabel('Email').fill(email);
+    await dialog.getByRole('radio', { name: 'Some projects' }).check();
+    for (const name of projects.names) await dialog.getByRole('checkbox', { name, exact: true }).check();
     await dialog.getByLabel('Role').selectOption({ label: 'Viewer' });
-    await dialog.getByRole('radio', { name: 'Whole organization' }).check();
     await dialog.getByRole('button', { name: 'Create invitation' }).click();
     const created = page.getByRole('dialog', { name: 'Invitation created' });
     await expect(created).toBeVisible();
@@ -383,7 +403,7 @@ test('TC-23.1: O invites a person as Viewer; the Audit log reads "O invited <ema
     await expect(rowOf(page, email)).toHaveCount(1);
 
     await openAudit(page, w.org.slug);
-    const row = entryRows(page, `${nameO} invited ${email} as Viewer`);
+    const row = entryRows(page, `${nameO} invited ${email} as Viewer to ${projects.both}`);
     await expect(row).toHaveCount(1);
     await expect(row.getByRole('link')).toHaveCount(0);
     await expect(row.locator('td:nth-child(3) b').nth(1)).toHaveText(email);
@@ -501,6 +521,33 @@ test('TC-23.6: after the acceptance the Audit log shows the role granted through
     expect(granted).toHaveLength(1);
     expect(granted[0]?.actor?.userId).toBe(w.o.userId);
     expect(granted[0]?.target.type).toBe('user');
+  });
+});
+
+test('TC-27.12: O invites Y to P1 and P2; the org Audit log reads "O invited <email> as Member to <P1>, <P2>" with the email and both project names', async ({
+  browser,
+}) => {
+  await withWorld(browser, async (w) => {
+    const nameO = await nameOf(w, w.o.userId);
+    const projects = await twoProjects(w);
+    const email = w.scope.email('yy');
+    const invitation = await inviteViaApi(
+      w.o.api,
+      w.org.id,
+      email,
+      'member',
+      { type: 'project', projectIds: projects.ids },
+      'tenant',
+    );
+    try {
+      await openAudit(w.o.page, w.org.slug);
+      const row = entryRows(w.o.page, `${nameO} invited ${email} as Member to ${projects.both}`);
+      await expect(row).toHaveCount(1);
+      await expect(row.getByRole('link')).toHaveCount(0);
+      await expect(row.locator('td:nth-child(3) b')).toHaveText([nameO, email, projects.both]);
+    } finally {
+      await w.o.api.delete(`/api/orgs/${w.org.id}/invitations/${invitation.id}`).catch(() => null);
+    }
   });
 });
 

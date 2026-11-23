@@ -322,6 +322,14 @@
    "title": "Desk \u2014 routing rules, prompt too long, preview failed",
    "expand": "fill"
   },
+  "DeskAgentProjectAdmin.dc.html": {
+   "x": 16720,
+   "y": 7780,
+   "w": 1440,
+   "h": 1320,
+   "title": "Desk \u2014 agent and settings, project admin (no Delete project)",
+   "expand": "fill"
+  },
   "DeskAgentCustomModel.dc.html": {
    "x": 13680,
    "y": 7780,
@@ -1521,6 +1529,294 @@
    "h": 900,
    "title": "Settings \u2014 Audit log URL opened by a project admin: no access inside the layout",
    "expand": "fill"
+  },
+  "DeskAudit.dc.html": {
+   "x": 0,
+   "y": 46640,
+   "w": 1440,
+   "h": 900,
+   "title": "Desk \u2014 audit log, newest first",
+   "expand": "fill"
+  },
+  "DeskAuditLoading.dc.html": {
+   "x": 1520,
+   "y": 46640,
+   "w": 1440,
+   "h": 900,
+   "title": "Desk \u2014 audit log, loading",
+   "expand": "fill"
+  },
+  "DeskAuditEmpty.dc.html": {
+   "x": 3040,
+   "y": 46640,
+   "w": 1440,
+   "h": 900,
+   "title": "Desk \u2014 audit log, empty",
+   "expand": "fill"
+  },
+  "DeskAuditError.dc.html": {
+   "x": 4560,
+   "y": 46640,
+   "w": 1440,
+   "h": 900,
+   "title": "Desk \u2014 audit log, failed to load",
+   "expand": "fill"
+  },
+  "DeskAuditPaged.dc.html": {
+   "x": 6080,
+   "y": 46640,
+   "w": 1440,
+   "h": 900,
+   "title": "Desk \u2014 audit log, page 2 of 2",
+   "expand": "fill"
+  },
+  "DeskAuditInvitationNoEmail.dc.html": {
+   "x": 7600,
+   "y": 46640,
+   "w": 1440,
+   "h": 900,
+   "title": "Desk \u2014 audit log, invitation entries without the email",
+   "expand": "fill"
+  },
+  "DeskAuditInvitationExpired.dc.html": {
+   "x": 9120,
+   "y": 46640,
+   "w": 1440,
+   "h": 900,
+   "title": "Desk \u2014 audit log, expired invitation entries",
+   "expand": "fill"
+  },
+  "OrgAuditInvitationProjects.dc.html": {
+   "x": 7600,
+   "y": 45360,
+   "w": 1440,
+   "h": 900,
+   "title": "Settings \u2014 Audit log, invitation entries naming their projects",
+   "expand": "fill"
+  },
+  "OrgAuditInvitationNoEmail.dc.html": {
+   "x": 9120,
+   "y": 45360,
+   "w": 1440,
+   "h": 900,
+   "title": "Settings \u2014 Audit log, invitation entries without the email",
+   "expand": "fill"
+  },
+  "DeskMembers.dc.html": {
+   "x": 0,
+   "y": 47920,
+   "w": 1440,
+   "h": 900,
+   "title": "Desk \u2014 members, you, several roles, a long name",
+   "expand": "fill"
+  },
+  "DeskMembersLoading.dc.html": {
+   "x": 1520,
+   "y": 47920,
+   "w": 1440,
+   "h": 900,
+   "title": "Desk \u2014 members, loading",
+   "expand": "fill"
+  },
+  "DeskMembersEmpty.dc.html": {
+   "x": 3040,
+   "y": 47920,
+   "w": 1440,
+   "h": 900,
+   "title": "Desk \u2014 members, empty",
+   "expand": "fill"
+  },
+  "DeskMembersError.dc.html": {
+   "x": 4560,
+   "y": 47920,
+   "w": 1440,
+   "h": 900,
+   "title": "Desk \u2014 members, failed to load",
+   "expand": "fill"
+  },
+  "DeskMembersPaged.dc.html": {
+   "x": 0,
+   "y": 49200,
+   "w": 1440,
+   "h": 900,
+   "title": "Desk \u2014 members, page 2 of 2",
+   "expand": "fill"
+  },
+  "DeskMembersForbidden.dc.html": {
+   "x": 1520,
+   "y": 49200,
+   "w": 1440,
+   "h": 900,
+   "title": "Desk \u2014 members URL opened by a member or viewer: no access",
+   "expand": "fill"
+  },
+  "DeskMembersRowMenu.dc.html": {
+   "x": 3040,
+   "y": 49200,
+   "w": 1440,
+   "h": 900,
+   "title": "Desk \u2014 members, row menu on another person",
+   "expand": "fill"
+  },
+  "DeskMembersBusy.dc.html": {
+   "x": 4560,
+   "y": 49200,
+   "w": 1440,
+   "h": 900,
+   "title": "Desk \u2014 members, a row action in flight",
+   "expand": "fill"
+  },
+  "DeskMembersAdd.dc.html": {
+   "x": 0,
+   "y": 50480,
+   "w": 1440,
+   "h": 900,
+   "title": "Desk \u2014 members, add dialog, Person and Role empty",
+   "expand": "fill"
+  },
+  "DeskMembersAddSearch.dc.html": {
+   "x": 1520,
+   "y": 50480,
+   "w": 1440,
+   "h": 900,
+   "title": "Desk \u2014 members, add dialog, server search, 20 of 23 loaded",
+   "expand": "fill"
+  },
+  "DeskMembersAddNoMatch.dc.html": {
+   "x": 3040,
+   "y": 50480,
+   "w": 1440,
+   "h": 900,
+   "title": "Desk \u2014 members, add dialog, no match",
+   "expand": "fill"
+  },
+  "DeskMembersAddAllAdded.dc.html": {
+   "x": 4560,
+   "y": 50480,
+   "w": 1440,
+   "h": 900,
+   "title": "Desk \u2014 members, add dialog, everyone already has a role",
+   "expand": "fill"
+  },
+  "DeskMembersAddFieldErrors.dc.html": {
+   "x": 0,
+   "y": 51760,
+   "w": 1440,
+   "h": 900,
+   "title": "Desk \u2014 members, add dialog, field errors",
+   "expand": "fill"
+  },
+  "DeskMembersAddSaving.dc.html": {
+   "x": 1520,
+   "y": 51760,
+   "w": 1440,
+   "h": 900,
+   "title": "Desk \u2014 members, add dialog, saving",
+   "expand": "fill"
+  },
+  "DeskMembersAddFormError.dc.html": {
+   "x": 3040,
+   "y": 51760,
+   "w": 1440,
+   "h": 900,
+   "title": "Desk \u2014 members, add dialog, server error",
+   "expand": "fill"
+  },
+  "DeskMembersAddAlreadyOnProject.dc.html": {
+   "x": 4560,
+   "y": 51760,
+   "w": 1440,
+   "h": 900,
+   "title": "Desk \u2014 members, add dialog, already has a role",
+   "expand": "fill"
+  },
+  "DeskMembersAdded.dc.html": {
+   "x": 0,
+   "y": 53040,
+   "w": 1440,
+   "h": 900,
+   "title": "Desk \u2014 members, added, list refetched, toast",
+   "expand": "fill"
+  },
+  "DeskMembersInvite.dc.html": {
+   "x": 1520,
+   "y": 53040,
+   "w": 1440,
+   "h": 900,
+   "title": "Desk \u2014 members, invite dialog, this project fixed, project roles only",
+   "expand": "fill"
+  },
+  "DeskMembersInviteCreated.dc.html": {
+   "x": 3040,
+   "y": 53040,
+   "w": 1440,
+   "h": 900,
+   "title": "Desk \u2014 members, invite dialog, invitation created",
+   "expand": "fill"
+  },
+  "DeskMembersChangeRole.dc.html": {
+   "x": 4560,
+   "y": 53040,
+   "w": 1440,
+   "h": 900,
+   "title": "Desk \u2014 members, change role dialog, current role preselected",
+   "expand": "fill"
+  },
+  "DeskMembersChangeRoleSaving.dc.html": {
+   "x": 0,
+   "y": 54320,
+   "w": 1440,
+   "h": 900,
+   "title": "Desk \u2014 members, change role dialog, saving",
+   "expand": "fill"
+  },
+  "DeskMembersChangeRoleError.dc.html": {
+   "x": 1520,
+   "y": 54320,
+   "w": 1440,
+   "h": 900,
+   "title": "Desk \u2014 members, change role dialog, refused (403)",
+   "expand": "fill"
+  },
+  "DeskMembersRoleChanged.dc.html": {
+   "x": 3040,
+   "y": 54320,
+   "w": 1440,
+   "h": 900,
+   "title": "Desk \u2014 members, role changed, list refetched, toast",
+   "expand": "fill"
+  },
+  "DeskMembersRemoveConfirm.dc.html": {
+   "x": 4560,
+   "y": 54320,
+   "w": 1440,
+   "h": 900,
+   "title": "Desk \u2014 members, remove from project confirmation",
+   "expand": "fill"
+  },
+  "DeskMembersRemoving.dc.html": {
+   "x": 0,
+   "y": 55600,
+   "w": 1440,
+   "h": 900,
+   "title": "Desk \u2014 members, removing",
+   "expand": "fill"
+  },
+  "DeskMembersRemoved.dc.html": {
+   "x": 1520,
+   "y": 55600,
+   "w": 1440,
+   "h": 900,
+   "title": "Desk \u2014 members, removed, list refetched, toast",
+   "expand": "fill"
+  },
+  "DeskMembersGone.dc.html": {
+   "x": 3040,
+   "y": 55600,
+   "w": 1440,
+   "h": 900,
+   "title": "Desk \u2014 members, member removed meanwhile, error toast",
+   "expand": "fill"
   }
  },
  "order": [
@@ -1568,6 +1864,14 @@
   "DeskRulesPromptNew.dc.html",
   "DeskRulesPromptError.dc.html",
   "DeskAgent.dc.html",
+  "DeskAgentProjectAdmin.dc.html",
+  "DeskAudit.dc.html",
+  "DeskAuditLoading.dc.html",
+  "DeskAuditEmpty.dc.html",
+  "DeskAuditError.dc.html",
+  "DeskAuditPaged.dc.html",
+  "DeskAuditInvitationNoEmail.dc.html",
+  "DeskAuditInvitationExpired.dc.html",
   "DeskAgentCustomModel.dc.html",
   "DeskAgentAddressChanged.dc.html",
   "DeskAgentAutoResume.dc.html",
@@ -1712,7 +2016,36 @@
   "OrgAuditEmpty.dc.html",
   "OrgAuditLoading.dc.html",
   "OrgAuditError.dc.html",
-  "OrgAuditForbidden.dc.html"
+  "OrgAuditForbidden.dc.html",
+  "OrgAuditInvitationProjects.dc.html",
+  "OrgAuditInvitationNoEmail.dc.html",
+  "DeskMembers.dc.html",
+  "DeskMembersLoading.dc.html",
+  "DeskMembersEmpty.dc.html",
+  "DeskMembersError.dc.html",
+  "DeskMembersPaged.dc.html",
+  "DeskMembersForbidden.dc.html",
+  "DeskMembersRowMenu.dc.html",
+  "DeskMembersBusy.dc.html",
+  "DeskMembersAdd.dc.html",
+  "DeskMembersAddSearch.dc.html",
+  "DeskMembersAddNoMatch.dc.html",
+  "DeskMembersAddAllAdded.dc.html",
+  "DeskMembersAddFieldErrors.dc.html",
+  "DeskMembersAddSaving.dc.html",
+  "DeskMembersAddFormError.dc.html",
+  "DeskMembersAddAlreadyOnProject.dc.html",
+  "DeskMembersAdded.dc.html",
+  "DeskMembersInvite.dc.html",
+  "DeskMembersInviteCreated.dc.html",
+  "DeskMembersChangeRole.dc.html",
+  "DeskMembersChangeRoleSaving.dc.html",
+  "DeskMembersChangeRoleError.dc.html",
+  "DeskMembersRoleChanged.dc.html",
+  "DeskMembersRemoveConfirm.dc.html",
+  "DeskMembersRemoving.dc.html",
+  "DeskMembersRemoved.dc.html",
+  "DeskMembersGone.dc.html"
  ],
  "notes": {
   "t-intro": {

@@ -19,7 +19,7 @@ import {
 import { AUTH } from '../src/auth/auth';
 import { TerminalGateway } from '../src/terminal/terminal.gateway';
 import { createTestApp, type TestApp } from './helpers/app';
-import { createOrg, grant, inviteAndLogin, loginAs, revoke, userIdOf } from './helpers/auth';
+import { createOrg, grant, inviteAndLogin, loginAs, removeProjectMember, revoke, userIdOf } from './helpers/auth';
 import { freshStateDir, installFake, makeProject, wideFakeRepos } from './helpers/fixtures';
 
 const ORIGIN = 'http://localhost:5173';
@@ -1243,6 +1243,23 @@ describe('terminal attach by permission and ownership', () => {
     await until(() => d.bytes().length > 0);
     d.ws.close();
     await d.closed;
+  });
+
+  it('BR-10: removing a member from the project closes their open socket 4403 on the re-check and leaves the run alone', async () => {
+    const cal = await inviteAndLogin(t, aliceOrg, 'cal', 'member', { type: 'project', projectIds: [p1] });
+    const calId = await userIdOf(t, 'cal');
+    const runId = await makeRun('running', true, p1);
+    await setOwner(runId, calId);
+    const c = connect(runId, { cookie: cal });
+    await c.opened;
+    await until(() => c.bytes().length > 0);
+    const removed = await removeProjectMember(t, alice, aliceOrg, p1, calId);
+    expect(removed.statusCode, removed.body).toBe(204);
+    expect(await c.closed).toBe(4403);
+    const [row] = await withOrg(t.db, aliceOrg, (tx) =>
+      tx.select({ status: runs.status, ownerUserId: runs.ownerUserId }).from(runs).where(eq(runs.id, runId)),
+    );
+    expect(row).toEqual({ status: 'running', ownerUserId: calId });
   });
 });
 

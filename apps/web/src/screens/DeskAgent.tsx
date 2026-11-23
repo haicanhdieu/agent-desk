@@ -64,7 +64,7 @@ export interface DeskAgentProps {
   limitsError?: string;
   /** A limits save is in flight: Save limits stays disabled. */
   savingLimits?: boolean;
-  /** Called after the delete is confirmed in a dialog. */
+  /** Called after the delete is confirmed in a dialog. Without it the Danger zone is not rendered (project admins). */
   onDeleteProject?(): void;
   /**
    * Receives the typed replacement token. It is never rendered after submit. Resolving `true` closes the replace
@@ -446,38 +446,40 @@ export function DeskAgent({
             </Button>
           </div>
         </SettingsSection>
-        <SettingsSection title="Danger zone">
-          <DangerZone
-            title="Delete project"
-            body={deleteBody}
-            actionLabel="Delete project"
-            onAction={() => setConfirmingDelete(true)}
-          />
-          <Dialog
-            open={confirmingDelete}
-            title="Delete project"
-            onClose={() => setConfirmingDelete(false)}
-            footer={
-              <>
-                <Button variant="ghost" onClick={() => setConfirmingDelete(false)}>
-                  Cancel
-                </Button>
-                <Button
-                  variant="solid-danger"
-                  icon="trash"
-                  onClick={() => {
-                    setConfirmingDelete(false);
-                    onDeleteProject?.();
-                  }}
-                >
-                  Delete project
-                </Button>
-              </>
-            }
-          >
-            <p>{deleteBody}</p>
-          </Dialog>
-        </SettingsSection>
+        {onDeleteProject && (
+          <SettingsSection title="Danger zone">
+            <DangerZone
+              title="Delete project"
+              body={deleteBody}
+              actionLabel="Delete project"
+              onAction={() => setConfirmingDelete(true)}
+            />
+            <Dialog
+              open={confirmingDelete}
+              title="Delete project"
+              onClose={() => setConfirmingDelete(false)}
+              footer={
+                <>
+                  <Button variant="ghost" onClick={() => setConfirmingDelete(false)}>
+                    Cancel
+                  </Button>
+                  <Button
+                    variant="solid-danger"
+                    icon="trash"
+                    onClick={() => {
+                      setConfirmingDelete(false);
+                      onDeleteProject();
+                    }}
+                  >
+                    Delete project
+                  </Button>
+                </>
+              }
+            >
+              <p>{deleteBody}</p>
+            </Dialog>
+          </SettingsSection>
+        )}
       </main>
     </DeskFrame>
   );

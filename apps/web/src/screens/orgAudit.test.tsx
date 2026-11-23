@@ -22,7 +22,7 @@ describe('OrgAudit', () => {
     expect(body).toHaveLength(auditRows.length);
     body.forEach((tr, i) => {
       const what = auditRows[i]!.what;
-      expect(tr).toHaveTextContent(what.kind === 'raw' ? what.key : what.title);
+      expect(tr).toHaveTextContent(what.kind === 'raw' ? what.key : what.parts.map((x) => x.text).join(''));
       expect(tr.querySelector('time')).toHaveTextContent(auditRows[i]!.when.label);
     });
   });

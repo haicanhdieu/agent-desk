@@ -13,6 +13,8 @@ export { NeedsYou, type NeedsYouProps, type NeedsYouRun } from './NeedsYou';
 export { RunDetail, type RunDetailProps } from './RunDetail';
 export { DeskSkills, type DeskSkillsProps } from './DeskSkills';
 export { DeskRules, RulePane, type DeskRulesProps, type RulePaneProps } from './DeskRules';
+export { DeskAudit, type DeskAuditProps } from './DeskAudit';
+export { DeskMembers, type DeskMembersProps } from './DeskMembers';
 export { DeskAgent, type AgentLimits, type DeskAgentProps, type LimitField } from './DeskAgent';
 export type { DeskFrameData, DeskLinks } from './DeskFrame';
 export { Overview } from './Overview';

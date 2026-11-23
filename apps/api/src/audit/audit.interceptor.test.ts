@@ -2,7 +2,7 @@ import type { CallHandler, ExecutionContext } from '@nestjs/common';
 import { lastValueFrom, of } from 'rxjs';
 import { describe, expect, it, vi } from 'vitest';
 import type { Db } from '@agentdesk/db';
-import { AuditInterceptor, describeRequest } from './audit.interceptor';
+import { AuditInterceptor, auditProjectIds, describeRequest } from './audit.interceptor';
 
 const withOrg = vi.hoisted(() => vi.fn());
 vi.mock('@agentdesk/db', async (orig) => ({ ...(await orig<typeof import('@agentdesk/db')>()), withOrg }));
@@ -22,6 +22,19 @@ describe('describeRequest', () => {
       targetType: 'not-a-route',
       targetId: null,
     });
+  });
+});
+
+describe('auditProjectIds', () => {
+  it('is the resolved project for a project-kind route', () => {
+    expect(auditProjectIds({ routeKey: 'rules.update', projectId: 'p-1' })).toEqual(['p-1']);
+  });
+
+  it('is empty for an org route, a missing authz, and a project route without a project', () => {
+    expect(auditProjectIds({ routeKey: 'orgs.update', projectId: 'p-1' })).toEqual([]);
+    expect(auditProjectIds({ routeKey: 'orgs.update' })).toEqual([]);
+    expect(auditProjectIds(undefined)).toEqual([]);
+    expect(auditProjectIds({ routeKey: 'rules.update' })).toEqual([]);
   });
 });
 

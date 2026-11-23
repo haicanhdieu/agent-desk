@@ -17,6 +17,7 @@ export const Skills: Story = {
     active: 'skills',
     projectName: 'invoicer-api',
     repo: { org: 'harbor-labs', name: 'invoicer-api', branch: 'main', connected: true },
+    links: { skills: '#skills', rules: '#rules', agent: '#agent' },
     children: <div style={{ padding: 24 }}>Page content</div>,
   },
   render: (args) => (
@@ -61,4 +62,22 @@ export const PollingFailed: Story = {
       status: connections.pollingRevoked,
     },
   },
+};
+
+const accessLinks = { skills: '#skills', rules: '#rules', agent: '#agent', members: '#members', audit: '#audit' };
+
+/** Owner, org admin or project admin: the "Access" group after "Agent & settings". */
+export const WithAccess: Story = {
+  ...Skills,
+  args: { ...Skills.args, active: 'agent', links: accessLinks },
+};
+
+export const MembersActive: Story = {
+  ...Skills,
+  args: { ...Skills.args, active: 'members', links: accessLinks },
+};
+
+export const AuditActive: Story = {
+  ...Skills,
+  args: { ...Skills.args, active: 'audit', links: accessLinks },
 };

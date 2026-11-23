@@ -116,7 +116,7 @@ const MEMBER_PERMISSIONS: PermissionLineDto[] = [
   ...ownOf(['run:update', 'run:cancel', 'terminal:attach']),
 ].sort(byPermission);
 
-/** The built-in `owner` role's permissions: all 34 tenant permissions with any, no platform one. */
+/** The built-in `owner` role's permissions: all 35 tenant permissions with any, no platform one. */
 const OWNER_PERMISSIONS: PermissionLineDto[] = anyOf([
   'project:create',
   'project:read',
@@ -152,6 +152,7 @@ const OWNER_PERMISSIONS: PermissionLineDto[] = anyOf([
   'org:update',
   'org:delete',
   'audit:read',
+  'project-audit:read',
 ]).sort(byPermission);
 
 /** The platform route's grant of `member` on P2 to `userId`, returning the raw answer. */

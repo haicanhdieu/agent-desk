@@ -1,5 +1,5 @@
 import { useSuspenseQuery } from '@tanstack/react-query';
-import { can } from '@agentdesk/contracts';
+import { can, type Access, type Permission } from '@agentdesk/contracts';
 import type { OrgSwitchProps } from '@/components';
 import type { DeskFrameData } from '@/screens';
 import { useAccess } from '../access/guards';
@@ -21,6 +21,8 @@ export function projectPaths(org: string, projectId: string) {
     rules: `${projectPath}/desk/rules`,
     agent: `${projectPath}/desk/agent`,
     setup: `${projectPath}/desk/setup`,
+    members: `${projectPath}/desk/members`,
+    audit: `${projectPath}/desk/audit`,
   };
 }
 
@@ -30,17 +32,28 @@ export interface DeskRights {
   skills: boolean;
   agent: boolean;
   setup: boolean;
+  /** `assignment:read` on the project: the Members page. */
+  members: boolean;
+  /** `project-audit:read` on the project: the Audit log page. */
+  audit: boolean;
 }
 
 /** The Desk pages the caller may open on `projectId` (issue 216: not a member or a viewer). */
 export function useDeskRights(org: string, projectId: string): DeskRights {
-  const access = useAccess(org);
+  return deskRightsOf(useAccess(org), projectId);
+}
+
+/** The Desk pages `access` opens on `projectId`; everything is false without grants (fail closed). */
+export function deskRightsOf(access: Access | undefined, projectId: string): DeskRights {
   const target = { projectId };
+  const holds = (permission: Permission) => access !== undefined && can(access, permission, target);
   return {
-    rules: access !== undefined && can(access, 'rule:read', target),
-    skills: access !== undefined && can(access, 'skill:read', target),
-    agent: access !== undefined && can(access, 'agent:read', target),
-    setup: access !== undefined && can(access, 'setup:read', target),
+    rules: holds('rule:read'),
+    skills: holds('skill:read'),
+    agent: holds('agent:read'),
+    setup: holds('setup:read'),
+    members: holds('assignment:read'),
+    audit: holds('project-audit:read'),
   };
 }
 
@@ -72,6 +85,8 @@ export function useDeskFrame(org: string, projectId: string, now: Date): DeskFra
       rules: paths.rules,
       agent: paths.agent,
       setup: paths.setup,
+      ...(rights.members && { members: paths.members }),
+      ...(rights.audit && { audit: paths.audit }),
     },
     ...(warning && rights.setup && { warning: { title: warning.title, detail: warning.detail, href: paths.setup } }),
   };

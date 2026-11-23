@@ -42,7 +42,8 @@ export type IconName =
   | 'eye'
   | 'info'
   | 'grid'
-  | 'sliders';
+  | 'sliders'
+  | 'users';
 
 /** Stroke glyph contents, 24 viewBox. Path data copied from the prototype boards. */
 export const iconPaths: Record<IconName, ReactNode> = {
@@ -194,6 +195,13 @@ export const iconPaths: Record<IconName, ReactNode> = {
   ),
   check: <path d="M5 12.5l4.5 4.5L19 7.5" />,
   pause: <path d="M9 6v12M15 6v12" />,
+  users: (
+    <>
+      <circle cx="9" cy="8" r="3.5" />
+      <path d="M2.5 20a6.5 6.5 0 0 1 13 0" />
+      <path d="M16 4.5a3.5 3.5 0 0 1 0 7M18 14a6 6 0 0 1 3.5 6" />
+    </>
+  ),
   clock: (
     <>
       <circle cx="12" cy="12" r="9" />

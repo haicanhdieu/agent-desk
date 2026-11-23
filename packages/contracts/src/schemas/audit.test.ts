@@ -10,6 +10,7 @@ const base = {
   action: 'org.created',
   target: { type: null, id: null, label: null },
   changes: [],
+  projects: [],
 };
 
 describe('AuditEntryDto', () => {
@@ -33,6 +34,15 @@ describe('AuditEntryDto', () => {
   });
 });
 
+describe('AuditEntryDto projects', () => {
+  it('requires projects as an array of id and name', () => {
+    const { projects: _omit, ...without } = base;
+    expect(AuditEntryDto.safeParse(without).success).toBe(false);
+    expect(AuditEntryDto.safeParse({ ...base, projects: [{ id: ID }] }).success).toBe(false);
+    expect(AuditEntryDto.safeParse({ ...base, projects: [{ id: ID, name: 'P' }] }).success).toBe(true);
+  });
+});
+
 describe('AuditChange', () => {
   it('rejects a field outside role, name and slug', () => {
     expect(AuditChange.safeParse({ field: 'email', from: 'a', to: 'b' }).success).toBe(false);
@@ -44,5 +54,12 @@ describe('AuditAction', () => {
     expect(AuditAction.options).toEqual(
       expect.arrayContaining(['member.role_changed', 'member.removed', 'org.updated']),
     );
+  });
+});
+
+describe('project member audit actions', () => {
+  it('lists the two new actions', () => {
+    expect(AuditAction.options).toContain('project_member.role_changed');
+    expect(AuditAction.options).toContain('project_member.removed');
   });
 });

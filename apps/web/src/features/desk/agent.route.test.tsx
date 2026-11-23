@@ -3,6 +3,7 @@ import { http, HttpResponse } from 'msw';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ids } from '@/mocks/dto/ids';
 import { defaultTriggerState, mockDb } from '@/mocks/msw/db';
+import { applyProjectSpace, type ProjectSpaceRole } from '@/mocks/msw/projectSpaceScenarios';
 import { server } from '@/mocks/msw/node';
 import { scenarios } from '@/mocks/msw/scenarios';
 import { renderRoute } from '@/test/renderRoute';
@@ -699,5 +700,23 @@ describe('desk agent route: default model and API address', () => {
     await user.click(screen.getByRole('button', { name: 'Test and replace' }));
     expect(screen.getByRole('button', { name: 'Save agent' })).toBeDisabled();
     await waitFor(() => expect(screen.getByRole('button', { name: 'Save agent' })).toBeEnabled());
+  });
+});
+
+describe('desk agent route: Delete project gate (BR-21)', () => {
+  const openAs = async (role: ProjectSpaceRole) => {
+    await renderRoute(agentPage, { scenario: () => applyProjectSpace(mockDb, { role }) });
+    expect(await screen.findByRole('heading', { level: 1, name: 'Agent & settings' })).toBeInTheDocument();
+  };
+
+  it('shows no Delete project control to an admin of this project only', async () => {
+    await openAs('projectAdmin');
+    expect(screen.queryByRole('button', { name: 'Delete project' })).not.toBeInTheDocument();
+    expect(screen.queryByText('Danger zone')).not.toBeInTheDocument();
+  });
+
+  it.each(['owner', 'admin'] as const)('still shows Delete project to the %s', async (role) => {
+    await openAs(role);
+    expect(screen.getByRole('button', { name: 'Delete project' })).toBeInTheDocument();
   });
 });

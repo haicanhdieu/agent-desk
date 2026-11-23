@@ -61,7 +61,7 @@ describe('contracts', () => {
       method: 'POST',
       path: '/api/projects/:projectId/connection/poll',
     });
-    expect(Object.keys(flat)).toHaveLength(84);
+    expect(Object.keys(flat)).toHaveLength(89);
     expect(flat['assignments.remove']).toMatchObject({
       method: 'DELETE',
       path: '/api/orgs/:orgId/assignments/:assignmentId',
@@ -188,6 +188,17 @@ describe('contract boundaries', () => {
     expect(flat['members.updateRole']).toMatchObject({ method: 'PUT', path: '/api/orgs/:orgId/members/:userId/role' });
     expect(flat['members.remove']).toMatchObject({ method: 'DELETE', path: '/api/orgs/:orgId/members/:userId' });
     expect(flat['orgs.update']).toMatchObject({ method: 'PATCH', path: '/api/orgs/:orgId' });
+    expect(flat['projectMembers.list']).toMatchObject({ method: 'GET', path: '/api/projects/:projectId/members' });
+    expect(flat['projectMembers.add']).toMatchObject({ method: 'POST', path: '/api/projects/:projectId/members' });
+    expect(flat['projectMembers.setRole']).toMatchObject({
+      method: 'PUT',
+      path: '/api/projects/:projectId/members/:userId/role',
+    });
+    expect(flat['projectMembers.remove']).toMatchObject({
+      method: 'DELETE',
+      path: '/api/projects/:projectId/members/:userId',
+    });
+    expect(flat['projects.audit']).toMatchObject({ method: 'GET', path: '/api/projects/:projectId/audit' });
     expect(flat['audit.list']).toMatchObject({ method: 'GET', path: '/api/orgs/:orgId/audit' });
     expect(flat['orgs.checklist']).toMatchObject({ method: 'GET', path: '/api/orgs/:orgId/checklist' });
   });
