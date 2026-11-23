@@ -19,7 +19,8 @@
     ['500', 'Server error (500)'],
     ['403', 'No access (403)'],
     ['404', 'Not found: removed meanwhile (404)'],
-    ['409', 'Conflict (409): last owner, no longer pending'],
+    ['409', 'Conflict (409): last owner, no longer pending, environment entry limit'],
+    ['size', 'Too large (409): environment over 256 KiB'],
     ['copy', 'Clipboard blocked (copy link)'],
   ];
 
@@ -142,7 +143,7 @@
 ${g('Entry', [L('/signin', 'Sign in'), L('/index', 'Board index (all boards)'), L('/invitations', 'My invitations'), L('/invitations/7f3c2a9e-41d8-4b6e-9c0a-2e5b8d1f6a43', 'Accept an invitation'), L('/orgs/new', 'Create an organization (platform admin)'), L('/gallery/pagination', 'Pagination and paged-list states')])}
 ${g('Organization', [L(o + '/projects', 'Projects'), L(o + '/projects/new/1', 'New project: 1 connect repository'), L(o + '/projects/new/2', '2 Claude credential'), L(o + '/projects/new/workspace', '3 prepare workspace'), L(o + '/projects/new/3', '3 skills'), L(o + '/projects/new/4', '4 first rule'), L(o + '/projects/new/ready', 'Ready to trigger'), L(o + '/needs-you', 'Needs you (outside the run page)')])}
 ${g('Settings', [L(o + '/settings', 'Settings (first tab for the role)'), L(o + '/settings/general', 'General'), L(o + '/settings/members', 'Members'), L(o + '/settings/invitations', 'Invitations'), L(o + '/settings/audit', 'Audit log'), L(o + '/invitations', 'Old /invitations URL (redirects)', { status: 'all' })])}
-${g('Project ' + proj, [L(o + '/p/' + proj + '/runs', 'Runs'), ...[63, 62, 61, 60, 58, 56, 54, 52].map((n) => L(o + '/p/' + proj + '/runs/' + n, 'Run ' + n + ' (' + AD.RUN_DEFAULT[n].replace(/^Run/, '').replace(/([A-Z])/g, ' $1').trim().toLowerCase() + ')')), L(o + '/p/' + proj + '/desk/skills', 'Desk: skills'), L(o + '/p/' + proj + '/desk/rules', 'Desk: routing rules'), L(o + '/p/' + proj + '/desk/setup', 'Desk: workspace setup'), L(o + '/p/' + proj + '/desk/agent', 'Desk: agent and settings')])}`;
+${g('Project ' + proj, [L(o + '/p/' + proj + '/runs', 'Runs'), ...[63, 62, 61, 60, 58, 56, 54, 52].map((n) => L(o + '/p/' + proj + '/runs/' + n, 'Run ' + n + ' (' + AD.RUN_DEFAULT[n].replace(/^Run/, '').replace(/([A-Z])/g, ' $1').trim().toLowerCase() + ')')), L(o + '/p/' + proj + '/desk/skills', 'Desk: skills'), L(o + '/p/' + proj + '/desk/rules', 'Desk: routing rules'), L(o + '/p/' + proj + '/desk/setup', 'Desk: workspace setup'), L(o + '/p/' + proj + '/desk/setup', 'Desk: workspace setup, Environment tab', { tab: 'environment' }),L(o + '/p/' + proj + '/desk/agent', 'Desk: agent and settings')])}`;
     document.body.appendChild(m);
     AD.$('#pc-mapx').addEventListener('click', () => m.remove());
     m.addEventListener('click', (e) => { if (e.target.closest('a')) m.remove(); });

@@ -19,7 +19,7 @@ A dashed panel at the bottom right, collapsible (it remembers its state in the b
 | --- | --- |
 | Signed in as (role) | Switches the signed-in person: Org owner (Kim Hale), Org admin (Jordan Wu), Project admin (Lee Park), Member (Mira Chen), Viewer (Theo Brandt), Platform admin (Morgan Avery), New user with invitations (Dana Ortiz), Visitor with no invitation (Jo Marsh). Only roles that appear in the boards and spec are offered. |
 | Scenario / state of this screen | Live (the working screen), Loading, Empty, Error, Forbidden, Page crash, plus every board of that screen family as a static snapshot. The choice is stored in the URL as `?s=`. |
-| Fail the next action with | Makes the next save, role change, remove, invite, resend, revoke or accept fail with 500, 403, 404 (removed meanwhile), 409 (last owner, no longer pending) or "clipboard blocked". |
+| Fail the next action with | Makes the next save, role change, remove, invite, resend, revoke or accept fail with 500, 403, 404 (removed meanwhile), 409 (last owner, no longer pending; on the Environment tab: entry limit on add, 256 KiB size on edit), "Too large (409)" (Environment tab: 256 KiB size) or "clipboard blocked". On the Environment tab, 404 on Edit, Replace or Remove acts as if another admin removed the entry meanwhile. |
 | Reset | Restores all fake data and signs out. |
 | Logout, Screen map, Copy link | Log out; a modal list of every route; copy the current URL. |
 | Proposals to review | Two checkboxes, both off by default, for the open questions of the navigation proposal (see "Navigation (Option A)"): "Keep a Settings button on the Projects page header" and "Show the org-wide 'needs you' count on the Projects tab". Reset turns both off. |
@@ -69,7 +69,7 @@ Clicks, as the proposal promises: Projects <-> Settings is one click with the ta
 - Settings is a tab (org pages) and an org-menu item (every page). The Settings button on the Projects page header is gone by default (a proposal toggle brings it back). The avatar-menu Settings item and its toggle are dropped.
 - The run page crumb "invoicer-api" no longer leads to the all-projects list; the crumbs are now the org and project switchers followed by "Runs" (the project's Runs list).
 - The needs-you page has the bar. My invitations is reached from sign-in, not from the account menu. "Sign out" is now "Logout" everywhere (the code uses "Logout").
-- The 189 static boards are still drawn inside the live bar: the bar of each board's header strip is replaced by the live one (120 org-level, 38 project-level, 21 run-level). Boards drawn without a bar and now given one: the needs-you explainer (org bar) and the page-crash and loading boards (bar of the current area). Boards that stay barless: Main (index), the two sign-in boards, Pagination and RunTranscriptStates (explainers). The check script counts the bars of every board: exactly one, never two.
+- The 209 static boards are still drawn inside the live bar: the bar of each board's header strip is replaced by the live one (120 org-level, 58 project-level, 21 run-level). Boards drawn without a bar and now given one: the needs-you explainer (org bar) and the page-crash and loading boards (bar of the current area). Boards that stay barless: Main (index), the two sign-in boards, Pagination and RunTranscriptStates (explainers). The check script counts the bars of every board: exactly one, never two.
 - Board text changes done at display time (the boards stay untouched): "This list is one click away on the logo." reads "... on the Projects tab." on Projects boards, and the Settings or Invitations button in the head of the Projects boards is hidden unless the first proposal toggle is on.
 
 ### Proposals to review (open questions 2 and 3 of the proposal, not decided)
@@ -94,7 +94,9 @@ The proposal's question 1 (is "Settings two clicks from inside a project" accept
 | `#/o/<org>/needs-you` | Needs you outside the run page (under the org bar) | NeedsYou* |
 | `#/o/<org>/p/<project>/runs` | Runs (grouped, flat, problems, linked) | Runs* |
 | `#/o/<org>/p/<project>/runs/<n>` | Run page (starting, running, idle, stopped, failed, ...) | Run* |
-| `#/o/<org>/p/<project>/desk/agent\|rules\|skills\|setup` | Desk (agent settings, routing rules, skills, workspace setup) | Desk* |
+| `#/o/<org>/p/<project>/desk/agent\|rules\|skills` | Desk (agent settings, routing rules, skills) | DeskAgent*, DeskRules*, DeskSkill* |
+| `#/o/<org>/p/<project>/desk/setup` | Desk > Workspace setup, Setup script tab (drawn board with the live "Setup script \| Environment" tab strip) | DeskSetup, DeskSetupPaged, DeskSetupTest, DeskSetupVersions* |
+| `#/o/<org>/p/<project>/desk/setup?tab=environment` | Desk > Workspace setup, Environment tab (live: variables and secrets in memory) | DeskSetupEnvironment* |
 | `#/o/<org>/settings` | Redirects to the first tab the role may open | n/a |
 | `#/o/<org>/settings/general` | General (rename, URL change) | OrgGeneral* |
 | `#/o/<org>/settings/members` | Members (change role, remove) | OrgMembers* |
@@ -113,17 +115,18 @@ Real (works and changes what you see):
 - Projects list with per-role visibility, checklist, pending-invitation banner, "Switch to polling".
 - Settings: General (validation, slug-taken, slug-change confirmation, rename updates the switcher), Members (paging, row menus, Change role with cards, Owner note, step-down warning, last-owner conflict, Remove), Invitations (filters, paging, invite dialog with whole-org or some-projects, created dialog, revoke, resend, copy link), Audit log (new entries appear at the top for every change above).
 - Accepting and declining invitations; creating an organization as platform admin.
+- Desk > Workspace setup: the "Setup script | Environment" tab strip (`?tab=environment`) and the Environment tab: add a variable or secret (name format, reserved names, a name that already exists in either list, a secret under 6 characters, entry limit, 256 KiB size), edit a variable in place (name read-only), Replace a secret (empty "New value", Save disabled while empty), Remove with a confirm dialog, the "Added NAME" toast, paging per list (`varsPage`, `secretsPage`; the other list and an open form stay), the "This entry no longer exists" row message, Show value, Enter submits and Escape cancels a row form. Secret values are never kept after a save and never drawn. Member and viewer get "You don't have access" on this page (no `setup:read`); owner, admin and the project admin of that project get every control.
 - Dialogs, toasts, busy states (about 0.7 s of fake latency), field errors, form banners, failure injection.
 
 Faked or static:
-- Runs, Run page, Desk, Setup and Needs-you are the boards drawn as static snapshots inside the live bar, with sample data for invoicer-api in every project. Their links navigate between boards, but their buttons mostly do nothing; a click on an unwired control shows the toast "Not wired in this prototype".
+- Runs, Run page, Desk (except the Workspace setup tab strip and its Environment tab), Setup and Needs-you are the boards drawn as static snapshots inside the live bar, with sample data for invoicer-api in every project. Their links navigate between boards, but their buttons mostly do nothing; a click on an unwired control shows the toast "Not wired in this prototype".
 - The terminal, transcript and editors are pictures.
 - There is no real GitHub, clipboard guarantee, email, or persistence. The clock is fixed at 22 Nov 2026, about 11:00.
 - Filler members (12 invented names) and audit rows exist so paging has something to page.
 
 ## Coverage of every board
 
-There are 189 boards in `design/prototype/project/`. Every one is reproduced: each is reachable through the route in the table and also from the Scenario selector on its screen. "Live screen" means the default route is the working, stateful screen. "Board snapshot" means the route shows the board as drawn inside the live header and navigation. Where a board's states can be produced live, the last column says how. Routes assume `harbor-labs` and `invoicer-api`; the Screen map and the Scenario selector build them for the current org and project.
+There are 209 boards in `design/prototype/project/`. Every one is reproduced: each is reachable through the route in the table and also from the Scenario selector on its screen. "Live screen" means the default route is the working, stateful screen. "Board snapshot" means the route shows the board as drawn inside the live header and navigation. Where a board's states can be produced live, the last column says how. Routes assume `harbor-labs` and `invoicer-api`; the Screen map and the Scenario selector build them for the current org and project.
 
 Three default routes depend on the role: CreateOrg (Platform admin; others see CreateOrgForbidden), MyInvitations (New user with invitations; others see the empty board) and InvitationAccept (New user with invitations; others see "not available"). Their other boards are reachable with `?s=`.
 
@@ -149,6 +152,7 @@ Boards not reproduced: none. Closest to not reproduced: `OrgInvitationsInviteTab
 - Clipboard: Copy link uses the browser clipboard; where the browser blocks it (some headless or insecure contexts) the "Could not copy" dialog appears, as in OrgInvitationsCopyFailed.
 - The boards link no web font; the prototype does the same.
 - Build step: `design/prototype/interactive/_tools/build-boards.mjs` (Node, no packages) regenerates `data/boards.js` and `board-styles.css` from the boards. Run it after changing a board: `node design/prototype/interactive/_tools/build-boards.mjs`. Do not edit the two generated files by hand.
+- Environment tab (Desk > Workspace setup): the Scenario selector adds "Workspace setup states (live, clickable)": more than one page (23 variables, 22 secrets), both lists loading, no entries yet, variables or secrets failed to load, read-only role (`setup:read` only; no persona holds it, so it is a scenario), secrets read-only (no `secret:update`), and a setup test running (both tabs). The standard Loading, Empty and Error states map to both lists on the Environment tab and to the version-history boards on the Setup script tab. Each data set (seed, more than one page, empty) is kept per project in memory; invoicer-api starts with 3 variables and 2 secrets, every other project with none. Messages the spec leaves to the server (name exists, reserved, limit, size, invalid name) use the wording drawn on the DeskSetupEnvironment* boards, chosen for the prototype because the spec does not give it.
 - **Keep the boards and this prototype in sync.** The boards in `design/prototype/project/` are the source and the contract (Storybook parity is checked against them); this prototype is generated from them. Whoever changes or adds a board re-runs the build step above, then `node design/prototype/interactive/_checks/nav-check.mjs`, and commits `data/boards.js` and `board-styles.css` with the board change. A screen that is new in the app also needs its live screen added under `screens/` and a row in the screen map. A board that changes the top bar changes `js/chrome.js` as well.
 - The build step sorts each board's bar into `global` (org level), `project` (has the project switcher) or `run` (breadcrumb only). It does not use the tabs for this, because org pages have tabs too (Option A).
 
@@ -159,14 +163,14 @@ Boards not reproduced: none. Closest to not reproduced: `OrgInvitationsInviteTab
 | `index.html` | Entry; loads the CSS and scripts in order |
 | `board-styles.css` | Union of the boards' shared CSS (generated) |
 | `styles.css` | Prototype-only styles: sticky bar, name truncation in the bar, menus, toasts, controls panel, screen map (tokens only) |
-| `data/boards.js` | The 189 boards' markup (generated) |
+| `data/boards.js` | The 209 boards' markup (generated) |
 | `js/core.js` | Fake data, roles, permission rules, fake API |
 | `js/router.js` | Hash router |
 | `js/boards.js` | Board lookup, board-to-route mapping, generic states |
 | `js/chrome.js` | The top bar (org and project crumbs, tabs, run bar), account, org and project menus, dialogs, toasts, pager |
 | `js/controls.js` | Prototype controls panel and screen map |
 | `js/main.js` | Render pipeline, click and input handlers |
-| `screens/*.js` | Settings, invitations, projects, sign-in and invitation screens, board-backed screens |
+| `screens/*.js` | Settings, invitations, projects, sign-in and invitation screens, board-backed screens; `screens/desksetup.js` is the live Desk > Workspace setup (tab strip and Environment tab) |
 | `_checks/` | Screenshots from the headless Chrome run (not needed to use the prototype). `_checks/nav-check.mjs` re-runs the navigation checks (Option A) and writes `_checks/nav/*.png`; it needs playwright-core and a headless Chromium (read-only use of the repo's `node_modules`). |
 
 ## Coverage table
@@ -198,9 +202,29 @@ No routes changed with the Option A navigation update, so every row below still 
 | `DeskRulesPrompt` | `#/o/harbor-labs/p/invoicer-api/desk/rules?s=DeskRulesPrompt` | Board snapshot, live header and navigation | Static board (not stateful in this prototype) |
 | `DeskRulesPromptError` | `#/o/harbor-labs/p/invoicer-api/desk/rules?s=DeskRulesPromptError` | Board snapshot, live header and navigation | Static board (not stateful in this prototype) |
 | `DeskRulesPromptNew` | `#/o/harbor-labs/p/invoicer-api/desk/rules?s=DeskRulesPromptNew` | Board snapshot, live header and navigation | Static board (not stateful in this prototype) |
-| `DeskSetup` | `#/o/harbor-labs/p/invoicer-api/desk/setup` | Board snapshot, live header and navigation | Static board (not stateful in this prototype) |
+| `DeskSetup` | `#/o/harbor-labs/p/invoicer-api/desk/setup` | Live screen (the board with a live tab strip) | Default route; the tab strip switches to `?tab=environment` |
+| `DeskSetupEnvironment` | `#/o/harbor-labs/p/invoicer-api/desk/setup?s=DeskSetupEnvironment` | Board snapshot, live header and navigation | Live: `desk/setup?tab=environment`, or the Environment tab |
+| `DeskSetupEnvironmentAddSecret` | `#/o/harbor-labs/p/invoicer-api/desk/setup?s=DeskSetupEnvironmentAddSecret` | Board snapshot, live header and navigation | Live: Add secret |
+| `DeskSetupEnvironmentAdded` | `#/o/harbor-labs/p/invoicer-api/desk/setup?s=DeskSetupEnvironmentAdded` | Board snapshot, live header and navigation | Live: scenario "more than one page", Next on variables, then add AWS_REGION |
+| `DeskSetupEnvironmentAdding` | `#/o/harbor-labs/p/invoicer-api/desk/setup?s=DeskSetupEnvironmentAdding` | Board snapshot, live header and navigation | Live: Add variable |
+| `DeskSetupEnvironmentEditing` | `#/o/harbor-labs/p/invoicer-api/desk/setup?s=DeskSetupEnvironmentEditing` | Board snapshot, live header and navigation | Live: Edit on a variable |
+| `DeskSetupEnvironmentEmpty` | `#/o/harbor-labs/p/invoicer-api/desk/setup?s=DeskSetupEnvironmentEmpty` | Board snapshot, live header and navigation | Live: scenario Empty or "no entries yet", or any project but invoicer-api |
+| `DeskSetupEnvironmentError` | `#/o/harbor-labs/p/invoicer-api/desk/setup?s=DeskSetupEnvironmentError` | Board snapshot, live header and navigation | Live: scenario "variables failed to load" (also "secrets failed to load", Error for both) |
+| `DeskSetupEnvironmentFieldErrors` | `#/o/harbor-labs/p/invoicer-api/desk/setup?s=DeskSetupEnvironmentFieldErrors` | Board snapshot, live header and navigation | Live: Add secret with name GITHUB_TOKEN and a value under 6 characters |
+| `DeskSetupEnvironmentGone` | `#/o/harbor-labs/p/invoicer-api/desk/setup?s=DeskSetupEnvironmentGone` | Board snapshot, live header and navigation | Live: Fail next = 404, then Save an edit or Replace (or confirm a Remove) |
+| `DeskSetupEnvironmentLimit` | `#/o/harbor-labs/p/invoicer-api/desk/setup?s=DeskSetupEnvironmentLimit` | Board snapshot, live header and navigation | Live: Fail next = 409, then add |
+| `DeskSetupEnvironmentLoading` | `#/o/harbor-labs/p/invoicer-api/desk/setup?s=DeskSetupEnvironmentLoading` | Board snapshot, live header and navigation | Live: scenario Loading or "both lists loading" |
+| `DeskSetupEnvironmentNameTaken` | `#/o/harbor-labs/p/invoicer-api/desk/setup?s=DeskSetupEnvironmentNameTaken` | Board snapshot, live header and navigation | Live: Add variable named DB_HOST (or NPM_TOKEN) |
+| `DeskSetupEnvironmentPaged` | `#/o/harbor-labs/p/invoicer-api/desk/setup?s=DeskSetupEnvironmentPaged` | Board snapshot, live header and navigation | Live: scenario "more than one page", Next on each list |
+| `DeskSetupEnvironmentReadOnly` | `#/o/harbor-labs/p/invoicer-api/desk/setup?s=DeskSetupEnvironmentReadOnly` | Board snapshot, live header and navigation | Live: scenario "read-only role" |
+| `DeskSetupEnvironmentRemove` | `#/o/harbor-labs/p/invoicer-api/desk/setup?s=DeskSetupEnvironmentRemove` | Board snapshot, live header and navigation | Live: Remove on a row |
+| `DeskSetupEnvironmentSaveError` | `#/o/harbor-labs/p/invoicer-api/desk/setup?s=DeskSetupEnvironmentSaveError` | Board snapshot, live header and navigation | Live: Fail next = 500, then Add secret |
+| `DeskSetupEnvironmentSaving` | `#/o/harbor-labs/p/invoicer-api/desk/setup?s=DeskSetupEnvironmentSaving` | Board snapshot, live header and navigation | Live: Save an edit (about 0.6 s) |
+| `DeskSetupEnvironmentSecretReplace` | `#/o/harbor-labs/p/invoicer-api/desk/setup?s=DeskSetupEnvironmentSecretReplace` | Board snapshot, live header and navigation | Live: Replace on a secret |
+| `DeskSetupEnvironmentSecretsReadOnly` | `#/o/harbor-labs/p/invoicer-api/desk/setup?s=DeskSetupEnvironmentSecretsReadOnly` | Board snapshot, live header and navigation | Live: scenario "secrets read-only" |
+| `DeskSetupEnvironmentTesting` | `#/o/harbor-labs/p/invoicer-api/desk/setup?s=DeskSetupEnvironmentTesting` | Board snapshot, live header and navigation | Live: scenario "A setup test is running", Environment tab |
 | `DeskSetupPaged` | `#/o/harbor-labs/p/invoicer-api/desk/setup?s=DeskSetupPaged` | Board snapshot, live header and navigation | Static board (not stateful in this prototype) |
-| `DeskSetupTest` | `#/o/harbor-labs/p/invoicer-api/desk/setup?s=DeskSetupTest` | Board snapshot, live header and navigation | Static board (not stateful in this prototype) |
+| `DeskSetupTest` | `#/o/harbor-labs/p/invoicer-api/desk/setup?s=DeskSetupTest` | Board snapshot, live header and navigation | Live: scenario "A setup test is running", Setup script tab (board with the live tab strip) |
 | `DeskSetupVersionsEmpty` | `#/o/harbor-labs/p/invoicer-api/desk/setup?s=DeskSetupVersionsEmpty` | Board snapshot, live header and navigation | Static board (not stateful in this prototype) |
 | `DeskSetupVersionsError` | `#/o/harbor-labs/p/invoicer-api/desk/setup?s=DeskSetupVersionsError` | Board snapshot, live header and navigation | Static board (not stateful in this prototype) |
 | `DeskSetupVersionsLoading` | `#/o/harbor-labs/p/invoicer-api/desk/setup?s=DeskSetupVersionsLoading` | Board snapshot, live header and navigation | Static board (not stateful in this prototype) |
