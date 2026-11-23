@@ -1270,9 +1270,9 @@ export function toAuditRow(dto: AuditEntryDto, now: Date, timeZone?: string): Au
 
 - Consumes: `buildCast`, `disposeCast`, `secondOrg`, `watchTerminal`, `roleIdsOf` (`rbac-cast.ts`); `signInAs`, `inviteViaApi`, `acceptViaApi` (`helpers.ts`); fresh `e2e-<rand>` handles and org per test.
 
-- [ ] **Step 1: Write the specs** for BR-1 (TC-1.1 to 1.3), BR-3 (TC-3.1 to 3.4), BR-6 (TC-6.1 to 6.4), BR-7 (TC-7.1, 7.2: the terminal closes within `E2E_TERMINAL_REAUTH_MS`; the run still shows B as owner) and BR-10 (TC-10.1: re-invite through Settings → Invitations). Labels from the spec copy; waits on URLs, headings and awaited responses, no sleeps; the run-start control for TC-3.2 is asserted absent (spec Q1).
-- [ ] **Step 2: Run** with the stack up (§4 env with a short `E2E_TERMINAL_REAUTH_MS`): `pnpm --filter @agentdesk/web exec playwright test e2e/local/org-members.spec.ts`. Expected: PASS.
-- [ ] **Step 3: Commit** `test(web): local e2e for Members, role changes and removal`.
+- [x] **Step 1: Write the specs** for BR-1 (TC-1.1 to 1.3), BR-3 (TC-3.1 to 3.4), BR-6 (TC-6.1 to 6.4), BR-7 (TC-7.1, 7.2: the terminal closes within `E2E_TERMINAL_REAUTH_MS`; the run still shows B as owner) and BR-10 (TC-10.1: re-invite through Settings → Invitations). Labels from the spec copy; waits on URLs, headings and awaited responses, no sleeps; the run-start control for TC-3.2 is asserted absent (spec Q1).
+- [x] **Step 2: Run** with the stack up (§4 env with a short `E2E_TERMINAL_REAUTH_MS`): `pnpm --filter @agentdesk/web exec playwright test e2e/local/org-members.spec.ts`. Expected: PASS.
+- [x] **Step 3: Commit** `test(web): local e2e for Members, role changes and removal`.
 
 ---
 
