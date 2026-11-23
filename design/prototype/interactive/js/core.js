@@ -33,6 +33,7 @@
     sliders: s(15, '<path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/>'),
     people: s(15, '<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><path d="M16 4.5a3.5 3.5 0 0 1 0 7M18 14a6 6 0 0 1 3.5 6"/>'),
     grid: s(15, '<rect x="4" y="4" width="7" height="7" rx="1.5"/><rect x="13" y="4" width="7" height="7" rx="1.5"/><rect x="4" y="13" width="7" height="7" rx="1.5"/><rect x="13" y="13" width="7" height="7" rx="1.5"/>'),
+    logout15: s(15, '<path d="M9 4H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h3"/><path d="M16 8l4 4-4 4M20 12H9"/>'),
     envelope15: s(15, '<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3.5 6.5 12 13l8.5-6.5"/>'),
     clock: s(15, '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>'),
     copy: s(14, '<rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V6a2 2 0 0 1 2-2h9"/>'),
@@ -172,9 +173,9 @@
     { id: 'jo-marsh', label: 'Visitor with no invitation', hint: 'Jo Marsh, sign-in is refused' },
   ];
   const USERS = {
-    'kim-hale': { name: 'Kim Hale', initials: 'KH' }, 'jordan-wu': { name: 'Jordan Wu', initials: 'JW' }, 'lee-park': { name: 'Lee Park', initials: 'LP' },
-    'mira-chen': { name: 'Mira Chen', initials: 'MC' }, 'theo-brandt': { name: 'Theo Brandt', initials: 'TB' }, 'ops-admin': { name: 'Morgan Avery', initials: 'OA', platform: true },
-    'dana-ortiz': { name: 'Dana Ortiz', initials: 'DO' }, 'jo-marsh': { name: 'Jo Marsh', initials: 'JM' },
+    'kim-hale': { email: 'kim.hale@harborlabs.dev', name: 'Kim Hale', initials: 'KH' }, 'jordan-wu': { email: 'jordan.wu@harborlabs.dev', name: 'Jordan Wu', initials: 'JW' }, 'lee-park': { email: 'lee.park@harborlabs.dev', name: 'Lee Park', initials: 'LP' },
+    'mira-chen': { email: 'mira.chen@example.com', name: 'Mira Chen', initials: 'MC' }, 'theo-brandt': { email: 'theo.brandt@example.com', name: 'Theo Brandt', initials: 'TB' }, 'ops-admin': { email: 'morgan.avery@agentdesk.example', name: 'Morgan Avery', initials: 'OA', platform: true },
+    'dana-ortiz': { email: 'dana.ortiz@example.com', name: 'Dana Ortiz', initials: 'DO' }, 'jo-marsh': { email: 'jo.marsh@example.com', name: 'Jo Marsh', initials: 'JM' },
   };
   AD.USERS = USERS;
 

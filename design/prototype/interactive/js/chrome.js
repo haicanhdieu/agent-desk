@@ -1,6 +1,6 @@
 /* App chrome (Option A navigation): ONE top bar on every page. The crumbs say where you are ("Org v / Project v") and the tabs
    are the sections of the last crumb: Projects and Settings on org pages; Runs and Desk on project pages. Org menu: Projects,
-   Settings, switch organization, create organization. Account menu: name, My invitations, Logout. Markup and classes are the
+   Settings, switch organization, create organization. Account menu: name, email, Logout. Markup and classes are the
    ones of the boards (header.top, .switch, .tabs, .avatar, .pop, .banner). */
 (function () {
   'use strict';
@@ -23,14 +23,11 @@
   // Org-wide number of runs that need you, over the projects this person can see.
   chrome.orgNeeds = (uid, slug) => AD.visibleProjects(uid, slug).reduce((n, p) => n + (p.needs || 0), 0);
 
-  /* Account menu: personal things only (name, My invitations, Logout). Settings belongs to the org, so it is in the org menu. */
+  /* Account menu: personal things only (name, email, Logout). Settings belongs to the org, so it is in the org menu. */
   chrome.acctMenu = function () {
     const u = AD.user();
-    const n = (AD.state.mine[u.id] || []).length;
-    const onInv = AD.cur && AD.cur.screen === 'myinvites';
-    const inv = `<a class="btn ghost" role="menuitem" href="${AD.href('/invitations')}" data-act="menu-link" style="${menuItemStyle}"${onInv ? ' aria-current="page"' : ''}>${I.envelope15}<span>My invitations</span>${n ? `<span class="count-idle" style="margin-left:auto" title="${n} pending">${n} pending</span>` : ''}</a>`;
-    const out = `<button class="btn ghost" role="menuitem" style="${menuItemStyle}" data-act="signout">Logout</button>`;
-    return `<div class="pop" role="menu" aria-label="Account" style="right:0;top:calc(100% + 8px);width:240px;padding:8px;gap:2px;text-align:left"><span class="sec-h" role="presentation" style="padding:4px 8px 6px;flex-direction:column;align-items:flex-start;gap:2px"><b style="color:var(--text);font-weight:600">${esc(u.name)}</b><span class="mono faint">${esc(u.id)}</span></span>${inv}${SEP_LINE}${out}</div>`;
+    const out = `<button class="btn ghost" role="menuitem" style="${menuItemStyle}" data-act="signout">${I.logout15}<span>Logout</span></button>`;
+    return `<div class="pop" role="menu" aria-label="Account" style="right:0;top:calc(100% + 8px);width:240px;padding:8px;gap:2px;text-align:left"><span class="sec-h" role="presentation" style="padding:4px 8px 6px;flex-direction:column;align-items:flex-start;gap:2px"><b style="color:var(--text);font-weight:600">${esc(u.name)}</b><span class="mono faint">${esc(u.email)}</span></span>${SEP_LINE}${out}</div>`;
   };
 
   /* Org menu (always a button, also for people in one org): this org's Projects and Settings, then switch organization

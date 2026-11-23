@@ -55,12 +55,12 @@ No org (Dana) [logo] | No organization                                          
 | Tabs, org level | Projects, Settings. Settings opens the first tab the role may open (project admin: Invitations). Members, viewers and platform admins get no Settings tab and no Settings item in the org menu. |
 | Tabs, project level | Runs (with "1 needs you"), Desk, plus the "Repo on GitHub" link. |
 | Run page | Compact bar with the org and project crumbs, then "Runs" (goes to the project's Runs list) and "Run N". No tabs, so the terminal keeps its height. |
-| Account menu (avatar) | Name and handle, "My invitations" (with a "N pending" count), "Logout". No Settings here: Settings belongs to the org. |
+| Account menu (avatar) | Name with the full email under it, "Logout" (with an icon). No Settings here: Settings belongs to the org. |
 | Settings side menu | `<nav aria-label="Organization settings">`; the tabs in the bar are `<nav aria-label="Main">`. |
 | Needs you page (`/o/<org>/needs-you`) | Now under the org bar (no tab is active, because it is not one of the tabs). |
 | New project setup | Org bar, Projects tab active. |
 
-Clicks, as the proposal promises: Projects <-> Settings is one click with the tabs. From Runs, Desk or a run to Settings: org menu, Settings (2 clicks). To another org: org menu, org (2 clicks). To another project: project menu, project (2 clicks). To My invitations: avatar, My invitations (2 clicks). The browser back button follows every step.
+Clicks, as the proposal promises: Projects <-> Settings is one click with the tabs. From Runs, Desk or a run to Settings: org menu, Settings (2 clicks). To another org: org menu, org (2 clicks). To another project: project menu, project (2 clicks). The browser back button follows every step.
 
 ### What changed from the first prototype
 
@@ -68,7 +68,7 @@ Clicks, as the proposal promises: Projects <-> Settings is one click with the ta
 - The org switcher is now on every org, project and run page, and is a real menu also for single-org people.
 - Settings is a tab (org pages) and an org-menu item (every page). The Settings button on the Projects page header is gone by default (a proposal toggle brings it back). The avatar-menu Settings item and its toggle are dropped.
 - The run page crumb "invoicer-api" no longer leads to the all-projects list; the crumbs are now the org and project switchers followed by "Runs" (the project's Runs list).
-- The needs-you page has the bar. My invitations is in the account menu. "Sign out" is now "Logout" everywhere (the code uses "Logout").
+- The needs-you page has the bar. My invitations is reached from sign-in, not from the account menu. "Sign out" is now "Logout" everywhere (the code uses "Logout").
 - The 189 static boards are still drawn inside the live bar: the bar of each board's header strip is replaced by the live one (120 org-level, 38 project-level, 21 run-level). Boards drawn without a bar and now given one: the needs-you explainer (org bar) and the page-crash and loading boards (bar of the current area). Boards that stay barless: Main (index), the two sign-in boards, Pagination and RunTranscriptStates (explainers). The check script counts the bars of every board: exactly one, never two.
 - Board text changes done at display time (the boards stay untouched): "This list is one click away on the logo." reads "... on the Projects tab." on Projects boards, and the Settings or Invitations button in the head of the Projects boards is hidden unless the first proposal toggle is on.
 
@@ -133,7 +133,7 @@ Boards not reproduced: none. Closest to not reproduced: `OrgInvitationsInviteTab
 ## Gaps and choices
 
 - Org slug: the boards use `harbor-labs`; some plans and boards' sample text mention `acme`. The prototype uses `harbor-labs` throughout.
-- Navigation follows Option A of the approved proposal (see "Navigation (Option A)"). The avatar-menu Settings proposal is dropped; the account menu has name, handle, My invitations and Logout. The boards had no account menu, so this menu itself is new.
+- Navigation follows Option A of the approved proposal (see "Navigation (Option A)"). The avatar-menu Settings proposal is dropped; the account menu has name, email and Logout. The boards had no account menu, so this menu itself is new.
 - Agent calls in the bar, for the designer to review: (1) the Projects tab icon is a new four-square icon in the same stroke style as the others (Settings reuses the sliders icon of the side menu); (2) My invitations and the invitation-accept page show the org tabs with none active, so the way back is one click (Create organization shows no tabs, as the proposal says); (3) on the run page the project crumb is a project switcher, and "Runs" is the crumb that goes to the project (the proposal drew "invoicer-api" as the link); (4) the needs-you page shows no active tab; (5) a long org name is cut with an ellipsis in the bar (full name on hover and in the menu); (6) the run bar keeps no bell, as the boards drew it.
 - The needs-you explainer board still draws the old "In the app" panel (the board is not changed here). The proposal asks to redraw it with the count on the Projects tab.
 - Member persona: Mira Chen is used for Member because the boards name her. Viewer is Theo Brandt, who exists in the member list.

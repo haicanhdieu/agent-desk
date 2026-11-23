@@ -2,7 +2,7 @@ import { expect, test, type Page } from '@playwright/test';
 import { IDLE_RUN, INVOICER_API, ORG } from './mock';
 
 /*
- * The account menu behind the top bar avatar (issues #213, #227): the avatar is a menu button that opens the identity header, My invitations and Logout,
+ * The account menu behind the top bar avatar (issues #213, #227, #229): the avatar is a menu button that opens the identity header (name, full email) and Logout,
  * on the global, project and run top bars. Logout signs out and lands on the sign-in page; Escape and an outside
  * press dismiss the popover.
  */
@@ -43,7 +43,7 @@ test('Escape and an outside press close the account menu', async ({ page }) => {
   await expect(menu(page)).toHaveCount(0);
 });
 
-test('the account menu shows who is signed in, My invitations and Logout below a separator, and no Settings', async ({
+test('the account menu shows the name with the full email under it, Logout with an icon below a separator, and no My invitations or Settings', async ({
   page,
 }) => {
   await page.goto(`/o/${ORG}/projects`);
@@ -52,9 +52,11 @@ test('the account menu shows who is signed in, My invitations and Logout below a
   const m = menu(page);
   await expect(m).toBeVisible();
   await expect(m.getByText('Alice', { exact: true })).toBeVisible();
-  await expect(m.getByRole('menuitem')).toHaveText([/My invitations/, 'Logout']);
+  await expect(m.getByText('alice@example.com', { exact: true })).toBeVisible();
+  await expect(m.getByRole('menuitem')).toHaveText(['Logout']);
+  await expect(m.getByRole('menuitem', { name: 'Logout' }).locator('svg')).toHaveCount(1);
   await expect(m.getByRole('separator')).toHaveCount(1);
-  await expect(m.getByRole('menuitem', { name: /Settings/ })).toHaveCount(0);
+  await expect(m.getByRole('menuitem', { name: /Settings|invitations/i })).toHaveCount(0);
   expect((await m.boundingBox())?.width).toBe(240);
 });
 
@@ -63,10 +65,4 @@ test('the top bar brand is the horizontal logo lockup, with the name drawn insid
   const brand = page.getByRole('link', { name: 'Agent Desk, all projects' });
   await expect(brand.locator('svg[viewBox="0 0 480 120"]')).toBeVisible();
   await expect(brand.locator('svg text')).toHaveText(['Agent', 'Desk']);
-});
-
-test('My invitations is marked as the current page while the invitations page is open', async ({ page }) => {
-  await page.goto('/invitations');
-  await avatar(page).click();
-  await expect(menu(page).getByRole('menuitem', { name: /My invitations/ })).toHaveAttribute('aria-current', 'page');
 });

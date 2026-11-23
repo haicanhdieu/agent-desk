@@ -266,12 +266,12 @@ describe('TopBar account menu', () => {
     project: <TopBar variant="project" user={user} project={project} active="runs" />,
     run: <TopBar variant="run" user={user} breadcrumb={breadcrumb} />,
   } as const;
-  const setup = (variant: keyof typeof variants, pendingInvitations = 0) => {
+  const setup = (variant: keyof typeof variants) => {
     const onSignOut = vi.fn();
     const events = userEvent.setup();
     render(
       <SignOutProvider onSignOut={onSignOut}>
-        <AccountInfoProvider name="Kim Hale" pendingInvitations={pendingInvitations}>
+        <AccountInfoProvider name="Kim Hale" email="kim.hale@harbor-labs.example">
           {variants[variant]}
         </AccountInfoProvider>
       </SignOutProvider>,
@@ -315,54 +315,22 @@ describe('TopBar account menu', () => {
     expect(trigger()).toHaveAttribute('aria-expanded', 'false');
   });
 
-  it('shows the identity header, My invitations with its pending count, a separator and Logout, in the prototype order', async () => {
-    const { events } = setup('global', 2);
+  it('shows the name with the full email directly under it, then a separator and Logout with an icon', async () => {
+    const { events } = setup('global');
     await events.click(trigger());
     const m = screen.getByRole('menu', { name: 'Account' });
-    expect(within(m).getByText('Kim Hale')).toBeInTheDocument();
-    const handle = within(m).getByText('kim-hale');
-    expect(handle).toHaveClass('mono');
-    const invitations = within(m).getByRole('menuitem', { name: /My invitations/ });
-    expect(invitations).toHaveAttribute('href', '/invitations');
-    expect(within(invitations).getByText('2 pending')).toBeInTheDocument();
+    const name = within(m).getByText('Kim Hale');
+    const email = within(m).getByText('kim.hale@harbor-labs.example');
+    expect(email).toHaveClass('mono');
+    expect(name.nextElementSibling).toBe(email);
+    expect(within(m).queryByText('kim-hale')).toBeNull();
+    expect(within(m).queryByRole('menuitem', { name: /My invitations/ })).toBeNull();
     const logout = within(m).getByRole('menuitem', { name: 'Logout' });
+    expect(logout.querySelector('svg')).not.toBeNull();
     const separator = within(m).getByRole('separator');
-    const follows = (a: Node, b: Node) => Boolean(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING);
-    expect(follows(handle, invitations)).toBe(true);
-    expect(follows(invitations, separator)).toBe(true);
-    expect(follows(separator, logout)).toBe(true);
-    expect(within(m).getAllByRole('menuitem')).toHaveLength(2);
-    expect(within(m).queryByRole('menuitem', { name: /Settings/ })).toBeNull();
+    expect(Boolean(separator.compareDocumentPosition(logout) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true);
+    expect(within(m).getAllByRole('menuitem')).toHaveLength(1);
     expect(m).toHaveStyle({ width: '240px' });
-  });
-
-  it('shows no pending count when no invitation is pending', async () => {
-    const { events } = setup('global', 0);
-    await events.click(trigger());
-    const invitations = screen.getByRole('menuitem', { name: /My invitations/ });
-    expect(within(invitations).queryByText(/pending/)).toBeNull();
-  });
-
-  it('tells the app when the menu opens, so it can fetch the pending count then', async () => {
-    const onOpen = vi.fn();
-    const events = userEvent.setup();
-    render(
-      <SignOutProvider onSignOut={vi.fn()}>
-        <AccountInfoProvider onOpen={onOpen}>
-          <TopBar variant="global" user={user} />
-        </AccountInfoProvider>
-      </SignOutProvider>,
-    );
-    expect(onOpen).not.toHaveBeenCalled();
-    await events.click(trigger());
-    expect(onOpen).toHaveBeenCalledTimes(1);
-  });
-
-  it('closes the menu when My invitations is followed', async () => {
-    const { events } = setup('global', 1);
-    await events.click(trigger());
-    await events.click(screen.getByRole('menuitem', { name: /My invitations/ }));
-    expect(menu()).toBeNull();
   });
 
   it('opens from the keyboard, closes on Escape with focus back on the avatar, and closes on an outside press', async () => {
@@ -379,24 +347,6 @@ describe('TopBar account menu', () => {
     expect(onSignOut).not.toHaveBeenCalled();
   });
 
-  it('moves between the menu items with the arrow keys, Home and End', async () => {
-    const { events } = setup('global', 1);
-    await events.click(trigger());
-    const invitations = screen.getByRole('menuitem', { name: /My invitations/ });
-    const logout = screen.getByRole('menuitem', { name: 'Logout' });
-    invitations.focus();
-    await events.keyboard('{ArrowDown}');
-    expect(logout).toHaveFocus();
-    await events.keyboard('{ArrowDown}');
-    expect(invitations).toHaveFocus();
-    await events.keyboard('{ArrowUp}');
-    expect(logout).toHaveFocus();
-    await events.keyboard('{Home}');
-    expect(invitations).toHaveFocus();
-    await events.keyboard('{End}');
-    expect(logout).toHaveFocus();
-  });
-
   it('shows the handle as the name when the session gives none', async () => {
     const events = userEvent.setup();
     render(
@@ -405,7 +355,7 @@ describe('TopBar account menu', () => {
       </SignOutProvider>,
     );
     await events.click(trigger());
-    expect(within(screen.getByRole('menu', { name: 'Account' })).getAllByText('kim-hale')).toHaveLength(2);
+    expect(within(screen.getByRole('menu', { name: 'Account' })).getAllByText('kim-hale').length).toBeGreaterThan(0);
   });
 
   it('keeps the avatar static when nothing can sign the user out (no provider)', () => {

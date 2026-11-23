@@ -11,7 +11,7 @@ const meta = {
   decorators: [
     (Story) => (
       <SignOutProvider onSignOut={fn()}>
-        <AccountInfoProvider name="Kim Hale" pendingInvitations={0}>
+        <AccountInfoProvider name="Kim Hale" email="kim.hale@harbor-labs.example">
           <div style={{ minHeight: 220, padding: 16, display: 'flex', justifyContent: 'flex-end' }}>
             <Story />
           </div>
@@ -29,20 +29,13 @@ const openMenu = async ({ canvasElement }: { canvasElement: HTMLElement }) => {
 
 export const Closed: Story = {};
 export const Open: Story = { play: openMenu };
-export const OpenWithPendingInvitations: Story = {
-  decorators: [
-    (Story) => (
-      <AccountInfoProvider name="Kim Hale" pendingInvitations={3}>
-        <Story />
-      </AccountInfoProvider>
-    ),
-  ],
-  play: openMenu,
-};
 export const OpenLongName: Story = {
   decorators: [
     (Story) => (
-      <AccountInfoProvider name="Kimberly Alexandria Hale-Montgomery the Third of Harbor Labs" pendingInvitations={12}>
+      <AccountInfoProvider
+        name="Kimberly Alexandria Hale-Montgomery the Third of Harbor Labs"
+        email="kimberly.alexandria.hale-montgomery@harbor-labs-international.example"
+      >
         <Story />
       </AccountInfoProvider>
     ),
