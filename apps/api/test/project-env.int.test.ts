@@ -555,7 +555,7 @@ describe('secrets (BR-9 to BR-17, BR-23, BR-28)', () => {
     expect(await t.secrets.get(projectEnvSecretName(a.orgId, id))).toEqual({ value: VALUE });
   });
 
-  it('a row write failing after the Secret put (project gone) leaves an inert Secret and no "set" row', async () => {
+  it('BR-28: a create whose project is deleted during the store put is 404, leaves no Secret and no row', async () => {
     const connectionId = await installFake(t, a.owner);
     const gone = (await makeProject(t, a.owner, connectionId)).projectId;
     await clear(a, gone);
@@ -575,8 +575,7 @@ describe('secrets (BR-9 to BR-17, BR-23, BR-28)', () => {
       slow.restore();
     }
     expect(await rows(a, gone)).toEqual([]);
-    expect(envSecretNames(a)).toHaveLength(1);
-    await clear(a, gone);
+    expect(envSecretNames(a)).toEqual([]);
   });
 
   it('remove with a rejecting store delete still removes the entry and logs only the error class', async () => {

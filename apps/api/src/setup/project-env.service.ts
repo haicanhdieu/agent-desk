@@ -197,8 +197,13 @@ export class ProjectEnvService {
         return toDto({ ...row, updatedBy: await this.handleOf(tx, actor) });
       });
     } catch (err) {
-      // Lost the re-check (name taken, cap or total reached by a racing write): the new Secret is unreferenced.
-      if (err instanceof ConflictException) await this.deleteSecretBestEffort(secretName);
+      // Lost the re-check (name taken, cap or total reached, project gone) or the insert failed: delete the new Secret
+      // only when no row points to it (a commit-ambiguous failure may have committed the row). Never mask `err`.
+      try {
+        if (!(await this.rowExists(org.orgId, projectId, id))) await this.deleteSecretBestEffort(secretName);
+      } catch {
+        // rowExists failed: keep the Secret (inert if unreferenced) and surface the original error.
+      }
       throw err;
     }
   }
