@@ -144,6 +144,8 @@ Suggestion: <1 when a new screen or a layout change is involved; 2 when it is a 
 Prototype boards to review (open each link in a browser):
 - <new | changed> <Board>: file://<absolute path of the board file in the worktree>
   Shows: <the screen and states>
+Try it: file://<absolute path of design/prototype/interactive/index.html in the worktree>
+- <screen>: sign in as <role>, open <route>, scenario <state>; click <what> to see <what happens>
 Spec gaps the prototype had to fill: <SPEC GAPS lines, or "none">
 ```
 
@@ -156,7 +158,7 @@ Solutions:
 Suggestion: <1, or 2 with the one thing you would change and why>
 ```
 
-"Drop the prototype": delete the boards from the worktree, record `Prototype: no` in `answers.md`, and continue as for a no at P1.
+"Drop the prototype": delete the boards from the worktree, record `Prototype: no` in `answers.md`, revert its changes under `design/prototype/interactive/`, and continue as for a no at P1.
 
 **A, the spec**
 

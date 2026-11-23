@@ -24,13 +24,23 @@ How:
    existing boards' wording style and list the choice under SPEC GAPS.
 4. Each board must render when opened directly as a file in a browser, at the artboard size of
    the board you copied.
-5. Change nothing else: not canvas.json, not apps/, not the spec. Do not commit.
-6. When design/prototype/interactive/ exists, it is generated from the boards: after you add or
-   change a board, run `node design/prototype/interactive/_tools/build-boards.mjs` and then
-   `node design/prototype/interactive/_checks/nav-check.mjs`, and leave the regenerated
-   `data/boards.js` and `board-styles.css` in the worktree. Fix a failing check or report it; do
-   not skip it. A screen that is new to the app also needs its live screen (see that folder's
-   README, "Keep the boards and this prototype in sync").
+5. Change nothing else: not canvas.json, not apps/, not the spec. The only files you may change
+   are the boards and the files step 6 names under design/prototype/interactive/. Do not commit.
+6. The clickable prototype in design/prototype/interactive/ is how the human sees how the new
+   screens work, so every new or changed board must show up there; a board file alone is not
+   done. Read that folder's README first ("Keep the boards and this prototype in sync", the
+   screen map, the coverage table). Then:
+   a. Run `node design/prototype/interactive/_tools/build-boards.mjs` and
+      `node design/prototype/interactive/_checks/nav-check.mjs`; leave the regenerated
+      `data/boards.js` and `board-styles.css` in the worktree. Fix a failing check or report it;
+      do not skip it.
+   b. For each new or changed screen, add or update its live screen under `screens/` so it can
+      be clicked through (the flow, and each state the spec names), add a row to the screen map
+      and the README coverage table, and make the Scenario / state control list the new
+      boards. Use only the prototype's own tokens and helpers; no new dependency.
+   c. Open `index.html` in a headless browser if one is available and walk the new flow once.
+      If you cannot, say so under SPEC GAPS.
+   d. If design/prototype/interactive/ does not exist, say so under INTERACTIVE and skip a to c.
 
 <resume only:> The human reviewed the boards and wants these changes, word for word: <changes>.
 Change only what they name.

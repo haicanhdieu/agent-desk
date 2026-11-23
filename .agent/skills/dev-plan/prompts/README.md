@@ -20,7 +20,7 @@ The four areas: [business](areas/business.md), [architecture](areas/architecture
 
 ## Tier and effort
 
-Pass a tier's model and an effort on every spawn. Map the tier to a model with [`.agent/models.json`](../../../models.json) (`tiers.<tier>`); never hardcode a model name, and do not let a subagent inherit the session model. Before each spawn, check the `model` you pass equals `tiers.<the role's tier>`.
+Pass a tier's model and an effort on every spawn. Map the tier to a model with [`.agent/models.json`](../../../models.json) (`tiers.<tier>`); never hardcode a model name, and do not let a subagent inherit the session model. Every Agent call must carry a `model` field; a call without one runs on the session model and the human's tier choice has no effect. For the three tiers the human chose, the value is the `Models:` line phase 0 wrote in `<workdir>/answers.md`; for the fixed roles it is `tiers.<the role's tier>`. Before each spawn, check the `model` you pass equals `tiers.<the role's tier>`, and if it does not, fix it before sending. Resuming (SendMessage) keeps the model of the first spawn.
 
 The user sets the three `--…-tier` flags (or answers the tier ask in phase 0); pass exactly what they chose. The other roles are fixed.
 
