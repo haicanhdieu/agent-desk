@@ -50,9 +50,9 @@
       const n = runNum(name) || '62';
       return { path: o(`/p/${proj}/runs/${n}`), q: RUN_DEFAULT[n] === name ? {} : { s: name } };
     }
-    if ((m = /^Desk(Agent|Rules|Setup|Skill)/.exec(name))) {
-      const tab = { Agent: 'agent', Rules: 'rules', Setup: 'setup', Skill: 'skills' }[m[1]];
-      const def = { agent: 'DeskAgent', rules: 'DeskRules', setup: 'DeskSetup', skills: 'DeskSkills' }[tab];
+    if ((m = /^Desk(Agent|Rules|Setup|Skill|Members|Audit)/.exec(name))) {
+      const tab = { Agent: 'agent', Rules: 'rules', Setup: 'setup', Skill: 'skills', Members: 'members', Audit: 'audit' }[m[1]];
+      const def = { agent: 'DeskAgent', rules: 'DeskRules', setup: 'DeskSetup', skills: 'DeskSkills', members: 'DeskMembers', audit: 'DeskAudit' }[tab];
       return { path: o(`/p/${proj}/desk/${tab}`), q: name === def ? {} : { s: name } };
     }
     if ((m = /^Org(General|Members|Audit)/.exec(name))) {

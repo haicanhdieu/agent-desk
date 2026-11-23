@@ -66,12 +66,19 @@
       return family(null, 'project', { error: null }, { sample: true })(ctx, name);
     },
   };
-  const DESK = { skills: 'DeskSkills', rules: 'DeskRules', setup: 'DeskSetup', agent: 'DeskAgent' };
-  const DESK_RE = { skills: /^DeskSkill/, rules: /^DeskRules/, setup: /^DeskSetup/, agent: /^DeskAgent/ };
+  const DESK = { skills: 'DeskSkills', rules: 'DeskRules', setup: 'DeskSetup', agent: 'DeskAgent', members: 'DeskMembers', audit: 'DeskAudit' };
+  const DESK_RE = { skills: /^DeskSkill/, rules: /^DeskRules/, setup: /^DeskSetup/, agent: /^DeskAgent/, members: /^DeskMembers/, audit: /^DeskAudit/ };
   const DESK_ALIAS = {
     skills: { empty: 'DeskSkillsEmpty' }, rules: { empty: 'DeskRulesEmpty' },
     setup: { empty: 'DeskSetupVersionsEmpty', loading: 'DeskSetupVersionsLoading', error: 'DeskSetupVersionsError' }, agent: {},
+    // Project admin space (rbac-project-admin-space spec): Settings > Members and Settings > Audit log.
+    members: { empty: 'DeskMembersEmpty', loading: 'DeskMembersLoading', error: 'DeskMembersError', forbidden: 'DeskMembersForbidden' },
+    audit: { empty: 'DeskAuditEmpty', loading: 'DeskAuditLoading', error: 'DeskAuditError' },
   };
+  // Members and Audit log need an admin role on the project (org owner, org admin or admin of this project);
+  // member and viewer get the Forbidden page (assignment:read / project-audit:read).
+  AD.stripDeskAccess = (html) => html.replace(/<div class="grp-h">Access<\/div>\n<a href="[^"]*"[^>]*>[\s\S]*?Members<\/a>\n<a href="[^"]*"[^>]*>[\s\S]*?Audit log<\/a>\n/, '');
+  const projectAdminOf = (ctx) => { const p = ctx.perm || {}; return !!(p.orgAdmin || (p.adminProjects || []).includes(ctx.params.project)); };
   AD.screens.desk = {
     title: 'Desk',
     snaps: (ctx) => AD.snapGroup(AD.boardNames(DESK_RE[ctx.params.tab] || /^Desk/)),
@@ -79,7 +86,16 @@
       const name = DESK[ctx.params.tab];
       if (!name) return AD.notFoundOut();
       const g = projectGate(ctx); if (g && !AD.B[ctx.scen]) return g;
-      return family(null, 'project', DESK_ALIAS[ctx.params.tab], { sample: true })(ctx, name);
+      const tab = ctx.params.tab;
+      if ((tab === 'members' || tab === 'audit') && ctx.scen === 'live' && !projectAdminOf(ctx)) {
+        return tab === 'members' ? AD.boardOut('DeskMembersForbidden') : { header: 'project', h: 900, title: 'No access', html: AD.forbiddenMain };
+      }
+      // A project admin sees Agent & settings without the Danger zone.
+      if (tab === 'agent' && ctx.scen === 'live' && !(ctx.perm || {}).orgAdmin && projectAdminOf(ctx)) return AD.boardOut('DeskAgentProjectAdmin', { sample: true });
+      const out = family(null, 'project', DESK_ALIAS[tab], { sample: true })(ctx, name);
+      // The side menu's "Access" group (Members, Audit log) shows only to org owner, org admin and admin of this project.
+      if (out && out.html && !projectAdminOf(ctx)) out.html = AD.stripDeskAccess(out.html);
+      return out;
     },
   };
   AD.screens.needsyou = {
