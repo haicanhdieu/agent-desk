@@ -246,8 +246,8 @@ describe('audit.list', () => {
       ['org.suspended', 'platform_admin', 'Pat Platform'],
     ]);
     expect(items.map((e) => e.changes)).toEqual([
-      [{ field: 'status', from: 'Suspended', to: 'Active' }],
-      [{ field: 'status', from: 'Active', to: 'Suspended' }],
+      [{ field: 'status', from: 'suspended', to: 'active' }],
+      [{ field: 'status', from: 'active', to: 'suspended' }],
     ]);
     expect(JSON.stringify(items)).not.toMatch(/reason/i);
   });

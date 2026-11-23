@@ -124,14 +124,14 @@ export function platformSuspendAuditFixtures(): AuditEntryDto[] {
       actorKind: 'platform_admin',
       action: 'org.reactivated',
       target: org,
-      changes: [{ field: 'status', from: 'Suspended', to: 'Active' }],
+      changes: [{ field: 'status', from: 'suspended', to: 'active' }],
     }),
     entry(15, {
       actor: pat,
       actorKind: 'platform_admin',
       action: 'org.suspended',
       target: org,
-      changes: [{ field: 'status', from: 'Active', to: 'Suspended' }],
+      changes: [{ field: 'status', from: 'active', to: 'suspended' }],
     }),
   ];
 }
