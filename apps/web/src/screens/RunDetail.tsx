@@ -5,7 +5,6 @@ import {
   PopoverCard,
   TopBar,
   TopBarSeparator,
-  type AccountMenuAccount,
   type OrgSwitchProps,
   type ProjectSwitchMenu,
   type TermLine,
@@ -59,8 +58,6 @@ export interface RunDetailProps {
   user?: Actor;
   /** The org crumb; with `run` the bar reads org / project / Runs / Run N, with no bell. */
   org?: OrgSwitchProps;
-  /** Name, handle and the My invitations link for the account menu. */
-  account?: AccountMenuAccount;
   /** The project menu behind the project crumb (with `run`); without it the crumb does nothing. */
   projectMenu?: ProjectSwitchMenu;
   /** The "Runs" crumb link and the current run's label; defaults to `links.runs` and "Run N". */
@@ -126,7 +123,6 @@ export function RunDetail({
   inactiveBody,
   user = boardUser,
   org,
-  account,
   projectMenu,
   run: runCrumb,
   maxRunsPerTicket,
@@ -216,7 +212,6 @@ export function RunDetail({
         <TopBar
           variant="run"
           user={user}
-          account={account}
           projectMenu={projectMenu}
           links={{ projects: links?.projects }}
           org={org}

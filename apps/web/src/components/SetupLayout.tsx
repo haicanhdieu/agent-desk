@@ -1,7 +1,6 @@
 import type { ReactNode } from 'react';
 import { Button } from '@/ds';
 import type { Actor } from '@/mocks/types';
-import type { AccountMenuAccount } from './AccountMenu';
 import type { OrgSwitchProps } from './OrgSwitch';
 import { TopBar } from './TopBar';
 import { Stepper, type StepperProps } from './Stepper';
@@ -9,8 +8,6 @@ import styles from './Composites.module.css';
 
 export interface SetupLayoutProps {
   user: Actor;
-  /** Name, handle and the My invitations link for the account menu. */
-  account?: AccountMenuAccount;
   /** The org crumb and menu in the top bar. */
   org?: OrgSwitchProps;
   projectName: string;
@@ -39,7 +36,6 @@ export interface SetupLayoutProps {
 
 export function SetupLayout({
   user,
-  account,
   org,
   projectName,
   steps,
@@ -55,7 +51,7 @@ export function SetupLayout({
 }: SetupLayoutProps) {
   return (
     <>
-      <TopBar variant="global" user={user} account={account} org={org} tabs="org" active="projects" />
+      <TopBar variant="global" user={user} org={org} tabs="org" active="projects" />
       <div className={styles.setup}>
         <aside className={styles.setupLeft} aria-label="Setup progress">
           <div className={styles.setupHead}>

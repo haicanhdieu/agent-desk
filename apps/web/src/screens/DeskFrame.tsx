@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { DeskLayout, TopBar, type AccountMenuAccount, type OrgSwitchProps, type ProjectSwitchMenu } from '@/components';
+import { DeskLayout, TopBar, type OrgSwitchProps, type ProjectSwitchMenu } from '@/components';
 import { Banner, Button, Icon } from '@/ds';
 import type { Actor, ConnectionStatus } from '@/mocks/types';
 import styles from './Screens.module.css';
@@ -37,8 +37,6 @@ export interface DeskFrameData {
   projectMenu?: ProjectSwitchMenu;
   /** The org crumb of the top bar. */
   org?: OrgSwitchProps;
-  /** Name, handle and the My invitations link for the account menu. */
-  account?: AccountMenuAccount;
   /** Shown above every board but the Setup tab, which has its own last-test banner. */
   warning?: FrameWarning;
 }
@@ -52,7 +50,6 @@ export function DeskFrame({
   links,
   projectMenu,
   org,
-  account,
   warning,
   children,
 }: DeskFrameData & { active: 'skills' | 'rules' | 'agent' | 'setup'; children?: ReactNode }) {
@@ -63,7 +60,6 @@ export function DeskFrame({
         active="desk"
         user={user}
         org={org}
-        account={account}
         needsYou={project.needsYou}
         project={{ name: project.name, repoUrl: `https://github.com/${project.repo}` }}
         links={links}

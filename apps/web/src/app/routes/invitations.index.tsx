@@ -26,7 +26,7 @@ const noop = () => undefined;
 
 function WelcomePage() {
   const { data: session } = useSuspenseQuery(sessionQuery);
-  const bar = useAppBar(null, { onMyInvitations: true });
+  const bar = useAppBar(null);
   const invitations = useQuery(myInvitationsQuery);
   const access = useQuery(sessionAccessQuery);
   const accept = useAcceptInvitation();
@@ -86,7 +86,6 @@ function WelcomePage() {
     <>
       <MyInvitations
         user={bar.user}
-        account={bar.account}
         org={bar.org}
         state={state}
         onAccept={(id) => accept.mutate(id, { onError: (e) => toast.show(toastFromError(e)) })}

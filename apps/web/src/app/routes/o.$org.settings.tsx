@@ -33,7 +33,6 @@ function SettingsLayout() {
       <TopBar
         variant="global"
         user={bar.user}
-        account={bar.account}
         org={bar.org}
         tabs="org"
         {...(hasTabs && { active: 'settings' as const })}

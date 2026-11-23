@@ -98,7 +98,6 @@ function InvitationLinkPage() {
   return (
     <InvitationAccept
       user={bar.user}
-      account={bar.account}
       org={bar.org}
       state={state}
       onAccept={onAccept}

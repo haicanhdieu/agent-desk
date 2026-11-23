@@ -4,7 +4,6 @@ import {
   FilterChip,
   FilterChips,
   TopBar,
-  type AccountMenuAccount,
   type OrgSwitchProps,
   type ProjectSwitchMenu,
   type TopBarProps,
@@ -34,8 +33,6 @@ export interface RunsPageProps {
   projectMenu?: ProjectSwitchMenu;
   /** The org crumb of the top bar. */
   org?: OrgSwitchProps;
-  /** Name, handle and the My invitations link for the account menu. */
-  account?: AccountMenuAccount;
   /** Static banners above the page header. */
   banners?: ReactNode;
   children?: ReactNode;
@@ -65,7 +62,6 @@ export function RunsPage({
   links,
   projectMenu,
   org,
-  account,
   banners,
   children,
 }: RunsPageProps) {
@@ -76,7 +72,6 @@ export function RunsPage({
         active="runs"
         user={user}
         org={org}
-        account={account}
         needsYou={needsYou}
         links={links}
         projectMenu={projectMenu}

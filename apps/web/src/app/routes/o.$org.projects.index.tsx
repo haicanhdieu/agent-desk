@@ -45,7 +45,7 @@ function ProjectsForbidden() {
   const bar = useAppBar(org);
   return (
     <>
-      <TopBar variant="global" user={bar.user} account={bar.account} org={bar.org} />
+      <TopBar variant="global" user={bar.user} org={bar.org} />
       <Forbidden />
     </>
   );
@@ -108,7 +108,6 @@ function ProjectsPage() {
   return (
     <Projects
       user={bar.user}
-      account={bar.account}
       projects={projects}
       newHref={`${orgPath}/projects/new/repo`}
       projectHref={(p) => `${orgPath}/p/${encodeURIComponent(p.id)}/runs`}

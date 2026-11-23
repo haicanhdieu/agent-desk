@@ -249,24 +249,6 @@ describe('welcome page under the app bar', () => {
     expect(within(menu).getByRole('link', { name: 'Settings' })).toHaveAttribute('href', '/o/alice/settings');
   });
 
-  // The router link also sets aria-current from the URL, so this cannot fail on `onMyInvitations` alone; that option
-  // is covered by appBar.test.tsx ('account.current follows onMyInvitations').
-  it('BR-45 the account menu marks My invitations as the current page on /invitations', async () => {
-    const { user } = await renderRoute('/invitations', { scenario: ownerWithInvitations });
-    await screen.findByRole('heading', { level: 1, name: 'Invitations' });
-    await user.click(screen.getByRole('button', { name: /^Account menu/ }));
-    expect(await screen.findByRole('menuitem', { name: /My invitations/ })).toHaveAttribute('aria-current', 'page');
-  });
-
-  it('BR-45 / TC-45.1 the account menu shows "My invitations" with the pending count', async () => {
-    const { user } = await renderRoute('/invitations', { scenario: ownerWithInvitations });
-    await screen.findByRole('heading', { level: 1, name: 'Invitations' });
-    const total = mockDb.state.invitations.filter((i) => i.status === 'pending').length;
-    await user.click(screen.getByRole('button', { name: /^Account menu/ }));
-    const item = await screen.findByRole('menuitem', { name: /My invitations/ });
-    await waitFor(() => expect(within(item).getByText(`${total} pending`)).toBeInTheDocument());
-  });
-
   it('BR-43 a person with no org sees "No organization", the bell and no tabs', async () => {
     await renderRoute('/invitations', { scenario: () => scenarios.onboarding('noOrgUninvited') });
     await screen.findByRole('heading', { level: 1, name: "You're not a member of any organization" });

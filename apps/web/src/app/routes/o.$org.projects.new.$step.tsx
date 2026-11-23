@@ -246,7 +246,6 @@ function RepoStep({ org, projectId, connectionId }: { org: string; projectId?: s
     <Setup1
       key={project?.id ?? 'new'}
       user={bar.user}
-      account={bar.account}
       org={bar.org}
       projectName={project?.name ?? repoName(selected)}
       repos={shown}
@@ -313,7 +312,6 @@ function AgentStep({ org, projectId }: { org: string; projectId: string }) {
   return (
     <Setup2
       user={bar.user}
-      account={bar.account}
       org={bar.org}
       projectName={project.name}
       repo={project.repoPath}
@@ -373,7 +371,6 @@ function SkillsStep({ org, projectId }: { org: string; projectId: string }) {
   return (
     <Setup3
       user={bar.user}
-      account={bar.account}
       org={bar.org}
       projectName={project.name}
       repo={project.repoPath}
@@ -472,7 +469,6 @@ function RulesStep({ org, projectId }: { org: string; projectId: string }) {
   return (
     <Setup4
       user={bar.user}
-      account={bar.account}
       org={bar.org}
       projectName={project.name}
       repo={project.repoPath}
@@ -529,7 +525,6 @@ function ReadyStep({ org, projectId }: { org: string; projectId: string }) {
   return (
     <SetupReady
       user={bar.user}
-      account={bar.account}
       org={bar.org}
       projectName={project.name}
       repo={project.repoPath}

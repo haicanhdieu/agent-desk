@@ -7,7 +7,6 @@ import {
   SurfaceCard,
   TopBar,
   type PaginationProps,
-  type AccountMenuAccount,
   type OrgSwitchProps,
 } from '@/components';
 import { menuWarning } from '@/mocks/connection';
@@ -42,7 +41,6 @@ export interface NeedsYouProps {
   topBar?: {
     user: Actor;
     org: OrgSwitchProps;
-    account?: AccountMenuAccount;
   };
 }
 
@@ -191,7 +189,7 @@ export function NeedsYou({
   if (!topBar) return main;
   return (
     <>
-      <TopBar variant="global" tabs="org" user={topBar.user} org={topBar.org} account={topBar.account} />
+      <TopBar variant="global" tabs="org" user={topBar.user} org={topBar.org} />
       {main}
     </>
   );

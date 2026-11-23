@@ -61,7 +61,7 @@ export {
   setupFailedRunTerminal,
 } from './setup';
 export { pagedRuns, pagedIgnored, pagedNeedsYou, pagedProjects, pagedRules, pagedSkills, pagedVersions } from './paged';
-export { orgOptions, orgSwitchFixtures, accountFixture } from './orgs';
+export { orgOptions, orgSwitchFixtures } from './orgs';
 export { memberRows, roleCards } from './members';
 export { auditRows, pagedAuditLastPage, pagedAuditRows } from './audit';
 export { orgSettingsFixtures } from './orgSettings';

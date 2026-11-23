@@ -1,7 +1,6 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import { AppShell, RouteLoadError, RouteSkeleton, type OrgSwitchProps, type PaginationProps } from '@/components';
 import {
-  accountFixture,
   connectionWarnings,
   ignored,
   ignoredPrStates,
@@ -50,12 +49,10 @@ const org: OrgSwitchProps = {
   orgHref: (o) => `#${o.slug}`,
   createHref: '#new-org',
 };
-const account = { ...accountFixture, invitationsHref: '#invitations' };
 const common = {
   project,
   user,
   org,
-  account,
   links: { desk: '#desk' },
   needsYou: 1,
   slots: { used: 2, total: 2 },
@@ -134,12 +131,7 @@ export const NeedsYou: Story = {
   decorators: artboard(740),
   globals: viewport(1440, 740),
   render: () => (
-    <NeedsYouScreen
-      project={project}
-      projects={projects.slice(0, 3)}
-      canResume={() => true}
-      topBar={{ user, org, account }}
-    />
+    <NeedsYouScreen project={project} projects={projects.slice(0, 3)} canResume={() => true} topBar={{ user, org }} />
   ),
 };
 
@@ -159,7 +151,7 @@ export const NeedsYouNone: Story = {
       project={{ ...project, needsYou: 0 }}
       projects={projects.slice(0, 3)}
       runs={[]}
-      topBar={{ user, org, account }}
+      topBar={{ user, org }}
     />
   ),
 };
@@ -173,7 +165,7 @@ export const NeedsYouPaused: Story = {
     <NeedsYouScreen
       project={project}
       projects={projects.slice(0, 3)}
-      topBar={{ user, org, account }}
+      topBar={{ user, org }}
       runs={[
         {
           run: { ...runDetails.RunPaused.run },
@@ -421,7 +413,7 @@ export const NeedsYouPaged: Story = {
   render: () => (
     <NeedsYouScreen
       canResume={() => true}
-      topBar={{ user, org, account }}
+      topBar={{ user, org }}
       project={{ ...project, needsYou: 21 }}
       projects={projects.slice(0, 3).map((p) => (p.id === project.id ? { ...p, needsYou: 21 } : p))}
       runs={pagedNeedsYou(21).slice(20)}

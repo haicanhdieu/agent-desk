@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
 import { RUN_STATUSES } from '@/ds';
 import {
-  accountFixture,
   agentSettings,
   auditRows,
   memberRows,
@@ -434,10 +433,9 @@ describe('tenant-admin fixtures', () => {
     }
   });
 
-  it('exposes the org settings tabs per role and the account fixture', () => {
+  it('exposes the org settings tabs per role', () => {
     expect(orgSettingsFixtures.org).toEqual({ name: 'Harbor Labs', slug: 'harbor-labs' });
     expect(orgSettingsFixtures.tabs.projectAdmin).toEqual(['invitations']);
-    expect(accountFixture.pendingCount).toBe(2);
     expect(orgSwitchFixtures.severalOrgsSettings.settingsHref).toBe('/o/acme/settings');
     expect(orgSwitchFixtures.severalOrgs.settingsHref).toBeUndefined();
   });

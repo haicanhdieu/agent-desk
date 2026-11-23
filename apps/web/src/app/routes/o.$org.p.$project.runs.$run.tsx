@@ -206,7 +206,6 @@ function RunDetailRoute() {
       projectName={page.dto.name}
       user={page.user}
       org={page.org}
-      account={page.account}
       projectMenu={page.projectMenu}
       run={{ runsHref: paths.runs, label: `Run ${number}` }}
       maxRunsPerTicket={page.dto.maxRunsPerTicket}

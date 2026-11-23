@@ -1,8 +1,7 @@
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { RouteLoadError, RouteSkeleton, SignOutProvider, type OrgSwitchProps } from '@/components';
+import { RouteLoadError, RouteSkeleton, type OrgSwitchProps } from '@/components';
 import {
-  accountFixture,
   orgSwitchFixtures,
   ignored,
   ignoredPrStates,
@@ -490,21 +489,6 @@ describe('Runs under the app bar (BR-43)', () => {
     expect(within(bar).queryByRole('button', { name: /organization/i })).toBeNull();
     expect(within(bar).queryByText(project.org)).toBeNull();
     expect(within(bar).getByRole('button', { name: /^Switch project/ })).toBeInTheDocument();
-  });
-
-  it('passes the account to the avatar menu', async () => {
-    render(
-      <SignOutProvider onSignOut={() => undefined}>
-        <Runs {...base} filter="all" org={org} account={accountFixture} />
-      </SignOutProvider>,
-    );
-    await userEvent.setup().click(screen.getByRole('button', { name: `Account menu for ${user.login}` }));
-    const menu = screen.getByRole('dialog', { name: 'Account' });
-    expect(within(menu).getByText(accountFixture.name)).toBeInTheDocument();
-    expect(within(menu).getByRole('menuitem', { name: /My invitations/ })).toHaveAttribute(
-      'href',
-      accountFixture.invitationsHref,
-    );
   });
 
   it('NeedsYou with topBar.org renders the org bar: Projects tab, no tab current, no project crumb', () => {

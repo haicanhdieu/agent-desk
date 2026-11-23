@@ -13,7 +13,6 @@ import { OrgInvitations, type OrgInvitationsProps } from './OrgInvitations';
 import { MyInvitations, type MyInvitationsState } from './MyInvitations';
 import { CreateOrg, type CreateOrgState, type CreateOrgValues } from './CreateOrg';
 import { OrgSettingsFrame } from './orgSettingsFrame';
-import { SignOutProvider } from '@/components';
 
 const settingsOrg = { ...orgSwitchFixtures.oneOrgSettings, orgHref: () => '/o/acme/projects', createHref: '/orgs/new' };
 
@@ -624,20 +623,9 @@ describe('CreateOrg', () => {
     ...over,
   });
 
-  it('BR-43: Create organization shows no tabs and passes the account to the menu', async () => {
-    render(
-      <SignOutProvider onSignOut={vi.fn()}>
-        <CreateOrg
-          {...createProps(form())}
-          org={settingsOrg}
-          account={{ name: 'Kim Hale', handle: 'kim-hale', invitationsHref: '/invitations' }}
-        />
-      </SignOutProvider>,
-    );
+  it('BR-43: Create organization shows no tabs', () => {
+    render(<CreateOrg {...createProps(form())} org={settingsOrg} />);
     expect(screen.queryByRole('navigation', { name: 'Main' })).not.toBeInTheDocument();
-    await userEvent.click(screen.getByRole('button', { name: /Account menu/ }));
-    expect(screen.getByText('Kim Hale')).toBeInTheDocument();
-    expect(screen.getByRole('menuitem', { name: /My invitations/ })).toHaveAttribute('href', '/invitations');
   });
 
   it('BR-35: shows the h1, the labelled fields with the /o/ prefix described, the hint and Create organization', async () => {
@@ -887,33 +875,8 @@ describe('OrgInvitations inside the settings layout', () => {
     noTabActive();
   });
 
-  it('BR-43: the invitation page shows the org bar with no tab active and passes the account to the menu', async () => {
-    render(
-      <SignOutProvider onSignOut={vi.fn()}>
-        <InvitationAccept
-          {...accept({ kind: 'revoked' })}
-          org={settingsOrg}
-          account={{ name: 'Kim Hale', handle: 'kim-hale', invitationsHref: '/invitations' }}
-        />
-      </SignOutProvider>,
-    );
+  it('BR-43: the invitation page shows the org bar with no tab active', () => {
+    render(<InvitationAccept {...accept({ kind: 'revoked' })} org={settingsOrg} />);
     noTabActive();
-    await userEvent.click(screen.getByRole('button', { name: /Account menu/ }));
-    expect(screen.getByText('Kim Hale')).toBeInTheDocument();
-    expect(screen.getByRole('menuitem', { name: /My invitations/ })).toHaveAttribute('href', '/invitations');
-  });
-
-  it('MyInvitations passes the account to the account menu', async () => {
-    render(
-      <SignOutProvider onSignOut={vi.fn()}>
-        <MyInvitations
-          {...props({ kind: 'list', cards: invitationCards, pending: null })}
-          account={{ name: 'Kim Hale', handle: 'kim-hale', invitationsHref: '/invitations' }}
-        />
-      </SignOutProvider>,
-    );
-    await userEvent.click(screen.getByRole('button', { name: /Account menu/ }));
-    expect(screen.getByText('Kim Hale')).toBeInTheDocument();
-    expect(screen.getByRole('menuitem', { name: /My invitations/ })).toHaveAttribute('href', '/invitations');
   });
 });

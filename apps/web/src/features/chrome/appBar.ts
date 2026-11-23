@@ -1,10 +1,9 @@
 import { can, type Access } from '@agentdesk/contracts';
 import { useQuery, useSuspenseQuery } from '@tanstack/react-query';
-import type { AccountMenuAccount, OrgSwitchProps } from '@/components';
+import type { OrgSwitchProps } from '@/components';
 import type { Actor, OrgSettingsTabKey } from '@/mocks/types';
 import { canInvite, orgAccessQuery, sessionAccessQuery, toAccess } from '../access/queries';
 import { orgsQuery, sessionQuery } from '../auth/session';
-import { myInvitationsQuery } from '../invitations/queries';
 import { toOrgSwitch } from '../orgs/orgSwitch';
 
 const TAB_ORDER: OrgSettingsTabKey[] = ['general', 'members', 'invitations', 'audit'];
@@ -41,25 +40,22 @@ export function firstSettingsTab(access: Access): OrgSettingsTabKey | null {
 export interface AppBarData {
   user: Actor;
   org: OrgSwitchProps;
-  account: AccountMenuAccount;
 }
 
 /** Org pages pass the URL slug (access `['org', slug, 'access']`); personal pages pass null (the session's active org, `['session','access']`). */
-export function useAppBar(orgSlug: string | null, opts?: { onMyInvitations?: boolean }): AppBarData {
+export function useAppBar(orgSlug: string | null): AppBarData {
   const { data: session } = useSuspenseQuery(sessionQuery);
   const { data: orgs } = useSuspenseQuery(orgsQuery);
   // Only one of the two access queries runs; a pending or failed one leaves the Settings item out.
   const orgAccess = useQuery({ ...orgAccessQuery(orgSlug ?? ''), enabled: orgSlug !== null });
   const sessionAccess = useQuery({ ...sessionAccessQuery, enabled: orgSlug === null });
   const accessDto = (orgSlug === null ? sessionAccess : orgAccess).data;
-  const invitations = useQuery(myInvitationsQuery);
 
   const slug = orgSlug ?? orgs.find((o) => o.id === session?.activeOrganizationId)?.slug ?? null;
   const switchData = toOrgSwitch(orgs, slug, accessDto?.platformAdmin ?? false);
   const base = slug === null ? undefined : `/o/${encodeURIComponent(slug)}`;
   const showSettings = base !== undefined && accessDto !== undefined && canOpenSettings(toAccess(accessDto));
   const handle = session?.user.handle ?? '';
-  const pending = invitations.data?.total ?? 0;
 
   return {
     user: { login: handle, initials: handle.slice(0, 2).toUpperCase() },
@@ -69,13 +65,6 @@ export function useAppBar(orgSlug: string | null, opts?: { onMyInvitations?: boo
       createHref: '/orgs/new',
       ...(base !== undefined && { projectsHref: `${base}/projects` }),
       ...(showSettings && { settingsHref: `${base}/settings` }),
-    },
-    account: {
-      name: session?.user.name ?? '',
-      handle,
-      invitationsHref: '/invitations',
-      ...(pending > 0 && { pendingCount: pending }),
-      ...(opts?.onMyInvitations === true && { current: true }),
     },
   };
 }

@@ -1,7 +1,7 @@
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { SignOutProvider, type OrgSwitchProps } from '@/components';
-import { accountFixture, orgSwitchFixtures } from '@/mocks';
+import { type OrgSwitchProps } from '@/components';
+import { orgSwitchFixtures } from '@/mocks';
 import { runDetailPrMerged, runDetails, terminalByRun, transcriptFixtures } from '@/mocks';
 import type { RunDetailKey } from '@/mocks';
 import { RunDetail as RunDetailScreen } from './RunDetail';
@@ -863,26 +863,5 @@ describe('RunDetail under the app bar (BR-46)', () => {
     });
     await userEvent.setup().click(screen.getByRole('button', { name: /^Switch project/ }));
     expect(screen.getByRole('link', { name: /docs-site/ })).toHaveAttribute('href', '/p/docs');
-  });
-
-  it('passes the account to the avatar menu', async () => {
-    render(
-      <SignOutProvider onSignOut={() => undefined}>
-        <RunDetail
-          data={runDetails.RunRunning}
-          lines={linesFor('RunRunning')}
-          org={org}
-          run={run}
-          account={accountFixture}
-        />
-      </SignOutProvider>,
-    );
-    await userEvent.setup().click(screen.getByRole('button', { name: /^Account menu for/ }));
-    const menu = screen.getByRole('dialog', { name: 'Account' });
-    expect(within(menu).getByText(accountFixture.name)).toBeInTheDocument();
-    expect(within(menu).getByRole('menuitem', { name: /My invitations/ })).toHaveAttribute(
-      'href',
-      accountFixture.invitationsHref,
-    );
   });
 });

@@ -1,6 +1,6 @@
 import { useSuspenseQuery } from '@tanstack/react-query';
 import { can } from '@agentdesk/contracts';
-import type { AccountMenuAccount, OrgSwitchProps } from '@/components';
+import type { OrgSwitchProps } from '@/components';
 import type { DeskFrameData } from '@/screens';
 import { useAccess } from '../access/guards';
 import { useAppBar } from '../chrome/appBar';
@@ -45,11 +45,7 @@ export function useDeskRights(org: string, projectId: string): DeskRights {
 }
 
 /** Top bar and Desk navigation data for a project page, from the `$project` layout's cached queries. Pass `useNow()`. */
-export function useDeskFrame(
-  org: string,
-  projectId: string,
-  now: Date,
-): DeskFrameData & { org: OrgSwitchProps; account: AccountMenuAccount } {
+export function useDeskFrame(org: string, projectId: string, now: Date): DeskFrameData & { org: OrgSwitchProps } {
   const bar = useAppBar(org);
   const { data: dto } = useSuspenseQuery(projectsQueries.detail(org, projectId));
   const { data: connectionDto } = useSuspenseQuery(projectsQueries.connection(org, projectId));
@@ -67,7 +63,6 @@ export function useDeskFrame(
     connection,
     projectMenu,
     org: bar.org,
-    account: bar.account,
     links: {
       projects: paths.projects,
       runs: paths.runs,

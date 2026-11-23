@@ -1,6 +1,5 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import {
-  accountFixture,
   autoResumedTerminal,
   orgSwitchFixtures,
   runDetailPrMerged,
@@ -34,7 +33,6 @@ const meta = {
     <RunDetail
       {...args}
       org={{ ...orgSwitchFixtures.severalOrgsSettings, orgHref: (o) => `#${o.slug}`, createHref: '#new-org' }}
-      account={{ ...accountFixture, invitationsHref: '#invitations' }}
       run={{ runsHref: '#runs', label: `Run ${args.data.run.id}` }}
     />
   ),

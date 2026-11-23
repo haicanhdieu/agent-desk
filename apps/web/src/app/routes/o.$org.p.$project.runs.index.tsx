@@ -91,7 +91,6 @@ function useRunsCommon(org: string, projectId: string, ticket: string | undefine
     links: page.links,
     projectMenu: page.projectMenu,
     org: page.org,
-    account: page.account,
     needsYou: dto.counts.needsYou,
     // Idle runs hold a slot too.
     // counts.running is every live job (starting, running, idle): each holds a slot.

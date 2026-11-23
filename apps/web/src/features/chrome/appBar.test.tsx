@@ -5,7 +5,6 @@ import type { ReactNode } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { tenantAccessFixtures } from '@/mocks/dto/access';
 import { accessKeys } from '../access/keys';
-import { invitationKeys } from '../invitations/keys';
 import { setActiveOrganization, type Session } from '../auth/session';
 import { toAccess } from '../access/queries';
 import { canOpenSettings, firstSettingsTab, orgSettingsTabs, useAppBar } from './appBar';
@@ -134,11 +133,6 @@ describe('useAppBar', () => {
     expect(result.current.org.orgs).toHaveLength(2);
     expect(result.current.org.orgHref({ id: 'org-b', slug: 'beta', name: 'Beta' })).toBe('/o/beta/projects');
     expect(result.current.org.createHref).toBe('/orgs/new');
-    expect(result.current.account).toMatchObject({
-      name: 'Alice Park',
-      handle: 'alice',
-      invitationsHref: '/invitations',
-    });
   });
 
   it('personal pages (null slug) use the session access and the active org', async () => {
@@ -147,28 +141,6 @@ describe('useAppBar', () => {
     expect(result.current.org.current?.slug).toBe('beta');
     await waitFor(() => expect(result.current.org.settingsHref).toBe('/o/beta/settings'));
     expect(result.current.org.projectsHref).toBe('/o/beta/projects');
-  });
-
-  it('pendingCount is the invitations total; undefined while pending, on error and at 0', async () => {
-    apiMock.access.mockResolvedValue(tenantAccessFixtures.member);
-    apiMock.listInvitations.mockResolvedValue(invitations(3));
-    const ok = renderHook(() => useAppBar('acme'), { wrapper: setup() });
-    expect(ok.result.current.account.pendingCount).toBeUndefined();
-    await waitFor(() => expect(ok.result.current.account.pendingCount).toBe(3));
-
-    apiMock.listInvitations.mockResolvedValue(invitations(0));
-    const zeroClient = makeClient();
-    const zero = renderHook(() => useAppBar('acme'), { wrapper: setup(zeroClient) });
-    await settled(zeroClient, invitationKeys.list());
-    expect(zeroClient.getQueryData(invitationKeys.list())).toMatchObject({ total: 0 });
-    expect(zero.result.current.account.pendingCount).toBeUndefined();
-
-    apiMock.listInvitations.mockRejectedValue(new Error('boom'));
-    const badClient = makeClient();
-    const bad = renderHook(() => useAppBar('acme'), { wrapper: setup(badClient) });
-    await settled(badClient, invitationKeys.list());
-    expect(badClient.getQueryState(invitationKeys.list())?.status).toBe('error');
-    expect(bad.result.current.account.pendingCount).toBeUndefined();
   });
 
   it('after an org switch, a personal page reads the new active org access, not the cached one', async () => {
@@ -188,13 +160,5 @@ describe('useAppBar', () => {
     expect(second.result.current.org.current?.slug).toBe('beta');
     expect(second.result.current.org.settingsHref).toBeUndefined();
     expect(apiMock.access).toHaveBeenCalledTimes(2);
-  });
-
-  it('account.current follows onMyInvitations', () => {
-    apiMock.access.mockReturnValue(never());
-    const on = renderHook(() => useAppBar(null, { onMyInvitations: true }), { wrapper: setup() });
-    expect(on.result.current.account.current).toBe(true);
-    const off = renderHook(() => useAppBar(null), { wrapper: setup() });
-    expect(off.result.current.account.current).toBeUndefined();
   });
 });

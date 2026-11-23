@@ -406,7 +406,7 @@ describe('Setup2 credential callback', () => {
   });
 });
 
-describe('setup screens pass account and org to the top bar', () => {
+describe('setup screens pass the org to the top bar', () => {
   const harbor = { id: 'org-harbor', slug: 'harbor-labs', name: 'Harbor Labs' };
   const org = {
     current: harbor,
@@ -417,8 +417,8 @@ describe('setup screens pass account and org to the top bar', () => {
     projectsHref: '/o/harbor-labs/projects',
     settingsHref: '/o/harbor-labs/settings',
   };
-  const account = { name: 'Kim Hale', handle: 'kim-hale', invitationsHref: '/invitations' };
-  const bar = { org, account };
+
+  const bar = { org };
   const workspace = (
     <SetupWorkspace user={user} projectName="invoicer-api" repo={repo} plugins={{ plugins: [] }} {...bar} />
   );

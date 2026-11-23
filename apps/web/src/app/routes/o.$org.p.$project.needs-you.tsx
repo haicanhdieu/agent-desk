@@ -99,7 +99,7 @@ function NeedsYouRoute() {
       resuming={resume.isPending ? resume.variables.number : undefined}
       projectHref={(p) => projectPaths(org, p.id).needsYou}
       pagination={pagination}
-      topBar={{ user: page.user, org: page.org, account: page.account }}
+      topBar={{ user: page.user, org: page.org }}
     />
   );
 }

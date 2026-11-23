@@ -336,18 +336,6 @@ describe('projects route controls by role', () => {
       '/o/acme/projects/new/repo',
     );
   });
-
-  it('BR-45: the account menu shows "2 pending" with two pending invitations', async () => {
-    const { user } = await renderRoute('/o/acme/projects', {
-      scenario: () => {
-        scenarios.onboarding('owner');
-        inviteMe(2);
-      },
-    });
-    await screen.findByRole('link', { name: 'invoicer-api' });
-    await user.click(await screen.findByRole('button', { name: /^Account menu for/ }));
-    expect(await screen.findByText('2 pending')).toBeVisible();
-  });
 });
 
 const checklistPath = `/api/orgs/${ids.org.acme}/checklist`;

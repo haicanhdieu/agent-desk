@@ -33,7 +33,6 @@ function CreateOrgPage() {
   return (
     <CreateOrg
       user={bar.user}
-      account={bar.account}
       org={bar.org}
       state={state}
       onChange={form.change}

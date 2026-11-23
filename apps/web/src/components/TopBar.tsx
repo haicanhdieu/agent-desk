@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import { Button, IconButton } from '@/ds';
 import type { Actor } from '@/mocks/types';
-import { AccountMenu, type AccountMenuAccount } from './AccountMenu';
+import { AccountMenu } from './AccountMenu';
 import { Brand } from './Brand';
 import { OrgSwitch, type OrgSwitchProps } from './OrgSwitch';
 import { OrgNav } from './OrgNav';
@@ -14,8 +14,6 @@ export interface TopBarProps {
   /** global = org level; project; run. */
   variant: 'global' | 'project' | 'run';
   user: Actor;
-  /** Name, handle and the My invitations link for the account menu. */
-  account?: AccountMenuAccount;
   /** The org crumb, on every level. */
   org?: OrgSwitchProps;
   /** Which tabs the bar shows. Default: 'project' on the project variant, else 'none'. */
@@ -42,7 +40,6 @@ export function TopBarSeparator() {
 export function TopBar({
   variant,
   user,
-  account,
   org,
   tabs,
   active,
@@ -55,7 +52,7 @@ export function TopBar({
   links,
 }: TopBarProps) {
   const projectsHref = links?.projects ?? org?.projectsHref ?? '/projects';
-  const avatar = <AccountMenu user={user} account={account} />;
+  const avatar = <AccountMenu user={user} />;
   const bell = <IconButton icon="bell" aria-label="Notifications on" />;
   const shownTabs = tabs ?? (variant === 'project' ? 'project' : 'none');
   const orgCrumb = org && <OrgSwitch {...org} />;

@@ -4,7 +4,6 @@ import { GuardsCard } from './GuardsCard';
 import { CommitSummary } from './CommitSummary';
 
 const user = { login: 'kim-hale', initials: 'KH' };
-const account = { name: 'Kim Hale', handle: 'kim-hale', invitationsHref: '#invitations' };
 const org = {
   current: { id: 'org-harbor', slug: 'harbor-labs', name: 'Harbor Labs' },
   orgs: [{ id: 'org-harbor', slug: 'harbor-labs', name: 'Harbor Labs' }],
@@ -37,7 +36,6 @@ type Story = StoryObj<typeof meta>;
 export const Skills: Story = {
   args: {
     user,
-    account,
     org,
     projectName: 'invoicer-api',
     steps,
@@ -64,7 +62,6 @@ export const Skills: Story = {
 export const WithAside: Story = {
   args: {
     user,
-    account,
     org,
     projectName: 'invoicer-api',
     steps,
@@ -81,7 +78,6 @@ export const Saving: Story = {
   args: {
     ...Skills.args,
     user,
-    account,
     org,
     projectName: 'invoicer-api',
     steps,

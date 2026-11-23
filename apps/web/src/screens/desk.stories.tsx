@@ -5,7 +5,6 @@ import {
   agentSettings,
   connectionCopy,
   connections,
-  accountFixture,
   deskFrame as plainDeskFrame,
   orgSwitchFixtures,
   pagedRules,
@@ -56,7 +55,6 @@ const artboard = (height: number): NonNullable<Story['decorators']> => [
 const deskFrame: DeskFrameData = {
   ...plainDeskFrame,
   org: { ...orgSwitchFixtures.severalOrgsSettings, orgHref: (o) => `#${o.slug}`, createHref: '#new-org' },
-  account: { ...accountFixture, invitationsHref: '#invitations' },
   links: {
     projects: '#projects',
     runs: '#runs',

@@ -1,6 +1,6 @@
 import { useEffect, useId, useRef } from 'react';
 import { Banner, Button, Field, Icon, PrefixInput, TextInput } from '@/ds';
-import { InviteLink, SurfaceCard, TopBar, type AccountMenuAccount, type OrgSwitchProps } from '@/components';
+import { InviteLink, SurfaceCard, TopBar, type OrgSwitchProps } from '@/components';
 import type { Actor } from '@/mocks/types';
 import styles from './Screens.module.css';
 
@@ -30,8 +30,6 @@ export type CreateOrgState =
 
 export interface CreateOrgProps {
   user: Actor;
-  /** Name, handle and the My invitations link for the account menu. */
-  account?: AccountMenuAccount;
   org?: OrgSwitchProps;
   state: CreateOrgState;
   onChange: (v: CreateOrgValues) => void;
@@ -44,10 +42,10 @@ export interface CreateOrgProps {
 const HINT = 'They get the owner role. Send them the link that appears next.';
 
 /** The platform admin's create-org form: name, URL and the first owner's email, then the owner's invitation link. */
-export function CreateOrg({ user, account, org, state, onChange, onSubmit, onRetry, onCopy, onDone }: CreateOrgProps) {
+export function CreateOrg({ user, org, state, onChange, onSubmit, onRetry, onCopy, onDone }: CreateOrgProps) {
   return (
     <>
-      <TopBar variant="global" user={user} account={account} org={org} />
+      <TopBar variant="global" user={user} org={org} />
       <main className={styles.emptyMain}>{body(state, { onChange, onSubmit, onRetry, onCopy, onDone })}</main>
     </>
   );

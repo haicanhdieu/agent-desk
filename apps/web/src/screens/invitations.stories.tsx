@@ -75,7 +75,6 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-const account = { name: 'Kim Hale', handle: 'kim-hale', invitationsHref: '#invitations' };
 const noOrg: OrgSwitchProps = {
   current: null,
   orgs: [],
@@ -102,15 +101,7 @@ const harborBar: OrgSwitchProps = {
 };
 
 const screen = (state: MyInvitationsState, user: Actor = dana, org: MyInvitationsProps['org'] = harborBar) => (
-  <MyInvitationsScreen
-    user={user}
-    account={account}
-    org={org}
-    state={state}
-    onAccept={noop}
-    onDecline={noop}
-    onSignOut={noop}
-  />
+  <MyInvitationsScreen user={user} org={org} state={state} onAccept={noop} onDecline={noop} onSignOut={noop} />
 );
 
 export const MyInvitations: Story = {
@@ -158,7 +149,6 @@ const jo: Actor = { login: 'jo-marsh', initials: 'JM' };
 const accept = (state: InvitationAcceptState, user: Actor = dana, org: InvitationAcceptProps['org'] = harborBar) => (
   <InvitationAcceptScreen
     user={user}
-    account={account}
     org={org}
     state={state}
     onAccept={noop}
@@ -466,7 +456,6 @@ const requestId = 'req_01JD8B2W4N7P';
 const createOrg = (state: CreateOrgState, user: Actor = opsAdmin) => (
   <CreateOrgScreen
     user={user}
-    account={account}
     org={adminOrg}
     state={state}
     onChange={noop}

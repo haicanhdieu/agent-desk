@@ -4,7 +4,6 @@ import { orgSettingsFixtures } from '@/mocks';
 import type { Actor, OrgSettingsTabKey } from '@/mocks/types';
 
 const kim: Actor = { login: 'kim-hale', initials: 'KH' };
-const account = { name: 'Kim Hale', handle: 'kim-hale', invitationsHref: '#invitations' };
 const harbor = { id: 'org-harbor', ...orgSettingsFixtures.org };
 const base = `/o/${harbor.slug}`;
 
@@ -48,7 +47,6 @@ export function OrgSettingsFrame({
       <TopBar
         variant="global"
         user={kim}
-        account={account}
         org={org}
         tabs="org"
         active={keys.length > 0 && sideMenu ? 'settings' : undefined}

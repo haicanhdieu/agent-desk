@@ -14,7 +14,7 @@ import {
 import { KeyValue, SetupLayout } from '@/components';
 import { connectionCopy as c, DEFAULT_POLL_INTERVAL, pollIntervals } from '@/mocks/connection';
 import type { Actor, PollInterval, TriggerMode } from '@/mocks/types';
-import type { AccountMenuAccount, OrgSwitchProps } from '@/components';
+import type { OrgSwitchProps } from '@/components';
 import { setupSteps, type SetupNav } from './setupSteps';
 import styles from './Screens.module.css';
 
@@ -32,8 +32,6 @@ export interface Setup1Draft {
 
 export interface Setup1Props extends SetupNav {
   user: Actor;
-  /** Name, handle and the My invitations link for the account menu. */
-  account?: AccountMenuAccount;
   /** The org crumb and menu in the top bar. */
   org?: OrgSwitchProps;
   projectName: string;
@@ -79,7 +77,6 @@ const modes: TriggerMode[] = ['webhook', 'polling'];
 
 export function Setup1({
   user,
-  account,
   org,
   projectName,
   repos,
@@ -135,7 +132,6 @@ export function Setup1({
   return (
     <SetupLayout
       user={user}
-      account={account}
       org={org}
       projectName={name || projectName}
       steps={setupSteps({ withWorkspace: true })}

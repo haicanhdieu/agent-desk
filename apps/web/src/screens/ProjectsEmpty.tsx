@@ -4,7 +4,6 @@ import {
   StepCardGrid,
   TopBar,
   type OnboardingChecklistState,
-  type AccountMenuAccount,
   type OrgSwitchProps,
 } from '@/components';
 import type { Actor } from '@/mocks/types';
@@ -16,8 +15,6 @@ export interface ProjectsEmptyProps {
   createHref: string;
   /** The org switcher in the top bar. */
   org?: OrgSwitchProps;
-  /** Name, handle and the My invitations link for the account menu. */
-  account?: AccountMenuAccount;
   /** The first-run checklist; it replaces the static step cards. */
   checklist?: OnboardingChecklistState;
   invitationsBanner?: InvitationsBannerProps;
@@ -36,7 +33,6 @@ export function ProjectsEmpty({
   user,
   createHref,
   org,
-  account,
   checklist,
   invitationsBanner,
   canCreate = false,
@@ -44,7 +40,7 @@ export function ProjectsEmpty({
   if (!canCreate) {
     return (
       <>
-        <TopBar variant="global" user={user} account={account} org={org} tabs="org" active="projects" />
+        <TopBar variant="global" user={user} org={org} tabs="org" active="projects" />
         <main className={styles.emptyNotice}>
           <div className={styles.emptyNoticeCol}>
             {invitationsBanner && <InvitationsBanner {...invitationsBanner} />}
@@ -57,7 +53,7 @@ export function ProjectsEmpty({
   }
   return (
     <>
-      <TopBar variant="global" user={user} account={account} org={org} tabs="org" active="projects" />
+      <TopBar variant="global" user={user} org={org} tabs="org" active="projects" />
       <main className={styles.emptyMain}>
         <div className={styles.emptyCol}>
           {invitationsBanner && <InvitationsBanner {...invitationsBanner} />}

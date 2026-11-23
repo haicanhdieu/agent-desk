@@ -36,10 +36,3 @@ export const orgSwitchFixtures: Record<
   platformAdminSettings: withLinks(base.platformAdmin),
   longNameSettings: withLinks(base.longName),
 };
-
-export const accountFixture = {
-  name: 'Alice Doe',
-  handle: 'alice',
-  invitationsHref: '/invitations',
-  pendingCount: 2,
-} as const;

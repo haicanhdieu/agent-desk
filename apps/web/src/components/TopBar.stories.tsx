@@ -12,7 +12,6 @@ const meta = { title: 'Components/TopBar', component: TopBar, parameters: { layo
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-const account = { name: 'Kim Hale', handle: 'kim-hale', invitationsHref: '#invitations', pendingCount: 2 };
 const orgBase = {
   orgHref: (o: { slug: string }) => `/o/${o.slug}`,
   createHref: '/orgs/new',
@@ -23,34 +22,33 @@ const orgNoSettings = { ...orgBase, ...orgSwitchFixtures.oneOrg };
 const links = { projects: '#projects', runs: '#runs', desk: '#desk' };
 
 export const OrgLevelOwner: Story = {
-  args: { variant: 'global', user, account, org: orgWithSettings, tabs: 'org', active: 'projects', links },
+  args: { variant: 'global', user, org: orgWithSettings, tabs: 'org', active: 'projects', links },
 };
 export const OrgLevelMember: Story = {
-  args: { variant: 'global', user, account, org: orgNoSettings, tabs: 'org', active: 'projects', links },
+  args: { variant: 'global', user, org: orgNoSettings, tabs: 'org', active: 'projects', links },
 };
 export const OrgLevelSettingsActive: Story = {
-  args: { variant: 'global', user, account, org: orgWithSettings, tabs: 'org', active: 'settings', links },
+  args: { variant: 'global', user, org: orgWithSettings, tabs: 'org', active: 'settings', links },
 };
 export const PersonalNoTabActive: Story = {
-  args: { variant: 'global', user, account: { ...account, current: true }, org: orgWithSettings, tabs: 'org', links },
+  args: { variant: 'global', user, org: orgWithSettings, tabs: 'org', links },
 };
 export const CreateOrgNoTabs: Story = {
-  args: { variant: 'global', user, account, org: { ...orgBase, ...orgSwitchFixtures.platformAdmin }, tabs: 'none' },
+  args: { variant: 'global', user, org: { ...orgBase, ...orgSwitchFixtures.platformAdmin }, tabs: 'none' },
 };
 export const NoOrg: Story = {
-  args: { variant: 'global', user, account, org: { ...orgBase, current: null, orgs: [], platformAdmin: false } },
+  args: { variant: 'global', user, org: { ...orgBase, current: null, orgs: [], platformAdmin: false } },
 };
 export const ProjectLevel: Story = {
-  args: { variant: 'project', user, account, org: orgWithSettings, project, active: 'runs', needsYou: 1, links },
+  args: { variant: 'project', user, org: orgWithSettings, project, active: 'runs', needsYou: 1, links },
 };
 export const ProjectLevelDesk: Story = {
-  args: { variant: 'project', user, account, org: orgWithSettings, project, active: 'desk', links },
+  args: { variant: 'project', user, org: orgWithSettings, project, active: 'desk', links },
 };
 export const LongOrgName: Story = {
   args: {
     variant: 'global',
     user,
-    account,
     org: { ...orgBase, ...orgSwitchFixtures.longName, settingsHref: '#settings' },
     tabs: 'org',
     active: 'projects',
@@ -61,7 +59,6 @@ export const RunLevel: Story = {
   args: {
     variant: 'run',
     user,
-    account,
     org: orgWithSettings,
     project,
     run: { runsHref: '#runs', label: 'Run 61' },

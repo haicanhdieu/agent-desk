@@ -1,13 +1,6 @@
 import type { ReactNode } from 'react';
 import { Button, Dialog, Skeleton } from '@/ds';
-import {
-  KeyValue,
-  RouteLoadError,
-  SurfaceCard,
-  TopBar,
-  type AccountMenuAccount,
-  type OrgSwitchProps,
-} from '@/components';
+import { KeyValue, RouteLoadError, SurfaceCard, TopBar, type OrgSwitchProps } from '@/components';
 import type { Actor, InvitationDetailsView } from '@/mocks/types';
 import styles from './Screens.module.css';
 
@@ -23,8 +16,6 @@ export type InvitationAcceptState =
 
 export interface InvitationAcceptProps {
   user: Actor;
-  /** Name, handle and the My invitations link for the account menu. */
-  account?: AccountMenuAccount;
   org?: OrgSwitchProps;
   state: InvitationAcceptState;
   onAccept: () => void;
@@ -35,10 +26,10 @@ export interface InvitationAcceptProps {
 }
 
 /** The invitation link page: the invitee's own invitation with Accept and Decline, or why it cannot be answered. */
-export function InvitationAccept({ user, account, org, state, ...handlers }: InvitationAcceptProps) {
+export function InvitationAccept({ user, org, state, ...handlers }: InvitationAcceptProps) {
   return (
     <>
-      <TopBar variant="global" user={user} account={account} org={org} tabs={org?.current ? 'org' : 'none'} />
+      <TopBar variant="global" user={user} org={org} tabs={org?.current ? 'org' : 'none'} />
       <main className={styles.emptyMain}>{body(state, handlers)}</main>
     </>
   );
@@ -46,7 +37,7 @@ export function InvitationAccept({ user, account, org, state, ...handlers }: Inv
 
 const noop = () => {};
 
-type Handlers = Omit<InvitationAcceptProps, 'user' | 'account' | 'org' | 'state'>;
+type Handlers = Omit<InvitationAcceptProps, 'user' | 'org' | 'state'>;
 
 function notice(title: string, text?: string, actions?: ReactNode) {
   return (

@@ -1,7 +1,7 @@
 import type { ReactElement } from 'react';
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { SignOutProvider, type PaginationProps } from '@/components';
+import { type PaginationProps } from '@/components';
 import { checklistSteps, orgSwitchFixtures, projects, user } from '@/mocks';
 import { SignIn, SignInNoInvitationError } from './SignIn';
 import { ProjectsEmpty } from './ProjectsEmpty';
@@ -274,7 +274,6 @@ describe('SignInNoInvitationError', () => {
 
 describe('org bar on Projects and ProjectsEmpty', () => {
   const harbor = { id: 'org-harbor', slug: 'harbor-labs', name: 'Harbor Labs' };
-  const account = { name: 'Kim Hale', handle: 'kim-hale', invitationsHref: '/invitations' };
   const orgBar = (settingsHref?: string) => ({
     current: harbor,
     orgs: [harbor],
@@ -285,22 +284,10 @@ describe('org bar on Projects and ProjectsEmpty', () => {
     settingsHref,
   });
   const cases: [string, (settingsHref?: string) => ReactElement][] = [
-    [
-      'Projects',
-      (s) => <Projects user={user} projects={projects} newHref="/new" canCreate org={orgBar(s)} account={account} />,
-    ],
-    [
-      'Projects without create',
-      (s) => <Projects user={user} projects={projects} newHref="/new" org={orgBar(s)} account={account} />,
-    ],
-    [
-      'ProjectsEmpty',
-      (s) => <ProjectsEmpty user={user} createHref="/new" canCreate org={orgBar(s)} account={account} />,
-    ],
-    [
-      'ProjectsEmpty without create',
-      (s) => <ProjectsEmpty user={user} createHref="/new" org={orgBar(s)} account={account} />,
-    ],
+    ['Projects', (s) => <Projects user={user} projects={projects} newHref="/new" canCreate org={orgBar(s)} />],
+    ['Projects without create', (s) => <Projects user={user} projects={projects} newHref="/new" org={orgBar(s)} />],
+    ['ProjectsEmpty', (s) => <ProjectsEmpty user={user} createHref="/new" canCreate org={orgBar(s)} />],
+    ['ProjectsEmpty without create', (s) => <ProjectsEmpty user={user} createHref="/new" org={orgBar(s)} />],
   ];
 
   it.each(cases)('%s: Main nav marks Projects current and shows Settings with settingsHref', (_n, make) => {
@@ -326,12 +313,5 @@ describe('org bar on Projects and ProjectsEmpty', () => {
     const nav = screen.getByRole('navigation', { name: 'Main' });
     expect(within(nav).getByRole('link', { name: /Projects/ })).toHaveAttribute('aria-current', 'page');
     expect(within(nav).queryByRole('link', { name: /Settings/ })).not.toBeInTheDocument();
-  });
-
-  it.each(cases)('%s: account reaches the avatar menu', async (_n, make) => {
-    render(<SignOutProvider onSignOut={() => undefined}>{make()}</SignOutProvider>);
-    await userEvent.click(screen.getByRole('button', { name: `Account menu for ${user.login}` }));
-    expect(screen.getByText('Kim Hale')).toBeInTheDocument();
-    expect(screen.getByRole('menuitem', { name: /My invitations/ })).toHaveAttribute('href', '/invitations');
   });
 });

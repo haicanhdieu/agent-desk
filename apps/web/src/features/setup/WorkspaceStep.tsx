@@ -92,7 +92,6 @@ export function WorkspaceStep({ org, project, bar, credentialDetail, backHref, o
   return (
     <SetupWorkspace
       user={bar.user}
-      account={bar.account}
       org={bar.org}
       projectName={project.name}
       repo={project.repoPath}
