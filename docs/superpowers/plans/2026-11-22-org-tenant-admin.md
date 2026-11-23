@@ -1396,9 +1396,9 @@ export function toAuditRow(dto: AuditEntryDto, now: Date, timeZone?: string): Au
 
 - Consumes: `seedTenantAdmin`, `SCRIPTED_RUN`, `INVOICER_API` (`mock.ts`).
 
-- [ ] **Step 1: Write the specs** for BR-43 (TC-43.1 to 43.8), BR-46 (TC-46.1 to 46.3), BR-47 (TC-47.1 to 47.4) and BR-48 (TC-48.1, 48.2).
-- [ ] **Step 2: Run** the mock build, then `pnpm --filter @agentdesk/web exec playwright test e2e/mock/top-bar.spec.ts`. Expected: PASS.
-- [ ] **Step 3: Commit** `test(web): mock e2e for the app top bar`.
+- [x] **Step 1: Write the specs** for BR-43 (TC-43.1 to 43.8), BR-46 (TC-46.1 to 46.3), BR-47 (TC-47.1 to 47.4) and BR-48 (TC-48.1, 48.2).
+- [x] **Step 2: Run** the mock build, then `pnpm --filter @agentdesk/web exec playwright test e2e/mock/top-bar.spec.ts`. Expected: PASS.
+- [x] **Step 3: Commit** `test(web): mock e2e for the app top bar`.
 
 ---
 
