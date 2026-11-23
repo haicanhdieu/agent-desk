@@ -752,9 +752,9 @@ Covers: BR-9 (TC-9.1), BR-10 (TC-10.1, TC-10.2, TC-10.3), BR-11 (TC-11.1, TC-11.
 
 Covers: BR-2 (TC-2.1, TC-2.2, TC-2.3) in `rbac-desk-access.spec.ts` (GET in `deskReads`, the writes in a mutation list, owner re-reads afterwards); BR-4 (TC-4.1 to TC-4.4) in `rbac-project-admin.spec.ts` (TC-4.2 and TC-4.4 expect the app's existing not-found page, not Forbidden).
 
-- [ ] **Step 1: Write the cases** as `BR-2: ...` and `BR-4: ...` titles with unique `E2E_*_<rand>` names.
-- [ ] **Step 2: Run** with the stack up (runbook `tests-and-e2e.md` §3a): `pnpm --filter @agentdesk/web exec playwright test e2e/local/rbac-desk-access.spec.ts e2e/local/rbac-project-admin.spec.ts -g "BR-2|BR-4"`. Expected: PASS. If the stack cannot start, say so in the PR and list the specs as written but not run.
-- [ ] **Step 3: Commit**: `test(web): local e2e for project env access and isolation`.
+- [x] **Step 1: Write the cases** as `BR-2: ...` and `BR-4: ...` titles with unique `E2E_*_<rand>` names.
+- [x] **Step 2: Run** with the stack up (runbook `tests-and-e2e.md` §3a): `pnpm --filter @agentdesk/web exec playwright test e2e/local/rbac-desk-access.spec.ts e2e/local/rbac-project-admin.spec.ts -g "BR-2|BR-4"`. Expected: PASS. If the stack cannot start, say so in the PR and list the specs as written but not run.
+- [x] **Step 3: Commit**: `test(web): local e2e for project env access and isolation`.
 
 ---
 
@@ -771,8 +771,8 @@ Covers: BR-2 (TC-2.1, TC-2.2, TC-2.3) in `rbac-desk-access.spec.ts` (GET in `des
 
 Covers: BR-6 (TC-6.2), BR-7 (TC-7.2), BR-8 (TC-8.2), BR-9 (TC-9.2), BR-11 (TC-11.2), BR-14 (TC-14.6, TC-14.7, TC-14.8), BR-17 (TC-17.5, TC-17.6, TC-17.7), BR-26 (TC-26.1 to TC-26.4: about 31 plain or secret entries of 8192 characters filled over the API, one more added in the UI, "Too large" Banner, entry absent after reload), BR-28 (TC-28.1, TC-28.2: a second admin removes the entry over the API while the owner's form is open), and in `pagination.spec.ts` BR-27 local (TC-27.7: 21 variables and 21 secrets, page size 20, each name once, totals 21, secrets without values). Not e2e (proved elsewhere): BR-16 (Task 6 and Task 3 tests), BR-22 and BR-23 (Tasks 6 and 7 integration), BR-25 line break (Task 1 and Task 6).
 
-- [ ] **Step 1: Write the specs** with `expect.poll` and `toBeVisible`, no sleeps; titles `BR-<n>: ...`.
-- [ ] **Step 2: Run** with the stack up: `pnpm --filter @agentdesk/web exec playwright test e2e/local/project-env.spec.ts e2e/local/pagination.spec.ts -g "BR-"`. Expected: PASS. Report honestly if the stack cannot start.
+- [x] **Step 1: Write the specs** with `expect.poll` and `toBeVisible`, no sleeps; titles `BR-<n>: ...`.
+- [x] **Step 2: Run** with the stack up: `pnpm --filter @agentdesk/web exec playwright test e2e/local/project-env.spec.ts e2e/local/pagination.spec.ts -g "BR-"`. Expected: PASS. Report honestly if the stack cannot start.
 - [ ] **Step 3: Commit**: `test(web): local e2e for project env persistence and limits`.
 
 ---

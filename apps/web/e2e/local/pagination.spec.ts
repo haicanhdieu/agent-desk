@@ -1,6 +1,6 @@
 import { randomBytes, randomInt } from 'node:crypto';
-import { expect, test, type Page } from '@playwright/test';
-import { RuleDto, RunDto, SkillSummaryDto, pageOf } from '@agentdesk/contracts';
+import { expect, test, type Locator, type Page } from '@playwright/test';
+import { EnvEntryDto, RuleDto, RunDto, SkillSummaryDto, pageOf } from '@agentdesk/contracts';
 import {
   API,
   CommentResult,
@@ -561,5 +561,77 @@ test.describe('BR-38: the Runs screen with more than 20 runs', () => {
     await expect(runLinks(page)).toHaveCount(20);
     await expect(nav(page)).toHaveCount(0);
     await expect(page.getByRole('button', { name: /^Page \d+$/ })).toHaveCount(0);
+  });
+});
+
+test.describe('BR-27: the Environment tab lists', () => {
+  test('BR-27: TC-27.7: 21 variables and 21 secrets show 20 on page 1, the 21st on page 2, each name once, totals 21 and no secret value', async ({
+    page,
+  }) => {
+    const { handle, projectId } = await signInAndStartProject(page);
+    const rand = hex();
+    const secretValues: string[] = [];
+    for (let i = 1; i <= 21; i++) {
+      const n = two(i);
+      await ok(
+        await page.request.post(`/api/projects/${projectId}/env-vars`, {
+          data: { name: `E2E_PV_${n}`, value: `plain-${n}-${rand}` },
+        }),
+        201,
+        `variable ${n}`,
+      );
+      const secret = `secret-value-${n}-${rand}`;
+      secretValues.push(secret);
+      await ok(
+        await page.request.post(`/api/projects/${projectId}/env-secrets`, {
+          data: { name: `E2E_PS_${n}`, value: secret },
+        }),
+        201,
+        `secret ${n}`,
+      );
+    }
+    const vars = page.getByRole('region', { name: 'Environment variables' });
+    const secrets = page.getByRole('region', { name: 'Secrets' });
+    const control = (group: Locator) => group.getByRole('navigation', { name: 'Pagination' });
+    const namesOf = (group: Locator, prefix: string) =>
+      group.getByText(new RegExp(`^${prefix}_\\d{2}$`)).allTextContents();
+    const sequence = (prefix: string, from: number, to: number) =>
+      Array.from({ length: to - from + 1 }, (_, i) => `${prefix}_${two(from + i)}`);
+
+    await page.goto(`/o/${handle}/p/${projectId}/desk/setup?tab=environment`);
+    await expect(vars.getByText('E2E_PV_01', { exact: true })).toBeVisible();
+    await expect(secrets.getByText('E2E_PS_01', { exact: true })).toBeVisible();
+    await expect(vars.getByText('21 variables', { exact: true })).toBeVisible();
+    await expect(secrets.getByText('21 secrets', { exact: true })).toBeVisible();
+    await expect(control(vars).locator('p')).toHaveText('Showing 1–20 of 21');
+    await expect(control(secrets).locator('p')).toHaveText('Showing 1–20 of 21');
+    expect(await namesOf(vars, 'E2E_PV')).toEqual(sequence('E2E_PV', 1, 20));
+    expect(await namesOf(secrets, 'E2E_PS')).toEqual(sequence('E2E_PS', 1, 20));
+    for (const value of secretValues) await expect(page.locator('body')).not.toContainText(value);
+
+    await control(vars).getByRole('button', { name: 'Next', exact: true }).click();
+    await expect(control(vars).locator('p')).toHaveText('Showing 21–21 of 21');
+    await control(secrets).getByRole('button', { name: 'Next', exact: true }).click();
+    await expect(control(secrets).locator('p')).toHaveText('Showing 21–21 of 21');
+    expect(await namesOf(vars, 'E2E_PV')).toEqual(['E2E_PV_21']);
+    expect(await namesOf(secrets, 'E2E_PS')).toEqual(['E2E_PS_21']);
+
+    // Every name once over the API pages (default page size 20), and no secret carries a value.
+    const seen = async (kind: 'plain' | 'secret') => {
+      const first = pageOf(EnvEntryDto).parse(
+        await ok(await page.request.get(`/api/projects/${projectId}/env?kind=${kind}`), 200, `${kind} page 1`),
+      );
+      const second = pageOf(EnvEntryDto).parse(
+        await ok(await page.request.get(`/api/projects/${projectId}/env?kind=${kind}&page=2`), 200, `${kind} page 2`),
+      );
+      expect([first.items.length, second.items.length, first.total, second.total]).toEqual([20, 1, 21, 21]);
+      return [...first.items, ...second.items];
+    };
+    const plain = await seen('plain');
+    expect(plain.map((e) => e.name)).toEqual(sequence('E2E_PV', 1, 21));
+    const secret = await seen('secret');
+    expect(secret.map((e) => e.name)).toEqual(sequence('E2E_PS', 1, 21));
+    expect(secret.every((e) => e.value === null)).toBe(true);
+    for (const value of secretValues) await expect(page.locator('body')).not.toContainText(value);
   });
 });
