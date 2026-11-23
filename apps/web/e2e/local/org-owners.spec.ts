@@ -79,6 +79,15 @@ async function setRole(w: World, userId: string, roleId: string | null): Promise
   );
 }
 
+/** A Given: `actor` (another owner) sets a member's org role through the API. Nobody can change their own role (403). */
+async function setRoleAs(w: World, actor: Actor, userId: string, roleId: string | null): Promise<void> {
+  await ok(
+    await actor.api.put(`/api/orgs/${w.org.id}/members/${userId}/role`, { data: { roleId } }),
+    200,
+    'change member role',
+  );
+}
+
 const membersUrl = (w: World): string => `/o/${w.org.slug}/settings/members`;
 const projectsUrl = (w: World): string => `/o/${w.org.slug}/projects`;
 
@@ -94,7 +103,6 @@ const toastOf = (page: Page, title: string): Locator =>
 const settingsTab = (page: Page): Locator =>
   page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Settings', exact: true });
 const OWNER_NOTE = 'Owners can change or remove every member, including other owners.';
-const STEP_DOWN = (org: Org): string => `You will lose owner rights in ${org.name}.`;
 
 async function openMembers(page: Page, w: World): Promise<void> {
   await page.goto(membersUrl(w));
@@ -142,31 +150,27 @@ async function joinAsOwner(w: World, who: string): Promise<Actor> {
   return b;
 }
 
-test('TC-5.3: B, now the sole owner, steps down: the warning shows, the real API answers with the Banner, B stays Owner', async ({
+test('TC-5.3: B, now the sole owner, has no menu on the own row; the real API refuses B’s own role change with 403 and B stays Owner', async ({
   browser,
 }) => {
   await withWorld(browser, async (w) => {
     const b = await joinAsOwner(w, 'b');
-    // O steps down to Admin, so B is the sole owner.
-    await setRole(w, w.o.userId, w.roleIds.admin);
+    // B (the other owner) steps O down to Admin, so B is the sole owner.
+    await setRoleAs(w, b, w.o.userId, w.roleIds.admin);
     const name = await nameOf(w, b.userId);
 
     const page = b.page;
     await openMembers(page, w);
     await expect(cellOf(rowOf(page, b.handle), ROLE)).toHaveText('Owner');
     await expect(cellOf(rowOf(page, w.o.handle), ROLE)).toHaveText('Admin');
-    await pickMenuItem(page, name, 'Change role');
-    const dialog = roleDialog(page, name);
-    await expect(dialog).toBeVisible();
-    await card(dialog, 'Admin').check();
-    await expect(dialog.getByText(STEP_DOWN(w.org))).toBeVisible();
-    await dialog.getByRole('button', { name: 'Save role' }).click();
-    await expect(dialog.getByText('An organization needs at least one owner.')).toBeVisible();
-    await expect(dialog).toBeVisible();
-    await expect(toastOf(page, 'Role changed')).toHaveCount(0);
-    await dialog.getByRole('button', { name: 'Cancel' }).click();
-    await expect(dialog).toHaveCount(0);
+    // positive control: the page loaded B's rights, so the other row has actions and the own row has none
+    await expect(menuButton(page, await nameOf(w, w.o.userId))).toBeVisible();
+    await expect(menuButton(page, name)).toHaveCount(0);
 
+    const put = await b.api.put(`/api/orgs/${w.org.id}/members/${b.userId}/role`, {
+      data: { roleId: w.roleIds.admin },
+    });
+    expect(put.status(), 'PUT own role').toBe(403);
     await reloadMembers(page);
     await expect(cellOf(rowOf(page, b.handle), ROLE)).toHaveText('Owner');
     expect((await membersOf(w)).find((m) => m.userId === b.userId)?.assignments.map((a) => a.role.key)).toEqual([
@@ -384,47 +388,40 @@ test('TC-41.3: with owners O, B and C, O demotes B to Member and removes C; both
   });
 });
 
-test('TC-42.1: O steps down to Admin: the warning shows, the role saves, and after the reload O has no Owner card or owner-row actions', async ({
+test('TC-42.1: B steps O down to Admin: after the reload O has no Owner card and no actions on the own row or on owner B', async ({
   browser,
 }) => {
   await withWorld(browser, async (w) => {
     const b = await joinAsOwner(w, 'b');
+    const c = await join(w.scope, w.browser, w.org, 'c', 'member');
     const nameO = await nameOf(w, w.o.userId);
+    const nameC = await nameOf(w, c.userId);
+    await setRoleAs(w, b, w.o.userId, w.roleIds.admin);
+
     const page = w.o.page;
     await openMembers(page, w);
-    await pickMenuItem(page, nameO, 'Change role');
-    const dialog = roleDialog(page, nameO);
-    await expect(dialog).toBeVisible();
-    await expect(dialog.getByText(STEP_DOWN(w.org))).toHaveCount(0);
-    await card(dialog, 'Admin').check();
-    await expect(dialog.getByText(STEP_DOWN(w.org))).toBeVisible();
-    await dialog.getByRole('button', { name: 'Save role' }).click();
-    await expect(toastOf(page, 'Role changed')).toBeVisible();
-
-    await reloadMembers(page);
     await expect(cellOf(rowOf(page, w.o.handle), ROLE)).toHaveText('Admin');
     await expect(cellOf(rowOf(page, b.handle), ROLE)).toHaveText('Owner');
-    // control: O's own row still has actions, so the page has finished loading its rights
-    await expect(menuButton(page, nameO)).toBeVisible();
+    // control: O still has actions on a Member row, so the page has finished loading its rights
+    await expect(menuButton(page, nameC)).toBeVisible();
+    await expect(menuButton(page, nameO)).toHaveCount(0);
     await expect(menuButton(page, await nameOf(w, b.userId))).toHaveCount(0);
-    await pickMenuItem(page, nameO, 'Change role');
-    const own = roleDialog(page, nameO);
-    await expect(own).toBeVisible();
-    await expect(card(own, 'Admin')).toBeChecked();
-    await expect(card(own, 'Owner')).toHaveCount(0);
+    await pickMenuItem(page, nameC, 'Change role');
+    const dialog = roleDialog(page, nameC);
+    await expect(dialog).toBeVisible();
+    await expect(card(dialog, 'Member')).toBeChecked();
+    await expect(card(dialog, 'Owner')).toHaveCount(0);
   });
 });
 
-test('TC-42.2: O steps down to Member: no Settings tab and the settings URL shows no access', async ({ browser }) => {
+test('TC-42.2: B steps O down to Member: no Settings tab and the settings URL shows no access', async ({ browser }) => {
   await withWorld(browser, async (w) => {
-    await joinAsOwner(w, 'b');
-    const nameO = await nameOf(w, w.o.userId);
+    const b = await joinAsOwner(w, 'b');
     const page = w.o.page;
     await page.goto(projectsUrl(w));
     await expect(page.getByRole('heading', { level: 1, name: 'Projects' })).toBeVisible();
     await expect(settingsTab(page)).toBeVisible();
-    await openMembers(page, w);
-    await changeRoleThroughUi(page, nameO, 'Member');
+    await setRoleAs(w, b, w.o.userId, w.roleIds.member);
 
     await page.goto(projectsUrl(w));
     await expect(page.getByRole('heading', { level: 1, name: 'Projects' })).toBeVisible();

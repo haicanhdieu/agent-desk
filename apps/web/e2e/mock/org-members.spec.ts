@@ -46,7 +46,8 @@ const removeItem = (page: Page): Locator => page.getByRole('button', { name: 'Re
 test('TC-1.4: 25 members page by 20 and the rest, with the full pagination control', async ({ page }) => {
   await open(page, 'membersPaged');
   await loaded(page);
-  await expect(menuButton(page, 'Alice Doe')).toBeVisible();
+  await expect(rowOf(page, 'Alice Doe')).toContainText('You');
+  await expect(menuButton(page, 'Alice Doe')).toHaveCount(0);
   // the header row is one of the rows
   await expect(page.locator('tbody tr')).toHaveCount(20);
   await expect(rowOf(page, 'Member 19')).toBeVisible();
@@ -102,33 +103,25 @@ test('TC-4.3: an owner sees the Owner card with Admin, Member, Viewer and No rol
   for (const role of ['Owner', 'Admin', 'Member', 'Viewer', 'No role']) await expect(card(d, role)).toBeVisible();
 });
 
-test('TC-5.1: the sole owner stepping down gets the warning and the last-owner banner', async ({ page }) => {
+test('TC-5.1: the sole owner has no menu on the own row, so nobody steps down through the UI', async ({ page }) => {
   await open(page, 'soleOwner');
   await loaded(page);
-  await openMenu(page, 'Alice Doe');
-  await changeRole(page).click();
-  const d = dialog(page, 'Alice Doe');
-  await expect(d).toBeVisible();
-  await card(d, 'Admin').check();
-  await expect(d.getByText(`You will lose owner rights in ${ORG_NAME}.`)).toBeVisible();
-  await d.getByRole('button', { name: 'Save role' }).click();
-  await expect(d.getByText('An organization needs at least one owner.')).toBeVisible();
-  await expect(d).toBeVisible();
-  await d.getByRole('button', { name: 'Cancel' }).click();
-  await expect(d).toHaveCount(0);
+  await expect(rowOf(page, 'Alice Doe')).toContainText('You');
   await expect(rowOf(page, 'Alice Doe')).toContainText('Owner');
+  await expect(menuButton(page, 'Alice Doe')).toHaveCount(0);
+  await expect(rowOf(page, 'Alice Doe').getByRole('button')).toHaveCount(0);
 });
 
-test('TC-5.2: with two owners nothing is disabled in advance on either owner row', async ({ page }) => {
+test('TC-5.2: with two owners the other owner row offers Change role and Remove, the own row no menu', async ({
+  page,
+}) => {
   await open(page, 'twoOwners');
   await loaded(page);
   await openMenu(page, 'Priya Raman');
   await expect(changeRole(page)).toBeEnabled();
   await expect(removeItem(page)).toBeEnabled();
   await page.keyboard.press('Escape');
-  await openMenu(page, 'Alice Doe');
-  await expect(changeRole(page)).toBeEnabled();
-  await expect(removeItem(page)).toHaveCount(0);
+  await expect(menuButton(page, 'Alice Doe')).toHaveCount(0);
 });
 
 test('TC-8.1: changing the role of a member removed meanwhile closes the dialog with an error toast', async ({
@@ -182,21 +175,19 @@ test('TC-8.3: a role changed meanwhile does not block the change: Role changed a
 });
 
 /** TC-9.1 and TC-9.2 share their steps and Expected; only the caller (the Given) differs. */
-async function expectOwnRowMenu(page: Page, scenario: TenantAdminScenario): Promise<void> {
+async function expectOwnRowNoMenu(page: Page, scenario: TenantAdminScenario): Promise<void> {
   await open(page, scenario);
   await loaded(page);
   await expect(rowOf(page, 'Alice Doe')).toContainText('You');
-  await openMenu(page, 'Alice Doe');
-  await expect(changeRole(page)).toBeVisible();
-  await expect(removeItem(page)).toHaveCount(0);
+  await expect(menuButton(page, 'Alice Doe')).toHaveCount(0);
 }
 
-test('TC-9.1: an owner (two owners) has Change role, no Remove and the You tag on the own row', async ({ page }) => {
-  await expectOwnRowMenu(page, 'twoOwners');
+test('TC-9.1: an owner (two owners) has the You tag and no menu on the own row', async ({ page }) => {
+  await expectOwnRowNoMenu(page, 'twoOwners');
 });
 
-test('TC-9.2: an admin has Change role, no Remove and the You tag on the own row', async ({ page }) => {
-  await expectOwnRowMenu(page, 'admin');
+test('TC-9.2: an admin has the You tag and no menu on the own row', async ({ page }) => {
+  await expectOwnRowNoMenu(page, 'admin');
 });
 
 test("TC-9.3: an owner sees Change role and Remove on another member's row", async ({ page }) => {
