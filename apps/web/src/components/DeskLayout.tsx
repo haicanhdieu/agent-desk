@@ -18,12 +18,14 @@ export interface DeskLayoutProps {
    * `setup` is set, so callers without that route keep the three-item nav.
    */
   links?: { skills: string; rules: string; agent: string; setup?: string };
+  /** The project's name for the sidebar header; the generic "Desk" when not given. */
+  projectName?: string;
   children?: ReactNode;
 }
 
 const relativeLinks = { skills: 'skills', rules: 'rules', setup: 'setup', agent: 'agent' };
 
-export function DeskLayout({ active, repo, links = relativeLinks, children }: DeskLayoutProps) {
+export function DeskLayout({ active, repo, projectName, links = relativeLinks, children }: DeskLayoutProps) {
   const status = repo.status ?? (repo.connected ? { tone: 'ok' as const, text: 'Connected' } : undefined);
   return (
     <div className={styles.body}>
@@ -31,7 +33,7 @@ export function DeskLayout({ active, repo, links = relativeLinks, children }: De
         aria-label="Desk"
         groups={[
           {
-            heading: 'Desk',
+            heading: projectName ?? 'Desk',
             items: [
               { label: 'Routing rules', href: links.rules, icon: 'rule', active: active === 'rules' },
               { label: 'Skills', href: links.skills, icon: 'skill-file', active: active === 'skills' },

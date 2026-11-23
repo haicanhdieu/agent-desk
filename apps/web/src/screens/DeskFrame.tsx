@@ -67,6 +67,7 @@ export function DeskFrame({
       />
       <DeskLayout
         active={active}
+        projectName={project.name}
         repo={{
           org: project.org,
           name: project.name,

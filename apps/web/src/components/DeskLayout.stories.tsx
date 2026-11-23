@@ -15,6 +15,7 @@ type Story = StoryObj<typeof meta>;
 export const Skills: Story = {
   args: {
     active: 'skills',
+    projectName: 'invoicer-api',
     repo: { org: 'harbor-labs', name: 'invoicer-api', branch: 'main', connected: true },
     children: <div style={{ padding: 24 }}>Page content</div>,
   },
