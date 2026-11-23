@@ -1418,7 +1418,7 @@ Note for BR-5: removing the only owner has no UI path from one browser (the own 
 | TC-20.3 | boundary | mock | Audit scenario with 25 entries; default page size 20. | 1. Open Audit log. 2. Go to page 2. | Page 1 has the 20 newest entries; page 2 has the 5 oldest and shows "Showing 21–25 of 25". |
 | TC-20.4 | edge | mock | An entry whose actor was deleted. | 1. Open Audit log. | The Who column shows the tag "Deleted user". |
 | TC-20.5 | positive | mock | An entry made by a platform admin. | 1. Open Audit log. | The Who column shows the name with the "Platform admin" tag. |
-| TC-20.6 | negative | mock | An entry whose text contains HTML such as `<b>x</b>`. | 1. Open Audit log. | The text shows literally as text; nothing is bold. |
+| TC-20.6 | negative | mock | An entry whose text contains HTML such as `<b>x</b>`. | 1. Open Audit log. | The text shows literally as text; no markup from the entry is parsed. |
 | TC-20.7 | positive | mock | A generic request entry; `page.clock` fixed; an entry made 2 minutes ago. | 1. Open Audit log. 2. Hover the When cell. | The generic entry's What shows the raw key in mono ("POST orgs.create"). The When cell shows "2 min ago" and the hover shows the exact date. |
 
 #### BR-21: Role change and removal in the audit
