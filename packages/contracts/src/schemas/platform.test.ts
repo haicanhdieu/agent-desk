@@ -7,6 +7,7 @@ import {
   PlatformAdminDto,
   PlatformMemberDto,
   PlatformRoleDto,
+  PlatformSessionDto,
   UpdateOrgRequest,
 } from './platform';
 
@@ -80,15 +81,27 @@ describe('GrantPlatformAdminRequest', () => {
 describe('PlatformAdminDto', () => {
   const base = { id: ID, email: 'a@dev.local', grantedAt: '2026-01-01T00:00:00.000Z' };
   const entries = [
-    { ...base, userId: 'u1', name: 'Admin', handle: 'admin', grantedBy: null },
-    { ...base, userId: 'u2', name: 'Bo', handle: 'bo', grantedBy: { name: 'Admin', handle: 'admin' } },
-    { ...base, userId: null, name: null, handle: null, grantedBy: null },
+    { ...base, userId: 'u1', name: 'Admin', handle: 'admin', grantedBy: null, lastWorkingAdmin: true },
+    {
+      ...base,
+      userId: 'u2',
+      name: 'Bo',
+      handle: 'bo',
+      grantedBy: { name: 'Admin', handle: 'admin' },
+      lastWorkingAdmin: false,
+    },
+    { ...base, userId: null, name: null, handle: null, grantedBy: null, lastWorkingAdmin: false },
   ];
   it('parses an entry with no account and no granter', () => {
     expect(PlatformAdminDto.safeParse(entries[2]).success).toBe(true);
   });
   it('parses a page of entries', () => {
     expect(pageOf(PlatformAdminDto).safeParse({ items: entries, page: 1, pageSize: 20, total: 3 }).success).toBe(true);
+  });
+  it('requires lastWorkingAdmin to be a boolean', () => {
+    const { lastWorkingAdmin: _flag, ...without } = entries[0] ?? {};
+    expect(PlatformAdminDto.safeParse(without).success).toBe(false);
+    expect(PlatformAdminDto.safeParse({ ...entries[0], lastWorkingAdmin: 'yes' }).success).toBe(false);
   });
   it('rejects a granter without a handle', () => {
     expect(PlatformAdminDto.safeParse({ ...entries[1], grantedBy: { name: 'x' } }).success).toBe(false);
@@ -119,5 +132,15 @@ describe('UpdateOrgRequest', () => {
 describe('OrgDto', () => {
   it('parses id, name and slug', () => {
     expect(OrgDto.safeParse({ id: ID, name: 'Acme', slug: 'acme' }).success).toBe(true);
+  });
+});
+
+describe('PlatformSessionDto', () => {
+  it('parses { platformAdmin: boolean }', () => {
+    expect(PlatformSessionDto.safeParse({ platformAdmin: false }).success).toBe(true);
+  });
+  it('rejects an empty object and a non-boolean', () => {
+    expect(PlatformSessionDto.safeParse({}).success).toBe(false);
+    expect(PlatformSessionDto.safeParse({ platformAdmin: 'true' }).success).toBe(false);
   });
 });

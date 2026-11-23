@@ -49,8 +49,13 @@ export const PlatformAdminDto = z.object({
   handle: z.string().nullable(),
   grantedAt: Timestamp,
   grantedBy: InviterDto.nullable(),
+  /** True only on the one verified entry that is the sole working admin: the entry that cannot be revoked. */
+  lastWorkingAdmin: z.boolean(),
 });
 export type PlatformAdminDto = z.infer<typeof PlatformAdminDto>;
+
+export const PlatformSessionDto = z.object({ platformAdmin: z.boolean() });
+export type PlatformSessionDto = z.infer<typeof PlatformSessionDto>;
 
 export const GrantPlatformAdminRequest = z.object({ email: z.string().trim().pipe(InvitationEmail) }).strict();
 export type GrantPlatformAdminRequest = z.infer<typeof GrantPlatformAdminRequest>;

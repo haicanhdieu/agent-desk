@@ -1013,6 +1013,7 @@ const impl: Impl = {
   },
 
   'me.access': () => accessOf(sessionUser()),
+  'me.platform': () => ({ platformAdmin: sessionUser().platformAdmin }),
   'roles.list': () => roleFixtures,
   'members.list': async ({ params, query }) => {
     const { orgId } = session();

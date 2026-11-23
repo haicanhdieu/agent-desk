@@ -76,6 +76,7 @@ export const routeAccess: Record<RouteKey, RouteAccess> = {
   'runs.events': project('run:read', 'runId'),
   'runs.terminal': project('terminal:attach', 'runId'),
   'me.access': { scope: 'self' },
+  'me.platform': { scope: 'user' },
   'me.listInvitations': { scope: 'user' },
   'me.getInvitation': { scope: 'user' },
   'me.acceptInvitation': { scope: 'user' },

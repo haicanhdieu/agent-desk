@@ -9,6 +9,7 @@ import { applyMockLists, MOCK_LISTS_KEY, mockListHandlers, parseMockLists } from
 import { handlers } from './handlers';
 import { PR_STATES_SCENARIO_KEY } from './prStates';
 import { ONBOARDING_SCENARIO_KEY, parseOnboardingScenario } from './onboardingScenarios';
+import { PLATFORM_SCENARIO_KEY, parsePlatformScenario } from './platformScenarios';
 import { scenarios, setScenarioTarget } from './scenarios';
 import { TENANT_ADMIN_SCENARIO_KEY, applyTenantAdminScenario, parseTenantAdminScenario } from './tenantAdminScenarios';
 import { DEFAULT_RUN_SCRIPT, streamHandlers } from './stream-handlers';
@@ -118,6 +119,19 @@ function loadTenantAdmin(): void {
   if (name !== undefined) applyTenantAdminScenario(mockDb, name);
 }
 
+// The mocked e2e specs pick a platform scenario here before the first load (e2e/mock/mock.ts `seedPlatform`,
+// platformScenarios.ts). It resets the store like an onboarding scenario does. An unknown name is ignored.
+function loadPlatform(): void {
+  let raw: string | null = null;
+  try {
+    raw = sessionStorage.getItem(PLATFORM_SCENARIO_KEY);
+  } catch {
+    // Storage blocked: the seed stays.
+  }
+  const name = parsePlatformScenario(raw);
+  if (name !== undefined) scenarios.platform(name);
+}
+
 function saveAuth(): void {
   try {
     sessionStorage.setItem(AUTH_KEY, JSON.stringify(mockDb.auth));
@@ -133,6 +147,7 @@ export function startMockWorker(opts: { quiet?: boolean } = {}): Promise<unknown
   started ??= (async () => {
     loadOnboarding();
     loadTenantAdmin();
+    loadPlatform();
     loadAuth();
     loadAgentModels();
     loadPrStates();

@@ -30,6 +30,7 @@ import {
   PlatformOrgDto,
   PlatformProjectDto,
   PlatformRoleDto,
+  PlatformSessionDto,
 } from './schemas/platform';
 import {
   AgentDto,
@@ -374,6 +375,7 @@ export const routes = {
   },
   me: {
     access: { method: 'GET', path: '/api/me/access', response: AccessDto },
+    platform: { method: 'GET', path: '/api/me/platform', response: PlatformSessionDto },
     listInvitations: {
       method: 'GET',
       path: '/api/me/invitations',

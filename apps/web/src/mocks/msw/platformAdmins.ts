@@ -9,8 +9,26 @@ mockDb.onReset(() => {
   admins = structuredClone(platformAdminFixtures);
 });
 
+/** Replaces the admin list (scenario seeding); a store reset puts the fixtures back. */
+export function seedPlatformAdmins(entries: PlatformAdminDto[]): void {
+  admins = structuredClone(entries);
+}
+
+/** The API's flag: true only on the one verified entry when it is the sole working admin (BR-16). */
+export function withLastWorkingAdmin(
+  entries: PlatformAdminDto[],
+  verifiedEmails: ReadonlySet<string>,
+): PlatformAdminDto[] {
+  const working = entries.filter((a) => verifiedEmails.has(a.email)).length;
+  return entries.map((a) => ({ ...a, lastWorkingAdmin: working === 1 && verifiedEmails.has(a.email) }));
+}
+
+/** An entry with an account is a verified one in the mock. */
+const flagged = (entries: PlatformAdminDto[]): PlatformAdminDto[] =>
+  withLastWorkingAdmin(entries, new Set(entries.filter((a) => a.userId !== null).map((a) => a.email)));
+
 export function listPlatformAdmins(q: PageQuery): Page<PlatformAdminDto> {
-  return slicePage(admins, q);
+  return slicePage(flagged(admins), q);
 }
 
 export function grantPlatformAdmin(body: GrantPlatformAdminRequest): WithStatus<PlatformAdminDto> | PlatformAdminDto {
@@ -25,7 +43,7 @@ export function grantPlatformAdmin(body: GrantPlatformAdminRequest): WithStatus<
       errors: [{ pointer: '/email', detail: 'No account has this email yet.' }],
     });
   }
-  if (existing) return withStatus(existing, 200);
+  if (existing) return withStatus(flagged(admins).find((a) => a.id === existing.id) ?? existing, 200);
   if (!account) throw new Error('unreachable: account checked above');
   const actor = mockDb.currentUser();
   const entry: PlatformAdminDto = {
@@ -36,9 +54,10 @@ export function grantPlatformAdmin(body: GrantPlatformAdminRequest): WithStatus<
     handle: account.handle,
     grantedAt: new Date().toISOString(),
     grantedBy: actor ? { name: actor.name, handle: actor.handle } : null,
+    lastWorkingAdmin: false,
   };
   admins = [entry, ...admins];
-  return entry;
+  return flagged(admins).find((a) => a.id === entry.id) ?? entry;
 }
 
 export function revokePlatformAdmin(adminId: string): null {

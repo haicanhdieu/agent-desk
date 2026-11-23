@@ -121,6 +121,7 @@ const MATRIX: Record<RouteKey, Row> = {
   'runs.events': ALL,
   'runs.terminal': OWN_RUN,
   'me.access': ALL,
+  'me.platform': ALL,
   'me.listInvitations': ALL,
   'me.getInvitation': ALL,
   'me.acceptInvitation': ALL,

@@ -363,17 +363,17 @@ routes.me.platform = { method: 'GET', path: '/api/me/platform', response: Platfo
 export function withLastWorkingAdmin(entries: PlatformAdminDto[], verifiedEmails: ReadonlySet<string>): PlatformAdminDto[];
 ```
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
   - `platform.test.ts`: `PlatformAdminDto` requires `lastWorkingAdmin` (boolean); `PlatformSessionDto` rejects extra-less `{}`.
   - `routes.test.ts` and `route-access.test.ts`: `me.platform` is GET `/api/me/platform` with `{ scope: 'user' }`; route counts +1.
   - `platform-admins.int.test.ts` (BR-16, fresh DB): the flag is true only for the sole working admin; false on both when two working admins exist; a seeded entry with no account and an entry whose account is unverified or deleted are never flagged and do not count; same value on page 1 and page 2 of a paged list (`pageSize: 1`); list, grant and repeat-grant responses carry it; revoking the flagged entry is 409, any other 204.
   - `me-platform.int.test.ts`: a platform admin gets `{ platformAdmin: true }`, a verified non-admin and an unverified user whose email is in `platform_admins` get false; an `x-org-id` header is ignored; signed out 401; the body has exactly the key `platformAdmin`.
   - `authz.int.test.ts`: `DENIAL_TABLE['me.platform'] = { none: 200, viewer: 200, pa: 200 }`.
   - `contract.test.ts`: every admin fixture parses; `withLastWorkingAdmin` flags only the sole verified entry, none when two are verified.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/contracts exec vitest run src/schemas/platform.test.ts src/routes.test.ts src/route-access.test.ts`. Expected: FAIL.
-- [ ] **Step 3: Implement** the contracts; in `platform-admins.service.ts`, `list` runs one `count(*)` of working admins (the revoke guard's verified-user join) and selects the matched account's `email_verified`; `toDto(row, workingCount)` sets `lastWorkingAdmin = verified && workingCount === 1`; `grant` and `findPlatformAdmin` use the same mapper. `PlatformSessionController.get(@CurrentSessionUser() user): Promise<PlatformSessionDto>` returns `{ platformAdmin: await isPlatformAdmin(db, user) }`. MSW: the admins store maps every answer through `withLastWorkingAdmin`; `me.platform` answers from the session user's platform flag.
-- [ ] **Step 4: Run** Step 2's command, `pnpm --filter @agentdesk/api exec vitest run test/platform-admins.int.test.ts test/me-platform.int.test.ts test/authz.int.test.ts`, `pnpm --filter @agentdesk/web exec vitest run src/mocks/msw/contract.test.ts`, and `pnpm --filter @agentdesk/api typecheck && pnpm --filter @agentdesk/web typecheck`. Expected: PASS.
-- [ ] **Step 5: Commit** (`devbox run fix` first): `feat(contracts): last working admin flag and the me.platform route`. Label `review:sensitive`.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/contracts exec vitest run src/schemas/platform.test.ts src/routes.test.ts src/route-access.test.ts`. Expected: FAIL.
+- [x] **Step 3: Implement** the contracts; in `platform-admins.service.ts`, `list` runs one `count(*)` of working admins (the revoke guard's verified-user join) and selects the matched account's `email_verified`; `toDto(row, workingCount)` sets `lastWorkingAdmin = verified && workingCount === 1`; `grant` and `findPlatformAdmin` use the same mapper. `PlatformSessionController.get(@CurrentSessionUser() user): Promise<PlatformSessionDto>` returns `{ platformAdmin: await isPlatformAdmin(db, user) }`. MSW: the admins store maps every answer through `withLastWorkingAdmin`; `me.platform` answers from the session user's platform flag.
+- [x] **Step 4: Run** Step 2's command, `pnpm --filter @agentdesk/api exec vitest run test/platform-admins.int.test.ts test/me-platform.int.test.ts test/authz.int.test.ts`, `pnpm --filter @agentdesk/web exec vitest run src/mocks/msw/contract.test.ts`, and `pnpm --filter @agentdesk/api typecheck && pnpm --filter @agentdesk/web typecheck`. Expected: PASS.
+- [x] **Step 5: Commit** (`devbox run fix` first): `feat(contracts): last working admin flag and the me.platform route`. Label `review:sensitive`.
 
 ---
 
@@ -405,11 +405,11 @@ export async function seedPlatform(page: Page, scenario: PlatformScenario): Prom
 
   `platformAdminOrgs`: the signed-in user is a platform admin and an owner of one org. `platformAdminNoOrg`: delegates to the onboarding scenario of the same name. `ownerNoPlatform`: an org owner, not a platform admin. `lastAdmin`: one working admin plus seeded no-account entries filling three pages at the default page size, the working one on page 2 (a variant flag puts it on page 1). `revoke409`: `platform.revokeAdmin` answers 409 with a problem title. `platformEmpty`: no other admin rows (only the signed-in one is removed from the list answer), later tasks add empty orgs and audit.
 
-- [ ] **Step 1: Write the failing tests** in `platformScenarios.test.ts` (node MSW server): each scenario's `me.platform` value; `lastAdmin` flags exactly one entry, on page 2; `revoke409` answers 409; `platformEmpty` lists no admins; `parsePlatformScenario` rejects unknown names.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/mocks/msw/platformScenarios.test.ts`. Expected: FAIL.
-- [ ] **Step 3: Implement** the module (onboardingScenarios style, reset through `mockDb.onReset`), the `browser.ts` read of `PLATFORM_SCENARIO_KEY` from sessionStorage, `scenarios.platform`, and `seedPlatform` (same `addInitScript` pattern as `seedTenantAdmin`).
-- [ ] **Step 4: Run** Step 2's command, `pnpm --filter @agentdesk/web exec vitest run src/mocks`, `pnpm --filter @agentdesk/web typecheck`. Expected: PASS.
-- [ ] **Step 5: Commit**: `feat(web): platform mock scenarios`.
+- [x] **Step 1: Write the failing tests** in `platformScenarios.test.ts` (node MSW server): each scenario's `me.platform` value; `lastAdmin` flags exactly one entry, on page 2; `revoke409` answers 409; `platformEmpty` lists no admins; `parsePlatformScenario` rejects unknown names.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/mocks/msw/platformScenarios.test.ts`. Expected: FAIL.
+- [x] **Step 3: Implement** the module (onboardingScenarios style, reset through `mockDb.onReset`), the `browser.ts` read of `PLATFORM_SCENARIO_KEY` from sessionStorage, `scenarios.platform`, and `seedPlatform` (same `addInitScript` pattern as `seedTenantAdmin`).
+- [x] **Step 4: Run** Step 2's command, `pnpm --filter @agentdesk/web exec vitest run src/mocks`, `pnpm --filter @agentdesk/web typecheck`. Expected: PASS.
+- [x] **Step 5: Commit**: `feat(web): platform mock scenarios`.
 
 ---
 

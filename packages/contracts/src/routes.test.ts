@@ -61,7 +61,7 @@ describe('contracts', () => {
       method: 'POST',
       path: '/api/projects/:projectId/connection/poll',
     });
-    expect(Object.keys(flat)).toHaveLength(84);
+    expect(Object.keys(flat)).toHaveLength(85);
     expect(flat['assignments.remove']).toMatchObject({
       method: 'DELETE',
       path: '/api/orgs/:orgId/assignments/:assignmentId',
@@ -167,6 +167,7 @@ describe('contract boundaries', () => {
   });
   it('registers the onboarding routes with their methods and paths', () => {
     const flat = flattenRoutes(routes);
+    expect(flat['me.platform']).toMatchObject({ method: 'GET', path: '/api/me/platform' });
     expect(flat['me.listInvitations']).toMatchObject({ method: 'GET', path: '/api/me/invitations' });
     expect(flat['me.getInvitation']).toMatchObject({ method: 'GET', path: '/api/me/invitations/:invitationId' });
     expect(flat['me.acceptInvitation']).toMatchObject({

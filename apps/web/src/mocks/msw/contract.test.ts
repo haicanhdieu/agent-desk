@@ -65,6 +65,7 @@ import { skillFixtures } from '../dto/skills';
 import { mockDb } from './db';
 import { routeHandlers } from './handlers';
 import { linkedTicketsFor } from './linkedTickets';
+import { withLastWorkingAdmin } from './platformAdmins';
 import { scenarios } from './scenarios';
 
 const api = createApi({ baseUrl: 'http://localhost:3000', parse: true });
@@ -500,6 +501,42 @@ describe('MSW handler semantics', () => {
       // Run 64 is still paused, so it still needs a person.
       counts: { needsYou: 1, running: 0, queued: 1 },
     });
+  });
+
+  it('withLastWorkingAdmin flags only the sole verified entry, none when two are verified', () => {
+    const [first, second, third] = platformAdminFixtures;
+    if (!first || !second || !third) throw new Error('fixtures');
+    const flagged = (verified: string[]) =>
+      withLastWorkingAdmin([first, second, third], new Set(verified)).map((a) => a.lastWorkingAdmin);
+    expect(flagged([first.email])).toEqual([true, false, false]);
+    expect(flagged([first.email, second.email])).toEqual([false, false, false]);
+    expect(flagged([])).toEqual([false, false, false]);
+    expect(flagged([third.email])).toEqual([false, false, true]);
+  });
+
+  it('serves me.platform from the session user flag', async () => {
+    const me = mockDb.state.users[0];
+    if (!me) throw new Error('no user');
+    me.platformAdmin = false;
+    const read = async () => (await fetch('http://localhost:3000/api/me/platform')).json();
+    expect(await read()).toEqual({ platformAdmin: false });
+    me.platformAdmin = true;
+    expect(await read()).toEqual({ platformAdmin: true });
+  });
+
+  it('flags the sole working admin in the served list once the others are revoked', async () => {
+    const me = mockDb.state.users[0];
+    if (me) me.platformAdmin = true;
+    const base = 'http://localhost:3000/api/platform/admins';
+    const read = async () =>
+      PlatformAdminDto.array().parse(((await (await fetch(base)).json()) as { items: unknown[] }).items);
+    const before = await read();
+    expect(before.every((a) => !a.lastWorkingAdmin)).toBe(true);
+    const second = before.filter((a) => a.userId !== null)[1];
+    if (!second) throw new Error('no second working entry');
+    expect((await fetch(`${base}/${second.id}`, { method: 'DELETE' })).status).toBe(204);
+    const after = await read();
+    expect(after.filter((a) => a.lastWorkingAdmin).map((a) => a.userId !== null)).toEqual([true]);
   });
 
   it('answers 201 with the new org when a platform admin creates one', async () => {

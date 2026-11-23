@@ -3,6 +3,7 @@ import type { AgentModelsScenario } from './agentModels';
 import type { PrStatesScenario } from './prStates';
 import { mockDb } from './db';
 import { applyOnboardingScenario, onboardingOverrides, type OnboardingScenario } from './onboardingScenarios';
+import { applyPlatformScenario, platformOverrides, type PlatformScenario } from './platformScenarios';
 import { problemResponse, routeHandler, type ProblemInit, type RouteKey } from './http';
 import { scriptRun, type ScriptStep } from './live';
 
@@ -30,6 +31,11 @@ export const scenarios = {
   onboarding(name: OnboardingScenario): void {
     applyOnboardingScenario(name);
     for (const handler of onboardingOverrides(name)) override(handler);
+  },
+  /** Resets the store and seeds a platform scenario (platformScenarios.ts), with its handler overrides. */
+  platform(name: PlatformScenario): void {
+    applyPlatformScenario(name);
+    for (const handler of platformOverrides(name)) override(handler);
   },
   /** What `agents.models` answers for the agent until the store resets. */
   agentModels(agentId: string, scenario: AgentModelsScenario): void {

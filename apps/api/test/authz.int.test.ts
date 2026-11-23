@@ -803,6 +803,7 @@ const DENIAL_TABLE: Record<HttpKey, Expected> = {
   'runs.events': tenant('stream'),
   // anyone signed in reads their own access: empty for a member with no assignment, platformAdmin only with no active org
   'me.access': { none: 200, viewer: 200, pa: 200 },
+  'me.platform': { none: 200, viewer: 200, pa: 200 },
   'roles.list': tenant(403),
   'members.list': tenant(403),
   'assignments.list': tenant(403),

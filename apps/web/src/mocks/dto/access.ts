@@ -159,6 +159,7 @@ export const platformAdminFixtures: PlatformAdminDto[] = [
     handle: 'dev-admin',
     grantedAt: MOCK_NOW,
     grantedBy: null,
+    lastWorkingAdmin: false,
   },
   {
     id: platformAdminId(2),
@@ -168,6 +169,7 @@ export const platformAdminFixtures: PlatformAdminDto[] = [
     handle: 'pat',
     grantedAt: MOCK_NOW,
     grantedBy: { name: 'Dev Admin', handle: 'dev-admin' },
+    lastWorkingAdmin: false,
   },
   {
     id: platformAdminId(3),
@@ -177,6 +179,7 @@ export const platformAdminFixtures: PlatformAdminDto[] = [
     handle: null,
     grantedAt: MOCK_NOW,
     grantedBy: null,
+    lastWorkingAdmin: false,
   },
 ];
 
