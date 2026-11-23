@@ -120,6 +120,7 @@ The choice and the concrete rules that follow from it.
 | [0036](0036-rbac-permissions-roles-scope.md)                           | RBAC has three dimensions: permissions, roles and scope                                 | Accepted | 2026-11-22 |
 | [0037](0037-platform-admins-in-database.md)                            | Platform admins are stored in the database and seeded by hand                           | Accepted | 2026-11-22 |
 | [0038](0038-suspended-orgs-refused-at-guard-intake-and-first-start.md) | Suspended orgs are refused at the tenant guard, the intake and the first start of a run | Accepted | 2026-11-23 |
+| [0038](0038-project-env-vars-and-secrets.md)                           | Project environment variables and secrets are injected into workspace pods              | Accepted | 2026-11-23 |
 
 The specs these ADRs come from were marked "draft for review" when written; the
 ADRs are recorded as Accepted because implementation has started on them (the

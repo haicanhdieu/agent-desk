@@ -291,11 +291,11 @@ graph LR
   - `class ProjectEnvClashError extends Error { readonly envName: string }`, thrown by `buildRunJob` and `buildSetupTestJob` when a project name equals any platform env name (static, or dynamic: the credential keys, `cliTokenEnvName`, adapter `agentEnv`) or two project names collide; message names the variable only.
   - Contract with the worker (Tasks 10 and 11): each name in `secretNames` becomes an explicit `secretKeyRef` into the Job's Secret (`run-{runId}` or the setup-test Secret) with the same key; plain entries are literal `env`. Project entries come first in the container env, platform env after.
 
-- [ ] **Step 1: Write the failing tests** in `job-spec.test.ts` (`it.each` over run, resume and setup-test Jobs): plain entries are literal env, secret names are `secretKeyRef` env into the Job's Secret, no `envFrom`; no secret value anywhere in `JSON.stringify(job)` (values are not an input, assert the names only appear as refs); project entries sit before platform env; clash with `PATH`-style platform names, with a credential key and with `cliTokenEnvName` throws `ProjectEnvClashError` carrying only the name; no label or annotation carries a name or value; an empty or absent `projectEnv` yields a Job deep-equal to the one built before this change; worst cases at the 256 KiB total: all-plain Job JSON under 1 MiB, and all-secret per-run Secret data (base64, with token and credential) under 1 MiB (build the Secret data in the test from the same names).
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/core exec vitest run test/kube/job-spec.test.ts`. Expected: FAIL.
-- [ ] **Step 3: Implement** the optional input in `buildRunJob`, `buildSetupTestJob` and `podJob`: collect all env names of the pod, reject a duplicate with `ProjectEnvClashError`, emit project entries first. Values are only ever `value:` fields, never interpolated.
-- [ ] **Step 4: Run** the Step 2 command and `pnpm --filter @agentdesk/core typecheck`. Expected: PASS.
-- [ ] **Step 5: Commit**: `feat(core): inject project env into run and setup-test Jobs`. Label `review:sensitive` (run Job).
+- [x] **Step 1: Write the failing tests** in `job-spec.test.ts` (`it.each` over run, resume and setup-test Jobs): plain entries are literal env, secret names are `secretKeyRef` env into the Job's Secret, no `envFrom`; no secret value anywhere in `JSON.stringify(job)` (values are not an input, assert the names only appear as refs); project entries sit before platform env; clash with `PATH`-style platform names, with a credential key and with `cliTokenEnvName` throws `ProjectEnvClashError` carrying only the name; no label or annotation carries a name or value; an empty or absent `projectEnv` yields a Job deep-equal to the one built before this change; worst cases at the 256 KiB total: all-plain Job JSON under 1 MiB, and all-secret per-run Secret data (base64, with token and credential) under 1 MiB (build the Secret data in the test from the same names).
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/core exec vitest run test/kube/job-spec.test.ts`. Expected: FAIL.
+- [x] **Step 3: Implement** the optional input in `buildRunJob`, `buildSetupTestJob` and `podJob`: collect all env names of the pod, reject a duplicate with `ProjectEnvClashError`, emit project entries first. Values are only ever `value:` fields, never interpolated.
+- [x] **Step 4: Run** the Step 2 command and `pnpm --filter @agentdesk/core typecheck`. Expected: PASS.
+- [x] **Step 5: Commit**: `feat(core): inject project env into run and setup-test Jobs`. Label `review:sensitive` (run Job).
 
 ---
 
@@ -311,10 +311,10 @@ graph LR
 
 **Interfaces:** none (documents only).
 
-- [ ] **Step 1: Write the ADR** "Project environment variables and secrets are injected into workspace pods": decision (per-entry Secrets, rows authoritative, apply to new Pods only), consequences (setup and agent can read all values, accepted risk in the spec Edge cases, F2 closed), status accepted, extends ADR 0012 and 0019 decision 8; add the index line in `docs/adr/README.md`.
-- [ ] **Step 2: Fix the stale lines** in the setup-and-plugins spec named in the spec "Lifecycle, compatibility and side effects": §2 non-goal "Secrets/env vars for setup", §3 decision 6 "Secrets: none in v1", §7 F2, §5.4 editor hint "secrets are F2". Change only those lines, each pointing to the new spec and ADR.
-- [ ] **Step 3: Verify** with `rg -n "secrets are F2|Secrets: none in v1" docs/superpowers/specs/2026-11-13-workspace-setup-and-plugins-design.md` printing nothing stale. Do not edit `AGENTS.md`, `.agent/` or `docs/conventions/security.md`; flag the `security.md` §1 wording in the PR instead.
-- [ ] **Step 4: Commit**: `docs(adr): record project env vars and secrets in workspace pods`.
+- [x] **Step 1: Write the ADR** "Project environment variables and secrets are injected into workspace pods": decision (per-entry Secrets, rows authoritative, apply to new Pods only), consequences (setup and agent can read all values, accepted risk in the spec Edge cases, F2 closed), status accepted, extends ADR 0012 and 0019 decision 8; add the index line in `docs/adr/README.md`.
+- [x] **Step 2: Fix the stale lines** in the setup-and-plugins spec named in the spec "Lifecycle, compatibility and side effects": §2 non-goal "Secrets/env vars for setup", §3 decision 6 "Secrets: none in v1", §7 F2, §5.4 editor hint "secrets are F2". Change only those lines, each pointing to the new spec and ADR.
+- [x] **Step 3: Verify** with `rg -n "secrets are F2|Secrets: none in v1" docs/superpowers/specs/2026-11-13-workspace-setup-and-plugins-design.md` printing nothing stale. Do not edit `AGENTS.md`, `.agent/` or `docs/conventions/security.md`; flag the `security.md` §1 wording in the PR instead.
+- [x] **Step 4: Commit**: `docs(adr): record project env vars and secrets in workspace pods`.
 
 ---
 

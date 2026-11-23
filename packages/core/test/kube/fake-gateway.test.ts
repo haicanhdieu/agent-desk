@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { FakeKubeGateway, commandLine } from '../../src/kube/fake-gateway';
-import { buildRunJob, buildSetupTestJob } from '../../src/kube/job-spec';
+import { buildRunJob, buildSetupTestJob, type ProjectEnvInput } from '../../src/kube/job-spec';
 import type { ExecSession } from '../../src/kube/gateway';
 
 const ORG = '22222222-2222-4222-8222-222222222222';
@@ -27,6 +27,7 @@ const jobFor = (
   prompt: string,
   resume = false,
   author = { name: 'bot', email: 'bot@x.invalid', authorizedBy: 'bot' },
+  projectEnv?: ProjectEnvInput,
 ) =>
   buildRunJob({
     runId: id,
@@ -49,6 +50,7 @@ const jobFor = (
     pluginMarketplaces: {},
     setupTimeoutSeconds: 600,
     setupScript: null,
+    projectEnv,
     pod: {
       cpuRequest: '1',
       cpuLimit: '1',
@@ -452,6 +454,30 @@ describe('FakeKubeGateway', () => {
     await until(async () => (await gw.getRunPod(name))?.phase === 'Running');
     await sleep(200);
     await expect(readFile(marker)).rejects.toThrow();
+    await gw.deleteJob(name);
+  });
+
+  it('hands the pod the original env values, unescaping $$ like the kubelet', async () => {
+    const id = runId();
+    const name = `run-${id}`;
+    const values: Record<string, string> = {
+      E2E_A: 'pa$word',
+      E2E_B: '$(HOME)',
+      E2E_C: '$$',
+      E2E_D: 'a$',
+    };
+    const plain = Object.entries(values).map(([n, value]) => ({ name: n, value }));
+    await gw.ensureJob(jobFor(id, 'p', false, undefined, { plain, secretNames: [] }));
+    const hash = (v: string): string => createHash('sha256').update(v).digest('hex').slice(0, 12);
+    const c = collect(name);
+    await until(async () => c.lines.some((l) => l.startsWith('agentdesk: session started')));
+    const podEnv = await gw.podEnv(name);
+    for (const [n, v] of Object.entries(values)) {
+      expect(podEnv?.[n]).toBe(v);
+      expect(c.lines).toContain(`agentdesk: env ${n} ${hash(v)}`);
+    }
+    c.ac.abort();
+    await c.done;
     await gw.deleteJob(name);
   });
 

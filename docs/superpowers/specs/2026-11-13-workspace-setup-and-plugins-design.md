@@ -21,7 +21,7 @@ Goals
 
 Non-goals (v1)
 - Custom or per-project runner images; system packages, Docker, services (Postgres, browsers). The pod stays non-root, `capabilities: drop ALL`.
-- Secrets/env vars for setup (private registries will fail in v1). → Follow-up F2.
+- ~~Secrets/env vars for setup~~ Done: see the [env/secrets spec](2026-11-23-workspace-env-secrets-design.md), [ADR-0038](../../adr/0038-project-env-vars-and-secrets.md).
 - PR-based edits for protected branches. → Follow-up F1.
 - Per-org plugin store allowlist. → Follow-up F3.
 - Caching setup output between runs (Approach 3 below is a possible later speed-up).
@@ -42,7 +42,7 @@ Anti-goals (would be failures even if it "works")
 | 3 | Testing | **Throwaway test workspace with live log.** (A terminal into the test pod was dropped, ADR 0025.) Available in onboarding **and** in project settings later. A failing last test **warns, does not block** going live. |
 | 4 | Where the script lives | **Stored by Agent Desk** (Postgres, per project, versioned), **not in the repo**. Saving is instant; every save is a new version with author and time; any version can be restored. Every run records the version it used. (The user first chose "in the repo", then changed to this.) |
 | 5 | How Save reaches the repo | **Moot** (the script is not in the repo). The PR-flow follow-up the user asked for stays, for Skills (F1). |
-| 6 | Secrets | **None in v1.** |
+| 6 | Secrets | **Superseded:** project env vars and secrets exist now, see the [env/secrets spec](2026-11-23-workspace-env-secrets-design.md), [ADR-0038](../../adr/0038-project-env-vars-and-secrets.md). |
 | 7 | Setup fails in a real run | **Stop the run as "Setup failed"**, agent never starts, ticket comment links the log. Plugin install failure: continue with a warning. |
 | 8 | Credentials visible to setup | **Accepted, recorded in the ADR.** Setup runs with the pod's existing env (workspace token file, agent credential). Only Agent Desk users allowed to edit the project's setup can change the script, and they can already attach to run terminals where the same credentials are visible, so setup adds no new exposure. Hiding credentials from setup and the agent is follow-up F6. Test pods get no agent credential, but carry the write-scoped workspace token (a mounted file, ADR 0021), and, until ADR 0025, the editor got a shell with them for the test's TTL; the pod is now deleted as soon as the result is recorded. |
 | — | Build approach | **Approach 1** (phases in the existing entrypoint; test = same Job in test mode). |
@@ -101,7 +101,7 @@ New stdout markers (exact strings fixed by the builder, added to the runner cont
 ### 5.4 Saving the script
 
 - Storage: table `setup_script_versions` (org-scoped, RLS, `withOrg`): `id, org_id, project_id, version int (per project, increasing), body text (max 64 KiB), note text null, created_by, created_at`, unique `(project_id, version)`. The current script is the highest version. An empty body means "no setup". Restoring version N writes a new version with N's body (history is append-only).
-- The script is configuration, not a secret. The editor says "don't put passwords or tokens here" (secrets are F2). Script text is redacted from logs like any run output, and never logged by the api.
+- The script is configuration, not a secret. The editor says "don't put passwords or tokens here" (secrets and variables live in the Environment tab, see [env/secrets spec](2026-11-23-workspace-env-secrets-design.md), [ADR-0038](../../adr/0038-project-env-vars-and-secrets.md)). Script text is redacted from logs like any run output, and never logged by the api.
 - API (contracts first):
   - `GET /api/projects/:projectId/setup-script` → `{ version, body, note, createdBy, createdAt } | null`
   - `PUT /api/projects/:projectId/setup-script` `{ body, note?, baseVersion }` → the new version. 409 if `baseVersion` is not current ("changed since you opened it", same UX as Skills' sha conflict).
@@ -130,7 +130,7 @@ Platform config (infra chart supplies): `RUN_PLUGIN_MARKETPLACES` (JSON name→s
 ## 7. Follow-ups (out of scope, tracked)
 
 - **F1. PR flow for repo edits (Skills):** open a PR when a direct commit is refused or the user prefers it; show PR status in the app; approve and merge from Agent Desk.
-- **F2. Project environment variables / secrets** for setup and agent: stored in the SecretStore (Kubernetes Secrets), masked in UI, redacted in output, visible to the agent.
+- **F2. Project environment variables / secrets** for setup and agent: done, see the [env/secrets spec](2026-11-23-workspace-env-secrets-design.md), [ADR-0038](../../adr/0038-project-env-vars-and-secrets.md).
 - **F3. Per-org approved plugin stores** (including private marketplaces).
 - **F4. Base image menu** (Node, Python, Node + browser) underneath the setup script.
 - **F5. Setup caching / pre-built workspaces** to speed up runs.

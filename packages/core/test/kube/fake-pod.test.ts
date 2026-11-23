@@ -26,6 +26,17 @@ class PodExit extends Error {
   }
 }
 
+const POD_ENV = [
+  'RUN_AUTHOR_NAME',
+  'RUN_AUTHOR_EMAIL',
+  'FAKE_VOLUME_DIR',
+  'FAKE_MAX_LIFE_MS',
+  'FAKE_TRANSCRIPT_ADAPTER',
+  'AGENT_MODEL',
+  'ANTHROPIC_BASE_URL',
+  'RESUME_NOTE',
+];
+
 let dir: string;
 const argv = process.argv;
 
@@ -48,6 +59,11 @@ afterEach(() => {
 
 async function boot(env: Record<string, string> = {}, stateDir: string | null = dir): Promise<void> {
   vi.resetModules();
+  // The pod reads these (and logs every E2E_* name); drop whatever the test runner exported (E2E_WORKERS, AGENT_MODEL,
+  // ANTHROPIC_BASE_URL, ...) so only what a test passes in is visible.
+  for (const k of [...Object.keys(process.env).filter((n) => n.startsWith('E2E_')), ...POD_ENV]) {
+    vi.stubEnv(k, undefined);
+  }
   for (const [k, v] of Object.entries({
     PROMPT: '',
     SETUP_SCRIPT: '',
