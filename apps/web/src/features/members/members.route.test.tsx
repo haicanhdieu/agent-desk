@@ -577,10 +577,10 @@ describe('members page: change role (BR-3, BR-4, BR-40)', () => {
 
 describe('members page: the caller never changes their own role (NO-3)', () => {
   it.each([
-    ['twoOwners', 'an owner'],
-    ['soleOwner', 'the only owner'],
-    ['admin', 'an admin'],
-  ] as const)('%s: %s has no Change role on their own row, whatever the role', async (scenario) => {
+    { scenario: 'twoOwners', who: 'an owner' },
+    { scenario: 'soleOwner', who: 'the only owner' },
+    { scenario: 'admin', who: 'an admin' },
+  ] as const)('$scenario: $who has no Change role on their own row, whatever the role', async ({ scenario }) => {
     await renderRoute('/o/alice/settings/members', { scenario: asRole(scenario) });
     await ready();
     expect(within(rowOf('Alice Doe')).getByText('You')).toBeInTheDocument();
