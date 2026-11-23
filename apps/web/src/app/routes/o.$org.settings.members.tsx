@@ -76,6 +76,11 @@ function MembersContent({ org }: { org: string }) {
   // Nothing is requested without `member:read` (the page is the no-access state).
   const list = useQuery({ ...membersQuery(org, orgId ?? '', { page, pageSize }), enabled });
   const projects = useQuery({ ...inviteProjectsQuery(org), enabled });
+  // The role cards are read ahead, so the dialog opens even if the rights were lost since: the refusal then ends in
+  // the dialog's own no-access Banner on Save, not in a toast that closes the dialog.
+  useEffect(() => {
+    if (enabled && orgId !== undefined) void queryClient.prefetchQuery(inviteRolesQuery(org, orgId));
+  }, [enabled, queryClient, org, orgId]);
 
   const go = (p: number, replace = false) =>
     void navigate({ search: (prev) => ({ ...prev, page: pageToSearch(p) }), replace });
@@ -235,7 +240,8 @@ function ChangeRolePanel({
   // not be rebuilt, losing the picked card, while they load again. The panel lives inside one org's page (the page
   // is keyed on the org), so the kept roles are always this org's.
   const roles = useQuery({ ...inviteRolesQuery(org, orgId), placeholderData: keepPreviousData });
-  const failure = roles.error;
+  // A failed refresh behind cards already read keeps the dialog: its Save ends in the Banner for a 403.
+  const failure = roles.data === undefined ? roles.error : null;
   useEffect(() => {
     if (failure !== null) onLoadFailed(failure);
   }, [failure, onLoadFailed]);

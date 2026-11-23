@@ -1288,9 +1288,9 @@ export function toAuditRow(dto: AuditEntryDto, now: Date, timeZone?: string): Au
 
 - Consumes: as Task 31.
 
-- [ ] **Step 1: Write the specs** for BR-5 (TC-5.3: the real API's 409 Banner), BR-8 (TC-8.4: the second context opens its dialog, the first removes C and awaits the response, then the second saves), BR-36 (TC-36.1), BR-40 (TC-40.1, 40.2), BR-41 (TC-41.1 to 41.3) and BR-42 (TC-42.1, 42.2).
-- [ ] **Step 2: Run** with the stack up: `pnpm --filter @agentdesk/web exec playwright test e2e/local/org-owners.spec.ts`. Expected: PASS.
-- [ ] **Step 3: Commit** `test(web): local e2e for owner grants, step-down and races`.
+- [x] **Step 1: Write the specs** for BR-5 (TC-5.3: the real API's 409 Banner), BR-8 (TC-8.4: the second context opens its dialog, the first removes C and awaits the response, then the second saves), BR-36 (TC-36.1), BR-40 (TC-40.1, 40.2), BR-41 (TC-41.1 to 41.3) and BR-42 (TC-42.1, 42.2).
+- [x] **Step 2: Run** with the stack up: `pnpm --filter @agentdesk/web exec playwright test e2e/local/org-owners.spec.ts`. Expected: PASS.
+- [x] **Step 3: Commit** `test(web): local e2e for owner grants, step-down and races`.
 
 ---
 

@@ -681,6 +681,52 @@ describe('members page: change role errors (BR-5, BR-8, BR-36)', () => {
     expect(screen.queryByRole('row')).not.toBeInTheDocument();
   });
 
+  it('TC-36.1 rights lost before the dialog opens: the role cards load is refused too, yet the dialog opens and Save shows the Banner', async () => {
+    const { user } = await renderRoute('/o/alice/settings/members', { scenario: asRole('admin') });
+    await ready();
+    // The owner turns this admin into a member behind the open page: the roles list and the save are both refused now.
+    const seat = mockDb.state.memberships.find((m) => m.userId === ids.user.alice && m.orgId === ids.org.alice);
+    if (!seat) throw new Error('no seat');
+    seat.roleKey = 'member';
+    server.use(
+      http.get('*/api/orgs/:orgId/roles', () =>
+        problemResponse({ status: 403, title: 'Forbidden', type: 'forbidden' }),
+      ),
+    );
+    const dialog = await openChangeRole(user, 'Cleo Martin');
+    await pickRole(user, dialog, 'Viewer');
+    await saveRole(user, dialog);
+    expect(await within(dialog).findByText("You don't have access")).toBeInTheDocument();
+    expect(within(dialog).getByText(/Request ID: \S+/)).toBeInTheDocument();
+    expect(screen.getByRole('dialog', { name: 'Change role for Cleo Martin' })).toBeInTheDocument();
+  });
+
+  it.each([
+    [403, 'Forbidden', 'forbidden'],
+    [500, 'Internal server error', 'internal'],
+  ] as const)(
+    'cards already read, then a refresh of them answers %i: the dialog stays open and Save shows the Banner',
+    async (status, title, type) => {
+      const { user, queryClient } = await renderRoute('/o/alice/settings/members', { scenario: asRole('admin') });
+      await ready();
+      const rolesKey = ['org', 'alice', 'invitations', 'roles'];
+      await waitFor(() => expect(queryClient.getQueryState(rolesKey)?.status).toBe('success'));
+      const seat = mockDb.state.memberships.find((m) => m.userId === ids.user.alice && m.orgId === ids.org.alice);
+      if (!seat) throw new Error('no seat');
+      seat.roleKey = 'member';
+      server.use(http.get('*/api/orgs/:orgId/roles', () => problemResponse({ status, title, type })));
+      // The cached cards are stale now, so the dialog refreshes them on open and that refresh fails.
+      await queryClient.invalidateQueries({ queryKey: rolesKey });
+      const dialog = await openChangeRole(user, 'Cleo Martin');
+      await waitFor(() => expect(queryClient.getQueryState(rolesKey)?.status).toBe('error'));
+      expect(screen.getByRole('dialog', { name: 'Change role for Cleo Martin' })).toBeInTheDocument();
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+      await pickRole(user, dialog, 'Viewer');
+      await saveRole(user, dialog);
+      expect(await within(dialog).findByText("You don't have access")).toBeInTheDocument();
+    },
+  );
+
   it('a 403 with an explicit request id shows it in the Banner', async () => {
     const { user } = await renderRoute('/o/alice/settings/members', {
       scenario: () => {
