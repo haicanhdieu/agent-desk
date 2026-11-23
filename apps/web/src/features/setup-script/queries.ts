@@ -1,8 +1,12 @@
 import { queryOptions } from '@tanstack/react-query';
-import type { PageQuery } from '@agentdesk/contracts';
+import type { EnvKind, PageQuery } from '@agentdesk/contracts';
 import { api } from '../api';
 
 const setupKey = (org: string, projectId: string) => ['org', org, 'projects', projectId, 'setup'] as const;
+
+/** Prefix of every cached page of one kind of the project's environment entries. */
+export const envKey = (org: string, projectId: string, kind: EnvKind) =>
+  [...setupKey(org, projectId), 'env', kind] as const;
 
 /** Prefix of every cached page of the version history. */
 export const versionsKey = (org: string, projectId: string) => [...setupKey(org, projectId), 'versions'] as const;
@@ -25,6 +29,12 @@ export const setupQueries = {
       queryFn: () => api.setupScript.version({ params: { projectId, version } }),
       // A saved version never changes.
       staleTime: Infinity,
+    }),
+  env: (org: string, projectId: string, q: { kind: EnvKind; page: number; pageSize: number }) =>
+    queryOptions({
+      queryKey: [...envKey(org, projectId, q.kind), { page: q.page, pageSize: q.pageSize }] as const,
+      queryFn: () =>
+        api.projectEnv.list({ params: { projectId }, query: { kind: q.kind, page: q.page, pageSize: q.pageSize } }),
     }),
   plugins: (org: string, projectId: string) =>
     queryOptions({

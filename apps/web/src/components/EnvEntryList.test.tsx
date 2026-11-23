@@ -312,6 +312,34 @@ describe('EnvEntryList edit', () => {
     await user.click(btn('Save'));
     expect(await screen.findByText('This entry no longer exists. Reload the list.')).toBeInTheDocument();
   });
+
+  it('keeps the gone message after the refreshed list no longer has the entry (BR-28)', async () => {
+    const onUpdate = vi.fn((): Save => Promise.resolve({ gone: true }));
+    const { user, props, rerender } = setup({ onUpdate });
+    await user.click(btn('Edit DB_HOST'));
+    await user.click(btn('Save'));
+    await screen.findByText('This entry no longer exists. Reload the list.');
+    rerender(<EnvEntryList {...props} entries={vars.filter((e) => e.name !== 'DB_HOST')} />);
+    expect(screen.getByText('This entry no longer exists. Reload the list.')).toBeInTheDocument();
+    await user.click(btn('Cancel'));
+    expect(screen.queryByText('This entry no longer exists. Reload the list.')).toBeNull();
+    expect(screen.queryByText('DB_HOST')).toBeNull();
+  });
+
+  it('does not keep a ghost form for a re-created entry that is removed again after a cancelled gone save', async () => {
+    const onUpdate = vi.fn((): Save => Promise.resolve({ gone: true }));
+    const { user, props, rerender } = setup({ onUpdate });
+    await user.click(btn('Edit DB_HOST'));
+    await user.click(btn('Save'));
+    await screen.findByText('This entry no longer exists. Reload the list.');
+    rerender(<EnvEntryList {...props} entries={vars.filter((e) => e.name !== 'DB_HOST')} />);
+    await user.click(btn('Cancel'));
+    rerender(<EnvEntryList {...props} entries={vars} />);
+    await user.click(btn('Edit DB_HOST'));
+    rerender(<EnvEntryList {...props} entries={vars.filter((e) => e.name !== 'DB_HOST')} />);
+    expect(screen.queryByLabelText('Value')).toBeNull();
+    expect(screen.queryByText('DB_HOST')).toBeNull();
+  });
 });
 
 describe('EnvEntryList remove', () => {

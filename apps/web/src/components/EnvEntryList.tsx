@@ -275,6 +275,8 @@ export function EnvEntryList({
   );
   const [removing, setRemoving] = useState<string | undefined>(initial?.removing);
   const [removePending, setRemovePending] = useState(initial?.removing !== undefined && initial.saving === true);
+  // The entry whose save answered "gone": its form stays open after the refreshed list drops the row.
+  const [goneName, setGoneName] = useState<string | undefined>();
   const [removeError, setRemoveError] = useState<EnvSaveError | null>(null);
   // A new object per request, so asking for the same target twice still runs the effect.
   const [focus, setFocus] = useState<FocusTarget | null>(null);
@@ -297,11 +299,14 @@ export function EnvEntryList({
   const failed = loadError !== undefined;
   const showRows = !loading && !failed;
   const count = total ?? entries.length;
+  const keepGone = mode.type === 'edit' && mode.name === goneName && !entries.some((e) => e.name === goneName);
+  const rows: EnvEntryRow[] = keepGone && goneName !== undefined ? [...entries, { name: goneName }] : entries;
   const showPagination = pagination !== undefined && showRows && entries.length > 0;
   const adding = mode.type === 'add';
 
   const closeForm = (to: FocusTarget) => {
     setMode({ type: 'none' });
+    setGoneName(undefined);
     setFocus({ ...to });
   };
 
@@ -342,7 +347,16 @@ export function EnvEntryList({
         )}
         <span className={styles.grow} />
         {canWrite && showRows && (
-          <Button size="sm" icon="plus" data-env-add="" aria-expanded={adding} onClick={() => setMode({ type: 'add' })}>
+          <Button
+            size="sm"
+            icon="plus"
+            data-env-add=""
+            aria-expanded={adding}
+            onClick={() => {
+              setGoneName(undefined);
+              setMode({ type: 'add' });
+            }}
+          >
             {c.add}
           </Button>
         )}
@@ -371,11 +385,11 @@ export function EnvEntryList({
         </Banner>
       )}
 
-      {showRows && entries.length === 0 && !adding && <p className={styles.empty}>{c.empty}</p>}
+      {showRows && rows.length === 0 && !adding && <p className={styles.empty}>{c.empty}</p>}
 
-      {showRows && entries.length > 0 && (
+      {showRows && rows.length > 0 && (
         <ul className={styles.list} aria-label={c.label}>
-          {entries.map((entry) => {
+          {rows.map((entry) => {
             const editing = mode.type === 'edit' && mode.name === entry.name;
             return (
               <li key={entry.name} className={styles.row}>
@@ -388,6 +402,7 @@ export function EnvEntryList({
                     initialSaving={initial?.saving}
                     onSubmit={async (_n, value) => {
                       const result = (await onUpdate?.(entry.name, value)) ?? null;
+                      if (result?.gone) setGoneName(entry.name);
                       if (result === null) closeForm({ type: 'row', name: entry.name });
                       return result;
                     }}
@@ -423,7 +438,10 @@ export function EnvEntryList({
                           size="sm"
                           data-env-row-action={entry.name}
                           aria-label={`${kind === 'secret' ? 'Replace' : 'Edit'} ${entry.name}`}
-                          onClick={() => setMode({ type: 'edit', name: entry.name })}
+                          onClick={() => {
+                            setGoneName(undefined);
+                            setMode({ type: 'edit', name: entry.name });
+                          }}
                         >
                           {kind === 'secret' ? 'Replace' : 'Edit'}
                         </Button>

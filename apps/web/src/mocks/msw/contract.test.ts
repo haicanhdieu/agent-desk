@@ -1131,7 +1131,7 @@ describe('MSW handler semantics', () => {
       applyMockLists({ env: { variables: 500, secrets: 0 } });
       const e = await rejection(addVar('ONE_MORE', 'v', P));
       expect(e.status).toBe(409);
-      expect(e.title).toBe('Too many entries');
+      expect(e.title).toBe('Conflict');
       expect(e.detail).toContain('500');
       expect((await list(P, 'plain')).total).toBe(500);
       await expect(
@@ -1146,7 +1146,7 @@ describe('MSW handler semantics', () => {
       for (let i = 1; i <= 31; i += 1) await addVar(`E2E_FILL_${String(i).padStart(2, '0')}`, big);
       const e = await rejection(addVar('NEWVAR', big));
       expect(e.status).toBe(409);
-      expect(e.title).toBe('Too large');
+      expect(e.title).toBe('Conflict');
       await addVar('SMALL', 'x');
       await addVar('GROW', 'short');
       const grow = await rejection(

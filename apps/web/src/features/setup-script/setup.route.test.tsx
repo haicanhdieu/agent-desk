@@ -409,4 +409,248 @@ describe('desk setup route', () => {
       expect(editor()).toHaveValue(setupScript);
     });
   });
+
+  describe('environment tab', () => {
+    const env = (more = '') => `${base()}?tab=environment${more}`;
+    const acmeEnv = `/o/acme/p/${projectId}/desk/setup?tab=environment`;
+    const varsNav = () => screen.getByRole('navigation', { name: 'Variables pagination' });
+    const secretsNav = () => screen.getByRole('navigation', { name: 'Secrets pagination' });
+    const entry = (kind: 'plain' | 'secret', i: number) => ({
+      name: `${kind === 'plain' ? 'VAR' : 'SEC'}_${String(i).padStart(3, '0')}`,
+      kind,
+      value: kind === 'plain' ? `value-${i}` : null,
+      updatedAt: '2026-11-12T10:00:00.000Z',
+      updatedBy: 'kim-hale',
+    });
+    function seedEnv(variables: number, secrets: number) {
+      mockDb.state.environment[projectId] = [
+        ...Array.from({ length: variables }, (_, i) => entry('plain', i + 1)),
+        ...Array.from({ length: secrets }, (_, i) => entry('secret', i + 1)),
+      ];
+    }
+    const addForm = (name: string) => screen.getByRole('group', { name });
+    const tab = (name: string) => screen.getByRole('tab', { name });
+
+    it.each(['member', 'viewer'] as const)('a %s sees Forbidden and no entry names', async (role) => {
+      await renderRoute(acmeEnv, { scenario: () => scenarios.onboarding(role) });
+      expect(await screen.findByRole('heading', { name: "You don't have access" })).toBeInTheDocument();
+      expect(screen.queryByText('DB_HOST')).not.toBeInTheDocument();
+    });
+
+    it('?tab=bogus falls back to the script tab', async () => {
+      await renderRoute(`${base()}?tab=bogus`);
+      expect(await screen.findByRole('textbox', { name: 'Setup script' })).toBeInTheDocument();
+      expect(tab('Setup script')).toHaveAttribute('aria-selected', 'true');
+    });
+
+    it('?tab=environment opens the tab, and the tab choice is kept in the URL', async () => {
+      const { user, router } = await renderRoute(env());
+      expect(await screen.findByText('DB_HOST')).toBeInTheDocument();
+      expect(tab('Environment')).toHaveAttribute('aria-selected', 'true');
+      await user.click(tab('Setup script'));
+      await waitFor(() => expect(router.state.location.search).toEqual({}));
+      await user.click(tab('Environment'));
+      await waitFor(() => expect(router.state.location.search).toEqual({ tab: 'environment' }));
+    });
+
+    it('both lists render from the API with their totals', async () => {
+      await renderRoute(env());
+      expect(await screen.findByText('DB_HOST')).toBeInTheDocument();
+      expect(screen.getByText('db.internal.example.com')).toBeInTheDocument();
+      expect(screen.getByText('3 variables')).toBeInTheDocument();
+      expect(screen.getByText('NPM_TOKEN')).toBeInTheDocument();
+      expect(screen.getByText('2 secrets')).toBeInTheDocument();
+    });
+
+    it('a secret value never reaches the DOM after a save (BR-17)', async () => {
+      const { user } = await renderRoute(env());
+      await screen.findByText('NPM_TOKEN');
+      await user.click(screen.getByRole('button', { name: 'Add secret' }));
+      await user.type(screen.getByLabelText('Name'), 'NEW_SECRET');
+      await user.type(screen.getByLabelText(/^Value/), 'test-token-not-real-1');
+      await user.click(within(addForm('Add secret')).getByRole('button', { name: 'Add secret' }));
+      expect(await screen.findByText('NEW_SECRET')).toBeInTheDocument();
+      expect(document.body.innerHTML).not.toContain('test-token-not-real-1');
+      expect(JSON.stringify(mockDb.state.environment)).not.toContain('test-token-not-real-1');
+    });
+
+    it('loading, then the error with Retry on each list, then the lists after a retry (BR-5)', async () => {
+      scenarios.serverError('projectEnv.list', { delayMs: 30 });
+      const { user } = await renderRoute(env());
+      expect(await screen.findByText('Loading variables')).toBeInTheDocument();
+      expect(screen.getByText('Loading secrets')).toBeInTheDocument();
+      expect((await screen.findAllByText(/Could not load the environment\. Reload to try again\./)).length).toBe(2);
+      server.resetHandlers();
+      await user.click(screen.getAllByRole('button', { name: 'Retry' })[0] as HTMLElement);
+      expect(await screen.findByText('DB_HOST')).toBeInTheDocument();
+    });
+
+    describe('paging (BR-27)', () => {
+      it('Page 2 under the variables leaves the secrets and an open secret form as they are', async () => {
+        seedEnv(23, 23);
+        const { user, router } = await renderRoute(env());
+        await screen.findByText('VAR_001');
+        await user.click(screen.getByRole('button', { name: 'Add secret' }));
+        await user.type(screen.getByLabelText('Name'), 'TYPED');
+        await user.click(within(varsNav()).getAllByRole('button', { name: 'Page 2' })[0] as HTMLElement);
+        expect(await screen.findByText('VAR_021')).toBeInTheDocument();
+        expect(router.state.location.search).toEqual({ tab: 'environment', varsPage: '2' });
+        expect(screen.getByText('SEC_001')).toBeInTheDocument();
+        expect(secretsNav()).toHaveTextContent('Showing 1–20 of 23');
+        expect(screen.getByLabelText('Name')).toHaveValue('TYPED');
+      });
+
+      it('?secretsPage=2 opens the secrets on page 2 and the variables on page 1', async () => {
+        seedEnv(23, 23);
+        await renderRoute(env('&secretsPage=2'));
+        expect(await screen.findByText('SEC_021')).toBeInTheDocument();
+        expect(screen.getByText('VAR_001')).toBeInTheDocument();
+        expect(screen.queryByText('SEC_001')).not.toBeInTheDocument();
+      });
+
+      it.each(['0', 'x', '-1', '1.5'])('?varsPage=%s falls back to page 1', async (bad) => {
+        seedEnv(23, 3);
+        const { router } = await renderRoute(env(`&varsPage=${bad}`));
+        expect(await screen.findByText('VAR_001')).toBeInTheDocument();
+        expect(router.state.location.search).toEqual({ tab: 'environment' });
+      });
+
+      it('a page past the end is clamped to the last page', async () => {
+        seedEnv(23, 3);
+        const { router } = await renderRoute(env('&varsPage=99'));
+        expect(await screen.findByText('VAR_021')).toBeInTheDocument();
+        expect(router.state.location.search).toEqual({ tab: 'environment', varsPage: '2' });
+      });
+
+      it('removing the last entry of page 2 lands on the new last page', async () => {
+        seedEnv(21, 1);
+        const { user, router } = await renderRoute(env('&varsPage=2'));
+        await user.click(await screen.findByRole('button', { name: 'Remove VAR_021' }));
+        await user.click(screen.getByRole('button', { name: 'Remove variable' }));
+        expect(await screen.findByText('VAR_020')).toBeInTheDocument();
+        await waitFor(() => expect(router.state.location.search).toEqual({ tab: 'environment' }));
+      });
+    });
+
+    describe('writes', () => {
+      it('create sends {name,value} and shows a Toast "Added NAME"', async () => {
+        const bodies = capture('POST', '/env-vars');
+        const { user } = await renderRoute(env());
+        await screen.findByText('DB_HOST');
+        await user.click(screen.getByRole('button', { name: 'Add variable' }));
+        await user.type(screen.getByLabelText('Name'), 'AWS_REGION');
+        await user.type(screen.getByLabelText(/^Value/), 'us-east-1');
+        await user.click(within(addForm('Add variable')).getByRole('button', { name: 'Add variable' }));
+        expect(await screen.findByText('Added AWS_REGION')).toBeInTheDocument();
+        expect(await screen.findByText('us-east-1')).toBeInTheDocument();
+        expect(bodies).toEqual([{ name: 'AWS_REGION', value: 'us-east-1' }]);
+      });
+
+      it('edit sends only {value}', async () => {
+        const bodies = capture('PUT', '/env-vars/LOG_LEVEL');
+        const { user } = await renderRoute(env());
+        await user.click(await screen.findByRole('button', { name: 'Edit LOG_LEVEL' }));
+        const value = screen.getByLabelText(/^Value/);
+        await user.clear(value);
+        await user.type(value, 'debug');
+        await user.click(screen.getByRole('button', { name: 'Save' }));
+        expect(await screen.findByText('debug')).toBeInTheDocument();
+        expect(bodies).toEqual([{ value: 'debug' }]);
+      });
+
+      it('a PUT answered 404 shows the row Banner and refetches the list without the entry (BR-28)', async () => {
+        const { user } = await renderRoute(env());
+        await user.click(await screen.findByRole('button', { name: 'Edit LOG_LEVEL' }));
+        mockDb.state.environment[projectId] = (mockDb.state.environment[projectId] ?? []).filter(
+          (e) => e.name !== 'LOG_LEVEL',
+        );
+        // Hold the refetch so the Banner can be seen before the row (and its form) leaves the list.
+        let release: () => void = () => undefined;
+        const held = new Promise<void>((resolve) => {
+          release = resolve;
+        });
+        server.use(
+          http.get(`*/api/projects/${projectId}/env`, async () => {
+            await held;
+            return undefined;
+          }),
+        );
+        await user.click(screen.getByRole('button', { name: 'Save' }));
+        expect(await screen.findByText('This entry no longer exists. Reload the list.')).toBeInTheDocument();
+        release();
+        // The refreshed list has no row for it (the open form still names the entry above its message).
+        await waitFor(() => expect(screen.getByText('2 variables')).toBeInTheDocument());
+        expect(screen.queryByRole('button', { name: 'Edit LOG_LEVEL' })).not.toBeInTheDocument();
+        // The row is gone, the message is not: it stays until the owner closes the form.
+        expect(screen.getByText('This entry no longer exists. Reload the list.')).toBeInTheDocument();
+      });
+
+      it('a save error keeps the typed input (BR-23)', async () => {
+        const { user } = await renderRoute(env());
+        await screen.findByText('DB_HOST');
+        await user.click(screen.getByRole('button', { name: 'Add variable' }));
+        await user.type(screen.getByLabelText('Name'), 'NEW_ONE');
+        await user.type(screen.getByLabelText(/^Value/), 'kept-text');
+        scenarios.serverError('projectEnv.createVar');
+        await user.click(within(addForm('Add variable')).getByRole('button', { name: 'Add variable' }));
+        expect(await screen.findByText('Internal server error')).toBeInTheDocument();
+        expect(screen.getByLabelText('Name')).toHaveValue('NEW_ONE');
+        expect(screen.getByLabelText(/^Value/)).toHaveValue('kept-text');
+      });
+    });
+
+    describe('access (BR-29)', () => {
+      it('the setup-reader sees both lists, no write control and the read-only note; writes answer 403', async () => {
+        await renderRoute(acmeEnv, { scenario: () => scenarios.onboarding('setupReader') });
+        expect(await screen.findByText('DB_HOST')).toBeInTheDocument();
+        expect(screen.getByText('NPM_TOKEN')).toBeInTheDocument();
+        expect(screen.getByText('You can see these but not change them.')).toBeInTheDocument();
+        for (const name of [/^Add /, /^Edit /, /^Replace /, /^Remove /])
+          expect(screen.queryByRole('button', { name })).not.toBeInTheDocument();
+        const res = await fetch(`http://localhost:3000/api/projects/${projectId}/env-vars`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ name: 'X', value: 'y' }),
+        });
+        expect(res.status).toBe(403);
+      });
+
+      const withGrants = (permissions: ('setup:update' | 'secret:update')[]) =>
+        server.use(
+          http.get('*/api/me/access', () =>
+            HttpResponse.json({
+              userId: ids.user.alice,
+              platformAdmin: false,
+              assignments: [
+                {
+                  roleKey: 'custom',
+                  scope: { type: 'org' },
+                  permissions: (['project:read', 'setup:read', ...permissions] as const).map((permission) => ({
+                    permission,
+                    condition: 'any',
+                  })),
+                },
+              ],
+            }),
+          ),
+        );
+
+      it('without secret:update only the secrets are read-only', async () => {
+        withGrants(['setup:update']);
+        await renderRoute(env());
+        await screen.findByText('DB_HOST');
+        expect(screen.getByRole('button', { name: 'Add variable' })).toBeInTheDocument();
+        expect(screen.queryByRole('button', { name: 'Add secret' })).not.toBeInTheDocument();
+        expect(screen.queryByRole('button', { name: /^Replace / })).not.toBeInTheDocument();
+      });
+
+      it('without setup:update only the variables are read-only', async () => {
+        withGrants(['secret:update']);
+        await renderRoute(env());
+        await screen.findByText('DB_HOST');
+        expect(screen.queryByRole('button', { name: 'Add variable' })).not.toBeInTheDocument();
+        expect(screen.getByRole('button', { name: 'Add secret' })).toBeInTheDocument();
+      });
+    });
+  });
 });

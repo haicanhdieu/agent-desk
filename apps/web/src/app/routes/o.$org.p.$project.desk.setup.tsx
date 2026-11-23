@@ -1,8 +1,9 @@
-import type { SetupScriptDto } from '@agentdesk/contracts';
+import type { EnvKind, SetupScriptDto } from '@agentdesk/contracts';
 import { ApiError } from '@agentdesk/contracts/client';
 import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-query';
 import { createFileRoute, useNavigate } from '@tanstack/react-router';
 import { useEffect, useState } from 'react';
+import { z } from 'zod';
 import {
   PageSearch,
   pageOfSearch,
@@ -12,28 +13,40 @@ import {
   usePaginationProps,
 } from '@/app/pagination';
 import { useNow } from '@/app/useNow';
-import { requireProjectPermission } from '@/features/access/guards';
+import { requireProjectPermission, useCan } from '@/features/access/guards';
 import { useDeskFrame } from '@/features/desk/frame';
 import {
   isStaleSetupScript,
   STALE_SETUP_SCRIPT,
+  useCreateEnvEntry,
   useCreateSetupTest,
   useEndSetupTest,
+  useRemoveEnvEntry,
   useSaveSetupScript,
+  useUpdateEnvEntry,
 } from '@/features/setup-script/mutations';
-import { setupScriptSaveProblem, toDeskSetupProps } from '@/features/setup-script/map';
+import { setupScriptSaveProblem, toDeskSetupProps, toEnvRows } from '@/features/setup-script/map';
 import { setupQueries } from '@/features/setup-script/queries';
 import { useSetupTest } from '@/features/setup-script/useSetupTest';
-import { DeskSetup, type DeskFrameData } from '@/screens';
+import { useToast } from '@/ds';
+import { DeskSetup, type DeskFrameData, type DeskSetupTab, type EnvListGroup } from '@/screens';
+
+// `tab` is left out of the URL for the script tab; bad input of any param falls back to its default.
+const SetupSearch = PageSearch.extend({
+  tab: z.enum(['script', 'environment']).optional().catch(undefined),
+  varsPage: PageSearch.shape.page,
+  secretsPage: PageSearch.shape.page,
+});
 
 export const Route = createFileRoute('/o/$org/p/$project/desk/setup')({
-  validateSearch: (search) => PageSearch.parse(search),
+  validateSearch: (search) => SetupSearch.parse(search),
   // Desk config is for roles that hold `setup:read` on this project; the guard runs before any loader.
   beforeLoad: ({ context: { queryClient }, params }) =>
     requireProjectPermission(queryClient, params.org, 'setup:read', params.project),
   component: DeskSetupPage,
 });
 
+const LOAD_ENV_ERROR = 'Could not load the environment. Reload to try again.';
 const GENERIC = 'Something went wrong. Try again.';
 const messageOf = (e: unknown): string => (e instanceof ApiError ? (e.detail ?? e.title) : GENERIC);
 
@@ -59,6 +72,64 @@ function DeskSetupPage() {
   return <SetupEditor org={org} projectId={projectId} frame={frame} script={script.data} now={now} />;
 }
 
+interface EnvGroupArgs {
+  org: string;
+  projectId: string;
+  kind: EnvKind;
+  page: number;
+  /** Lists load only while the Environment tab is open. */
+  enabled: boolean;
+  canWrite: boolean;
+  now: Date;
+  goToPage(page: number, replace?: boolean): void;
+}
+
+/** One list of the Environment tab: its page query, paging, loading and error state, and its writes. */
+function useEnvGroup({ org, projectId, kind, page, enabled, canWrite, now, goToPage }: EnvGroupArgs): EnvListGroup {
+  const toast = useToast();
+  const [pageSize] = usePageSize();
+  const query = useQuery({
+    ...setupQueries.env(org, projectId, { kind, page, pageSize }),
+    placeholderData: keepPreviousData,
+    enabled,
+  });
+  const total = query.data?.total ?? 0;
+  useClampToLastPage(page, pageSize, total, (p) => goToPage(p, true));
+  const pagination = usePaginationProps({
+    page: query.data?.page ?? page,
+    pageSize: query.data?.pageSize,
+    total,
+    busy: query.isPlaceholderData,
+    go: goToPage,
+  });
+  const create = useCreateEnvEntry(org, projectId, kind);
+  const update = useUpdateEnvEntry(org, projectId, kind);
+  const remove = useRemoveEnvEntry(org, projectId, kind);
+  const failed = query.isError && query.data === undefined;
+  return {
+    entries: toEnvRows(query.data?.items ?? [], now),
+    total,
+    loading: query.isPending,
+    ...(failed && {
+      loadError: {
+        message: LOAD_ENV_ERROR,
+        ...(query.error instanceof ApiError &&
+          query.error.requestId !== undefined && { requestId: query.error.requestId }),
+      },
+    }),
+    onRetry: () => void query.refetch(),
+    canWrite,
+    pagination,
+    onCreate: async (input) => {
+      const error = await create.save(input);
+      if (error === null) toast.show({ tone: 'ok', title: `Added ${input.name}` });
+      return error;
+    },
+    onUpdate: (name, value) => update.save({ name, value }),
+    onRemove: (name) => remove.save(name),
+  };
+}
+
 interface EditorProps {
   org: string;
   projectId: string;
@@ -77,8 +148,27 @@ function SetupEditor({ org, projectId, frame, script, now }: EditorProps) {
     ...setupQueries.versions(org, projectId, { page: currentPage, pageSize }),
     placeholderData: keepPreviousData,
   });
+  const search = Route.useSearch();
+  const tab: DeskSetupTab = search.tab ?? 'script';
   const goToPage = (p: number, replace = false) =>
     void navigate({ search: (prev) => ({ ...prev, page: pageToSearch(p) }), replace });
+  const envArgs = { org, projectId, now, enabled: tab === 'environment' };
+  const variables = useEnvGroup({
+    ...envArgs,
+    kind: 'plain',
+    page: pageOfSearch({ page: search.varsPage }),
+    canWrite: useCan(org, 'setup:update', { projectId }),
+    goToPage: (p, replace = false) =>
+      void navigate({ search: (prev) => ({ ...prev, varsPage: pageToSearch(p) }), replace }),
+  });
+  const secrets = useEnvGroup({
+    ...envArgs,
+    kind: 'secret',
+    page: pageOfSearch({ page: search.secretsPage }),
+    canWrite: useCan(org, 'secret:update', { projectId }),
+    goToPage: (p, replace = false) =>
+      void navigate({ search: (prev) => ({ ...prev, secretsPage: pageToSearch(p) }), replace }),
+  });
   useClampToLastPage(currentPage, pageSize, versions.data?.total ?? 0, (p) => goToPage(p, true));
   const versionsPagination = usePaginationProps({
     page: versions.data?.page ?? currentPage,
@@ -213,6 +303,11 @@ function SetupEditor({ org, projectId, frame, script, now }: EditorProps) {
       versionsPagination={versionsPagination}
       versionsLoading={versions.isPending}
       versionsError={versions.isError ? 'Could not load the version history. Reload to try again.' : undefined}
+      tab={tab}
+      onTabChange={(next) =>
+        void navigate({ search: (prev) => ({ ...prev, tab: next === 'script' ? undefined : next }) })
+      }
+      environment={{ variables, secrets, testRunning: view.test?.status === 'running' }}
       saving={save.isPending}
       saveError={actionError}
       onSave={onSave}

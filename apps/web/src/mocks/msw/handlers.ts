@@ -533,7 +533,7 @@ function assertEnvRoom(list: EnvEntryDto[], change: { addEntry: boolean; deltaBy
   if (change.addEntry && list.length >= ENV_MAX_ENTRIES) {
     throw new Problem({
       status: 409,
-      title: 'Too many entries',
+      title: 'Conflict',
       type: 'conflict',
       detail: `This project already has the maximum of ${ENV_MAX_ENTRIES} environment entries.`,
     });
@@ -542,7 +542,7 @@ function assertEnvRoom(list: EnvEntryDto[], change: { addEntry: boolean; deltaBy
   if (change.deltaBytes > 0 && used + change.deltaBytes > ENV_MAX_TOTAL_BYTES) {
     throw new Problem({
       status: 409,
-      title: 'Too large',
+      title: 'Conflict',
       type: 'conflict',
       detail: `Names and values together cannot exceed ${ENV_MAX_TOTAL_BYTES} bytes (256 KiB) per project.`,
     });
