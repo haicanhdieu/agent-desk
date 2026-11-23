@@ -1,11 +1,14 @@
 import { Body, Controller, Get, Inject, Param, Post, Query } from '@nestjs/common';
+import { z } from 'zod';
 import {
   routes,
   type CreateOrgRequest,
   type CreateOrgResponse,
   type Page,
   type PageQuery,
+  type PlatformOrgDetailDto,
   type PlatformOrgDto,
+  type PlatformOrgListQuery,
   type PlatformProjectDto,
   type PlatformRoleDto,
 } from '@agentdesk/contracts';
@@ -16,6 +19,8 @@ import { OrgsService } from './orgs.service';
 
 const CreateBody = new ZodPipe(routes.platform.createOrg.body);
 const ListOrgsQuery = new ZodPipe(routes.platform.listOrgs.query);
+// Not the route's uuid schema: a malformed id is a 404 for an admin (the guard already ran), never a 400.
+const GetOrgParams = new ZodPipe(z.object({ orgId: z.string().max(200) }));
 const ProjectsParams = new ZodPipe(routes.platform.listProjects.params);
 const ProjectsQuery = new ZodPipe(routes.platform.listProjects.query);
 const RolesParams = new ZodPipe(routes.platform.listRoles.params);
@@ -36,9 +41,17 @@ export class PlatformOrgsController {
   @Get(routePath(routes.platform.listOrgs))
   list(
     @CurrentPlatformAdmin() _admin: PlatformAdminContext,
-    @Query(ListOrgsQuery) q: PageQuery,
+    @Query(ListOrgsQuery) q: PlatformOrgListQuery,
   ): Promise<Page<PlatformOrgDto>> {
     return this.orgs.listOrgs(q);
+  }
+
+  @Get(routePath(routes.platform.getOrg))
+  get(
+    @CurrentPlatformAdmin() _admin: PlatformAdminContext,
+    @Param(GetOrgParams) p: { orgId: string },
+  ): Promise<PlatformOrgDetailDto> {
+    return this.orgs.getOrg(p.orgId);
   }
 
   @Get(routePath(routes.platform.listProjects))

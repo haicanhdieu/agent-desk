@@ -763,17 +763,17 @@ export function likeContains(text: string): string; // in orgs.service.ts
 PlatformOrgsController.get(@CurrentPlatformAdmin() admin, @Param() p: { orgId: string }): Promise<PlatformOrgDetailDto>;
 ```
 
-- [ ] **Step 1: Write the failing tests** in `platform.int.test.ts`:
+- [x] **Step 1: Write the failing tests** in `platform.int.test.ts`:
   - BR-18, BR-19: exact keys per row; newest first; a no-owner org has `owner: null`; an org with two owners shows the earlier one; no run gives `lastActivityAt: null`, a run gives its `queued_at`; `pageSize: 100` cap; `status: 'active'` on every existing org.
   - BR-20: `q` case-insensitive on name and on slug; `%`, `_` and `\` match only literally; `status=suspended` (set through `withOrg` in the test until Task 22 adds the route) returns only it; `total` follows the same filter; 400 for a 101-character `q`.
   - BR-24: `getOrg` 200 with the detail and `suspension: null`; 404 unknown id and malformed id for the admin; 403 before lookup for owner, admin, project admin, member, viewer and a no-org user, with an unknown id giving the same 403; 401 signed out; `x-org-id` ignored.
   - BR-25: `listProjects` returns exactly `{ id, name }` per project.
   - BR-23: the existing "BR-38" case (platform admin gets no tenant data) stays green.
   - `authz.int.test.ts`: remove `platform.getOrg` from `NOT_REGISTERED_YET`.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/api exec vitest run test/platform.int.test.ts`. Expected: FAIL.
-- [ ] **Step 3: Implement** `listOrgs` (one count and one page query with the same WHERE, `lower(name) like $1 escape '\' or lower(slug) like $1 escape '\'`, then one `platformOrgStats(ids)` call and one `user` lookup for the owner ids, on plain `db.orm`), `getOrg` (same row mapping for one id), the controller route; info log on nothing (reads only).
-- [ ] **Step 4: Run** Step 2's command, `pnpm --filter @agentdesk/api exec vitest run test/authz.int.test.ts test/scope.int.test.ts`, `pnpm --filter @agentdesk/api typecheck`. Expected: PASS.
-- [ ] **Step 5: Commit**: `feat(api): platform directory with owner, counts, status and search; org detail`. Label `review:sensitive`.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/api exec vitest run test/platform.int.test.ts`. Expected: FAIL.
+- [x] **Step 3: Implement** `listOrgs` (one count and one page query with the same WHERE, `lower(name) like $1 escape '\' or lower(slug) like $1 escape '\'`, then one `platformOrgStats(ids)` call and one `user` lookup for the owner ids, on plain `db.orm`), `getOrg` (same row mapping for one id), the controller route; info log on nothing (reads only).
+- [x] **Step 4: Run** Step 2's command, `pnpm --filter @agentdesk/api exec vitest run test/authz.int.test.ts test/scope.int.test.ts`, `pnpm --filter @agentdesk/api typecheck`. Expected: PASS.
+- [x] **Step 5: Commit**: `feat(api): platform directory with owner, counts, status and search; org detail`. Label `review:sensitive`.
 
 ---
 

@@ -1,10 +1,12 @@
 import { randomUUID } from 'node:crypto';
 import { Inject, Injectable, NotFoundException } from '@nestjs/common';
 import type { Logger } from 'pino';
-import { asc, desc, eq, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, sql, type SQL } from 'drizzle-orm';
 import { copyRoleTemplates } from '@agentdesk/core';
-import { organization, projects, withOrg, type Db } from '@agentdesk/db';
+import { organization, platformOrgStats, projects, user, withOrg, type Db } from '@agentdesk/db';
 import {
+  Id,
+  OrgStatus,
   pageWindow,
   toPage,
   type CreateOrgRequest,
@@ -12,7 +14,9 @@ import {
   type OrgDto,
   type Page,
   type PageQuery,
+  type PlatformOrgDetailDto,
   type PlatformOrgDto,
+  type PlatformOrgListQuery,
   type PlatformProjectDto,
   type UpdateOrgRequest,
   type RoleDto,
@@ -24,6 +28,31 @@ import { requestContext } from '../common/request-context';
 import { ConflictProblemException } from '../common/zod-validation';
 import { DB } from '../db/db.module';
 import { loadAllRoles, toRoleDto } from './roles';
+
+/** Escapes \, % and _ so the text matches literally in a LIKE pattern bound as a parameter with ESCAPE '\'. */
+export function likeContains(text: string): string {
+  return `%${text.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
+}
+
+const ORG_COLUMNS = {
+  id: organization.id,
+  name: organization.name,
+  slug: organization.slug,
+  createdAt: organization.createdAt,
+  status: organization.status,
+  suspendedAt: organization.suspendedAt,
+  // Qualified by hand: drizzle prints a bare "id" here, which would bind to member.id inside the subquery.
+  memberCount: sql<number>`(select count(*)::int from "member" m where m.organization_id = "organization"."id")`,
+};
+type OrgRow = {
+  id: string;
+  name: string;
+  slug: string;
+  createdAt: Date;
+  status: string;
+  suspendedAt: Date | null;
+  memberCount: number;
+};
 
 @Injectable()
 export class OrgsService {
@@ -119,41 +148,82 @@ export class OrgsService {
     }
   }
 
-  /** Every org, newest first. Platform-wide by design: the platform admin sees ids, names, slugs and member counts only. */
-  async listOrgs(q: PageQuery): Promise<Page<PlatformOrgDto>> {
+  /**
+   * The directory, newest first (created_at desc, id). Platform-wide by design and read through plain `db.orm`: one
+   * count and one page query with the same WHERE, then one `platform_org_stats` call (definer function, no tenant
+   * rows) and one `user` lookup for the owners. Returns counts, timestamps and the owner's identity only.
+   */
+  async listOrgs(q: PlatformOrgListQuery): Promise<Page<PlatformOrgDto>> {
     const { limit, offset } = pageWindow(q);
     const orm = this.db.orm;
-    const [counted] = await orm.select({ total: sql<number>`count(*)::int` }).from(organization);
-    const rows = await orm
-      .select({
-        id: organization.id,
-        name: organization.name,
-        slug: organization.slug,
-        createdAt: organization.createdAt,
-        // Qualified by hand: drizzle prints a bare "id" here, which would bind to member.id inside the subquery.
-        memberCount: sql<number>`(select count(*)::int from "member" m where m.organization_id = "organization"."id")`,
-      })
+    const conds: SQL[] = [];
+    if (q.q !== undefined && q.q !== '') {
+      const pattern = likeContains(q.q.toLowerCase());
+      conds.push(
+        sql`(lower(${organization.name}) like ${pattern} escape '\\' or lower(${organization.slug}) like ${pattern} escape '\\')`,
+      );
+    }
+    if (q.status !== undefined) conds.push(eq(organization.status, q.status));
+    const where = conds.length > 0 ? and(...conds) : undefined;
+    const [counted] = await orm
+      .select({ total: sql<number>`count(*)::int` })
       .from(organization)
+      .where(where);
+    const rows = await orm
+      .select(ORG_COLUMNS)
+      .from(organization)
+      .where(where)
       .orderBy(desc(organization.createdAt), asc(organization.id))
       .limit(limit)
       .offset(offset);
-    return toPage(
-      rows.map((r) => ({
+    return toPage(await this.toDtos(rows), counted?.total ?? 0, q);
+  }
+
+  /** One org with its suspension (null until the suspend route lands). 404 for an unknown or malformed id. */
+  async getOrg(orgId: string): Promise<PlatformOrgDetailDto> {
+    if (!Id.safeParse(orgId).success) throw new NotFoundException('Organization not found');
+    const rows = await this.db.orm.select(ORG_COLUMNS).from(organization).where(eq(organization.id, orgId)).limit(1);
+    if (rows.length === 0) throw new NotFoundException('Organization not found');
+    const [dto] = await this.toDtos(rows);
+    if (!dto) throw new NotFoundException('Organization not found');
+    return { ...dto, suspension: null };
+  }
+
+  private async toDtos(rows: OrgRow[]): Promise<PlatformOrgDto[]> {
+    if (rows.length === 0) return [];
+    const stats = new Map(
+      (
+        await platformOrgStats(
+          this.db,
+          rows.map((r) => r.id),
+        )
+      ).map((s) => [s.orgId, s]),
+    );
+    const ownerIds = [...new Set([...stats.values()].flatMap((s) => (s.ownerUserId === null ? [] : [s.ownerUserId])))];
+    const owners =
+      ownerIds.length === 0
+        ? []
+        : await this.db.orm
+            .select({ id: user.id, name: user.name, handle: user.handle, email: user.email })
+            .from(user)
+            .where(inArray(user.id, ownerIds));
+    const ownerById = new Map(owners.map((o) => [o.id, o]));
+    return rows.map((r) => {
+      const st = stats.get(r.id);
+      const o = st?.ownerUserId == null ? undefined : ownerById.get(st.ownerUserId);
+      return {
         id: r.id,
         name: r.name,
         slug: r.slug,
         memberCount: r.memberCount,
         createdAt: r.createdAt.toISOString(),
-        // Placeholders until the directory query lands in the next task.
-        status: 'active' as const,
-        suspendedAt: null,
-        projectCount: 0,
-        lastActivityAt: null,
-        owner: null,
-      })),
-      counted?.total ?? 0,
-      q,
-    );
+        status: OrgStatus.parse(r.status),
+        suspendedAt: r.suspendedAt === null ? null : r.suspendedAt.toISOString(),
+        projectCount: st?.projectCount ?? 0,
+        lastActivityAt: st?.lastActivityAt == null ? null : st.lastActivityAt.toISOString(),
+        owner: o === undefined ? null : { userId: o.id, name: o.name, handle: o.handle, email: o.email },
+      };
+    });
   }
 
   async listProjects(orgId: string, q: PageQuery): Promise<Page<PlatformProjectDto>> {
