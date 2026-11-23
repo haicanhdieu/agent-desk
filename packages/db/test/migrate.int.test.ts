@@ -1674,6 +1674,17 @@ describe('audit project backfill migration (0039) on an upgraded database (N-BAC
     await audit(orgB, 'b-project', 'projects.update', 'projects', ids.pb);
     await audit(orgB, 'b-run', 'runs.cancel', 'runs', ids.runB);
     await audit(orgB, 'b-foreign-run', 'runs.cancel', 'runs', ids.run1);
+    // More rows than one 1000-row batch: tied by two rules, plus rows no rule can tie.
+    await owner(
+      `insert into audit_log (org_id, action, target_type, target_id, payload)
+       select $1::uuid, 'projects.update', 'projects', $2::text, '{"key":"bulk-project"}'::jsonb from generate_series(1, 2500)
+       union all
+       select $1::uuid, 'runs.cancel', 'runs', $3::text, '{"key":"bulk-run"}'::jsonb from generate_series(1, 1500)
+       union all
+       select $1::uuid, 'runs.cancel', 'runs', 'not-a-uuid', '{"key":"bulk-untied"}'::jsonb from generate_series(1, 1200)`,
+      [orgA, ids.p1, ids.run1],
+      orgA,
+    );
   }, 180_000);
 
   afterAll(async () => {
@@ -1720,10 +1731,34 @@ describe('audit project backfill migration (0039) on an upgraded database (N-BAC
     expect([await count(orgA), await count(orgB)]).toEqual(before);
   });
 
+  /** Row counts per tag state for the bulk rows of org A. */
+  async function bulk(): Promise<Record<string, string>> {
+    const rows = await owner<{ key: string; tags: string; n: string }>(
+      `select payload->>'key' as key, coalesce(array_to_string(project_ids, ','), '') as tags, count(*)::text as n
+       from audit_log where org_id = $1 and payload->>'key' like 'bulk-%' group by 1, 2`,
+      [orgA],
+      orgA,
+    );
+    return Object.fromEntries(rows.map((r) => [`${r.key}|${r.tags}`, r.n]));
+  }
+
+  it('tags every row of a rule across several batches and leaves untied rows alone', async () => {
+    expect(await bulk()).toEqual({
+      [`bulk-project|${ids.p1}`]: '2500',
+      [`bulk-run|${ids.p1}`]: '1500',
+      'bulk-untied|': '1200',
+    });
+  });
+
   it('is idempotent: applying its SQL again changes no tag', async () => {
     const before = [await tags(orgA), await tags(orgB)];
     const sql = await readFile(MIGRATION, 'utf8');
     for (const statement of sql.split('--> statement-breakpoint')) await owner(statement);
     expect([await tags(orgA), await tags(orgB)]).toEqual(before);
+    expect(await bulk()).toEqual({
+      [`bulk-project|${ids.p1}`]: '2500',
+      [`bulk-run|${ids.p1}`]: '1500',
+      'bulk-untied|': '1200',
+    });
   });
 });
