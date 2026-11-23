@@ -1090,13 +1090,13 @@ export function useAddMemberForm(org: string, projectId: string, onAdded: (dto: 
 - Consumes: `InviteDialog` (existing), `useInviteForm`, `useCreateInvitation`, `inviteRolesQuery`, the members route (Task 25).
 - Produces: `InviteFormOptions.fixedProjectId?: string` (defaults: scope `projects`, `projectIds: [fixedProjectId]`); `export function projectRoleOptions(roles: RoleDto[]): InviteOption[]` (Admin, Member, Viewer) in `inviteForm.ts`.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
   - `inviteForm.test.ts`: with `fixedProjectId` the default values are scope `projects` and that one project; without it, unchanged; `projectRoleOptions` gives exactly Admin, Member, Viewer.
   - `invite.route.test.tsx` (BR-13): "Invite people" opens "Invite people" with Email empty, Role "Choose a role" with Admin, Member, Viewer only, Access "Some projects" with P only, preselected; create → created step with the copy link → Done back on Members; the org invitations list key is invalidated.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/features/orgInvitations src/features/projectMembers/invite.route.test.tsx`. Expected: FAIL.
-- [ ] **Step 3: Implement** the option and wire `InviteDialog` (`projectsOnly`, `projects` = P only, `roles` = `projectRoleOptions`) into the route.
-- [ ] **Step 4: Run** Step 2's command and `pnpm --filter @agentdesk/web exec vitest run src/features/orgInvitations/invite.route.test.tsx` (existing, unchanged), `pnpm --filter @agentdesk/web typecheck`. Expected: PASS. E2E: Task 30.
-- [ ] **Step 5: Commit**: `feat(web): invite people to a project from Members`.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/features/orgInvitations src/features/projectMembers/invite.route.test.tsx`. Expected: FAIL.
+- [x] **Step 3: Implement** the option and wire `InviteDialog` (`projectsOnly`, `projects` = P only, `roles` = `projectRoleOptions`) into the route.
+- [x] **Step 4: Run** Step 2's command and `pnpm --filter @agentdesk/web exec vitest run src/features/orgInvitations/invite.route.test.tsx` (existing, unchanged), `pnpm --filter @agentdesk/web typecheck`. Expected: PASS. E2E: Task 30.
+- [x] **Step 5: Commit**: `feat(web): invite people to a project from Members`.
 
 ---
 
@@ -1114,11 +1114,11 @@ export function useAddMemberForm(org: string, projectId: string, onAdded: (dto: 
 - Consumes: `invalidateProjectSpace`, `projectRoleCards` (Task 25); `ChangeRoleDialog`; `DeskMembersProps.removeConfirm` (Task 20).
 - Produces: `useSetProjectRole(org, projectId): UseMutationResult<ProjectMemberDto, ApiError, { userId: string; roleId: string }>`; `useRemoveProjectMember(org, projectId): UseMutationResult<null, ApiError, string>`.
 
-- [ ] **Step 1: Write the failing tests** in `edit.route.test.tsx`: BR-6 Change role offers Admin, Member, Viewer with the current preselected and no "No role" card, "Save role" disabled until it differs; success → toast "Role changed", list refetched; 404 (roleRemovedMeanwhile) → dialog closes, error toast "Member is no longer on this project", list refetched; 403 → dialog Banner "You don't have access" with request id; Remove → confirm → toast "<name> removed from <project>", focus on the "Members" heading; Remove 404 → error toast and refetch; Review Focus 3: removing the only row of page 2 (21 rows) lands on page 1.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/features/projectMembers/edit.route.test.tsx`. Expected: FAIL.
-- [ ] **Step 3: Implement** the two mutations (invalidate on success and on 404) and wire the dialogs and row menu into the route (`useClampToLastPage`).
-- [ ] **Step 4: Run** `pnpm --filter @agentdesk/web exec vitest run src/features/projectMembers` and `pnpm --filter @agentdesk/web typecheck`. Expected: PASS. E2E: Task 30.
-- [ ] **Step 5: Commit**: `feat(web): change a project role and remove from a project`.
+- [x] **Step 1: Write the failing tests** in `edit.route.test.tsx`: BR-6 Change role offers Admin, Member, Viewer with the current preselected and no "No role" card, "Save role" disabled until it differs; success → toast "Role changed", list refetched; 404 (roleRemovedMeanwhile) → dialog closes, error toast "Member is no longer on this project", list refetched; 403 → dialog Banner "You don't have access" with request id; Remove → confirm → toast "<name> removed from <project>", focus on the "Members" heading; Remove 404 → error toast and refetch; Review Focus 3: removing the only row of page 2 (21 rows) lands on page 1.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/features/projectMembers/edit.route.test.tsx`. Expected: FAIL.
+- [x] **Step 3: Implement** the two mutations (invalidate on success and on 404) and wire the dialogs and row menu into the route (`useClampToLastPage`).
+- [x] **Step 4: Run** `pnpm --filter @agentdesk/web exec vitest run src/features/projectMembers` and `pnpm --filter @agentdesk/web typecheck`. Expected: PASS. E2E: Task 30.
+- [x] **Step 5: Commit**: `feat(web): change a project role and remove from a project`.
 
 ---
 

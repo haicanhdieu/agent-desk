@@ -31,3 +31,27 @@ export function useAddProjectMember(
     },
   });
 }
+
+// A 404 means the person is no longer on the project: the list shows what is true now. An org switched in another tab
+// (also a 409) changes nothing here. The call stays pending until the refetches are done, so a dialog is never closed on
+// stale rows.
+export function useSetProjectRole(
+  org: string,
+  projectId: string,
+): UseMutationResult<ProjectMemberDto, ApiError, { userId: string; roleId: string }> {
+  const qc = useQueryClient();
+  return useMutation<ProjectMemberDto, ApiError, { userId: string; roleId: string }>({
+    mutationFn: ({ userId, roleId }) => api.projectMembers.setRole({ params: { projectId, userId }, body: { roleId } }),
+    onSuccess: () => invalidateProjectSpace(qc, org, projectId),
+    onError: (e) => (e.status === 404 ? invalidateProjectSpace(qc, org, projectId) : undefined),
+  });
+}
+
+export function useRemoveProjectMember(org: string, projectId: string): UseMutationResult<null, ApiError, string> {
+  const qc = useQueryClient();
+  return useMutation<null, ApiError, string>({
+    mutationFn: (userId) => api.projectMembers.remove({ params: { projectId, userId } }),
+    onSuccess: () => invalidateProjectSpace(qc, org, projectId),
+    onError: (e) => (e.status === 404 ? invalidateProjectSpace(qc, org, projectId) : undefined),
+  });
+}
