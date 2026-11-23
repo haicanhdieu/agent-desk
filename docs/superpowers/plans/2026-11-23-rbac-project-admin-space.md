@@ -780,16 +780,16 @@ export function shouldLoadMore(a: { lastRenderedIndex: number; loadedCount: numb
 export const PICKER_ROWS = 8; export const PICKER_OVERSCAN = 5;
 ```
 
-- [ ] **Step 1: Write the failing tests** (N-PICKER; fake timers restored; container size stubbed with `getBoundingClientRect` / `offsetHeight` and restored in `afterEach`)
+- [x] **Step 1: Write the failing tests** (N-PICKER; fake timers restored; container size stubbed with `getBoundingClientRect` / `offsetHeight` and restored in `afterEach`)
   - `shouldLoadMore` table: `(14, 20, true, false)` true, `(13, 20, …)` false, `hasMore: false` false, `loading: true` false, `loadedCount: 0` false.
   - `role="combobox"` with `aria-expanded`, `aria-controls`, `aria-activedescendant` naming a rendered option; options carry `aria-setsize` = `total` and `aria-posinset` 1-based; with 60 loaded people fewer than 60 `option` elements are in the DOM.
   - Keyboard: ArrowDown/ArrowUp move, Home/End go to first/last loaded, ArrowDown on the last loaded option reaches "Load more people", Enter on it calls `onLoadMore` once and keeps focus in the list; Enter on a person calls `onPick`; Escape closes the list first.
   - States: "Loading people…", "Searching…" with previous options kept, "Could not load people." + "Try again", `No member matches "zz".`, "Everyone in Acme already has a role here." (empty, no query), "Loading…" and "Could not load more people." + "Try again" end rows with loaded people kept; status line "<n> people" and "<n> more people loaded".
   - Input `maxLength` 100; a picked person shows "Name (handle)", and "Name" when the handle is null (Review Focus 4).
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/components/MemberPicker.test.tsx`. Expected: FAIL.
-- [ ] **Step 3: Implement** after adding `@tanstack/react-virtual` with an exact version (`pnpm --filter @agentdesk/web add -E @tanstack/react-virtual@<latest 3.x>`): `useVirtualizer` with `PICKER_OVERSCAN`, `scrollToIndex` before setting the active descendant, `shouldLoadMore` on the visible range; no filtering in the component. Stories EmptyInput, Results, Selected, Loading, Searching, Error, NoMatch, AllAdded, MorePages, LoadingMore, LoadMoreError, LongList (200), LongName.
-- [ ] **Step 4: Run** Step 2's command, `pnpm --filter @agentdesk/web exec vitest run src/test/stories.smoke.test.tsx`, `pnpm --filter @agentdesk/web typecheck`, `pnpm install --frozen-lockfile`. Expected: PASS.
-- [ ] **Step 5: Commit**: `feat(web): virtualized member picker in Storybook`.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/components/MemberPicker.test.tsx`. Expected: FAIL.
+- [x] **Step 3: Implement** after adding `@tanstack/react-virtual` with an exact version (`pnpm --filter @agentdesk/web add -E @tanstack/react-virtual@<latest 3.x>`): `useVirtualizer` with `PICKER_OVERSCAN`, `scrollToIndex` before setting the active descendant, `shouldLoadMore` on the visible range; no filtering in the component. Stories EmptyInput, Results, Selected, Loading, Searching, Error, NoMatch, AllAdded, MorePages, LoadingMore, LoadMoreError, LongList (200), LongName.
+- [x] **Step 4: Run** Step 2's command, `pnpm --filter @agentdesk/web exec vitest run src/test/stories.smoke.test.tsx`, `pnpm --filter @agentdesk/web typecheck`, `pnpm install --frozen-lockfile`. Expected: PASS.
+- [x] **Step 5: Commit**: `feat(web): virtualized member picker in Storybook`.
 
 ---
 
