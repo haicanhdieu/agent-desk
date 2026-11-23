@@ -1217,14 +1217,14 @@ export function useGeneralForm(org: { id: string; name: string; slug: string }):
 export function useUpdateOrg(org: string, orgId: string): UseMutationResult<OrgDto, ApiError, UpdateOrgRequest>;
 ```
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
   - `general.form.test.ts` (BR-15, BR-17): `changedFields` sends only changed fields and null for none; validation maps empty, 101-character, `Acme`, `-acme`, `acme-`, `my_org`, `my org`, 64 characters and empty slug to the `GENERAL_ERRORS` text (agent call: one format message for every slug failure).
   - `general.route.test.tsx` (BR-14, BR-16, BR-17): rename → toast "Organization updated", `['session','orgs']` refetched, the org crumb shows the new name; slug change → confirm → `/o/<new>/settings/general` (replace), `['org', old]` removed; 409 `/slug` → "This URL is taken. Try another." with input kept; an unmapped problem → form Banner with request id; project admin → no-access inside the layout; Review Focus 4 (`after a slug change the page lands on the new URL without rendering not found`).
   - `orgRoute.test.tsx` (BR-16): after a slug change `/o/<old>/projects` shows not found and `/o/<new>/projects` resolves.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/features/orgSettings src/app/orgRoute.test.tsx`. Expected: FAIL.
-- [ ] **Step 3: Implement** the route (name and slug from `['session','orgs']`; Save disabled while nothing changed; errors on submit, then on change; the slug never refilled from the name), the form and the mutation; regenerate `routeTree.gen.ts`.
-- [ ] **Step 4: Run** the Step 2 command and `pnpm --filter @agentdesk/web typecheck`. Expected: PASS. E2E: Tasks 33 and 36.
-- [ ] **Step 5: Commit** `feat(web): rename the org and change its URL on General`.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/features/orgSettings src/app/orgRoute.test.tsx`. Expected: FAIL.
+- [x] **Step 3: Implement** the route (name and slug from `['session','orgs']`; Save disabled while nothing changed; errors on submit, then on change; the slug never refilled from the name), the form and the mutation; regenerate `routeTree.gen.ts`.
+- [x] **Step 4: Run** the Step 2 command and `pnpm --filter @agentdesk/web typecheck`. Expected: PASS. E2E: Tasks 33 and 36.
+- [x] **Step 5: Commit** `feat(web): rename the org and change its URL on General`.
 
 ---
 

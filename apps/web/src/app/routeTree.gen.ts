@@ -22,6 +22,7 @@ import { Route as OOrgSettingsRouteImport } from './routes/o.$org.settings';
 import { Route as OOrgPProjectRouteImport } from './routes/o.$org.p.$project';
 import { Route as OOrgProjectsIndexRouteImport } from './routes/o.$org.projects.index';
 import { Route as OOrgSettingsIndexRouteImport } from './routes/o.$org.settings.index';
+import { Route as OOrgSettingsGeneralRouteImport } from './routes/o.$org.settings.general';
 import { Route as OOrgSettingsInvitationsRouteImport } from './routes/o.$org.settings.invitations';
 import { Route as OOrgSettingsMembersRouteImport } from './routes/o.$org.settings.members';
 import { Route as OOrgPProjectNeedsYouRouteImport } from './routes/o.$org.p.$project.needs-you';
@@ -98,6 +99,11 @@ const OOrgSettingsIndexRoute = OOrgSettingsIndexRouteImport.update({
   path: '/',
   getParentRoute: () => OOrgSettingsRoute,
 } as any);
+const OOrgSettingsGeneralRoute = OOrgSettingsGeneralRouteImport.update({
+  id: '/general',
+  path: '/general',
+  getParentRoute: () => OOrgSettingsRoute,
+} as any);
 const OOrgSettingsInvitationsRoute = OOrgSettingsInvitationsRouteImport.update({
   id: '/invitations',
   path: '/invitations',
@@ -161,6 +167,7 @@ export interface FileRoutesByFullPath {
   '/o/$org/settings': typeof OOrgSettingsRouteWithChildren;
   '/o/$org/': typeof OOrgIndexRoute;
   '/o/$org/p/$project': typeof OOrgPProjectRouteWithChildren;
+  '/o/$org/settings/general': typeof OOrgSettingsGeneralRoute;
   '/o/$org/settings/invitations': typeof OOrgSettingsInvitationsRoute;
   '/o/$org/settings/members': typeof OOrgSettingsMembersRoute;
   '/o/$org/projects/': typeof OOrgProjectsIndexRoute;
@@ -184,6 +191,7 @@ export interface FileRoutesByTo {
   '/o/$org/invitations': typeof OOrgInvitationsRoute;
   '/o/$org': typeof OOrgIndexRoute;
   '/o/$org/p/$project': typeof OOrgPProjectRouteWithChildren;
+  '/o/$org/settings/general': typeof OOrgSettingsGeneralRoute;
   '/o/$org/settings/invitations': typeof OOrgSettingsInvitationsRoute;
   '/o/$org/settings/members': typeof OOrgSettingsMembersRoute;
   '/o/$org/projects': typeof OOrgProjectsIndexRoute;
@@ -210,6 +218,7 @@ export interface FileRoutesById {
   '/o/$org/settings': typeof OOrgSettingsRouteWithChildren;
   '/o/$org/': typeof OOrgIndexRoute;
   '/o/$org/p/$project': typeof OOrgPProjectRouteWithChildren;
+  '/o/$org/settings/general': typeof OOrgSettingsGeneralRoute;
   '/o/$org/settings/invitations': typeof OOrgSettingsInvitationsRoute;
   '/o/$org/settings/members': typeof OOrgSettingsMembersRoute;
   '/o/$org/projects/': typeof OOrgProjectsIndexRoute;
@@ -237,6 +246,7 @@ export interface FileRouteTypes {
     | '/o/$org/settings'
     | '/o/$org/'
     | '/o/$org/p/$project'
+    | '/o/$org/settings/general'
     | '/o/$org/settings/invitations'
     | '/o/$org/settings/members'
     | '/o/$org/projects/'
@@ -260,6 +270,7 @@ export interface FileRouteTypes {
     | '/o/$org/invitations'
     | '/o/$org'
     | '/o/$org/p/$project'
+    | '/o/$org/settings/general'
     | '/o/$org/settings/invitations'
     | '/o/$org/settings/members'
     | '/o/$org/projects'
@@ -285,6 +296,7 @@ export interface FileRouteTypes {
     | '/o/$org/settings'
     | '/o/$org/'
     | '/o/$org/p/$project'
+    | '/o/$org/settings/general'
     | '/o/$org/settings/invitations'
     | '/o/$org/settings/members'
     | '/o/$org/projects/'
@@ -402,6 +414,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof OOrgSettingsIndexRouteImport;
       parentRoute: typeof OOrgSettingsRoute;
     };
+    '/o/$org/settings/general': {
+      id: '/o/$org/settings/general';
+      path: '/general';
+      fullPath: '/o/$org/settings/general';
+      preLoaderRoute: typeof OOrgSettingsGeneralRouteImport;
+      parentRoute: typeof OOrgSettingsRoute;
+    };
     '/o/$org/settings/invitations': {
       id: '/o/$org/settings/invitations';
       path: '/invitations';
@@ -476,12 +495,14 @@ declare module '@tanstack/react-router' {
 }
 
 interface OOrgSettingsRouteChildren {
+  OOrgSettingsGeneralRoute: typeof OOrgSettingsGeneralRoute;
   OOrgSettingsInvitationsRoute: typeof OOrgSettingsInvitationsRoute;
   OOrgSettingsMembersRoute: typeof OOrgSettingsMembersRoute;
   OOrgSettingsIndexRoute: typeof OOrgSettingsIndexRoute;
 }
 
 const OOrgSettingsRouteChildren: OOrgSettingsRouteChildren = {
+  OOrgSettingsGeneralRoute: OOrgSettingsGeneralRoute,
   OOrgSettingsInvitationsRoute: OOrgSettingsInvitationsRoute,
   OOrgSettingsMembersRoute: OOrgSettingsMembersRoute,
   OOrgSettingsIndexRoute: OOrgSettingsIndexRoute,
