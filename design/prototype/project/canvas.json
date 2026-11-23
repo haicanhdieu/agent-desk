@@ -322,6 +322,14 @@
    "title": "Desk \u2014 routing rules, prompt too long, preview failed",
    "expand": "fill"
   },
+  "DeskAgentProjectAdmin.dc.html": {
+   "x": 16720,
+   "y": 7780,
+   "w": 1440,
+   "h": 1320,
+   "title": "Desk \u2014 agent and settings, project admin (no Delete project)",
+   "expand": "fill"
+  },
   "DeskAgentCustomModel.dc.html": {
    "x": 13680,
    "y": 7780,
@@ -1568,6 +1576,7 @@
   "DeskRulesPromptNew.dc.html",
   "DeskRulesPromptError.dc.html",
   "DeskAgent.dc.html",
+  "DeskAgentProjectAdmin.dc.html",
   "DeskAgentCustomModel.dc.html",
   "DeskAgentAddressChanged.dc.html",
   "DeskAgentAutoResume.dc.html",

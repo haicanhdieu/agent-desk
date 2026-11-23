@@ -337,3 +337,16 @@ Spec: `docs/superpowers/specs/2026-11-22-org-tenant-admin-design.md` (UI and Sto
 - Forbidden: the project admin's frame (side menu lists only Invitations), the no-access notice inside the layout.
 - Storybook and `parity.mjs` were not run in the runner pod (no Chromium). The 6 pixel pairs are unchecked: none is claimed
   to match.
+
+## Project admin space: Desk side menu and DeskAgentProjectAdmin
+
+Spec: `docs/superpowers/specs/2026-11-23-rbac-project-admin-space-design.md` (UI and Storybook). One board added, so
+`parity.mjs` finds 190: DeskAgentProjectAdmin (`Screens/Desk`), Lee Park as signed-in project admin, no Danger zone.
+
+- Redrawn side menus: the shared `deskFrame` story frame now passes the Members and Audit log links, so every Desk story
+  shows the "Access" group after "Agent & settings". The DeskSetupEnvironment* stories are not in the repo yet, so the two
+  read-only ones are not touched here.
+- Intentional: the existing Desk board stories draw the Access group (human answer "1"); `DeskLayout` hides an item whose link
+  is not set, and the whole group when neither is.
+- Storybook and `parity.mjs` were not run here (no Chromium within the memory headroom). The new pixel pair is unchecked:
+  none is claimed to match.

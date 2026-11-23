@@ -60,6 +60,7 @@ export const boardStories = {
   DeskRulesPromptNew: { title: desk, exportName: 'DeskRulesPromptNew' },
   DeskRulesPromptError: { title: desk, exportName: 'DeskRulesPromptError' },
   DeskAgent: { title: desk, exportName: 'DeskAgent' },
+  DeskAgentProjectAdmin: { title: desk, exportName: 'DeskAgentProjectAdmin' },
   DeskAgentCustomModel: { title: desk, exportName: 'DeskAgentCustomModel' },
   DeskAgentAddressChanged: { title: desk, exportName: 'DeskAgentAddressChanged' },
   DeskAgentAutoResume: { title: desk, exportName: 'DeskAgentAutoResume' },

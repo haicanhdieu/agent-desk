@@ -721,13 +721,13 @@ export const OTHER_PROJECT: string; // a second project the projectAdmin does no
 
 - Produces: icon name `'users'`; `DeskLayoutProps.active: 'skills' | 'rules' | 'agent' | 'setup' | 'members' | 'audit'`; `links?: { skills; rules; agent; setup?; members?; audit? }` (an absent link hides its item; both absent hides the "Access" group); `DeskLinks` gains `members?: string`, `audit?: string`; `DeskFrame` `active` gains the two keys; `DeskAgent` renders the Danger zone only when `onDeleteProject` is given. Story `deskFrame` in `desk.stories.tsx` carries `members` and `audit` links.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
   - `DeskLayout.test.tsx` (BR-1): with both links, nav "Desk" shows group "Access" after "Agent & settings" and before "Repository", items "Members" (icon `users`) and "Audit log" (icon `clock`); `active: 'members'` sets `aria-current="page"` on Members; without them no "Access" heading; with only `members`, only Members shows.
   - `desk.test.tsx` (BR-21): `DeskAgent` without `onDeleteProject` renders no "Danger zone" and no "Delete project"; with it, both show.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/components/DeskLayout.test.tsx src/screens/desk.test.tsx`. Expected: FAIL.
-- [ ] **Step 3: Implement** the icon (same stroke style), the group, the frame types, the optional Danger zone; stories DeskLayout Default (updated), WithAccess, MembersActive, AuditActive; Icon story lists `users`; the shared `deskFrame` gains the two links so the 40 redrawn Desk boards show the Access group (see the Agent call on `DeskSetupEnvironment*`); new story `DeskAgentProjectAdmin` (Lee Park, no Danger zone) registered in `canvas.json`, `storyIds.ts`, `parity.mjs` and the coverage count (+1); parity note for the redrawn side menus.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/components/DeskLayout.test.tsx src/screens/desk.test.tsx`. Expected: FAIL.
+- [x] **Step 3: Implement** the icon (same stroke style), the group, the frame types, the optional Danger zone; stories DeskLayout Default (updated), WithAccess, MembersActive, AuditActive; Icon story lists `users`; the shared `deskFrame` gains the two links so the 40 redrawn Desk boards show the Access group (see the Agent call on `DeskSetupEnvironment*`); new story `DeskAgentProjectAdmin` (Lee Park, no Danger zone) registered in `canvas.json`, `storyIds.ts`, `parity.mjs` and the coverage count (+1); parity note for the redrawn side menus.
 - [ ] **Step 4: Run** Step 2's command, `pnpm --filter @agentdesk/web exec vitest run src/test/coverage.test.ts src/test/stories.smoke.test.tsx`, `pnpm --filter @agentdesk/web typecheck`, `pnpm --filter @agentdesk/web build-storybook && pnpm --filter @agentdesk/web parity`, then compare `parity-out/<board>.{story,proto}.png` for DeskAgentProjectAdmin, DeskAgent, DeskRules (never commit `parity-out/`). Expected: PASS.
-- [ ] **Step 5: Commit**: `feat(web): Access group in the Desk side menu and the project admin Agent board in Storybook`.
+- [x] **Step 5: Commit**: `feat(web): Access group in the Desk side menu and the project admin Agent board in Storybook`.
 
 ---
 
@@ -745,11 +745,11 @@ export const OTHER_PROJECT: string; // a second project the projectAdmin does no
 - Consumes: `ProjectMemberRowView`, `projectMemberRows` (Task 11), `useRowMenu`.
 - Produces: `export const projectMemberColumns: DataTableColumn[]` ("Name", "Role", "Actions" sr-only); `export function ProjectMemberRow(props: { row: ProjectMemberRowView; busy?: boolean; onChangeRole: (row) => void; onRemove: (row) => void }): JSX.Element`, exported from `@/components`.
 
-- [ ] **Step 1: Write the failing tests**: name plus muted mono handle; null handle → name only, no empty handle element (Review Focus 4); "You" tag and no "Actions for <name>" button on the own row (BR-11); other rows: menu "Change role", "Remove from project" (danger); busy disables the menu button; several roles render "Member, Viewer"; a name with markup renders as text; long name has `title` and ellipsis class.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/components/ProjectMemberRow.test.tsx`. Expected: FAIL.
-- [ ] **Step 3: Implement** the row and stories Admin, Member, Viewer, SeveralRoles, You, LongName, Busy; add the barrel line.
-- [ ] **Step 4: Run** Step 2's command and `pnpm --filter @agentdesk/web exec vitest run src/test/stories.smoke.test.tsx`. Expected: PASS.
-- [ ] **Step 5: Commit**: `feat(web): project member row in Storybook`.
+- [x] **Step 1: Write the failing tests**: name plus muted mono handle; null handle → name only, no empty handle element (Review Focus 4); "You" tag and no "Actions for <name>" button on the own row (BR-11); other rows: menu "Change role", "Remove from project" (danger); busy disables the menu button; several roles render "Member, Viewer"; a name with markup renders as text; long name has `title` and ellipsis class.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/components/ProjectMemberRow.test.tsx`. Expected: FAIL.
+- [x] **Step 3: Implement** the row and stories Admin, Member, Viewer, SeveralRoles, You, LongName, Busy; add the barrel line.
+- [x] **Step 4: Run** Step 2's command and `pnpm --filter @agentdesk/web exec vitest run src/test/stories.smoke.test.tsx`. Expected: PASS.
+- [x] **Step 5: Commit**: `feat(web): project member row in Storybook`.
 
 ---
 

@@ -210,6 +210,7 @@ const stories = {
       'RulesPromptNew',
       'RulesPromptError',
       'Agent',
+      'AgentProjectAdmin',
       'AgentCustomModel',
       'AgentAddressChanged',
       'AgentAutoResume',

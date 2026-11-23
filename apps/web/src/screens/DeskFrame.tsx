@@ -15,6 +15,9 @@ export interface DeskLinks {
   agent: string;
   /** Desk Setup tab; the nav item is hidden without it. */
   setup?: string;
+  /** Access group items; each is hidden without its link. */
+  members?: string;
+  audit?: string;
 }
 
 /** A warning above the Desk boards (workspace setup, spec §5.5). It never blocks anything. */
@@ -52,7 +55,7 @@ export function DeskFrame({
   org,
   warning,
   children,
-}: DeskFrameData & { active: 'skills' | 'rules' | 'agent' | 'setup'; children?: ReactNode }) {
+}: DeskFrameData & { active: 'skills' | 'rules' | 'agent' | 'setup' | 'members' | 'audit'; children?: ReactNode }) {
   return (
     <>
       <TopBar

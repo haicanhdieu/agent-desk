@@ -24,7 +24,7 @@ import {
   skills,
 } from '@/mocks';
 import { DeskSetup as DeskSetupScreen, type DeskSetupProps } from './DeskSetup';
-import { DeskAgent as DeskAgentScreen } from './DeskAgent';
+import { DeskAgent as DeskAgentBase, type DeskAgentProps } from './DeskAgent';
 import { DeskRules as DeskRulesScreen, RulePane } from './DeskRules';
 import { DeskSkills as DeskSkillsScreen, type DeskSkillsProps } from './DeskSkills';
 import { toModelList } from '@/components';
@@ -62,8 +62,13 @@ const deskFrame: DeskFrameData = {
     skills: '#skills',
     rules: '#rules',
     agent: '#agent',
+    members: '#members',
+    audit: '#audit',
   },
 };
+
+// The Danger zone shows only when the caller can delete the project, so the owner boards pass a handler.
+const DeskAgentScreen = (props: DeskAgentProps) => <DeskAgentBase onDeleteProject={() => undefined} {...props} />;
 
 const skillsProps: DeskSkillsProps = {
   frame: deskFrame,
@@ -368,6 +373,21 @@ export const DeskAgent: Story = {
       settings={agentSettings}
       modelList={liveModels}
       replacingCredential
+      github={agentGithub}
+    />
+  ),
+};
+
+/** Lee Park, an admin of this project only: no onDeleteProject, so no Danger zone. */
+export const DeskAgentProjectAdmin: Story = {
+  name: 'Agent & settings, project admin (no Delete project)',
+  decorators: artboard(1320),
+  globals: viewport(1440, 1320),
+  render: () => (
+    <DeskAgentBase
+      frame={{ ...deskFrame, user: { login: 'lee-park', initials: 'LP' } }}
+      settings={agentSettings}
+      modelList={liveModels}
       github={agentGithub}
     />
   ),
