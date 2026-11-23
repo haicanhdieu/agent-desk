@@ -19,6 +19,7 @@ import {
   InvitationDto,
   PlatformAdminDto,
   PlatformMemberDto,
+  PlatformOrgDto,
   PlatformRoleDto,
   type PrState,
   RoleDto,
@@ -145,6 +146,26 @@ export async function createOrg(pa: APIRequestContext, name: string, slug: strin
   return CreateOrgResponse.parse(
     await ok(await pa.post('/api/platform/orgs', { data: { name, slug } }), 201, `create org ${slug}`),
   );
+}
+
+/** The id of the org with `slug`, read from the platform directory (the slug search; throws when it is not there). */
+export async function platformOrgIdBySlug(pa: APIRequestContext, slug: string): Promise<string> {
+  const orgs = pageOf(PlatformOrgDto).parse(
+    await ok(await pa.get(`/api/platform/orgs?pageSize=100&q=${encodeURIComponent(slug)}`), 200, 'platform orgs'),
+  );
+  const org = orgs.items.find((o) => o.slug === slug);
+  if (!org) throw new Error(`org ${slug} is not in the platform directory`);
+  return org.id;
+}
+
+/** Suspends an org through the platform route (exactly 200). Never call it on a shared org. */
+export async function suspendOrg(pa: APIRequestContext, orgId: string, reason = 'e2e suspend'): Promise<void> {
+  await ok(await pa.post(`/api/platform/orgs/${orgId}/suspend`, { data: { reason } }), 200, 'suspend org');
+}
+
+/** Reactivates an org through the platform route (exactly 200). */
+export async function reactivateOrg(pa: APIRequestContext, orgId: string, reason = 'e2e reactivate'): Promise<void> {
+  await ok(await pa.post(`/api/platform/orgs/${orgId}/reactivate`, { data: { reason } }), 200, 'reactivate org');
 }
 
 async function roleIdOf(pa: APIRequestContext, orgId: string, roleKey: RoleKey): Promise<string> {

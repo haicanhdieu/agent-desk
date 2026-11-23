@@ -1330,7 +1330,7 @@ export async function reactivateOrg(pa: APIRequestContext, orgId: string, reason
 
 Covers: BR-32 (TC-32.2), BR-34 (TC-34.2), BR-37 (TC-37.4), BR-38 (TC-38.1 to TC-38.4), BR-42 (TC-42.1), BR-43 (TC-43.2), BR-51 (TC-51.2) in `platform-suspend.spec.ts`; BR-36 (TC-36.1 to TC-36.4) in `platform-access.spec.ts`. Role-based cases: TC-36.1, TC-36.2, TC-38.1, TC-38.2.
 
-- [ ] **Step 1: Write the helpers and specs**: fresh orgs only; every case that suspends reactivates in `finally` (errors swallowed); never suspend a shared org.
+- [x] **Step 1: Write the helpers and specs**: fresh orgs only; every case that suspends reactivates in `finally` (errors swallowed); never suspend a shared org.
 - [ ] **Step 2: Run** with the stack up: `pnpm --filter @agentdesk/web exec playwright test e2e/local/platform-suspend.spec.ts e2e/local/platform-access.spec.ts`. Expected: PASS.
 - [ ] **Step 3: Commit**: `test(web): local e2e for suspending an organization`.
 
@@ -1348,7 +1348,7 @@ Covers: BR-32 (TC-32.2), BR-34 (TC-34.2), BR-37 (TC-37.4), BR-38 (TC-38.1 to TC-
 
 Covers: BR-39 (TC-39.1, TC-39.2, TC-39.3), BR-40 (TC-40.1, TC-40.2), BR-41 (TC-41.1, TC-41.2), BR-42 (TC-42.2). BR-47 and BR-39's poll channel are Not e2e (Tasks 25 and 24). Role-based case: TC-40.1 (the owner cannot start a run).
 
-- [ ] **Step 1: Write the spec**: "no run started" is asserted on the recorded intake outcome (`ignored_org_suspended`) and on that ticket's run list, never by waiting for an absence; the webhook body is asserted equal to the plain `{ outcome: 'ignored' }` (the body of a null-parse event); reactivate in `finally`. TC-39.x and TC-40.x use the existing fake ticket source and run routes (spec open question Q3: outcomes only).
+- [x] **Step 1: Write the spec**: "no run started" is asserted on the recorded intake outcome (`ignored_org_suspended`) and on that ticket's run list, never by waiting for an absence; the webhook body is asserted equal to the plain `{ outcome: 'ignored' }` (the body of a null-parse event); reactivate in `finally`. TC-39.x and TC-40.x use the existing fake ticket source and run routes (spec open question Q3: outcomes only).
 - [ ] **Step 2: Run** with the stack up: `pnpm --filter @agentdesk/web exec playwright test e2e/local/platform-suspend-runs.spec.ts`. Expected: PASS.
 - [ ] **Step 3: Commit**: `test(web): local e2e for runs and webhooks of a suspended organization`.
 
