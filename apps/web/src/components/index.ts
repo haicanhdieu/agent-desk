@@ -130,3 +130,5 @@ export { PlatformAdminRow, platformAdminColumns, type PlatformAdminRowProps } fr
 export { PlatformOrgRow, platformOrgColumns } from './PlatformOrgRow';
 export { OrgStatus } from './OrgStatus';
 export { AddPlatformAdminDialog, type AddPlatformAdminDialogProps } from './AddPlatformAdminDialog';
+export { PlatformOrgHeader, type PlatformOrgHeaderProps } from './PlatformOrgHeader';
+export { SuspendOrgDialog, type SuspendOrgDialogProps } from './SuspendOrgDialog';

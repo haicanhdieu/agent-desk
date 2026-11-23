@@ -197,6 +197,16 @@ const stories = {
   PlatformOrgsEmptyFiltered: ['Screens/Platform', 'PlatformOrgsEmptyFiltered'],
   PlatformOrgsError: ['Screens/Platform', 'PlatformOrgsError'],
   PlatformOrgsPaged: ['Screens/Platform', 'PlatformOrgsPaged'],
+  PlatformOrgOverview: ['Screens/Platform', 'PlatformOrgOverview'],
+  PlatformOrgOverviewLoading: ['Screens/Platform', 'PlatformOrgOverviewLoading'],
+  PlatformOrgOverviewError: ['Screens/Platform', 'PlatformOrgOverviewError'],
+  PlatformOrgOverviewNotFound: ['Screens/Platform', 'PlatformOrgOverviewNotFound'],
+  PlatformOrgOverviewSuspended: ['Screens/Platform', 'PlatformOrgOverviewSuspended'],
+  PlatformOrgOverviewSuspendDialog: ['Screens/Platform', 'PlatformOrgOverviewSuspendDialog'],
+  PlatformOrgOverviewSuspendError: ['Screens/Platform', 'PlatformOrgOverviewSuspendError'],
+  PlatformOrgOverviewSuspendFormError: ['Screens/Platform', 'PlatformOrgOverviewSuspendFormError'],
+  PlatformOrgOverviewSuspendSaving: ['Screens/Platform', 'PlatformOrgOverviewSuspendSaving'],
+  PlatformOrgOverviewReactivateDialog: ['Screens/Platform', 'PlatformOrgOverviewReactivateDialog'],
   ...Object.fromEntries(
     [
       'Starting',

@@ -1697,6 +1697,86 @@
    "h": 900,
    "title": "Organizations \u2014 page 2 of 2",
    "expand": "fill"
+  },
+  "PlatformOrgOverview.dc.html": {
+   "x": 3040,
+   "y": 51760,
+   "w": 1440,
+   "h": 900,
+   "title": "Organization detail \u2014 Overview, active org",
+   "expand": "fill"
+  },
+  "PlatformOrgOverviewLoading.dc.html": {
+   "x": 4560,
+   "y": 51760,
+   "w": 1440,
+   "h": 900,
+   "title": "Organization detail \u2014 loading",
+   "expand": "fill"
+  },
+  "PlatformOrgOverviewError.dc.html": {
+   "x": 6080,
+   "y": 51760,
+   "w": 1440,
+   "h": 900,
+   "title": "Organization detail \u2014 failed to load",
+   "expand": "fill"
+  },
+  "PlatformOrgOverviewNotFound.dc.html": {
+   "x": 0,
+   "y": 53040,
+   "w": 1440,
+   "h": 900,
+   "title": "Organization detail \u2014 unknown organization id",
+   "expand": "fill"
+  },
+  "PlatformOrgOverviewSuspended.dc.html": {
+   "x": 1520,
+   "y": 53040,
+   "w": 1440,
+   "h": 900,
+   "title": "Organization detail \u2014 Overview, suspended org (banner with the reason)",
+   "expand": "fill"
+  },
+  "PlatformOrgOverviewSuspendDialog.dc.html": {
+   "x": 3040,
+   "y": 53040,
+   "w": 1440,
+   "h": 900,
+   "title": "Organization detail \u2014 Suspend dialog",
+   "expand": "fill"
+  },
+  "PlatformOrgOverviewSuspendError.dc.html": {
+   "x": 4560,
+   "y": 53040,
+   "w": 1440,
+   "h": 900,
+   "title": "Organization detail \u2014 Suspend: reason missing (error at the field)",
+   "expand": "fill"
+  },
+  "PlatformOrgOverviewSuspendFormError.dc.html": {
+   "x": 6080,
+   "y": 53040,
+   "w": 1440,
+   "h": 900,
+   "title": "Organization detail \u2014 Suspend: server error banner in the dialog",
+   "expand": "fill"
+  },
+  "PlatformOrgOverviewSuspendSaving.dc.html": {
+   "x": 0,
+   "y": 54320,
+   "w": 1440,
+   "h": 900,
+   "title": "Organization detail \u2014 Suspend: suspending",
+   "expand": "fill"
+  },
+  "PlatformOrgOverviewReactivateDialog.dc.html": {
+   "x": 1520,
+   "y": 54320,
+   "w": 1440,
+   "h": 900,
+   "title": "Organization detail \u2014 Reactivate dialog on a suspended org",
+   "expand": "fill"
   }
  },
  "order": [
@@ -1910,7 +1990,17 @@
   "PlatformOrgsEmpty.dc.html",
   "PlatformOrgsEmptyFiltered.dc.html",
   "PlatformOrgsError.dc.html",
-  "PlatformOrgsPaged.dc.html"
+  "PlatformOrgsPaged.dc.html",
+  "PlatformOrgOverview.dc.html",
+  "PlatformOrgOverviewLoading.dc.html",
+  "PlatformOrgOverviewError.dc.html",
+  "PlatformOrgOverviewNotFound.dc.html",
+  "PlatformOrgOverviewSuspended.dc.html",
+  "PlatformOrgOverviewSuspendDialog.dc.html",
+  "PlatformOrgOverviewSuspendError.dc.html",
+  "PlatformOrgOverviewSuspendFormError.dc.html",
+  "PlatformOrgOverviewSuspendSaving.dc.html",
+  "PlatformOrgOverviewReactivateDialog.dc.html"
  ],
  "notes": {
   "t-intro": {

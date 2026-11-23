@@ -62,9 +62,9 @@ describe('SuspendOrgDialog', () => {
   });
 
   it('shows the field error at Reason', () => {
-    setup({ error: 'Give a reason.' });
+    setup({ error: 'Enter a reason.' });
     expect(screen.getByLabelText('Reason')).toHaveAttribute('aria-invalid', 'true');
-    expect(screen.getByLabelText('Reason')).toHaveAccessibleDescription(/Give a reason\./);
+    expect(screen.getByLabelText('Reason')).toHaveAccessibleDescription(/Enter a reason\./);
   });
 
   it('shows a form error banner with the request id', () => {

@@ -1,7 +1,15 @@
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { pagedPlatformOrgRows, platformAdminRows, platformOrgRows } from '@/mocks';
+import {
+  activeOrgOverview,
+  pagedPlatformOrgRows,
+  platformAdminRows,
+  platformOrgRows,
+  suspendedOrgOverview,
+  type PlatformOrgOverviewView,
+} from '@/mocks';
 import { PlatformAdmins, type PlatformAdminsProps } from './PlatformAdmins';
+import { PlatformOrgDetail, type PlatformOrgDetailView } from './PlatformOrgDetail';
 import { PlatformOrgs, type PlatformOrgsProps } from './PlatformOrgs';
 
 const noop = () => {};
@@ -288,6 +296,130 @@ describe('PlatformOrgs', () => {
         {...orgProps({
           view: { kind: 'error', title: 'Internal server error', requestId: 'req_01JDP4A7K2QX', onRetry },
         })}
+      />,
+    );
+    expect(screen.getByText('Request ID: req_01JDP4A7K2QX')).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Retry' }));
+    expect(onRetry).toHaveBeenCalledTimes(1);
+  });
+});
+
+const header = {
+  name: 'Acme',
+  slug: 'acme',
+  status: 'active' as const,
+  auditHref: '/platform/audit?org=acme',
+  onSuspend: vi.fn(),
+  onReactivate: vi.fn(),
+};
+const ready = (suspended = false, overview?: PlatformOrgOverviewView): PlatformOrgDetailView => ({
+  kind: 'ready',
+  header: { ...header, status: suspended ? 'suspended' : 'active' },
+  overview: overview ?? (suspended ? suspendedOrgOverview : activeOrgOverview),
+});
+
+describe('PlatformOrgDetail', () => {
+  it('Overview shows the seven facts and no banner for an active org', () => {
+    render(<PlatformOrgDetail view={ready()} />);
+    expect(screen.getByRole('heading', { level: 1, name: 'Acme' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 2, name: 'Overview' })).toBeInTheDocument();
+    const terms = screen.getAllByRole('term').map((t) => t.textContent);
+    expect(terms).toEqual(['Slug', 'Owner', 'Members', 'Projects', 'Last activity', 'Created', 'Status']);
+    expect(screen.queryByText('This organization is suspended')).not.toBeInTheDocument();
+  });
+
+  it('header shows the edit slot when given, and Suspend comes before View audit log', () => {
+    render(<PlatformOrgDetail view={ready()} editSlot={<span>edit slot</span>} />);
+    expect(screen.getByText('edit slot')).toBeInTheDocument();
+    const names = [
+      screen.getByRole('button', { name: 'Suspend organization' }),
+      screen.getByRole('link', { name: 'View audit log' }),
+    ];
+    expect(names[0].compareDocumentPosition(names[1]) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it('suspended: warning banner with the date, actor and reason', () => {
+    render(<PlatformOrgDetail view={ready(true)} />);
+    expect(screen.getByText('This organization is suspended')).toBeInTheDocument();
+    expect(
+      screen.getByText('Since 21 Nov 2026 by Sam Rivera. People cannot open it and no new runs start.'),
+    ).toBeInTheDocument();
+    expect(screen.getByText('Reason: Billing hold')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Reactivate organization' })).toBeInTheDocument();
+  });
+
+  it('a reason with markup renders as text', () => {
+    const overview = {
+      ...suspendedOrgOverview,
+      suspension: { since: '21 Nov 2026', by: 'Sam Rivera', reason: '<img src=x onerror=alert(1)>' },
+    };
+    const { container } = render(<PlatformOrgDetail view={ready(true, overview)} />);
+    expect(screen.getByText('Reason: <img src=x onerror=alert(1)>')).toBeInTheDocument();
+    expect(container.querySelector('img')).toBeNull();
+  });
+
+  it('suspended with no known actor still reads', () => {
+    const overview = { ...suspendedOrgOverview, suspension: { since: '21 Nov 2026', by: null, reason: 'x' } };
+    render(<PlatformOrgDetail view={ready(true, overview)} />);
+    expect(screen.getByText('Since 21 Nov 2026. People cannot open it and no new runs start.')).toBeInTheDocument();
+  });
+
+  it('shows the suspend dialog when given', () => {
+    render(
+      <PlatformOrgDetail
+        view={ready()}
+        dialog={{
+          mode: 'suspend',
+          orgName: 'Acme',
+          open: true,
+          reason: '',
+          saving: false,
+          onReason: vi.fn(),
+          onSubmit: vi.fn(),
+          onClose: vi.fn(),
+        }}
+      />,
+    );
+    expect(screen.getByRole('dialog', { name: 'Suspend Acme?' })).toBeInTheDocument();
+  });
+
+  it('shows the reactivate dialog when given', () => {
+    render(
+      <PlatformOrgDetail
+        view={ready(true)}
+        dialog={{
+          mode: 'reactivate',
+          orgName: 'Acme',
+          open: true,
+          reason: '',
+          saving: false,
+          onReason: vi.fn(),
+          onSubmit: vi.fn(),
+          onClose: vi.fn(),
+        }}
+      />,
+    );
+    expect(screen.getByRole('dialog', { name: 'Reactivate Acme?' })).toBeInTheDocument();
+    expect(screen.getByText('People can open it again.')).toBeInTheDocument();
+  });
+
+  it('not found: Page not found with a way back', () => {
+    render(<PlatformOrgDetail view={{ kind: 'notFound', backHref: '/platform/orgs' }} />);
+    expect(screen.getByText('Page not found')).toBeInTheDocument();
+    expect(screen.getByText('This organization does not exist.')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Back to organizations' })).toHaveAttribute('href', '/platform/orgs');
+  });
+
+  it('loading is a busy status', () => {
+    render(<PlatformOrgDetail view={{ kind: 'loading' }} />);
+    expect(screen.getByRole('status', { name: 'Loading' })).toHaveAttribute('aria-busy', 'true');
+  });
+
+  it('error shows the title and request id, and Retry calls onRetry', async () => {
+    const onRetry = vi.fn();
+    render(
+      <PlatformOrgDetail
+        view={{ kind: 'error', title: 'Internal server error', requestId: 'req_01JDP4A7K2QX', onRetry }}
       />,
     );
     expect(screen.getByText('Request ID: req_01JDP4A7K2QX')).toBeInTheDocument();

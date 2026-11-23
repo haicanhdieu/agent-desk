@@ -228,6 +228,16 @@ export const boardStories = {
   PlatformOrgsEmptyFiltered: { title: platform, exportName: 'PlatformOrgsEmptyFiltered' },
   PlatformOrgsError: { title: platform, exportName: 'PlatformOrgsError' },
   PlatformOrgsPaged: { title: platform, exportName: 'PlatformOrgsPaged' },
+  PlatformOrgOverview: { title: platform, exportName: 'PlatformOrgOverview' },
+  PlatformOrgOverviewLoading: { title: platform, exportName: 'PlatformOrgOverviewLoading' },
+  PlatformOrgOverviewError: { title: platform, exportName: 'PlatformOrgOverviewError' },
+  PlatformOrgOverviewNotFound: { title: platform, exportName: 'PlatformOrgOverviewNotFound' },
+  PlatformOrgOverviewSuspended: { title: platform, exportName: 'PlatformOrgOverviewSuspended' },
+  PlatformOrgOverviewSuspendDialog: { title: platform, exportName: 'PlatformOrgOverviewSuspendDialog' },
+  PlatformOrgOverviewSuspendError: { title: platform, exportName: 'PlatformOrgOverviewSuspendError' },
+  PlatformOrgOverviewSuspendFormError: { title: platform, exportName: 'PlatformOrgOverviewSuspendFormError' },
+  PlatformOrgOverviewSuspendSaving: { title: platform, exportName: 'PlatformOrgOverviewSuspendSaving' },
+  PlatformOrgOverviewReactivateDialog: { title: platform, exportName: 'PlatformOrgOverviewReactivateDialog' },
 } as const satisfies Record<string, BoardStory>;
 
 export type BoardName = keyof typeof boardStories;

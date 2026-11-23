@@ -1204,11 +1204,11 @@ export interface PlatformOrgDetailProps { view: PlatformOrgDetailView; dialog?: 
 export function PlatformOrgDetail(props: PlatformOrgDetailProps): JSX.Element; // header + Overview KeyValue facts + suspended warning Banner
 ```
 
-- [ ] **Step 1: Write the failing tests** in `platform.test.tsx`: Overview labels Slug, Owner, Members, Projects, Last activity, Created, Status; the suspended Banner "This organization is suspended" with "Since 21 Nov 2026 by <name>. People cannot open it and no new runs start." and "Reason: <text>" (warning style, triangle icon); not found "Page not found" / "This organization does not exist." / "Back to organizations"; a reason with markup renders as text.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/screens/platform.test.tsx`. Expected: FAIL.
-- [ ] **Step 3: Implement** the screen and stories `PlatformOrgOverview`, `…Loading`, `…Error`, `…NotFound`, `…Suspended`, `…SuspendDialog`, `…SuspendError`, `…SuspendFormError`, `…SuspendSaving`, `…ReactivateDialog` (inside `PlatformFrame` with the org group showing Overview only); barrel lines for Task 26; register the 10 boards; coverage 211 to 221; regenerate the interactive prototype; parity notes.
+- [x] **Step 1: Write the failing tests** in `platform.test.tsx`: Overview labels Slug, Owner, Members, Projects, Last activity, Created, Status; the suspended Banner "This organization is suspended" with "Since 21 Nov 2026 by <name>. People cannot open it and no new runs start." and "Reason: <text>" (warning style, triangle icon); not found "Page not found" / "This organization does not exist." / "Back to organizations"; a reason with markup renders as text.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/screens/platform.test.tsx`. Expected: FAIL.
+- [x] **Step 3: Implement** the screen and stories `PlatformOrgOverview`, `…Loading`, `…Error`, `…NotFound`, `…Suspended`, `…SuspendDialog`, `…SuspendError`, `…SuspendFormError`, `…SuspendSaving`, `…ReactivateDialog` (inside `PlatformFrame` with the org group showing Overview only); barrel lines for Task 26; register the 10 boards; coverage 211 to 221; regenerate the interactive prototype; parity notes.
 - [ ] **Step 4: Run** the same commands as Task 5 Step 4 for these 10 boards. Expected: PASS.
-- [ ] **Step 5: Commit**: `feat(web): org detail and suspend boards in Storybook`.
+- [x] **Step 5: Commit**: `feat(web): org detail and suspend boards in Storybook`.
 
 ---
 

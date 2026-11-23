@@ -1,13 +1,16 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
-import { AppShell } from '@/components';
+import { AppShell, type SuspendOrgDialogProps } from '@/components';
 import {
+  activeOrgOverview,
   pagedPlatformAdminRows,
   pagedPlatformOrgRows,
   platformAdminRows,
   platformOrgRows,
+  suspendedOrgOverview,
   type PlatformAdminRowView,
 } from '@/mocks';
 import { PlatformAdmins as PlatformAdminsScreen, type PlatformAdminsProps } from './PlatformAdmins';
+import { PlatformOrgDetail as PlatformOrgDetailScreen, type PlatformOrgDetailProps } from './PlatformOrgDetail';
 import { PlatformOrgs as PlatformOrgsScreen, type PlatformOrgsProps } from './PlatformOrgs';
 import { PlatformFrame } from './platformFrame';
 import { viewport } from './viewports';
@@ -212,4 +215,87 @@ export const PlatformOrgsPaged: Story = {
         pagination: { page: 2, pageSize: 20 as const, total: 25, onPageChange: noop, onPageSizeChange: noop },
       },
     }),
+};
+
+const orgNav = { name: 'Acme', links: { overview: '/platform/orgs/org_acme' } };
+const header = {
+  name: 'Acme',
+  slug: 'acme',
+  auditHref: '/platform/audit?org=acme',
+  onSuspend: noop,
+  onReactivate: noop,
+};
+const detail = (over: Partial<PlatformOrgDetailProps> = {}) => (
+  <PlatformFrame active="overview" org={orgNav}>
+    <PlatformOrgDetailScreen
+      view={{ kind: 'ready', header: { ...header, status: 'active' }, overview: activeOrgOverview }}
+      {...over}
+    />
+  </PlatformFrame>
+);
+const suspendedView: PlatformOrgDetailProps['view'] = {
+  kind: 'ready',
+  header: { ...header, status: 'suspended' },
+  overview: suspendedOrgOverview,
+};
+
+export const PlatformOrgOverview: Story = {
+  name: 'Organization detail, Overview, active org',
+  render: () => detail(),
+};
+export const PlatformOrgOverviewLoading: Story = {
+  name: 'Organization detail, loading',
+  render: () => detail({ view: { kind: 'loading' } }),
+};
+export const PlatformOrgOverviewError: Story = {
+  name: 'Organization detail, failed to load',
+  render: () =>
+    detail({ view: { kind: 'error', title: 'Internal server error', requestId: 'req_01JDP4A7K2QX', onRetry: noop } }),
+};
+export const PlatformOrgOverviewNotFound: Story = {
+  name: 'Organization detail, unknown organization id',
+  render: () => detail({ view: { kind: 'notFound', backHref: '/platform/orgs' } }),
+};
+export const PlatformOrgOverviewSuspended: Story = {
+  name: 'Organization detail, Overview, suspended org (banner with the reason)',
+  render: () => detail({ view: suspendedView }),
+};
+
+const dialog = (over: Partial<SuspendOrgDialogProps> = {}): SuspendOrgDialogProps => ({
+  mode: 'suspend',
+  orgName: 'Acme',
+  open: true,
+  reason: '',
+  saving: false,
+  onReason: noop,
+  onSubmit: noop,
+  onClose: noop,
+  ...over,
+});
+
+export const PlatformOrgOverviewSuspendDialog: Story = {
+  name: 'Organization detail, Suspend dialog',
+  render: () => detail({ dialog: dialog() }),
+};
+export const PlatformOrgOverviewSuspendError: Story = {
+  name: 'Organization detail, Suspend: reason missing (error at the field)',
+  render: () => detail({ dialog: dialog({ error: 'Enter a reason.' }) }),
+};
+export const PlatformOrgOverviewSuspendFormError: Story = {
+  name: 'Organization detail, Suspend: server error banner in the dialog',
+  render: () =>
+    detail({
+      dialog: dialog({
+        reason: 'Billing hold',
+        formError: { title: 'Could not suspend the organization.', requestId: '01JDK8Q3V2' },
+      }),
+    }),
+};
+export const PlatformOrgOverviewSuspendSaving: Story = {
+  name: 'Organization detail, Suspend: suspending',
+  render: () => detail({ dialog: dialog({ reason: 'Billing hold', saving: true }) }),
+};
+export const PlatformOrgOverviewReactivateDialog: Story = {
+  name: 'Organization detail, Reactivate dialog on a suspended org',
+  render: () => detail({ view: suspendedView, dialog: dialog({ mode: 'reactivate' }) }),
 };

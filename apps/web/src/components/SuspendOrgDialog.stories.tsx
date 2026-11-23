@@ -29,7 +29,7 @@ type Story = StoryObj<typeof meta>;
 
 export const Suspend: Story = {};
 export const SuspendSaving: Story = { args: { reason: 'Billing hold', saving: true } };
-export const SuspendFieldError: Story = { args: { error: 'Give a reason of 1 to 500 characters.' } };
+export const SuspendFieldError: Story = { args: { error: 'Enter a reason.' } };
 export const SuspendFormError: Story = {
   args: {
     reason: 'Billing hold',

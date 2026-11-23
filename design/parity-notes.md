@@ -375,3 +375,22 @@ the Platform admins boards.
 - Loading and error: a labelled busy status of `Skeleton` blocks with no h1, the shared `RouteLoadError`.
 - Storybook and `parity.mjs` were not run in the runner pod (no Chromium). The 6 pixel pairs are unchecked: none is claimed
   to match. The interactive prototype (`_tools/build-boards.mjs`) was regenerated and came out unchanged: it already had these boards.
+
+## Platform admin: org detail Overview, suspend and reactivate boards
+
+Spec: `docs/superpowers/specs/2026-11-23-platform-admin-dashboard-design.md` (UI and Storybook). Ten boards added, so
+`parity.mjs` finds 221: PlatformOrgOverview, PlatformOrgOverviewLoading, PlatformOrgOverviewError, PlatformOrgOverviewNotFound,
+PlatformOrgOverviewSuspended, PlatformOrgOverviewSuspendDialog, PlatformOrgOverviewSuspendError, PlatformOrgOverviewSuspendFormError,
+PlatformOrgOverviewSuspendSaving and PlatformOrgOverviewReactivateDialog (`Screens/Platform`). The boards were missing from
+`canvas.json`; their entries (and order) are added after the Directory boards.
+
+- Content: the stories use the shared fixtures (`activeOrgOverview`, `suspendedOrgOverview`), so the org and people names differ
+  from the boards' samples. The side menu shows the org group with Overview only (the other tabs land with their own tasks).
+- Header: `PlatformOrgHeader` without the Edit organization button; actions are Suspend or Reactivate organization, then the
+  View audit log link. The dialogs are the shared `SuspendOrgDialog` with the spec text.
+- Suspended: a warning `Banner` with a triangle icon, "Since <date> by <name>. People cannot open it and no new runs start."
+  and "Reason: <text>" (text only).
+- Not found: an `EmptyState` h2 "Page not found" with "Back to organizations"; loading and error use a busy status of `Skeleton`
+  blocks and the shared `RouteLoadError`.
+- Storybook and `parity.mjs` were not run in the runner pod (no Chromium). The 10 pixel pairs are unchecked: none is claimed
+  to match. The interactive prototype (`_tools/build-boards.mjs`) was regenerated and came out unchanged: it already had these boards.
