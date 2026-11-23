@@ -1170,9 +1170,9 @@ Covers: BR-6 (TC-6.1), BR-7 (TC-7.1 to TC-7.11), BR-12 visible Add parts (TC-12.
 
 Covers: BR-6 (TC-6.2), BR-12 (TC-12.3, TC-12.4, TC-12.5), BR-13 (TC-13.1, TC-13.2, TC-13.3).
 
-- [ ] **Step 1: Write the spec** with the spec's strings.
-- [ ] **Step 2: Run** the mock build, then `pnpm --filter @agentdesk/web exec playwright test e2e/mock/project-members-edit.spec.ts`. Expected: PASS.
-- [ ] **Step 3: Commit**: `test(web): mock e2e for project invites, role changes and removals`.
+- [x] **Step 1: Write the spec** with the spec's strings.
+- [x] **Step 2: Run** the mock build, then `pnpm --filter @agentdesk/web exec playwright test e2e/mock/project-members-edit.spec.ts`. Expected: PASS.
+- [x] **Step 3: Commit**: `test(web): mock e2e for project invites, role changes and removals`.
 
 ---
 
@@ -1189,9 +1189,9 @@ Covers: BR-6 (TC-6.2), BR-12 (TC-12.3, TC-12.4, TC-12.5), BR-13 (TC-13.1, TC-13.
 
 Covers: BR-2 (TC-2.2, TC-2.4), BR-16 (TC-16.1, TC-16.2, TC-16.3), BR-19 (TC-19.1), BR-20 (TC-20.1, TC-20.2, TC-20.3), BR-27 (TC-27.1 to TC-27.5 and TC-27.8 in `project-audit.spec.ts`; TC-27.6 and TC-27.7 in `org-audit.spec.ts`, which keeps TC-20.6). BR-16's backfill and BR-27's expired-on-local are Not e2e (Tasks 4 and 9).
 
-- [ ] **Step 1: Write the specs** with the spec's sentences; TC-27.6 reads the cell `title`.
-- [ ] **Step 2: Run** the mock build, then `pnpm --filter @agentdesk/web exec playwright test e2e/mock/project-audit.spec.ts e2e/mock/org-audit.spec.ts`. Expected: PASS.
-- [ ] **Step 3: Commit**: `test(web): mock e2e for the project audit log and invitation project names`.
+- [x] **Step 1: Write the specs** with the spec's sentences; TC-27.6 reads the cell `title`.
+- [x] **Step 2: Run** the mock build, then `pnpm --filter @agentdesk/web exec playwright test e2e/mock/project-audit.spec.ts e2e/mock/org-audit.spec.ts`. Expected: PASS.
+- [x] **Step 3: Commit**: `test(web): mock e2e for the project audit log and invitation project names`.
 
 ---
 

@@ -372,10 +372,33 @@ export function removeProjectMember(db: MockDb, actor: MockUser, projectId: stri
 }
 
 /** `projects.audit`: the entries tagged P, newest first (time, then id). */
-export async function listProjectAudit(db: MockDb, projectId: string, query: PageQuery): Promise<Page<AuditEntryDto>> {
+export async function listProjectAudit(
+  db: MockDb,
+  projectId: string,
+  query: PageQuery,
+  viewer: { userId: string; orgId: string },
+): Promise<Page<AuditEntryDto>> {
   await gate(db, 'audit');
-  const entries = [...(db.state.projectSpace.audit[projectId] ?? [])].sort(
-    (a, b) => b.at.localeCompare(a.at) || b.id.localeCompare(a.id),
-  );
+  const reach = seatOf(db, viewer.userId, viewer.orgId)?.projectIds;
+  const entries = [...(db.state.projectSpace.audit[projectId] ?? [])]
+    .sort((a, b) => b.at.localeCompare(a.at) || b.id.localeCompare(a.id))
+    .map((entry) => sortProjects(reach ? redactInvitation(entry, reach) : entry));
   return slicePage(entries, query);
+}
+
+/** The listed projects as the API sends them: sorted by name, then id. */
+function sortProjects(entry: AuditEntryDto): AuditEntryDto {
+  const projects = [...entry.projects].sort((a, b) => a.name.localeCompare(b.name) || a.id.localeCompare(b.id));
+  return { ...entry, projects };
+}
+
+/**
+ * A viewer who administers only some projects (BR-27): an invitation entry names only the listed projects they can
+ * see, and shows the invitee's email only when they can see every listed project. Other entries are untouched.
+ */
+function redactInvitation(entry: AuditEntryDto, reach: string[]): AuditEntryDto {
+  if (!entry.action.startsWith('invitation.')) return entry;
+  const projects = entry.projects.filter((p) => reach.includes(p.id));
+  const sawAll = projects.length === entry.projects.length;
+  return { ...entry, projects, target: sawAll ? entry.target : { ...entry.target, label: null } };
 }

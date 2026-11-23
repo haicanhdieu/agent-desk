@@ -257,6 +257,45 @@ describe('the store', () => {
   });
 });
 
+describe('invitation entries per viewer (BR-27)', () => {
+  const invitations = (items: Awaited<ReturnType<typeof audit>>['items']) =>
+    items.filter((e) => e.action.startsWith('invitation.'));
+
+  it('an owner gets every listed project name and the email', async () => {
+    apply('owner');
+    const full = invitations((await audit(P, { pageSize: 100 })).items).find(
+      (e) => e.target.label === 'wide.access@contractor.io',
+    );
+    expect(full?.projects).toHaveLength(5);
+  });
+
+  it('a project admin of P loses the email and the names of projects they cannot see when the invitation lists more than P', async () => {
+    apply('projectAdmin');
+    const items = invitations((await audit(P, { pageSize: 100 })).items);
+    for (const e of items) expect(e.projects.every((p) => p.id === P)).toBe(true);
+    expect(JSON.stringify(items)).not.toContain('wide.access@contractor.io');
+    expect(JSON.stringify(items)).not.toContain('invoicer-web');
+  });
+
+  it('names the projects sorted by name, then id, for an owner and for a project admin', async () => {
+    for (const role of ['owner', 'projectAdmin'] as const) {
+      apply(role);
+      for (const e of invitations((await audit(P, { pageSize: 100 })).items)) {
+        const sorted = [...e.projects].sort((a, b) => a.name.localeCompare(b.name) || a.id.localeCompare(b.id));
+        expect(e.projects).toEqual(sorted);
+      }
+    }
+  });
+
+  it('a project admin keeps the email of an invitation that lists only P', async () => {
+    apply('projectAdmin');
+    const items = invitations((await audit(P, { pageSize: 100 })).items);
+    expect(items.some((e) => e.action === 'invitation.resent' && e.target.label === 'noor.ali@contractor.io')).toBe(
+      true,
+    );
+  });
+});
+
 describe('list scenarios', () => {
   it('membersEmpty and auditEmpty', async () => {
     apply('owner', 'membersEmpty');

@@ -650,8 +650,8 @@ const impl: Impl = {
     return toProjectDto(row);
   },
   'projects.audit': ({ params, query }) => {
-    projectInScope(params.projectId);
-    return listProjectAudit(mockDb, params.projectId, query);
+    const { user, orgId } = projectInScope(params.projectId);
+    return listProjectAudit(mockDb, params.projectId, query, { userId: user.id, orgId });
   },
   'projectMembers.list': ({ params, query }) => {
     projectInScope(params.projectId);

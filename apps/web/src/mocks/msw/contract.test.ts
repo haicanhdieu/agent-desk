@@ -286,6 +286,13 @@ describe('project space fixtures', () => {
     }
   });
 
+  it('lists the projects of every audit entry sorted by name, then id, as the API sends them', () => {
+    for (const e of [...auditEntryFixtures, ...projectAuditFixtures, ...otherProjectAuditFixtures]) {
+      const sorted = [...e.projects].sort((a, b) => a.name.localeCompare(b.name) || a.id.localeCompare(b.id));
+      expect(e.projects).toEqual(sorted);
+    }
+  });
+
   it('uses fixed seed times, newest first', () => {
     const times = projectAuditFixtures.map((e) => Date.parse(e.at));
     expect(times).toEqual([...times].sort((a, b) => b - a));
