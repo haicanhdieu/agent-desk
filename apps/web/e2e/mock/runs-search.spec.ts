@@ -11,14 +11,20 @@ const runLinks = (page: Page) => page.getByRole('link', { name: /^Run \d+$/ });
 
 test('typing narrows the list after a pause and puts q in the URL; the clear button restores it', async ({ page }) => {
   await page.goto(RUNS);
-  await expect(runLinks(page)).toHaveCount(12);
-  await searchBox(page).fill('kim-hale');
-  await expect(page).toHaveURL(/[?&]q=kim-hale/);
-  await expect.poll(() => runLinks(page).count()).toBeLessThan(12);
+  await expect(runLinks(page).first()).toBeVisible();
+  const all = await runLinks(page).count();
+  await searchBox(page).fill('code-review');
+  await expect(page).toHaveURL(/[?&]q=code-review/);
+  await expect
+    .poll(async () => {
+      const narrowed = await runLinks(page).count();
+      return narrowed > 0 && narrowed < all;
+    })
+    .toBe(true);
   await page.getByRole('button', { name: 'Clear search' }).click();
   await expect(searchBox(page)).toHaveValue('');
   await expect(page).not.toHaveURL(/[?&]q=/);
-  await expect(runLinks(page)).toHaveCount(12);
+  await expect(runLinks(page)).toHaveCount(all);
 });
 
 test('a link with ?q= shows the query in the box and keeps it on the status chips', async ({ page }) => {
@@ -28,10 +34,13 @@ test('a link with ?q= shows the query in the box and keeps it on the status chip
 });
 
 test('a search with no match says so with the query and offers Clear search', async ({ page }) => {
+  await page.goto(RUNS);
+  await expect(runLinks(page).first()).toBeVisible();
+  const all = await runLinks(page).count();
   await page.goto(`${RUNS}?q=nomatchatall`);
   await expect(page.getByRole('heading', { level: 2, name: 'No runs match “nomatchatall”' })).toBeVisible();
   await page.getByRole('main').getByRole('button', { name: 'Clear search' }).last().click();
-  await expect(runLinks(page)).toHaveCount(12);
+  await expect(runLinks(page)).toHaveCount(all);
 });
 
 test('the Ignored view has no search box', async ({ page }) => {
