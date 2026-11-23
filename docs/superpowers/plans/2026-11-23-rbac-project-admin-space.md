@@ -1290,7 +1290,7 @@ Covers: BR-8 (TC-8.1 to TC-8.4), BR-9 (TC-9.1 to TC-9.5), BR-10 (TC-10.1, TC-10.
 
 **Interfaces:** Consumes `project-admin.ts` (Task 32), `secondOrg`.
 
-Covers: BR-16 (TC-16.4, TC-16.5), BR-17 (TC-17.1, TC-17.2, TC-17.3), BR-18 (TC-18.1 to TC-18.8), BR-19 (TC-19.2, TC-19.3, TC-19.4), BR-25 (TC-25.3).
+Covers: BR-16 (TC-16.4, TC-16.5), BR-17 (TC-17.1, TC-17.2, TC-17.3), BR-18 (TC-18.1 to TC-18.6 and TC-18.8; TC-18.7 is deferred to #176, environment entries need that feature), BR-19 (TC-19.2, TC-19.3, TC-19.4), BR-25 (TC-25.3).
 
 - [ ] **Step 1: Write the spec**: TC-18.3 and TC-18.7 assert the test value appears nowhere on the page.
 - [ ] **Step 2: Run** with the stack up: `pnpm --filter @agentdesk/web exec playwright test e2e/local/rbac-project-admin-audit.spec.ts`. Expected: PASS.
