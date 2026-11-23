@@ -483,11 +483,9 @@ test('TC-23.6: after the acceptance the Audit log shows the role granted through
     await expect(row.getByRole('cell').nth(WHO)).toHaveText(invitee?.name ?? '');
     // The invitee has no accepted entry for another role (O's own Owner acceptance is a different row).
     await expect(
-      w.o.page
-        .locator('tbody tr td:nth-child(3)')
-        .filter({
-          hasText: new RegExp(`^${escapeRegExp(invitee?.name ?? '')} accepted an invitation as (?!Member\\b)`),
-        }),
+      w.o.page.locator('tbody tr td:nth-child(3)').filter({
+        hasText: new RegExp(`^${escapeRegExp(invitee?.name ?? '')} accepted an invitation as (?!Member\\b)`),
+      }),
     ).toHaveCount(0);
     // The grant row of the same accept: actor O (who granted the role), target the invitee, linked to the invitation.
     const granted = (await auditOf(w.o.api, w.org.id)).filter(
