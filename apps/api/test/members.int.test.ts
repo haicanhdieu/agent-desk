@@ -18,6 +18,7 @@ import {
   invite,
   inviteAndLogin,
   loginAs,
+  memberSearch,
   removeMember,
   revoke,
   roleIdsOf,
@@ -970,5 +971,134 @@ describe('removing a member', () => {
     const line = logLines.find((l) => l['action'] === 'member.removed' && l['level'] === 30);
     expect(line).toMatchObject({ orgId: f.orgId, actorUserId: f.ids.o, targetUserId: f.ids.b });
     expect(JSON.stringify(logLines)).not.toContain('@dev.local');
+  });
+});
+
+describe('searching members and leaving out a project', () => {
+  const handles = (res: { json: () => unknown }) => (res.json() as Page<MemberDto>).items.map((i) => i.handle);
+
+  async function rename(handle: string, name: string): Promise<void> {
+    await t.db.pool.query('update "user" set name = $1 where handle = $2', [name, handle]);
+  }
+
+  it('N-FILTER: excludeProject leaves out the project members, and total counts only eligible people', async () => {
+    const f = await buildCast('mem-ex');
+    const res = await memberSearch(t, f.o, f.orgId, { excludeProject: f.p1 });
+    expect(res.statusCode).toBe(200);
+    const page = expectContract('members.list', res) as Page<MemberDto>;
+    expect(page.items.map((i) => i.handle)).toEqual(['mem-ex-n', 'mem-ex-o', 'mem-ex-v']);
+    expect(page.total).toBe(3);
+    expect(JSON.stringify(page)).not.toContain('email');
+    // a project admin on P1 may use the filter on P1
+    expect((await memberSearch(t, f.a, f.orgId, { excludeProject: f.p1 })).statusCode).toBe(200);
+  });
+
+  it('N-FILTER: the exclusion happens before paging', async () => {
+    const f = await buildCast('mem-expage');
+    for (let i = 0; i < 24; i++) {
+      await inviteAndLogin(t, f.orgId, `mem-expage-x${String(i).padStart(2, '0')}`, 'viewer', { type: 'org' });
+    }
+    const first = (await memberSearch(t, f.o, f.orgId, { excludeProject: f.p1, pageSize: 20 })).json<Page<MemberDto>>();
+    const second = (await memberSearch(t, f.o, f.orgId, { excludeProject: f.p1, pageSize: 20, page: 2 })).json<
+      Page<MemberDto>
+    >();
+    expect(first.total).toBe(27);
+    expect(second.total).toBe(27);
+    expect(first.items).toHaveLength(20);
+    expect(second.items).toHaveLength(7);
+  });
+
+  it('BR-24: q is optional, trimmed, bounded to 1 to 100 characters and answers 400 /q otherwise', async () => {
+    const f = await buildCast('mem-qlen');
+    expect(handles(await memberSearch(t, f.o, f.orgId, {}))).toHaveLength(5);
+    for (const q of ['', '   ', 'a'.repeat(101)]) {
+      const res = await memberSearch(t, f.o, f.orgId, { q });
+      expect(res.statusCode).toBe(400);
+      expect(res.body).toContain('/q');
+    }
+    expect((await memberSearch(t, f.o, f.orgId, { q: 'a' })).statusCode).toBe(200);
+    expect((await memberSearch(t, f.o, f.orgId, { q: 'a'.repeat(100) })).statusCode).toBe(200);
+  });
+
+  it('BR-24: q matches name and handle case-insensitively', async () => {
+    const f = await buildCast('mem-qci');
+    await rename('mem-qci-b', 'Alice Wonder');
+    expect(handles(await memberSearch(t, f.o, f.orgId, { q: 'ali' }))).toEqual(['mem-qci-b']);
+    expect(handles(await memberSearch(t, f.o, f.orgId, { q: 'WONDER' }))).toEqual(['mem-qci-b']);
+    expect(handles(await memberSearch(t, f.o, f.orgId, { q: 'MEM-QCI-V' }))).toEqual(['mem-qci-v']);
+    const page = (await memberSearch(t, f.o, f.orgId, { q: 'ali' })).json<Page<MemberDto>>();
+    expect(page.total).toBe(1);
+  });
+
+  it('BR-24: percent, underscore and backslash match only literally', async () => {
+    const f = await buildCast('mem-qesc');
+    await rename('mem-qesc-a', '100% sure');
+    await rename('mem-qesc-b', 'snake_case');
+    await rename('mem-qesc-v', 'back\\slash');
+    expect(handles(await memberSearch(t, f.o, f.orgId, { q: '%' }))).toEqual(['mem-qesc-a']);
+    expect(handles(await memberSearch(t, f.o, f.orgId, { q: 'e_c' }))).toEqual(['mem-qesc-b']);
+    expect(handles(await memberSearch(t, f.o, f.orgId, { q: '\\' }))).toEqual(['mem-qesc-v']);
+    expect(handles(await memberSearch(t, f.o, f.orgId, { q: 'snake.case' }))).toEqual([]);
+  });
+
+  it('BR-24: q combines with excludeProject', async () => {
+    const f = await buildCast('mem-qcomb');
+    expect(handles(await memberSearch(t, f.o, f.orgId, { q: 'mem-qcomb-', excludeProject: f.p1 }))).toEqual([
+      'mem-qcomb-n',
+      'mem-qcomb-o',
+      'mem-qcomb-v',
+    ]);
+    expect(handles(await memberSearch(t, f.o, f.orgId, { q: 'mem-qcomb-a', excludeProject: f.p1 }))).toEqual([]);
+  });
+
+  it('BR-7: a project out of scope, unknown or in another org is one identical 404', async () => {
+    const f = await buildCast('mem-ex404');
+    const other = await buildCast('mem-ex404-o');
+    const bodies = new Set<string>();
+    for (const id of [f.p2, randomUUID(), other.p1]) {
+      const res = await memberSearch(t, f.a, f.orgId, { excludeProject: id });
+      expect(res.statusCode).toBe(404);
+      const { title, detail, status } = res.json<{ title: string; detail: string; status: number }>();
+      bodies.add(JSON.stringify({ title, detail, status }));
+    }
+    expect(bodies.size).toBe(1);
+    expect((await memberSearch(t, f.o, f.orgId, { excludeProject: other.p1 })).statusCode).toBe(404);
+  });
+
+  it('BR-7: a malformed project id is refused by the contract with 400 /excludeProject', async () => {
+    const f = await buildCast('mem-ex400');
+    const res = await memberSearch(t, f.a, f.orgId, { excludeProject: 'nope' });
+    expect(res.statusCode).toBe(400);
+    expect(res.body).toContain('/excludeProject');
+  });
+
+  it('BR-7: members and viewers get 403 from the base guard, before any project lookup', async () => {
+    const f = await buildCast('mem-ex403');
+    const other = await buildCast('mem-ex403-o');
+    const p2member = await inviteAndLogin(t, f.orgId, 'mem-ex403-p2', 'member', {
+      type: 'project',
+      projectIds: [f.p2],
+    });
+    for (const cookie of [p2member, f.b, f.v]) {
+      for (const id of [f.p1, f.p2, randomUUID(), other.p1]) {
+        expect((await memberSearch(t, cookie, f.orgId, { excludeProject: id })).statusCode).toBe(403);
+      }
+    }
+  });
+
+  it('BR-7: admin on one project and plain member on the filtered one gets 403 there, 200 on their own', async () => {
+    const f = await buildCast('mem-ex403b');
+    const mixed = await inviteAndLogin(t, f.orgId, 'mem-ex403b-m', 'admin', { type: 'project', projectIds: [f.p1] });
+    await grant(t, f.orgId, await userIdOf(t, 'mem-ex403b-m'), 'member', { type: 'project', projectId: f.p2 });
+    expect((await memberSearch(t, mixed, f.orgId, { excludeProject: f.p2 })).statusCode).toBe(403);
+    expect((await memberSearch(t, mixed, f.orgId, { excludeProject: f.p1 })).statusCode).toBe(200);
+  });
+
+  it('BR-7: the filter never adds assignments the caller could not see without it', async () => {
+    const f = await buildCast('mem-exsame');
+    const plain = (await memberSearch(t, f.a, f.orgId, {})).json<Page<MemberDto>>();
+    const filtered = (await memberSearch(t, f.a, f.orgId, { excludeProject: f.p1 })).json<Page<MemberDto>>();
+    const byId = new Map(plain.items.map((i) => [i.userId, i]));
+    for (const item of filtered.items) expect(item).toEqual(byId.get(item.userId));
   });
 });

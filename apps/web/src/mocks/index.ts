@@ -32,6 +32,10 @@ export type {
   RoleCardOption,
   AuditTextPart,
   AuditRowView,
+  ProjectRoleKey,
+  ProjectMemberRowView,
+  MemberPickerOption,
+  MemberPickerState,
 } from './types';
 export { user, bot, projects, deskFrame } from './projects';
 export {
@@ -64,6 +68,16 @@ export { pagedRuns, pagedIgnored, pagedNeedsYou, pagedProjects, pagedRules, page
 export { orgOptions, orgSwitchFixtures } from './orgs';
 export { memberRows, roleCards } from './members';
 export { auditRows, pagedAuditLastPage, pagedAuditRows } from './audit';
+export {
+  projectMemberRows,
+  pagedProjectMemberRows,
+  memberPickerOptions,
+  manyPickerOptions,
+  projectRoleCards,
+  projectAuditRows,
+  projectAuditRowsNoEmail,
+  projectAuditRowsExpired,
+} from './projectMembers';
 export { orgSettingsFixtures } from './orgSettings';
 export { checklistSteps, pendingInvitationsCount } from './onboarding';
 export {

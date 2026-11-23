@@ -609,14 +609,14 @@ export const NOT_ON_PROJECT = 'Member is no longer on this project'; // 404 titl
 - Consumes: `MembersListQuery` (Task 2), `memberSearch` helper (Task 2), `inScope`, `can`.
 - Produces: `MembersService.list(access: Access, orgId: string, q: MembersListQuery): Promise<Page<MemberDto>>`; private `load(orgId, q: PageQuery, visible, only?, filter?: { q?: string; excludeProject?: string })`; exported `escapeLike(text: string): string` (escapes `\`, `%`, `_`).
 
-- [ ] **Step 1: Write the failing tests** in `members.int.test.ts` (N-FILTER, BR-7, BR-24):
+- [x] **Step 1: Write the failing tests** in `members.int.test.ts` (N-FILTER, BR-7, BR-24):
   - A with `excludeProject=P1` → C and B absent, D and an org member with no role present; `total` counts only eligible people; with 25+ eligible, page 2 has the rest and the same `total` (exclusion before paging).
   - `q`: absent lists everyone; `q=''`, `q='   '`, 101 characters → 400 with pointer `/q`; 1 and 100 characters accepted; `ali` matches `Alice` by name and `ALI` matches handle `ali-x` (case-insensitive); members named with `%`, `_`, `\` match only literally; `q` combined with `excludeProject`.
   - Access: P out of A's scope, unknown, malformed and another org's id → one identical 404 body; a P2-only member (no `assignment:read`) with `excludeProject=P2` → 403; a member or viewer → 403 as today; the filter never adds assignments the caller could not see without it (compare with and without); no `email` key.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/api exec vitest run test/members.int.test.ts`. Expected: FAIL.
-- [ ] **Step 3: Implement** the checks in the order of Global Constraints (project lookup under `withOrg` with a uuid check first), the `NOT EXISTS` and `ILIKE … ESCAPE '\'` conditions in the shared `inOrg` WHERE of both queries, the controller's query type; logs never carry `q`.
-- [ ] **Step 4: Run** Step 2's command and `pnpm --filter @agentdesk/api typecheck`. Expected: PASS. E2E: Tasks 32 and 34.
-- [ ] **Step 5: Commit**: `feat(api): search org members and leave out a project's members`. Label `review:sensitive` (access check).
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/api exec vitest run test/members.int.test.ts`. Expected: FAIL.
+- [x] **Step 3: Implement** the checks in the order of Global Constraints (project lookup under `withOrg` with a uuid check first), the `NOT EXISTS` and `ILIKE … ESCAPE '\'` conditions in the shared `inOrg` WHERE of both queries, the controller's query type; logs never carry `q`.
+- [x] **Step 4: Run** Step 2's command and `pnpm --filter @agentdesk/api typecheck`. Expected: PASS. E2E: Tasks 32 and 34.
+- [x] **Step 5: Commit**: `feat(api): search org members and leave out a project's members`. Label `review:sensitive` (access check).
 
 ---
 
@@ -660,11 +660,11 @@ export const pagedProjectAuditFixtures: AuditEntryDto[];
 
   `mocks/audit.ts` org audit rows: project-scoped invitation sentences gain " to <projects>" (one with 2 projects, one with more than 3 and the full `title`, one org-scope without suffix, one expired with and without email). `dto/access.ts` owner and admin role fixtures gain `project-audit:read`.
 
-- [ ] **Step 1: Write the failing test** in `contract.test.ts`: every new DTO fixture parses (`ProjectMemberDto`, `MemberDto`, `AuditEntryDto` with `projects`); no fixture of P's audit carries another project's id outside `projects` of a full-visibility row; fixed seed times.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/mocks`. Expected: FAIL (missing exports).
-- [ ] **Step 3: Implement** the types and fixtures with the board people (Lee Park project admin of invoicer-api, Kim Hale org owner, Mira Chen member) and the spec copy.
-- [ ] **Step 4: Run** Step 2's command and `pnpm --filter @agentdesk/web typecheck`. Expected: PASS.
-- [ ] **Step 5: Commit**: `feat(web): project space view types and fixtures`.
+- [x] **Step 1: Write the failing test** in `contract.test.ts`: every new DTO fixture parses (`ProjectMemberDto`, `MemberDto`, `AuditEntryDto` with `projects`); no fixture of P's audit carries another project's id outside `projects` of a full-visibility row; fixed seed times.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/mocks`. Expected: FAIL (missing exports).
+- [x] **Step 3: Implement** the types and fixtures with the board people (Lee Park project admin of invoicer-api, Kim Hale org owner, Mira Chen member) and the spec copy.
+- [x] **Step 4: Run** Step 2's command and `pnpm --filter @agentdesk/web typecheck`. Expected: PASS.
+- [x] **Step 5: Commit**: `feat(web): project space view types and fixtures`.
 
 ---
 
