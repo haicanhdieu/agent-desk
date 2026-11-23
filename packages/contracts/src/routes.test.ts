@@ -33,8 +33,11 @@ describe('contracts', () => {
   });
   it('every platform route lives under /api/platform/', () => {
     const platform = Object.entries(flattenRoutes(routes)).filter(([k]) => k.startsWith('platform.'));
-    expect(platform).toHaveLength(15);
+    expect(platform).toHaveLength(16);
     for (const [, r] of platform) expect(r.path.startsWith('/api/platform/')).toBe(true);
+  });
+  it('platform.getOrg reads one org by id', () => {
+    expect(routes.platform.getOrg).toMatchObject({ method: 'GET', path: '/api/platform/orgs/:orgId' });
   });
   it('platform admin routes are listed, granted and revoked under /api/platform/admins', () => {
     expect(routes.platform.listAdmins).toMatchObject({ method: 'GET', path: '/api/platform/admins' });
@@ -61,7 +64,7 @@ describe('contracts', () => {
       method: 'POST',
       path: '/api/projects/:projectId/connection/poll',
     });
-    expect(Object.keys(flat)).toHaveLength(85);
+    expect(Object.keys(flat)).toHaveLength(86);
     expect(flat['assignments.remove']).toMatchObject({
       method: 'DELETE',
       path: '/api/orgs/:orgId/assignments/:assignmentId',

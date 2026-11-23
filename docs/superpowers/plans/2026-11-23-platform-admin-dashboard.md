@@ -728,16 +728,16 @@ export function getPlatformOrg(orgId: string): PlatformOrgDetailDto; // throws n
 export const platformOrgDtoFixtures: PlatformOrgDto[]; // active, suspended, no owner, two owners (earliest shown), no activity, long name, "Acme"/acme, "Beta"/beta-labs
 ```
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
   - `platform.test.ts` (BR-18 to BR-20 contract): the new keys; `owner` and `lastActivityAt` nullable; `PlatformOrgListQuery` accepts `{}`, `{q: 'a'.repeat(100)}`, `{status: 'suspended'}`; rejects `{q: 'a'.repeat(101)}`, `{status: 'deleted'}`.
   - `routes.test.ts`, `route-access.test.ts`: `platform.getOrg` path, method and entry; counts +1.
   - `authz.int.test.ts`: `'platform.getOrg': platformRoute(200)` and the key in `NOT_REGISTERED_YET`.
   - `contract.test.ts`: the fixtures parse; `listPlatformOrgs({q: 'ACME'})` returns only Acme, `{q: 'labs'}` only Beta, `{status: 'suspended'}` only suspended rows, `{q: '%'}` none; `getPlatformOrg('unknown')` is a 404.
   - `platformScenarios.test.ts`: `platformAdminOrgs` lists the directory fixtures; `platformEmpty` lists no org.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/contracts exec vitest run`. Expected: FAIL.
-- [ ] **Step 3: Implement** the contracts; in `orgs.service.ts` `listOrgs` returns the placeholder values named in the Agent calls (Task 13 replaces them); the MSW store, handlers (`platform.listOrgs`, `platform.getOrg`, `platform.createOrg` adds to the store with `owner: null`) and the two scenarios' org data; move the old `platformOrgFixtures` users to the new store.
-- [ ] **Step 4: Run** Step 2's command, `pnpm --filter @agentdesk/api typecheck`, `pnpm --filter @agentdesk/api exec vitest run test/authz.int.test.ts`, `pnpm --filter @agentdesk/web exec vitest run src/mocks`, `pnpm --filter @agentdesk/web typecheck`. Expected: PASS.
-- [ ] **Step 5: Commit**: `feat(contracts): platform directory fields, search and org detail route`. Label `review:sensitive` (routeAccess).
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/contracts exec vitest run`. Expected: FAIL.
+- [x] **Step 3: Implement** the contracts; in `orgs.service.ts` `listOrgs` returns the placeholder values named in the Agent calls (Task 13 replaces them); the MSW store, handlers (`platform.listOrgs`, `platform.getOrg`, `platform.createOrg` adds to the store with `owner: null`) and the two scenarios' org data; move the old `platformOrgFixtures` users to the new store.
+- [x] **Step 4: Run** Step 2's command, `pnpm --filter @agentdesk/api typecheck`, `pnpm --filter @agentdesk/api exec vitest run test/authz.int.test.ts`, `pnpm --filter @agentdesk/web exec vitest run src/mocks`, `pnpm --filter @agentdesk/web typecheck`. Expected: PASS.
+- [x] **Step 5: Commit**: `feat(contracts): platform directory fields, search and org detail route`. Label `review:sensitive` (routeAccess).
 
 ---
 

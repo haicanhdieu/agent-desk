@@ -9,7 +9,6 @@ import {
   type PermissionLineDto,
   type PlatformAdminDto,
   type PlatformMemberDto,
-  type PlatformOrgDto,
   type PlatformProjectDto,
   type RoleDto,
 } from '@agentdesk/contracts';
@@ -131,11 +130,6 @@ export const accessFixture: AccessDto = {
   platformAdmin: false,
   assignments: [{ roleKey: 'owner', scope: { type: 'org' }, permissions: TENANT_PERMISSIONS.map(any) }],
 };
-
-export const platformOrgFixtures: PlatformOrgDto[] = [
-  { id: uuid('b4000000', 1), name: 'Harbor Labs', slug: 'harbor-labs', memberCount: 2, createdAt: MOCK_NOW },
-  { id: uuid('b4000000', 2), name: 'Acme', slug: 'acme', memberCount: 1, createdAt: MOCK_NOW },
-];
 
 export const platformProjectFixtures: PlatformProjectDto[] = [
   { id: ids.project.invoicerApi, name: 'invoicer-api' },

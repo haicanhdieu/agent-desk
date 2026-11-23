@@ -142,6 +142,7 @@ const MATRIX: Record<RouteKey, Row> = {
   'orgs.checklist': ADMINS,
   'platform.createOrg': NOBODY,
   'platform.listOrgs': NOBODY,
+  'platform.getOrg': NOBODY,
   'platform.listProjects': NOBODY,
   'platform.listRoles': NOBODY,
   'platform.listMembers': NOBODY,

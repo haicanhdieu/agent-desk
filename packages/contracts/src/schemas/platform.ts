@@ -1,7 +1,9 @@
 import { z } from 'zod';
+import { OrgStatus } from '../enums';
 import { OrgSlug } from '../slug';
 import { AssignmentDto, InvitationDto, InvitationEmail, InviterDto, RoleDto } from './access';
 import { Id, Timestamp } from './common';
+import { PageQuery } from './page';
 
 export const OrgName = z.string().min(1).max(100);
 export type OrgName = z.infer<typeof OrgName>;
@@ -20,14 +22,44 @@ export type OrgDto = z.infer<typeof OrgDto>;
 export const CreateOrgResponse = z.object({ id: Id, name: z.string(), slug: z.string() });
 export type CreateOrgResponse = z.infer<typeof CreateOrgResponse>;
 
+export const PlatformOrgOwnerDto = z.object({
+  userId: z.string(),
+  name: z.string(),
+  handle: z.string().nullable(),
+  email: z.string(),
+});
+export type PlatformOrgOwnerDto = z.infer<typeof PlatformOrgOwnerDto>;
+
 export const PlatformOrgDto = z.object({
   id: Id,
   name: z.string(),
   slug: z.string(),
   memberCount: z.number().int().min(0),
   createdAt: Timestamp,
+  status: OrgStatus,
+  suspendedAt: Timestamp.nullable(),
+  projectCount: z.number().int().min(0),
+  lastActivityAt: Timestamp.nullable(),
+  owner: PlatformOrgOwnerDto.nullable(),
 });
 export type PlatformOrgDto = z.infer<typeof PlatformOrgDto>;
+
+export const PlatformOrgSuspensionDto = z.object({
+  at: Timestamp,
+  reason: z.string(),
+  by: z.object({ userId: z.string(), name: z.string(), handle: z.string().nullable() }).nullable(),
+});
+export type PlatformOrgSuspensionDto = z.infer<typeof PlatformOrgSuspensionDto>;
+
+export const PlatformOrgDetailDto = PlatformOrgDto.extend({ suspension: PlatformOrgSuspensionDto.nullable() });
+export type PlatformOrgDetailDto = z.infer<typeof PlatformOrgDetailDto>;
+
+export const ORG_SEARCH_MAX = 100;
+export const PlatformOrgListQuery = PageQuery.extend({
+  q: z.string().trim().max(ORG_SEARCH_MAX).optional(),
+  status: OrgStatus.optional(),
+});
+export type PlatformOrgListQuery = z.infer<typeof PlatformOrgListQuery>;
 
 export const PlatformProjectDto = z.object({ id: Id, name: z.string() });
 export type PlatformProjectDto = z.infer<typeof PlatformProjectDto>;

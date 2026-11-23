@@ -27,7 +27,9 @@ import {
   PlatformAssignmentDto,
   PlatformInvitationDto,
   PlatformMemberDto,
+  PlatformOrgDetailDto,
   PlatformOrgDto,
+  PlatformOrgListQuery,
   PlatformProjectDto,
   PlatformRoleDto,
   PlatformSessionDto,
@@ -491,7 +493,13 @@ export const routes = {
   },
   platform: {
     createOrg: { method: 'POST', path: '/api/platform/orgs', body: CreateOrgRequest, response: CreateOrgResponse },
-    listOrgs: { method: 'GET', path: '/api/platform/orgs', query: PageQuery, response: pageOf(PlatformOrgDto) },
+    listOrgs: {
+      method: 'GET',
+      path: '/api/platform/orgs',
+      query: PlatformOrgListQuery,
+      response: pageOf(PlatformOrgDto),
+    },
+    getOrg: { method: 'GET', path: '/api/platform/orgs/:orgId', params: orgParams, response: PlatformOrgDetailDto },
     listProjects: {
       method: 'GET',
       path: '/api/platform/orgs/:orgId/projects',

@@ -1,11 +1,16 @@
 import { describe, expect, it } from 'vitest';
+import { OrgStatus } from '../enums';
 import { pageOf } from './page';
 import {
   CreateOrgRequest,
   GrantPlatformAdminRequest,
   OrgDto,
   PlatformAdminDto,
+  ORG_SEARCH_MAX,
   PlatformMemberDto,
+  PlatformOrgDetailDto,
+  PlatformOrgDto,
+  PlatformOrgListQuery,
   PlatformRoleDto,
   PlatformSessionDto,
   UpdateOrgRequest,
@@ -142,5 +147,58 @@ describe('PlatformSessionDto', () => {
   it('rejects an empty object and a non-boolean', () => {
     expect(PlatformSessionDto.safeParse({}).success).toBe(false);
     expect(PlatformSessionDto.safeParse({ platformAdmin: 'true' }).success).toBe(false);
+  });
+});
+
+describe('PlatformOrgDto directory fields', () => {
+  const org = {
+    id: ID,
+    name: 'Acme',
+    slug: 'acme',
+    memberCount: 1,
+    createdAt: '2026-11-01T10:00:00.000Z',
+    status: 'active',
+    suspendedAt: null,
+    projectCount: 0,
+    lastActivityAt: null,
+    owner: null,
+  };
+  it('accepts a null owner and a null lastActivityAt', () => {
+    expect(PlatformOrgDto.safeParse(org).success).toBe(true);
+  });
+  it('accepts an owner', () => {
+    const owner = { userId: 'u', name: 'N', handle: null, email: 'a@b.co' };
+    expect(PlatformOrgDto.safeParse({ ...org, owner }).success).toBe(true);
+  });
+  it.each(['status', 'suspendedAt', 'projectCount', 'lastActivityAt', 'owner'])('requires %s', (key) => {
+    const rest: Record<string, unknown> = { ...org };
+    delete rest[key];
+    expect(PlatformOrgDto.safeParse(rest).success).toBe(false);
+  });
+  it('rejects a status that is not active or suspended', () => {
+    expect(OrgStatus.safeParse('deleted').success).toBe(false);
+  });
+  it('the detail adds a nullable suspension', () => {
+    expect(PlatformOrgDetailDto.safeParse({ ...org, suspension: null }).success).toBe(true);
+    const suspension = {
+      at: '2026-11-02T10:00:00.000Z',
+      reason: 'abuse',
+      by: { userId: 'u', name: 'N', handle: null },
+    };
+    expect(PlatformOrgDetailDto.safeParse({ ...org, suspension }).success).toBe(true);
+    expect(PlatformOrgDetailDto.safeParse({ ...org, suspension: { ...suspension, by: null } }).success).toBe(true);
+    expect(PlatformOrgDetailDto.safeParse(org).success).toBe(false);
+  });
+});
+
+describe('PlatformOrgListQuery', () => {
+  it('caps the search at ORG_SEARCH_MAX', () => {
+    expect(ORG_SEARCH_MAX).toBe(100);
+  });
+  it.each([{}, { q: 'a'.repeat(100) }, { status: 'suspended' }])('accepts %j', (q) => {
+    expect(PlatformOrgListQuery.safeParse(q).success).toBe(true);
+  });
+  it.each([{ q: 'a'.repeat(101) }, { status: 'deleted' }])('rejects %j', (q) => {
+    expect(PlatformOrgListQuery.safeParse(q).success).toBe(false);
   });
 });

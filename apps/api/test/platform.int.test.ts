@@ -179,7 +179,18 @@ describe('platform org and project lists', () => {
     });
     const page = expectContract('platform.listOrgs', res) as Page<PlatformOrgDto>;
     for (const item of page.items) {
-      expect(Object.keys(item).sort()).toEqual(['createdAt', 'id', 'memberCount', 'name', 'slug']);
+      expect(Object.keys(item).sort()).toEqual([
+        'createdAt',
+        'id',
+        'lastActivityAt',
+        'memberCount',
+        'name',
+        'owner',
+        'projectCount',
+        'slug',
+        'status',
+        'suspendedAt',
+      ]);
     }
     const ids = page.items.map((i) => i.id);
     expect(ids.indexOf(second.id)).toBeLessThan(ids.indexOf(first.id));

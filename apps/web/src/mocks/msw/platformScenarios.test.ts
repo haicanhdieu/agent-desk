@@ -3,6 +3,7 @@ import { PAGE_SIZE_DEFAULT } from '@agentdesk/contracts';
 import { ApiError, createApi } from '@agentdesk/contracts/client';
 import { describe, expect, it } from 'vitest';
 import { mockDb } from './db';
+import { platformOrgDtoFixtures } from '../dto/platform';
 import { PLATFORM_SCENARIO_KEY, PLATFORM_SCENARIOS, parsePlatformScenario } from './platformScenarios';
 import { scenarios } from './scenarios';
 
@@ -45,6 +46,18 @@ describe('platform scenarios', () => {
     expect(access.platformAdmin).toBe(true);
     expect(mockDb.state.memberships).toHaveLength(1);
     expect(mockDb.state.memberships[0]?.roleKey).toBe('owner');
+  });
+
+  it('platformAdminOrgs: lists the directory fixtures', async () => {
+    scenarios.platform('platformAdminOrgs');
+    const page = await api.platform.listOrgs({ query: {} });
+    const newestFirst = [...platformOrgDtoFixtures].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+    expect(page.items.map((o) => o.id)).toEqual(newestFirst.map((o) => o.id));
+  });
+
+  it('platformEmpty: lists no org', async () => {
+    scenarios.platform('platformEmpty');
+    expect((await api.platform.listOrgs({ query: {} })).items).toEqual([]);
   });
 
   it('platformAdminNoOrg: a platform admin with no org', async () => {

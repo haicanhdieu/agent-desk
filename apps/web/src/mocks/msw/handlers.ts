@@ -33,13 +33,7 @@ import { authHandlers } from './auth-handlers';
 import { agentModelsAnswer } from './agentModels';
 import { PR_STATES_SLOW_MS, prStateItems } from './prStates';
 import type { MockRun } from '../dto/runs';
-import {
-  assignmentFixtures,
-  platformMemberFixtures,
-  platformOrgFixtures,
-  platformProjectFixtures,
-  roleFixtures,
-} from '../dto/access';
+import { assignmentFixtures, platformMemberFixtures, platformProjectFixtures, roleFixtures } from '../dto/access';
 import { checklistFixtures } from '../dto/invitations';
 import { promptPreviewFixture } from '../dto/rules';
 import { slowActionRuns, transcriptBehaviours } from '../dto/sessionRuns';
@@ -62,6 +56,7 @@ import {
   type RouteKey,
 } from './http';
 import { grantPlatformAdmin, listPlatformAdmins, revokePlatformAdmin } from './platformAdmins';
+import { addPlatformOrg, getPlatformOrg, listPlatformOrgs } from './platformOrgs';
 import { linkedTicketsFor, toDto } from './linkedTickets';
 import {
   changeMemberRole,
@@ -1096,9 +1091,11 @@ const impl: Impl = {
     const org = { id: mockDb.nextId(), name: body.name, slug: body.slug, logo: null, metadata: null, createdAt: now() };
     db().orgs.push(org);
     db().checklists[org.id] = checklistFixtures.none;
+    addPlatformOrg({ id: org.id, name: org.name, slug: org.slug, createdAt: org.createdAt });
     return { id: org.id, name: org.name, slug: org.slug };
   },
-  'platform.listOrgs': ({ query }) => slicePage(platformOrgFixtures, query),
+  'platform.listOrgs': ({ query }) => listPlatformOrgs(query),
+  'platform.getOrg': ({ params }) => getPlatformOrg(params.orgId),
   'platform.listProjects': ({ query }) => slicePage(platformProjectFixtures, query),
   'platform.listRoles': () => roleFixtures,
   'platform.listMembers': ({ query }) => slicePage(platformMemberFixtures, query),

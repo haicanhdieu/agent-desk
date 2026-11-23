@@ -144,6 +144,12 @@ export class OrgsService {
         slug: r.slug,
         memberCount: r.memberCount,
         createdAt: r.createdAt.toISOString(),
+        // Placeholders until the directory query lands in the next task.
+        status: 'active' as const,
+        suspendedAt: null,
+        projectCount: 0,
+        lastActivityAt: null,
+        owner: null,
       })),
       counted?.total ?? 0,
       q,

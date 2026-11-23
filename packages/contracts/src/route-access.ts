@@ -97,6 +97,7 @@ export const routeAccess: Record<RouteKey, RouteAccess> = {
   'orgs.checklist': org('project:create'),
   'platform.createOrg': platform('platform-org:create'),
   'platform.listOrgs': platform('platform-org:read'),
+  'platform.getOrg': platform('platform-org:read'),
   'platform.listProjects': platform('platform-project:read'),
   'platform.listRoles': platform('platform-role:read'),
   'platform.listMembers': platform('platform-member:read'),

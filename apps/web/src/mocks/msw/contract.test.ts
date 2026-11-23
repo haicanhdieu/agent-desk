@@ -9,6 +9,7 @@ import {
   MemberDto,
   MyInvitationDto,
   OrgChecklistDto,
+  PAGE_SIZE_DEFAULT,
   PlatformAdminDto,
   PlatformMemberDto,
   PlatformOrgDto,
@@ -43,12 +44,14 @@ import {
   memberFixtures,
   platformAdminFixtures,
   platformMemberFixtures,
-  platformOrgFixtures,
   platformProjectFixtures,
   roleFixtures,
   tenantAccessFixtures,
   tenantMemberFixtures,
 } from '../dto/access';
+import { platformOrgDtoFixtures } from '../dto/platform';
+import { addPlatformOrg, getPlatformOrg, listPlatformOrgs } from './platformOrgs';
+import { Problem } from './http';
 import { auditEntryFixtures, pagedAuditFixtures } from '../dto/audit';
 import { checklistFixtures, myInvitationFixtures, orgInvitationFixtures } from '../dto/invitations';
 import { agentFixtures } from '../dto/agents';
@@ -106,7 +109,7 @@ describe('MSW handlers cover the contract', () => {
       [InvitationDto, invitationFixtures],
       [MemberDto, memberFixtures],
       [AccessDto, [accessFixture]],
-      [PlatformOrgDto, platformOrgFixtures],
+      [PlatformOrgDto, platformOrgDtoFixtures],
       [PlatformProjectDto, platformProjectFixtures],
       [PlatformMemberDto, platformMemberFixtures],
       [PlatformAdminDto, platformAdminFixtures],
@@ -1027,5 +1030,88 @@ describe('runs.list linkedTickets follow the API rules', () => {
     expect(items.some((r) => 'linkedIssueRefs' in r)).toBe(false);
     const stats = await api.runs.stats({ params: { projectId: P }, query: { since: '2000-01-01T00:00:00.000Z' } });
     expect(stats.idleRun === null || RunListItem.safeParse(stats.idleRun).success).toBe(true);
+  });
+});
+
+describe('platform org directory store', () => {
+  const names = (q: Parameters<typeof listPlatformOrgs>[0]) => listPlatformOrgs(q).items.map((o) => o.name);
+  const base = { page: 1, pageSize: PAGE_SIZE_DEFAULT };
+
+  it('covers the directory cases in its fixtures', () => {
+    const f = platformOrgDtoFixtures;
+    expect(f.some((o) => o.status === 'suspended')).toBe(true);
+    expect(f.some((o) => o.owner === null)).toBe(true);
+    expect(f.some((o) => o.lastActivityAt === null)).toBe(true);
+    expect(f.some((o) => o.name.length > 40)).toBe(true);
+    expect(f.some((o) => o.name === 'Acme' && o.slug === 'acme')).toBe(true);
+    expect(f.some((o) => o.name === 'Beta' && o.slug === 'beta-labs')).toBe(true);
+  });
+  it('searches the name, case-insensitively', () => {
+    expect(names({ ...base, q: 'ACME' })).toEqual(['Acme']);
+  });
+  it('searches the slug', () => {
+    expect(names({ ...base, q: 'labs' })).toEqual(['Beta']);
+  });
+  it('filters by status', () => {
+    const rows = listPlatformOrgs({ ...base, status: 'suspended' }).items;
+    expect(rows.length).toBeGreaterThan(0);
+    expect(rows.every((o) => o.status === 'suspended')).toBe(true);
+  });
+  it('treats a percent sign as a literal, so it matches nothing', () => {
+    expect(names({ ...base, q: '%' })).toEqual([]);
+  });
+  it('matches %, _ and a backslash as literal characters', () => {
+    const add = (name: string, slug: string) =>
+      addPlatformOrg({ id: crypto.randomUUID(), name, slug, createdAt: '2026-11-01T00:00:00.000Z' });
+    add('Lit_Under', 'lit-under');
+    add('Lit%Percent', 'lit-percent');
+    add('Lit\\Back', 'lit-back');
+    expect(names({ ...base, q: '_' })).toEqual(['Lit_Under']);
+    expect(names({ ...base, q: '%' })).toEqual(['Lit%Percent']);
+    expect(names({ ...base, q: '\\' })).toEqual(['Lit\\Back']);
+  });
+  it('lists newest first, breaking a tie by id', () => {
+    const at = '2026-12-01T00:00:00.000Z';
+    addPlatformOrg({ id: 'b8000000-0000-4000-8000-0000000000f2', name: 'Tie B', slug: 'tie-b', createdAt: at });
+    addPlatformOrg({ id: 'b8000000-0000-4000-8000-0000000000f1', name: 'Tie A', slug: 'tie-a', createdAt: at });
+    const rows = listPlatformOrgs({ ...base }).items;
+    expect(rows.slice(0, 2).map((o) => o.name)).toEqual(['Tie A', 'Tie B']);
+    const times = rows.map((o) => o.createdAt);
+    expect(times).toEqual([...times].sort().reverse());
+  });
+  it('reads one org as a detail with no suspension yet', () => {
+    const first = platformOrgDtoFixtures[0];
+    if (!first) throw new Error('no fixture');
+    expect(getPlatformOrg(first.id)).toMatchObject({ id: first.id, suspension: null });
+  });
+  it('answers 404 for an unknown org', () => {
+    expect(() => getPlatformOrg('unknown')).toThrow(Problem);
+    try {
+      getPlatformOrg('unknown');
+    } catch (e) {
+      expect(e instanceof Problem && e.init.status).toBe(404);
+    }
+  });
+  it('serves the list and the detail over HTTP', async () => {
+    const me = mockDb.state.users[0];
+    if (me) me.platformAdmin = true;
+    const res = await fetch('http://localhost:3000/api/platform/orgs?q=acme');
+    expect(((await res.json()) as { items: unknown[] }).items).toHaveLength(1);
+    const first = platformOrgDtoFixtures[0];
+    if (!first) throw new Error('no fixture');
+    expect((await fetch(`http://localhost:3000/api/platform/orgs/${first.id}`)).status).toBe(200);
+    expect((await fetch(`http://localhost:3000/api/platform/orgs/${crypto.randomUUID()}`)).status).toBe(404);
+  });
+  it('adds a created org to the directory with no owner', async () => {
+    const me = mockDb.state.users[0];
+    if (me) me.platformAdmin = true;
+    const res = await fetch('http://localhost:3000/api/platform/orgs', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ name: 'Gamma', slug: 'gamma' }),
+    });
+    expect(res.status).toBe(201);
+    const row = listPlatformOrgs({ ...base, q: 'gamma' }).items[0];
+    expect(row).toMatchObject({ name: 'Gamma', owner: null, status: 'active', memberCount: 0, projectCount: 0 });
   });
 });
