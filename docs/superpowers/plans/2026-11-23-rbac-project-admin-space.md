@@ -696,11 +696,11 @@ export const OTHER_PROJECT: string; // a second project the projectAdmin does no
 
   Handlers answer in guard order (403 by role before any lookup, 404 for a project out of the role's scope, then the store rules: 422 `/userId` for goneFromOrg, 409 for roleAddedMeanwhile, 404 for roleRemovedMeanwhile, 403 for demotedMeanwhile, own DELETE 403); `members.list` honours `excludeProject`, `q` (400 for empty or over 100 characters), `page`/`pageSize`; `projects.audit` returns P's fixtures only; error scenarios fail `MAX_RETRIES + 1` times; slow ones wait 1500 ms.
 
-- [ ] **Step 1: Write the failing tests** in `projectSpaceScenarios.test.ts` (through the node MSW server): member and viewer → 403 on all five routes; projectAdmin on `OTHER_PROJECT` → 404; `members.list?excludeProject=P` leaves out P's members; `q=%` matches only the literal name; `q=` → 400; pickerMany pages 20/20/5 with `total` 45; each scenario's status; the store adds, changes and removes rows and the list reflects it.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/mocks/msw`. Expected: FAIL.
-- [ ] **Step 3: Implement** the store, handlers, scenario module, the `browser.ts` read of `PROJECT_SPACE_KEY`, and `seedProjectSpace`.
-- [ ] **Step 4: Run** Step 2's command and `pnpm --filter @agentdesk/web typecheck`. Expected: PASS.
-- [ ] **Step 5: Commit**: `feat(web): mock handlers and scenarios for project members and audit`.
+- [x] **Step 1: Write the failing tests** in `projectSpaceScenarios.test.ts` (through the node MSW server): member and viewer → 403 on all five routes; projectAdmin on `OTHER_PROJECT` → 404; `members.list?excludeProject=P` leaves out P's members; `q=%` matches only the literal name; `q=` → 400; pickerMany pages 20/20/5 with `total` 45; each scenario's status; the store adds, changes and removes rows and the list reflects it.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/mocks/msw`. Expected: FAIL.
+- [x] **Step 3: Implement** the store, handlers, scenario module, the `browser.ts` read of `PROJECT_SPACE_KEY`, and `seedProjectSpace`.
+- [x] **Step 4: Run** Step 2's command and `pnpm --filter @agentdesk/web typecheck`. Expected: PASS.
+- [x] **Step 5: Commit**: `feat(web): mock handlers and scenarios for project members and audit`.
 
 ---
 
