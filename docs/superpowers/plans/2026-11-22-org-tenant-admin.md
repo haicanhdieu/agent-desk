@@ -1378,9 +1378,9 @@ export function toAuditRow(dto: AuditEntryDto, now: Date, timeZone?: string): Au
 
 - Consumes: `seedTenantAdmin`, `AUDIT_MOCK_NOW` (Task 7) with `page.clock`.
 
-- [ ] **Step 1: Write the specs** for BR-20 (TC-20.3 `auditPaged`, TC-20.4 to 20.7 with `page.clock` set to `AUDIT_MOCK_NOW`) and BR-24 (TC-24.3 `auditSlow`, TC-24.4 `auditError`, TC-24.5 `auditEmpty`).
-- [ ] **Step 2: Run** the mock build, then `pnpm --filter @agentdesk/web exec playwright test e2e/mock/org-audit.spec.ts`. Expected: PASS.
-- [ ] **Step 3: Commit** `test(web): mock e2e for the audit log`.
+- [x] **Step 1: Write the specs** for BR-20 (TC-20.3 `auditPaged`, TC-20.4 to 20.7 with `page.clock` set to `AUDIT_MOCK_NOW`) and BR-24 (TC-24.3 `auditSlow`, TC-24.4 `auditError`, TC-24.5 `auditEmpty`).
+- [x] **Step 2: Run** the mock build, then `pnpm --filter @agentdesk/web exec playwright test e2e/mock/org-audit.spec.ts`. Expected: PASS.
+- [x] **Step 3: Commit** `test(web): mock e2e for the audit log`.
 
 ---
 
