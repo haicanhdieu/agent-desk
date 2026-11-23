@@ -60,6 +60,7 @@ OPEN: <one line per gap or contradiction between area files you could not write 
 ```text
 BOARDS: <one line per board: design/prototype/project/<Board>.dc.html (new | changed): the screen and state it shows>
 STATES: <loading, empty, error and other states drawn, and the board for each>
+INTERACTIVE: <entry URL: file://<absolute path of design/prototype/interactive/index.html in the worktree>; then one line per new or changed screen: the route (hash), the role to sign in as, the scenario/state choices, and what to click to see it work; or "folder missing">
 SPEC GAPS: <one line per thing the spec did not say that you had to choose to draw (a label, a layout, an empty state), and what you drew; or "none">
 ```
 

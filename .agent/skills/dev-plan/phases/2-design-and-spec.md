@@ -15,7 +15,7 @@ No written yes, no spec.
 
 ## Write the spec
 
-1. No Spec writer yet in this run: spawn the **Spec writer** (tier `--spec-tier`, effort `high`) with the active areas. Back here after a design change from phase 4 or 6 (the spec file exists): resume the same Spec writer ([prompts/spec-writer.md › Resume, design changed](../prompts/spec-writer.md#resume-design-changed)); if it cannot be resumed, spawn a fresh one with the prompt's update-mode line pointing at the existing spec. Never let a second spec file be written.
+1. No Spec writer yet in this run: spawn the **Spec writer** (tier `--spec-tier`; pass the `Models: spec=` model from `answers.md` as `model`; effort `high`) with the active areas. Back here after a design change from phase 4 or 6 (the spec file exists): resume the same Spec writer ([prompts/spec-writer.md › Resume, design changed](../prompts/spec-writer.md#resume-design-changed)); if it cannot be resumed, spawn a fresh one with the prompt's update-mode line pointing at the existing spec. Never let a second spec file be written.
 2. On its `STATUS: spec-written`, confirm the file exists under `docs/superpowers/specs/` in the worktree, was not committed, and follows [templates/spec-sections.md](../templates/spec-sections.md):
    - `## Business rules`, `## Architecture` and `## Testing` each match their area's confirmed design, decision for decision, none left out;
    - `## UI and Storybook`, with its Storybook-first blocker, is there exactly when the ui-ux area is active;
@@ -32,7 +32,7 @@ No written yes, no spec.
 
 A second reader checks the spec against the original requirement, so nothing the human asked for is lost between the four areas and the spec.
 
-1. No Coverage checker yet in this run: spawn the **Coverage checker** (prompt: [prompts/coverage-checker.md](../prompts/coverage-checker.md); tier `medium`, effort `medium`) with the spec path. Already spawned (the spec was revised since): resume it ([prompts/coverage-checker.md › Resume, spec revised](../prompts/coverage-checker.md#resume-spec-revised)).
+1. No Coverage checker yet in this run: spawn the **Coverage checker** (prompt: [prompts/coverage-checker.md](../prompts/coverage-checker.md); tier `medium`: pass `tiers.medium` from `.agent/models.json` as `model`; effort `medium`) with the spec path. Already spawned (the spec was revised since): resume it ([prompts/coverage-checker.md › Resume, spec revised](../prompts/coverage-checker.md#resume-spec-revised)).
 2. Report its `ITEMS:` line to the human as a result line. `GAPS: none`: the check is done; go on with step 5 above.
 3. Each `GAP R<n>` is its own ask, one per message, in the coverage-gap shape ([templates/asks.md › Coverage gap](../templates/asks.md#coverage-gap)), then stop and wait. Append each to `<workdir>/answers.md` as `Coverage gap R<n>: <the requirement's words>` / `Answer: <answer>`.
    - **Leave it out:** the answer in `answers.md` is the record; the spec does not change for it.

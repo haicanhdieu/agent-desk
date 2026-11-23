@@ -13,7 +13,7 @@ Each analyst applies `superpowers:brainstorming` to its own area, with its quest
 
 ## 1. Spawn
 
-Create `<workdir>/areas/`. Spawn the four analysts **in one message**, each with tier `--brainstorm-tier` and effort `high`, the prompt filled with its `<area>`.
+Create `<workdir>/areas/`. Spawn the four analysts **in one message**, each with tier `--brainstorm-tier` (the `Models: brainstorm=` model from `answers.md`, passed as the Agent tool's `model`) and effort `high`, the prompt filled with its `<area>`.
 
 ## 2. A round
 
