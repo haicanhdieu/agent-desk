@@ -27,7 +27,7 @@ function withoutId<T extends object>(options: T): T {
 }
 
 /**
- * The real /platform layout and index with a stand-in child at /platform/admins (the pages arrive in later tasks).
+ * The real /platform layout and index with stand-in children at /platform/admins and /platform/orgs.
  * The child loads `platform.listOrgs`, so a test can have a child platform query fail.
  */
 function platformTree() {
@@ -43,17 +43,18 @@ function platformTree() {
       queryClient.ensureQueryData({ queryKey: ['platform', 'orgs', {}], queryFn: () => api.platform.listOrgs() }),
     component: () => <p>Admins page</p>,
   });
-  return root.addChildren([shell.addChildren([index, admins])]);
+  const orgs = createRoute({ getParentRoute: () => shell, path: '/orgs', component: () => <p>Orgs page</p> });
+  return root.addChildren([shell.addChildren([index, admins, orgs])]);
 }
 afterEach(() => stop());
 
 describe('the platform shell', () => {
-  it('BR-2: /platform redirects to /platform/admins', async () => {
+  it('BR-2: /platform redirects to /platform/orgs', async () => {
     const { router } = await renderRoute('/platform', {
       routeTree: platformTree(),
       scenario: () => scenarios.platform('platformAdminOrgs'),
     });
-    await waitFor(() => expect(router.state.location.pathname).toBe('/platform/admins'));
+    await waitFor(() => expect(router.state.location.pathname).toBe('/platform/orgs'));
   });
 
   it('BR-2: the bar says No organization and has no Projects or Settings tabs; the side menu shows', async () => {

@@ -15,6 +15,8 @@ const base = { suspendedAt: null, lastActivityAt: '2026-11-20T09:00:00.000Z' } a
 export const platformOrgDtoFixtures: PlatformOrgDto[] = [
   {
     ...base,
+    // Three hours before the mock clock (SESSION_MOCK_NOW), so the directory reads "3 hours ago".
+    lastActivityAt: '2026-11-19T11:20:00.000Z',
     id: uuid(1),
     name: 'Acme',
     slug: 'acme',

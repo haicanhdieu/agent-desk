@@ -4,7 +4,7 @@ import { ORG, SESSION_MOCK_NOW, seedPlatform, startSignedOut } from './mock';
 
 /*
  * The platform shell: the "Platform admin" entry of the org menu, and the forbidden and signed-out answers of /platform
- * (spec 2026-11-23-platform-admin-dashboard-design.md "E2E requirements": TC-1.1 to TC-1.3, TC-3.1, TC-3.3, TC-3.4).
+ * (spec 2026-11-23-platform-admin-dashboard-design.md "E2E requirements": TC-1.1 to TC-1.3, TC-2.1 to TC-2.3, TC-3.1, TC-3.3, TC-3.4).
  *
  * Every test seeds the case's platform scenario (mock.ts `seedPlatform`) before its first goto; the mock store reseeds on
  * every page load, so each test stays in the app after it (clicks, no second goto).
@@ -100,5 +100,50 @@ test.describe('BR-3: /platform for a person who is not a platform admin', () => 
 
     await expect(page).toHaveURL(/\/sign-in/);
     await expect(page.getByText("You don't have access", { exact: true })).toHaveCount(0);
+  });
+});
+
+test.describe('BR-2: the entry lands on the Organizations directory', () => {
+  const directoryHeading = (page: Page): Locator => page.getByRole('heading', { name: 'Organizations', level: 1 });
+
+  test('TC-2.1: "Platform admin" opens /platform/orgs with the platform side menu and a bar without org tabs', async ({
+    page,
+  }) => {
+    await open(page, 'platformAdminOrgs', `/o/${ORG}/projects`);
+    await expect(page.getByText('invoicer-api', { exact: true }).first()).toBeVisible();
+
+    await orgMenuButton(page).click();
+    await platformEntry(page).click();
+
+    await expect(page).toHaveURL(/\/platform\/orgs$/);
+    await expect(directoryHeading(page)).toBeVisible();
+    const side = page.getByRole('navigation', { name: 'Platform admin' });
+    await expect(side).toBeVisible();
+    await expect(side.getByRole('link', { name: 'Organizations' })).toBeVisible();
+    await expect(side.getByRole('link', { name: 'Platform admins' })).toBeVisible();
+    await expect(side.getByRole('link', { name: 'Audit log' })).toBeVisible();
+    const bar = page.getByRole('banner');
+    await expect(bar.getByText('No organization', { exact: true })).toBeVisible();
+    await expect(bar.getByRole('link', { name: 'Projects' })).toHaveCount(0);
+    await expect(bar.getByRole('link', { name: 'Settings' })).toHaveCount(0);
+  });
+
+  test('TC-2.2: a platform admin in no org opens the same directory from "/"', async ({ page }) => {
+    await open(page, 'platformAdminNoOrg', '/');
+    await expect(orgMenuButton(page)).toBeVisible();
+
+    await orgMenuButton(page).click();
+    await platformEntry(page).click();
+
+    await expect(page).toHaveURL(/\/platform\/orgs$/);
+    await expect(directoryHeading(page)).toBeVisible();
+    await expect(page.getByRole('navigation', { name: 'Platform admin' })).toBeVisible();
+  });
+
+  test('TC-2.3: typing /platform ends on /platform/orgs with the "Organizations" heading', async ({ page }) => {
+    await open(page, 'platformAdminOrgs', '/platform');
+
+    await expect(page).toHaveURL(/\/platform\/orgs$/);
+    await expect(directoryHeading(page)).toBeVisible();
   });
 });

@@ -1,5 +1,5 @@
 import type { HttpHandler } from 'msw';
-import { PAGE_SIZE_DEFAULT, type PlatformAdminDto } from '@agentdesk/contracts';
+import { PAGE_SIZE_DEFAULT, type PlatformAdminDto, type PlatformOrgDto } from '@agentdesk/contracts';
 import { platformAdminFixtures } from '../dto/access';
 import { mockDb } from './db';
 import { problemResponse, routeHandler } from './http';
@@ -24,6 +24,7 @@ export const PLATFORM_SCENARIOS = [
   'lastAdminPage1',
   'ownAdminRow',
   'unverifiedAccount',
+  'manyOrgs',
 ] as const;
 
 export type PlatformScenario = (typeof PLATFORM_SCENARIOS)[number];
@@ -65,6 +66,27 @@ function lastAdminEntries(workingOnFirstPage: boolean): PlatformAdminDto[] {
   // The list is served in store order: index 0 is page 1, index PAGE_SIZE_DEFAULT is the first of page 2.
   const at = workingOnFirstPage ? 0 : PAGE_SIZE_DEFAULT;
   return [...pending.slice(0, at), working, ...pending.slice(at)];
+}
+
+/** More organizations than two pages: "Many Org 01" is the oldest and "Many Org 45" the newest. */
+const MANY_ORGS = PAGE_SIZE_DEFAULT * 2 + 5;
+
+function manyOrgEntries(): PlatformOrgDto[] {
+  return Array.from({ length: MANY_ORGS }, (_, i): PlatformOrgDto => {
+    const n = String(i + 1).padStart(2, '0');
+    return {
+      id: `b9000000-0000-4000-8000-${String(i + 1).padStart(12, '0')}`,
+      name: `Many Org ${n}`,
+      slug: `many-org-${n}`,
+      memberCount: 1,
+      createdAt: new Date(Date.UTC(2026, 0, 1, 0, i)).toISOString(),
+      status: 'active',
+      suspendedAt: null,
+      projectCount: 0,
+      lastActivityAt: null,
+      owner: null,
+    };
+  });
 }
 
 const seeders: Record<PlatformScenario, () => void> = {
@@ -114,6 +136,10 @@ const seeders: Record<PlatformScenario, () => void> = {
     });
   },
   revoke409: () => applyOnboardingScenario('platformAdminOneOrg'),
+  manyOrgs() {
+    applyOnboardingScenario('platformAdminOneOrg');
+    seedPlatformOrgs(manyOrgEntries());
+  },
   platformEmpty() {
     applyOnboardingScenario('platformAdminOneOrg');
     seedPlatformAdmins([]);

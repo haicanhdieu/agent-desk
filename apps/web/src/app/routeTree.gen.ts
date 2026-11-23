@@ -22,6 +22,7 @@ import { Route as PlatformAdminsRouteImport } from './routes/platform.admins';
 import { Route as OOrgIndexRouteImport } from './routes/o.$org.index';
 import { Route as OOrgInvitationsRouteImport } from './routes/o.$org.invitations';
 import { Route as OOrgSettingsRouteImport } from './routes/o.$org.settings';
+import { Route as PlatformOrgsIndexRouteImport } from './routes/platform.orgs.index';
 import { Route as OOrgPProjectRouteImport } from './routes/o.$org.p.$project';
 import { Route as OOrgProjectsIndexRouteImport } from './routes/o.$org.projects.index';
 import { Route as OOrgSettingsIndexRouteImport } from './routes/o.$org.settings.index';
@@ -102,6 +103,11 @@ const OOrgSettingsRoute = OOrgSettingsRouteImport.update({
   id: '/settings',
   path: '/settings',
   getParentRoute: () => OOrgRoute,
+} as any);
+const PlatformOrgsIndexRoute = PlatformOrgsIndexRouteImport.update({
+  id: '/orgs/',
+  path: '/orgs/',
+  getParentRoute: () => PlatformRoute,
 } as any);
 const OOrgPProjectRoute = OOrgPProjectRouteImport.update({
   id: '/p/$project',
@@ -193,6 +199,7 @@ export interface FileRoutesByFullPath {
   '/o/$org/invitations': typeof OOrgInvitationsRoute;
   '/o/$org/settings': typeof OOrgSettingsRouteWithChildren;
   '/o/$org/': typeof OOrgIndexRoute;
+  '/platform/orgs/': typeof PlatformOrgsIndexRoute;
   '/o/$org/p/$project': typeof OOrgPProjectRouteWithChildren;
   '/o/$org/settings/audit': typeof OOrgSettingsAuditRoute;
   '/o/$org/settings/general': typeof OOrgSettingsGeneralRoute;
@@ -220,6 +227,7 @@ export interface FileRoutesByTo {
   '/platform': typeof PlatformIndexRoute;
   '/o/$org/invitations': typeof OOrgInvitationsRoute;
   '/o/$org': typeof OOrgIndexRoute;
+  '/platform/orgs': typeof PlatformOrgsIndexRoute;
   '/o/$org/p/$project': typeof OOrgPProjectRouteWithChildren;
   '/o/$org/settings/audit': typeof OOrgSettingsAuditRoute;
   '/o/$org/settings/general': typeof OOrgSettingsGeneralRoute;
@@ -251,6 +259,7 @@ export interface FileRoutesById {
   '/o/$org/invitations': typeof OOrgInvitationsRoute;
   '/o/$org/settings': typeof OOrgSettingsRouteWithChildren;
   '/o/$org/': typeof OOrgIndexRoute;
+  '/platform/orgs/': typeof PlatformOrgsIndexRoute;
   '/o/$org/p/$project': typeof OOrgPProjectRouteWithChildren;
   '/o/$org/settings/audit': typeof OOrgSettingsAuditRoute;
   '/o/$org/settings/general': typeof OOrgSettingsGeneralRoute;
@@ -283,6 +292,7 @@ export interface FileRouteTypes {
     | '/o/$org/invitations'
     | '/o/$org/settings'
     | '/o/$org/'
+    | '/platform/orgs/'
     | '/o/$org/p/$project'
     | '/o/$org/settings/audit'
     | '/o/$org/settings/general'
@@ -310,6 +320,7 @@ export interface FileRouteTypes {
     | '/platform'
     | '/o/$org/invitations'
     | '/o/$org'
+    | '/platform/orgs'
     | '/o/$org/p/$project'
     | '/o/$org/settings/audit'
     | '/o/$org/settings/general'
@@ -340,6 +351,7 @@ export interface FileRouteTypes {
     | '/o/$org/invitations'
     | '/o/$org/settings'
     | '/o/$org/'
+    | '/platform/orgs/'
     | '/o/$org/p/$project'
     | '/o/$org/settings/audit'
     | '/o/$org/settings/general'
@@ -461,6 +473,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof OOrgSettingsRouteImport;
       parentRoute: typeof OOrgRoute;
     };
+    '/platform/orgs/': {
+      id: '/platform/orgs/';
+      path: '/orgs';
+      fullPath: '/platform/orgs/';
+      preLoaderRoute: typeof PlatformOrgsIndexRouteImport;
+      parentRoute: typeof PlatformRoute;
+    };
     '/o/$org/p/$project': {
       id: '/o/$org/p/$project';
       path: '/p/$project';
@@ -572,11 +591,13 @@ declare module '@tanstack/react-router' {
 interface PlatformRouteChildren {
   PlatformAdminsRoute: typeof PlatformAdminsRoute;
   PlatformIndexRoute: typeof PlatformIndexRoute;
+  PlatformOrgsIndexRoute: typeof PlatformOrgsIndexRoute;
 }
 
 const PlatformRouteChildren: PlatformRouteChildren = {
   PlatformAdminsRoute: PlatformAdminsRoute,
   PlatformIndexRoute: PlatformIndexRoute,
+  PlatformOrgsIndexRoute: PlatformOrgsIndexRoute,
 };
 
 const PlatformRouteWithChildren = PlatformRoute._addFileChildren(

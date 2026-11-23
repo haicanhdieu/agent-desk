@@ -1,6 +1,6 @@
-import type { PlatformAdminDto } from '@agentdesk/contracts';
+import type { PlatformAdminDto, PlatformOrgDto } from '@agentdesk/contracts';
 import { describe, expect, it } from 'vitest';
-import { toPlatformAdminRow } from './map';
+import { toPlatformAdminRow, toPlatformOrgRow } from './map';
 
 const NOW = new Date('2026-11-23T12:00:00.000Z');
 
@@ -52,5 +52,50 @@ describe('toPlatformAdminRow', () => {
       label: '2 hours ago',
       title: '23 Nov 2026, 10:00',
     });
+  });
+});
+
+const org = (over: Partial<PlatformOrgDto> = {}): PlatformOrgDto => ({
+  id: 'b8000000-0000-4000-8000-000000000001',
+  name: 'Acme',
+  slug: 'acme',
+  memberCount: 4,
+  createdAt: '2026-11-21T10:00:00.000Z',
+  status: 'active',
+  suspendedAt: null,
+  projectCount: 3,
+  lastActivityAt: '2026-11-23T10:00:00.000Z',
+  owner: { userId: 'u1', name: 'Alice Acme', handle: 'alice', email: 'alice@example.com' },
+  ...over,
+});
+
+describe('toPlatformOrgRow', () => {
+  it('BR-18: links to the platform detail and copies name, slug, counts and status', () => {
+    expect(toPlatformOrgRow(org({ status: 'suspended' }), NOW, 'UTC')).toMatchObject({
+      id: 'b8000000-0000-4000-8000-000000000001',
+      href: '/platform/orgs/b8000000-0000-4000-8000-000000000001',
+      name: 'Acme',
+      slug: 'acme',
+      members: 4,
+      projects: 3,
+      status: 'suspended',
+    });
+  });
+
+  it('BR-19: shows the owner name, or null when there is no owner yet', () => {
+    expect(toPlatformOrgRow(org(), NOW, 'UTC').owner).toBe('Alice Acme');
+    expect(toPlatformOrgRow(org({ owner: null }), NOW, 'UTC').owner).toBeNull();
+  });
+
+  it('BR-19: last activity is null with no run, else relative with the full date as title', () => {
+    expect(toPlatformOrgRow(org({ lastActivityAt: null }), NOW, 'UTC').lastActivity).toBeNull();
+    expect(toPlatformOrgRow(org(), NOW, 'UTC').lastActivity).toEqual({
+      label: '2 hours ago',
+      title: '23 Nov 2026, 10:00',
+    });
+  });
+
+  it('BR-18: created reads as a short date, with the full date in the title', () => {
+    expect(toPlatformOrgRow(org(), NOW, 'UTC').created).toEqual({ label: '21 Nov', title: '21 Nov 2026, 10:00' });
   });
 });

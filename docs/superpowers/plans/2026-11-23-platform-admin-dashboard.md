@@ -867,13 +867,13 @@ export function toPlatformOrgRow(dto: PlatformOrgDto, now: Date): PlatformOrgRow
 // route search: { page?: number; q?: string; status?: OrgStatus }
 ```
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
   - `map.test.ts`: owner name or "No owner yet"; `lastActivity` null for no run, else relative with `title`; status passthrough.
   - `orgs.route.test.tsx` (BR-18 to BR-21): rows newest first; typing `ACME` puts `q` in the URL (fake timers if the input is debounced) and lists only Acme; the status select puts `status` in the URL; a filter change resets `page` to 1 (TC-20.5); "Clear filters" clears both; "Create organization" goes to `/orgs/new`; loading, empty, filtered empty and `serverError` with Retry (BR-4); `/platform` now redirects to `/platform/orgs`; Review Focus 5: `?page=5&q=acme` with one match lands on page 1.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/features/platform`. Expected: FAIL.
-- [ ] **Step 3: Implement** the route (search params validated with Zod, `keepPreviousData`, `useClampToLastPage`), the query and mapper, the index redirect change; regenerate `routeTree.gen.ts`.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/features/platform`. Expected: FAIL.
+- [x] **Step 3: Implement** the route (search params validated with Zod, `keepPreviousData`, `useClampToLastPage`), the query and mapper, the index redirect change; regenerate `routeTree.gen.ts`.
 - [ ] **Step 4: Run** Step 2's command, `pnpm --filter @agentdesk/web exec vitest run src/features/orgs/createOrg.route.test.tsx`, `pnpm --filter @agentdesk/web typecheck`. Expected: PASS.
-- [ ] **Step 5: Commit**: `feat(web): organizations directory with search and status filter`.
+- [x] **Step 5: Commit**: `feat(web): organizations directory with search and status filter`.
 
 ---
 
@@ -890,9 +890,9 @@ export function toPlatformOrgRow(dto: PlatformOrgDto, now: Date): PlatformOrgRow
 
 Covers: BR-2 (TC-2.1, TC-2.2, TC-2.3) in `platform-shell.spec.ts`; BR-4 (TC-4.4, TC-4.5, TC-4.6), BR-18 (TC-18.1, TC-18.3), BR-19 (TC-19.1), BR-20 (TC-20.1 to TC-20.5), BR-21 (TC-21.1), BR-22 (TC-22.1 to TC-22.4) in `platform-orgs.spec.ts`.
 
-- [ ] **Step 1: Write the specs**; search uses `expect.poll`/`toHaveURL`, never a sleep.
+- [x] **Step 1: Write the specs**; search uses `expect.poll`/`toHaveURL`, never a sleep.
 - [ ] **Step 2: Run** the mock build, then `pnpm --filter @agentdesk/web exec playwright test e2e/mock/platform-orgs.spec.ts e2e/mock/platform-shell.spec.ts`. Expected: PASS.
-- [ ] **Step 3: Commit**: `test(web): mock e2e for the organizations directory`.
+- [x] **Step 3: Commit**: `test(web): mock e2e for the organizations directory`.
 
 ---
 
@@ -908,9 +908,9 @@ Covers: BR-2 (TC-2.1, TC-2.2, TC-2.3) in `platform-shell.spec.ts`; BR-4 (TC-4.4,
 
 Covers: BR-18 (TC-18.2), BR-19 (TC-19.2), BR-20 (TC-20.6), BR-21 (TC-21.2) in `platform-orgs.spec.ts`; BR-23 (TC-23.1, TC-23.2) in `platform-access.spec.ts` (role-based: platform admin without membership gets no org data).
 
-- [ ] **Step 1: Write the specs**: fresh `e2e-<rand>` orgs only; rows found by searching the fresh slug, never by position or global count.
+- [x] **Step 1: Write the specs**: fresh `e2e-<rand>` orgs only; rows found by searching the fresh slug, never by position or global count.
 - [ ] **Step 2: Run** with the stack up: `pnpm --filter @agentdesk/web exec playwright test e2e/local/platform-orgs.spec.ts e2e/local/platform-access.spec.ts`. Expected: PASS.
-- [ ] **Step 3: Commit**: `test(web): local e2e for the organizations directory`.
+- [x] **Step 3: Commit**: `test(web): local e2e for the organizations directory`.
 
 ---
 

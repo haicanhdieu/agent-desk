@@ -32,6 +32,7 @@ describe('platform scenarios', () => {
       'lastAdminPage1',
       'ownAdminRow',
       'unverifiedAccount',
+      'manyOrgs',
     ]);
   });
 
@@ -57,9 +58,30 @@ describe('platform scenarios', () => {
     expect(page.items.map((o) => o.id)).toEqual(newestFirst.map((o) => o.id));
   });
 
+  it('platformAdminOrgs: a slug that the directory lists is taken for a new org', async () => {
+    scenarios.platform('platformAdminOrgs');
+    const err = await rejection(api.platform.createOrg({ body: { name: 'Acme Two', slug: 'acme' } }));
+    expect(err.status).toBe(409);
+    expect(err.errors).toEqual([expect.objectContaining({ pointer: '/slug' })]);
+    expect((await api.platform.listOrgs({ query: {} })).items.filter((o) => o.slug === 'acme')).toHaveLength(1);
+  });
+
   it('platformEmpty: lists no org', async () => {
     scenarios.platform('platformEmpty');
     expect((await api.platform.listOrgs({ query: {} })).items).toEqual([]);
+  });
+
+  it('manyOrgs: more organizations than a page, newest first, searchable', async () => {
+    scenarios.platform('manyOrgs');
+    const first = await api.platform.listOrgs({ query: {} });
+    const second = await api.platform.listOrgs({ query: { page: 2 } });
+    expect(first.total).toBeGreaterThan(PAGE_SIZE_DEFAULT);
+    expect(first.items).toHaveLength(PAGE_SIZE_DEFAULT);
+    expect(second.items.length).toBeGreaterThan(0);
+    const oldestOnFirst = first.items[first.items.length - 1]?.createdAt ?? '';
+    expect(second.items.every((o) => o.createdAt < oldestOnFirst)).toBe(true);
+    const found = await api.platform.listOrgs({ query: { q: 'many org' } });
+    expect(found.total).toBe(first.total);
   });
 
   it('platformAdminNoOrg: a platform admin with no org', async () => {
