@@ -47,3 +47,29 @@ export async function invitationOrgForEmail(db: Db, invitationId: string, email:
   ]);
   return r.rows[0]?.org_id ?? null;
 }
+
+export interface PlatformOrgStatsRow {
+  orgId: string;
+  projectCount: number;
+  lastActivityAt: Date | null;
+  ownerUserId: string | null;
+}
+
+/** Platform directory: counts, last run queue time and the earliest org-scope owner per org (SECURITY DEFINER). At most 100 ids. */
+export async function platformOrgStats(db: Db, orgIds: readonly string[]): Promise<PlatformOrgStatsRow[]> {
+  if (orgIds.length > 100) throw new Error('platformOrgStats accepts at most 100 org ids');
+  const r = await db.pool.query<{
+    org_id: string;
+    project_count: number;
+    last_activity_at: Date | null;
+    owner_user_id: string | null;
+  }>('select org_id, project_count, last_activity_at, owner_user_id from platform_org_stats($1::uuid[])', [
+    [...orgIds],
+  ]);
+  return r.rows.map((x) => ({
+    orgId: x.org_id,
+    projectCount: x.project_count,
+    lastActivityAt: x.last_activity_at,
+    ownerUserId: x.owner_user_id,
+  }));
+}

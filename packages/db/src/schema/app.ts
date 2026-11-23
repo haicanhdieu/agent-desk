@@ -288,6 +288,7 @@ export const runs = pgTable(
     unique('runs_project_trigger_comment_key').on(t.projectId, t.triggerCommentId),
     unique('runs_project_number_key').on(t.projectId, t.number),
     index('runs_org_idx').on(t.orgId),
+    index('runs_org_queued_idx').on(t.orgId, t.queuedAt),
     index('runs_project_status_idx').on(t.projectId, t.status),
     index('runs_project_ticket_idx').on(t.projectId, t.ticketRef),
     // Reverse lookup (issue -> PR runs linked to it): `linked_issue_refs && $refs` over PR runs only.

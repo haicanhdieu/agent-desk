@@ -632,7 +632,7 @@ Covers: BR-1 (TC-1.1, TC-1.2, TC-1.3), BR-3 (TC-3.1, TC-3.3, TC-3.4) in `platfor
 
 Covers: BR-5 (TC-5.2), BR-6 (TC-6.2), BR-8 (TC-8.1), BR-12 (TC-12.1), BR-13 (TC-13.1), BR-15 (TC-15.2), BR-16 (TC-16.4). BR-11 and BR-16's disabled side are Not e2e on local (Task 1, Task 8).
 
-- [ ] **Step 1: Write the spec**: every granted user is revoked in `finally` (errors swallowed); never revoke `admin@dev.local`; rows found by email, never by position.
+- [x] **Step 1: Write the spec**: every granted user is revoked in `finally` (errors swallowed); never revoke `admin@dev.local`; rows found by email, never by position.
 - [ ] **Step 2: Run** with the stack up (`devbox run dev`): `pnpm --filter @agentdesk/web exec playwright test e2e/local/platform-admins-ui.spec.ts`. Expected: PASS. If the stack cannot start, list the spec in the PR as written and not run.
 - [ ] **Step 3: Commit**: `test(web): local e2e for the platform admins page`.
 
@@ -653,11 +653,11 @@ Covers: BR-5 (TC-5.2), BR-6 (TC-6.2), BR-8 (TC-8.1), BR-12 (TC-12.1), BR-13 (TC-
 
 - Produces: Drizzle `organization.status` (`text('status').notNull().default('active')`, check `organization_status_check`), `organization.suspendedAt` (`timestamp('suspended_at', { withTimezone: true })`, check `organization_suspended_at_check`); index `runs_org_queued_idx` on `runs (org_id, queued_at)`.
 
-- [ ] **Step 1: Write the failing tests** in `migrate.int.test.ts`, new describe "organization status on an upgraded database": a DB migrated to 0035 with two orgs; after the rest, both read `status = 'active'`, `suspended_at` null; an update to `status = 'paused'` fails on `organization_status_check`; `status = 'suspended'` with null `suspended_at` and `status = 'active'` with a time both fail on `organization_suspended_at_check`; `runs_org_queued_idx` exists.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/db exec vitest run test/migrate.int.test.ts`. Expected: FAIL.
-- [ ] **Step 3: Implement** the columns, checks and index in the schema and generate 0036 with drizzle-kit (review the SQL; constant defaults only).
-- [ ] **Step 4: Run** Step 2's command, `pnpm --filter @agentdesk/db exec vitest run test/rls.int.test.ts`, `pnpm --filter @agentdesk/db typecheck && pnpm --filter @agentdesk/api typecheck`. Expected: PASS.
-- [ ] **Step 5: Commit**: `feat(db): organization status and suspended_at`. Label `review:sensitive` (migration).
+- [x] **Step 1: Write the failing tests** in `migrate.int.test.ts`, new describe "organization status on an upgraded database": a DB migrated to 0035 with two orgs; after the rest, both read `status = 'active'`, `suspended_at` null; an update to `status = 'paused'` fails on `organization_status_check`; `status = 'suspended'` with null `suspended_at` and `status = 'active'` with a time both fail on `organization_suspended_at_check`; `runs_org_queued_idx` exists.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/db exec vitest run test/migrate.int.test.ts`. Expected: FAIL.
+- [x] **Step 3: Implement** the columns, checks and index in the schema and generate 0036 with drizzle-kit (review the SQL; constant defaults only).
+- [x] **Step 4: Run** Step 2's command, `pnpm --filter @agentdesk/db exec vitest run test/rls.int.test.ts`, `pnpm --filter @agentdesk/db typecheck && pnpm --filter @agentdesk/api typecheck`. Expected: PASS.
+- [x] **Step 5: Commit**: `feat(db): organization status and suspended_at`. Label `review:sensitive` (migration).
 
 ---
 
@@ -682,13 +682,13 @@ export interface PlatformOrgStatsRow { orgId: string; projectCount: number; last
 export async function platformOrgStats(db: Db, orgIds: readonly string[]): Promise<PlatformOrgStatsRow[]>;
 ```
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
   - `functions.int.test.ts`: two orgs with projects, runs and owner assignments: counts per org, `lastActivityAt` = latest `queued_at`, the earliest of two owner assignments, null owner and null activity for a bare org; an empty array returns `[]`; 101 ids raise; an unknown id returns no row; the result columns are exactly the four (no ticket, run or comment text).
   - `migrate.int.test.ts`: the function is `prosecdef`, its `proconfig` pins `search_path=public, pg_temp`, `agentdesk_app` may execute it and PUBLIC may not; the two policies exist for `agentdesk_owner` with their predicates; as `agentdesk_app` without `withOrg`, `select count(*) from role_assignments` and `from roles` return 0.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/db exec vitest run test/functions.int.test.ts test/migrate.int.test.ts`. Expected: FAIL.
-- [ ] **Step 3: Implement** the hand-written migration (like 0001 and 0025: function, owner, revoke, grant, the two `definer_read`-style policies), its journal entry and copied snapshot, the wrapper (`db.pool.query` with `$1::uuid[]`, throws above 100 before the call), the export. database.md §2 and architecture.md §4: five definer functions; "ids, counts and timestamps" (cite the spec; ADR-0038 follows in Task 23).
-- [ ] **Step 4: Run** Step 2's command, `pnpm --filter @agentdesk/db exec vitest run test/rls.int.test.ts`, `pnpm --filter @agentdesk/db typecheck`. Expected: PASS.
-- [ ] **Step 5: Commit**: `feat(db): platform_org_stats definer function`. Label `review:sensitive` (migration, definer, RLS policies).
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/db exec vitest run test/functions.int.test.ts test/migrate.int.test.ts`. Expected: FAIL.
+- [x] **Step 3: Implement** the hand-written migration (like 0001 and 0025: function, owner, revoke, grant, the two `definer_read`-style policies), its journal entry and copied snapshot, the wrapper (`db.pool.query` with `$1::uuid[]`, throws above 100 before the call), the export. database.md §2 and architecture.md §4: five definer functions; "ids, counts and timestamps" (cite the spec; ADR-0038 follows in Task 23).
+- [x] **Step 4: Run** Step 2's command, `pnpm --filter @agentdesk/db exec vitest run test/rls.int.test.ts`, `pnpm --filter @agentdesk/db typecheck`. Expected: PASS.
+- [x] **Step 5: Commit**: `feat(db): platform_org_stats definer function`. Label `review:sensitive` (migration, definer, RLS policies).
 
 ---
 
