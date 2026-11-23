@@ -469,3 +469,33 @@ describe('org invitations page: columns (BR-51, BR-52)', () => {
     expect(by('n@x.dev')).toBe('–');
   });
 });
+
+describe('org invitations page: switching org on the same route', () => {
+  it("never shows one org's rows under another org while that org's list is loading", async () => {
+    const { router } = await open('/o/acme/settings/invitations', 'invitationsExpiry');
+    await ready();
+    expect(emails().length).toBeGreaterThan(1);
+    expect(screen.getAllByText('soon@x.dev').length).toBeGreaterThan(0);
+    let release: () => void = () => undefined;
+    const held = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    server.use(
+      http.get('*/api/orgs/:orgId/invitations', async ({ params }) => {
+        if (params.orgId === ids.org.alice) await held;
+        return undefined;
+      }),
+    );
+    try {
+      await act(async () => {
+        await router.navigate({ to: '/o/$org/settings/invitations', params: { org: 'alice' } });
+      });
+      await waitFor(() => expect(screen.getByRole('status', { name: 'Loading' })).toBeInTheDocument());
+      expect(screen.queryByText('soon@x.dev')).not.toBeInTheDocument();
+      expect(screen.queryByRole('row')).not.toBeInTheDocument();
+    } finally {
+      await act(async () => release());
+    }
+    await waitFor(() => expect(emails()).toHaveLength(1));
+  });
+});

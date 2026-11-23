@@ -1343,7 +1343,7 @@ export function toAuditRow(dto: AuditEntryDto, now: Date, timeZone?: string): Au
 - Consumes: `seedTenantAdmin` (Task 8), `ORG` from `mock.ts`.
 
 - [x] **Step 1: Write the specs** for BR-1 (TC-1.4, `membersPaged`), BR-4 (TC-4.1 to 4.3), BR-5 (TC-5.1 `soleOwner`, TC-5.2 `twoOwners`), BR-8 (TC-8.1, 8.2 `memberRemovedMeanwhile`; TC-8.3 `roleChangedMeanwhile`), BR-9 (TC-9.1 to 9.3) and BR-24 (TC-24.1 `membersSlow`, TC-24.2 `membersError`).
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/web exec vite build --mode mock`, then `pnpm --filter @agentdesk/web exec playwright test e2e/mock/org-members.spec.ts`. Expected: PASS.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/web exec vite build --mode mock`, then `pnpm --filter @agentdesk/web exec playwright test e2e/mock/org-members.spec.ts`. Expected: PASS.
 - [ ] **Step 3: Commit** `test(web): mock e2e for the Members page`.
 
 ---
@@ -1416,4 +1416,4 @@ export function toAuditRow(dto: AuditEntryDto, now: Date, timeZone?: string): Au
 
 - [x] **Step 1: Write the specs**: `org-switch.spec.ts` BR-44 (TC-44.1 to 44.7); `account-menu.spec.ts` BR-45 (TC-45.1 to 45.6; the existing Logout assertions kept); `checklist.spec.ts` BR-49 (TC-49.1 to 49.6, folded into the re-pointed TC-20 cases).
 - [x] **Step 2: Run** the mock build, then `pnpm --filter @agentdesk/web exec playwright test e2e/mock/org-switch.spec.ts e2e/mock/account-menu.spec.ts e2e/mock/checklist.spec.ts`. Expected: PASS.
-- [ ] **Step 3: Commit** `test(web): mock e2e for the org menu, account menu and Projects header`. Removed by #230: the account menu has no My invitations link or pending count and keeps main's name, email, Logout; TC-45.1 to TC-45.4 are dropped and the account prop, AccountMenu.test.tsx and the menu assertions of this task go with it.
+- [x] **Step 3: Commit** `test(web): mock e2e for the org menu, account menu and Projects header`. Removed by #230: the account menu has no My invitations link or pending count and keeps main's name, email, Logout; TC-45.1 to TC-45.4 are dropped and the account prop, AccountMenu.test.tsx and the menu assertions of this task go with it.

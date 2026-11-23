@@ -13,9 +13,12 @@ export const orgInvitationsQuery = (
   queryOptions({
     queryKey: [...orgInvitationsListKey(org), q.status, q.page, q.pageSize] as const,
     queryFn: (): Promise<Page<InvitationDto>> => api.invitations.list({ params: { orgId }, query: q }),
-    // Another page of the same filter keeps the old rows on screen while it loads; another filter does not.
+    // Another page of the same org and filter keeps the old rows on screen while it loads; another filter or org
+    // does not (queryKey[1] is the org slug, [4] the status).
     placeholderData: (previous, previousQuery) =>
-      previousQuery?.queryKey[4] === q.status ? keepPreviousData(previous) : undefined,
+      previousQuery?.queryKey[1] === org && previousQuery.queryKey[4] === q.status
+        ? keepPreviousData(previous)
+        : undefined,
   });
 
 /** The roles the invite dialog offers from (the dialog narrows them to what the inviter may give). */

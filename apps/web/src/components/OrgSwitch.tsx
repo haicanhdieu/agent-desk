@@ -1,6 +1,7 @@
 import { useEffect, useId, useRef, useState, type KeyboardEvent } from 'react';
 import { AppLink, Icon, Popover } from '@/ds';
 import type { OrgOption, OrgSwitchData } from '@/mocks/types';
+import { menuKeyDown } from './menuKeys';
 import styles from './OrgSwitch.module.css';
 
 export interface OrgSwitchProps extends OrgSwitchData {
@@ -12,8 +13,7 @@ export interface OrgSwitchProps extends OrgSwitchData {
   settingsHref?: string;
 }
 
-const MENU_ITEMS = 'a[href]';
-const ARROW_KEYS = ['ArrowDown', 'ArrowUp', 'Home', 'End'];
+const onMenuKeyDown = menuKeyDown('a[href]');
 
 /** The org crumb of the top bar: always a menu button (org name, Projects, Settings, switch group, Create), except plain text for no org and no platform admin. */
 export function OrgSwitch(props: OrgSwitchProps) {
@@ -62,19 +62,6 @@ function OrgSwitchMenu({
       e.preventDefault();
       setOpen(true);
     }
-  };
-
-  const onMenuKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
-    if (!ARROW_KEYS.includes(e.key)) return;
-    const items = Array.from(e.currentTarget.querySelectorAll<HTMLElement>(MENU_ITEMS));
-    if (items.length === 0) return;
-    e.preventDefault();
-    const at = items.findIndex((el) => el === document.activeElement);
-    let next = 0;
-    if (e.key === 'End') next = items.length - 1;
-    else if (e.key === 'ArrowDown') next = (at + 1) % items.length;
-    else if (e.key === 'ArrowUp') next = (at <= 0 ? items.length : at) - 1;
-    items[next]?.focus();
   };
 
   const close = () => setOpen(false);

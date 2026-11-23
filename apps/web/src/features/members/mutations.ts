@@ -21,9 +21,12 @@ const auditKey = (org: string) => ['org', org, 'audit'] as const;
 const callerId = (queryClient: QueryClient, org: string) =>
   queryClient.getQueryData(orgAccessQuery(org).queryKey)?.userId;
 
-/** Reads the caller's access again: the app bar, the Settings tabs and the page follow what they may still do. */
+/** Reads the caller's access again (this org's and the session-wide one): the org menu, the Settings tabs and the page follow what they may still do. */
 export const refreshAccess = (queryClient: QueryClient, org: string) =>
-  queryClient.invalidateQueries({ queryKey: accessKeys.org(org) });
+  Promise.all([
+    queryClient.invalidateQueries({ queryKey: accessKeys.org(org) }),
+    queryClient.invalidateQueries({ queryKey: accessKeys.session() }),
+  ]);
 const refreshMembers = (queryClient: QueryClient, org: string) =>
   queryClient.invalidateQueries({ queryKey: membersListKey(org) });
 

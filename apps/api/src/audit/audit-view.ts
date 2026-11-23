@@ -24,6 +24,10 @@ function isRecord(v: unknown): v is Record<string, unknown> {
   return typeof v === 'object' && v !== null && !Array.isArray(v);
 }
 
+function isStringArray(v: unknown): v is string[] {
+  return Array.isArray(v) && v.every((k) => typeof k === 'string');
+}
+
 function str(v: unknown): string | null {
   return typeof v === 'string' ? v : null;
 }
@@ -42,9 +46,8 @@ function changesOf(action: string, payload: Record<string, unknown>, lookups: Au
       const from = payload['from'];
       const to = payload['to'];
       const toKey = to === null ? null : str(to);
-      if (!Array.isArray(from) || !from.every((k) => typeof k === 'string') || (to !== null && toKey === null))
-        return [];
-      return [{ field: 'role', from: names(from as string[]), to: toKey === null ? null : roleName(toKey) }];
+      if (!isStringArray(from) || (to !== null && toKey === null)) return [];
+      return [{ field: 'role', from: names(from), to: toKey === null ? null : roleName(toKey) }];
     }
     case 'org.updated': {
       const from = payload['from'];

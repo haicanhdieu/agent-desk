@@ -23,14 +23,22 @@ export const Route = createFileRoute('/o/$org/settings/invitations')({
   // Invite rights are checked before the page loads; the page keeps its own no-access state as a second line.
   beforeLoad: ({ context: { queryClient }, params }) => requireInvite(queryClient, params.org),
   validateSearch: InvitationsSearch,
-  component: InvitationsPage,
+  component: InvitationsRoute,
 });
 
 const COPY_FAILED = 'Could not copy. Select the link and copy it.';
 const LOAD_FAILED = 'Could not load the roles and projects. Close the dialog and try again.';
 
-function InvitationsPage() {
+function InvitationsRoute() {
   const { org } = Route.useParams();
+  const { data: orgs } = useSuspenseQuery(orgsQuery);
+  const orgId = orgs.find((o) => o.slug === org)?.id;
+  // The route stays mounted when only the slug changes (browser back or forward). What the page holds (revoke
+  // confirm, invite dialog, copy-failed popover) belongs to one org: a new org gets a fresh page.
+  return <InvitationsPage key={`${org}/${orgId ?? ''}`} org={org} />;
+}
+
+function InvitationsPage({ org }: { org: string }) {
   const search = Route.useSearch();
   const status: InvitationFilter = search.status ?? 'pending';
   const page = pageOfSearch(search);

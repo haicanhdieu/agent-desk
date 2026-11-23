@@ -19,6 +19,8 @@ export function useUpdateOrg(_org: string, orgId: string): UseMutationResult<Org
       queryClient.setQueryData(orgsQuery.queryKey, (prev) =>
         prev?.map((o) => (o.id === saved.id ? { ...o, name: saved.name, slug: saved.slug } : o)),
       );
+      // The update writes an audit entry. Under the new slug: the page drops the old slug's cache after it navigates.
+      return queryClient.invalidateQueries({ queryKey: ['org', saved.slug, 'audit'] });
     },
   });
 }
