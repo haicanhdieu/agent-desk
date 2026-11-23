@@ -1,6 +1,8 @@
 import { randomUUID } from 'node:crypto';
 import { sql } from 'drizzle-orm';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { Logger } from '@nestjs/common';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
+import { projectEnvSecretName } from '@agentdesk/core';
 import { withOrg } from '@agentdesk/db';
 import type { EnvEntryDto, Page } from '@agentdesk/contracts';
 import { FORBIDDEN_DETAIL } from '../src/access/authorize';
@@ -8,7 +10,7 @@ import { createTestApp, type TestApp } from './helpers/app';
 import { createOrg, inviteAndLogin } from './helpers/auth';
 import { expectContract } from './helpers/contract';
 import { freshStateDir, installFake, makeProject, wideFakeRepos } from './helpers/fixtures';
-import { customRole, loginWithRole, seedEnvRows } from './helpers/project-env';
+import { customRole, loginWithRole, seedEnvRows, slowStore } from './helpers/project-env';
 
 type Method = 'GET' | 'POST' | 'PUT' | 'DELETE';
 const TOTAL_LIMIT = 262144;
@@ -46,11 +48,14 @@ async function buildCast(t: TestApp, slug: string): Promise<Cast> {
 
 const send = (t: TestApp, method: Method, url: string, cookie: string, payload?: object) =>
   t.app.inject({ method, url, headers: { cookie }, payload });
+const secretsUrl = (id: string, name?: string) =>
+  `/api/projects/${id}/env-secrets${name === undefined ? '' : `/${name}`}`;
 const listUrl = (id: string, qs = 'kind=plain') => `/api/projects/${id}/env?${qs}`;
 const varsUrl = (id: string, name?: string) => `/api/projects/${id}/env-vars${name === undefined ? '' : `/${name}`}`;
 
 async function clear(c: Cast, projectId: string): Promise<void> {
   await withOrg(c.t.db, c.orgId, (tx) => tx.execute(sql`delete from project_env_vars where project_id = ${projectId}`));
+  for (const n of c.t.secrets.names().filter((x) => x.startsWith(`org-${c.orgId}-env-`))) await c.t.secrets.delete(n);
 }
 async function rows(c: Cast, projectId: string) {
   const r = await withOrg(c.t.db, c.orgId, (tx) =>
@@ -60,6 +65,14 @@ async function rows(c: Cast, projectId: string) {
   );
   return r.rows as { name: string; kind: string; value: string | null; size_bytes: number; updated_by: string }[];
 }
+async function entryId(c: Cast, projectId: string, name: string): Promise<string> {
+  const r = await withOrg(c.t.db, c.orgId, (tx) =>
+    tx.execute(sql`select id from project_env_vars where project_id = ${projectId} and name = ${name}`),
+  );
+  return (r.rows[0] as { id: string } | undefined)?.id ?? '';
+}
+/** Stored Secret names of this org's env entries. */
+const envSecretNames = (c: Cast): string[] => c.t.secrets.names().filter((n) => n.startsWith(`org-${c.orgId}-env-`));
 async function listAll(c: Cast, cookie: string, projectId: string, qs = 'kind=plain&pageSize=100') {
   const res = await send(c.t, 'GET', listUrl(projectId, qs), cookie);
   return expectContract('projectEnv.list', res) as Page<EnvEntryDto>;
@@ -85,6 +98,9 @@ describe('access (BR-2, BR-4)', () => {
     ['createVar', 'POST', varsUrl(id), { name: 'FOREIGN_NAME', value: 'x' }],
     ['updateVar', 'PUT', varsUrl(id, 'FOREIGN_NAME'), { value: 'y' }],
     ['removeVar', 'DELETE', varsUrl(id, 'FOREIGN_NAME'), undefined],
+    ['createSecret', 'POST', secretsUrl(id), { name: 'FOREIGN_NAME', value: 'foreign-secret' }],
+    ['updateSecret', 'PUT', secretsUrl(id, 'FOREIGN_NAME'), { value: 'foreign-secret-2' }],
+    ['removeSecret', 'DELETE', secretsUrl(id, 'FOREIGN_NAME'), undefined],
   ];
 
   it.each(['member', 'viewer'] as const)('a %s gets the generic 403 on every route, whatever the id', async (who) => {
@@ -101,6 +117,7 @@ describe('access (BR-2, BR-4)', () => {
       }
     }
     expect((await rows(a, a.p1)).map((r) => [r.name, r.value])).toEqual([['FOREIGN_NAME', 'keep']]);
+    expect(envSecretNames(a)).toEqual([]);
   });
 
   it('an admin on P1 reads and writes P1 and gets 404 on P2', async () => {
@@ -117,6 +134,7 @@ describe('access (BR-2, BR-4)', () => {
       expect(res.body).not.toContain('FOREIGN_NAME');
     }
     expect((await rows(a, a.p2)).map((r) => r.value)).toEqual(['p2']);
+    expect(envSecretNames(a)).toEqual([]);
   });
 
   it('an owner of another org gets 404 on every route and changes nothing', async () => {
@@ -128,6 +146,26 @@ describe('access (BR-2, BR-4)', () => {
       expect(res.body).not.toContain('FOREIGN_NAME');
     }
     expect((await rows(a, a.p1)).map((r) => r.value)).toEqual(['keep']);
+    expect(envSecretNames(a)).toEqual([]);
+  });
+
+  it('a custom role with secret:update only writes secrets and gets 403 on variable writes; setup:update only the reverse', async () => {
+    await clear(a, a.p1);
+    const secretWriter = await loginWithRole(t, a.orgId, 'pe-a-sw', await customRole(t, a.orgId, ['secret:update']));
+    const varWriter = await loginWithRole(t, a.orgId, 'pe-a-vw', await customRole(t, a.orgId, ['setup:update']));
+    const created = await send(t, 'POST', secretsUrl(a.p1), secretWriter, { name: 'S1', value: 'secret-one' });
+    expect(created.statusCode).toBe(201);
+    expect((await send(t, 'PUT', secretsUrl(a.p1, 'S1'), secretWriter, { value: 'secret-two' })).statusCode).toBe(200);
+    expect((await send(t, 'POST', varsUrl(a.p1), secretWriter, { name: 'V1', value: '1' })).statusCode).toBe(403);
+    expect((await send(t, 'GET', listUrl(a.p1, 'kind=secret'), secretWriter)).statusCode).toBe(403);
+    const before = envSecretNames(a);
+    const denied = await send(t, 'POST', secretsUrl(a.p1), varWriter, { name: 'S2', value: 'secret-three' });
+    expect(denied.statusCode).toBe(403);
+    expect((await send(t, 'PUT', secretsUrl(a.p1, 'S1'), varWriter, { value: 'secret-four' })).statusCode).toBe(403);
+    expect((await send(t, 'DELETE', secretsUrl(a.p1, 'S1'), varWriter)).statusCode).toBe(403);
+    expect(envSecretNames(a)).toEqual(before);
+    expect((await rows(a, a.p1)).map((r) => r.name)).toEqual(['S1']);
+    expect((await send(t, 'DELETE', secretsUrl(a.p1, 'S1'), secretWriter)).statusCode).toBe(204);
   });
 
   it('a custom role with setup:update only writes variables but cannot list; setup:read only lists but cannot write', async () => {
@@ -354,6 +392,369 @@ describe('concurrency (BR-22)', () => {
   });
 });
 
+describe('secrets (BR-9 to BR-17, BR-23, BR-28)', () => {
+  const VALUE = 'zq-secret-value-1';
+
+  it('POST stores the value in a per-entry Secret and none in Postgres; the DTO carries value null', async () => {
+    await clear(a, a.p1);
+    const res = await send(t, 'POST', secretsUrl(a.p1), a.owner, { name: 'TOKEN', value: VALUE });
+    expect(res.statusCode).toBe(201);
+    expect(expectContract('projectEnv.createSecret', res)).toEqual({
+      name: 'TOKEN',
+      kind: 'secret',
+      value: null,
+      updatedAt: expect.any(String),
+      updatedBy: 'pe-a-owner',
+    });
+    expect(res.body).not.toContain(VALUE);
+    const [row] = await rows(a, a.p1);
+    expect(row).toMatchObject({ name: 'TOKEN', kind: 'secret', value: null, size_bytes: 5 + VALUE.length });
+    const id = await entryId(a, a.p1, 'TOKEN');
+    expect(await t.secrets.get(projectEnvSecretName(a.orgId, id))).toEqual({ value: VALUE });
+    const listed = await listAll(a, a.owner, a.p1, 'kind=secret');
+    expect(listed.items).toEqual([expect.objectContaining({ name: 'TOKEN', kind: 'secret', value: null })]);
+    expect(JSON.stringify(listed)).not.toContain(VALUE);
+  });
+
+  it('PUT replaces the Secret at the same id and stamps actor, time and size; a missing name is 404', async () => {
+    await clear(a, a.p1);
+    await send(t, 'POST', secretsUrl(a.p1), a.owner, { name: 'TOKEN', value: VALUE });
+    const id = await entryId(a, a.p1, 'TOKEN');
+    await withOrg(t.db, a.orgId, (tx) =>
+      tx.execute(sql`update project_env_vars set updated_at = now() - interval '1 day' where project_id = ${a.p1}`),
+    );
+    const res = await send(t, 'PUT', secretsUrl(a.p1, 'TOKEN'), a.admin, { value: 'another-secret-value-22' });
+    const dto = expectContract('projectEnv.updateSecret', res) as EnvEntryDto;
+    expect(dto).toMatchObject({ name: 'TOKEN', kind: 'secret', value: null, updatedBy: 'pe-a-admin' });
+    expect(Date.parse(dto.updatedAt)).toBeGreaterThan(Date.now() - 60_000);
+    expect(await entryId(a, a.p1, 'TOKEN')).toBe(id);
+    expect(await t.secrets.get(projectEnvSecretName(a.orgId, id))).toEqual({ value: 'another-secret-value-22' });
+    expect((await rows(a, a.p1))[0]?.size_bytes).toBe(5 + 'another-secret-value-22'.length);
+    const missing = await send(t, 'PUT', secretsUrl(a.p1, 'NOPE'), a.owner, { value: VALUE });
+    expect(missing.statusCode).toBe(404);
+    expect(envSecretNames(a)).toEqual([projectEnvSecretName(a.orgId, id)]);
+  });
+
+  it('DELETE removes the row and the Secret (204); a missing name is 404', async () => {
+    await clear(a, a.p1);
+    await send(t, 'POST', secretsUrl(a.p1), a.owner, { name: 'TOKEN', value: VALUE });
+    const id = await entryId(a, a.p1, 'TOKEN');
+    expectContract('projectEnv.removeSecret', await send(t, 'DELETE', secretsUrl(a.p1, 'TOKEN'), a.owner));
+    expect(await rows(a, a.p1)).toEqual([]);
+    expect(await t.secrets.get(projectEnvSecretName(a.orgId, id))).toBeNull();
+    expect((await send(t, 'DELETE', secretsUrl(a.p1, 'TOKEN'), a.owner)).statusCode).toBe(404);
+  });
+
+  it('refuses 5 characters with 400 at /value and accepts 6, never echoing the value', async () => {
+    await clear(a, a.p1);
+    const short = await send(t, 'POST', secretsUrl(a.p1), a.owner, { name: 'TOKEN', value: 'abcde' });
+    expect(short.statusCode).toBe(400);
+    expect(short.json<{ errors: { pointer: string }[] }>().errors.map((e) => e.pointer)).toEqual(['/value']);
+    expect(short.body).not.toContain('abcde');
+    expect(await rows(a, a.p1)).toEqual([]);
+    expect(envSecretNames(a)).toEqual([]);
+    expect((await send(t, 'POST', secretsUrl(a.p1), a.owner, { name: 'TOKEN', value: 'abcdef' })).statusCode).toBe(201);
+    expect((await send(t, 'PUT', secretsUrl(a.p1, 'TOKEN'), a.owner, { value: 'vwxyz' })).statusCode).toBe(400);
+  });
+
+  it('BR-14: a name used by the other kind is 409 and nothing is written; wrong-kind PUT or DELETE is 404', async () => {
+    await clear(a, a.p1);
+    await send(t, 'POST', varsUrl(a.p1), a.owner, { name: 'PLAIN_ONE', value: 'plain-value' });
+    await send(t, 'POST', secretsUrl(a.p1), a.owner, { name: 'SECRET_ONE', value: VALUE });
+    const names = envSecretNames(a);
+    const dupSecret = await send(t, 'POST', secretsUrl(a.p1), a.owner, { name: 'PLAIN_ONE', value: 'other-secret' });
+    expect(dupSecret.statusCode).toBe(409);
+    expect(dupSecret.json<{ errors: { pointer: string }[] }>().errors.map((e) => e.pointer)).toEqual(['/name']);
+    expect((await send(t, 'POST', varsUrl(a.p1), a.owner, { name: 'SECRET_ONE', value: 'x' })).statusCode).toBe(409);
+    expect((await send(t, 'PUT', secretsUrl(a.p1, 'PLAIN_ONE'), a.owner, { value: 'other-secret' })).statusCode).toBe(
+      404,
+    );
+    expect((await send(t, 'DELETE', secretsUrl(a.p1, 'PLAIN_ONE'), a.owner)).statusCode).toBe(404);
+    expect((await send(t, 'PUT', varsUrl(a.p1, 'SECRET_ONE'), a.owner, { value: 'x' })).statusCode).toBe(404);
+    expect((await send(t, 'DELETE', varsUrl(a.p1, 'SECRET_ONE'), a.owner)).statusCode).toBe(404);
+    expect(envSecretNames(a)).toEqual(names);
+    expect(names).toHaveLength(1);
+    expect((await rows(a, a.p1)).map((r) => [r.name, r.kind, r.value])).toEqual([
+      ['PLAIN_ONE', 'plain', 'plain-value'],
+      ['SECRET_ONE', 'secret', null],
+    ]);
+    const id = await entryId(a, a.p1, 'SECRET_ONE');
+    expect(await t.secrets.get(projectEnvSecretName(a.orgId, id))).toEqual({ value: VALUE });
+  });
+
+  it('BR-17: no secret value in any 400, 404, 409 or 500 body, in audit_log, in stdout or stderr, or in a Secret name', async () => {
+    await clear(a, a.p1);
+    const out: string[] = [];
+    const spies = [
+      vi.spyOn(process.stdout, 'write').mockImplementation((c: string | Uint8Array) => (out.push(String(c)), true)),
+      vi.spyOn(process.stderr, 'write').mockImplementation((c: string | Uint8Array) => (out.push(String(c)), true)),
+    ];
+    const secretText = 'leak-check-value-9';
+    const bodies: string[] = [];
+    try {
+      await send(t, 'POST', varsUrl(a.p1), a.owner, { name: 'TAKEN', value: 'v' });
+      for (const [method, url, payload] of [
+        ['POST', secretsUrl(a.p1), { name: '1BAD', value: secretText }],
+        ['POST', secretsUrl(a.p1), { name: 'TAKEN', value: secretText }],
+        ['PUT', secretsUrl(a.p1, 'MISSING'), { value: secretText }],
+        ['PUT', secretsUrl(randomUUID(), 'MISSING'), { value: secretText }],
+        ['PUT', secretsUrl(a.p1, 'TAKEN'), { value: secretText }],
+      ] as [Method, string, object][]) {
+        bodies.push((await send(t, method, url, a.owner, payload)).body);
+      }
+      const spy = vi.spyOn(t.secrets, 'put').mockRejectedValueOnce(new Error(`boom ${secretText}`));
+      const failed = await send(t, 'POST', secretsUrl(a.p1), a.owner, { name: 'NEW_ONE', value: secretText });
+      spy.mockRestore();
+      expect(failed.statusCode).toBe(500);
+      bodies.push(failed.body);
+      await send(t, 'POST', secretsUrl(a.p1), a.owner, { name: 'GOOD_ONE', value: secretText });
+    } finally {
+      spies.forEach((s) => s.mockRestore());
+    }
+    for (const body of bodies) expect(body).not.toContain(secretText);
+    expect(out.join('')).not.toContain(secretText);
+    const audit = await withOrg(t.db, a.orgId, (tx) => tx.execute(sql`select * from audit_log`));
+    expect(JSON.stringify(audit.rows)).not.toContain(secretText);
+    expect(envSecretNames(a).join('')).not.toContain(secretText);
+  });
+
+  it('BR-23: a failing store put is a generic 500 with no row, an unchanged list and no value in body or log', async () => {
+    await clear(a, a.p1);
+    await send(t, 'POST', varsUrl(a.p1), a.owner, { name: 'KEEP', value: 'k' });
+    const errors = vi.spyOn(Logger.prototype, 'error').mockImplementation(() => undefined);
+    const spy = vi.spyOn(t.secrets, 'put').mockRejectedValueOnce(new Error(`boom ${VALUE}`));
+    const res = await send(t, 'POST', secretsUrl(a.p1), a.owner, { name: 'TOKEN', value: VALUE });
+    spy.mockRestore();
+    const logged = JSON.stringify(errors.mock.calls);
+    errors.mockRestore();
+    expect(res.statusCode).toBe(500);
+    expect(res.body).not.toContain(VALUE);
+    expect(logged).not.toContain(VALUE);
+    expect((await rows(a, a.p1)).map((r) => r.name)).toEqual(['KEEP']);
+    expect((await listAll(a, a.owner, a.p1, 'kind=secret')).total).toBe(0);
+    expect(envSecretNames(a)).toEqual([]);
+  });
+
+  it('a failing store put on update is a generic 500 and keeps the old Secret', async () => {
+    await clear(a, a.p1);
+    await send(t, 'POST', secretsUrl(a.p1), a.owner, { name: 'TOKEN', value: VALUE });
+    const id = await entryId(a, a.p1, 'TOKEN');
+    const spy = vi.spyOn(t.secrets, 'put').mockRejectedValueOnce(new Error(`boom ${VALUE}`));
+    const res = await send(t, 'PUT', secretsUrl(a.p1, 'TOKEN'), a.owner, { value: 'new-secret-value' });
+    spy.mockRestore();
+    expect(res.statusCode).toBe(500);
+    expect(res.body).not.toContain('new-secret-value');
+    expect(await t.secrets.get(projectEnvSecretName(a.orgId, id))).toEqual({ value: VALUE });
+  });
+
+  it('a row write failing after the Secret put (project gone) leaves an inert Secret and no "set" row', async () => {
+    const connectionId = await installFake(t, a.owner);
+    const gone = (await makeProject(t, a.owner, connectionId)).projectId;
+    await clear(a, gone);
+    const slow = slowStore(t);
+    const putCalls = vi.spyOn(t.secrets, 'put');
+    try {
+      const pending = send(t, 'POST', secretsUrl(gone), a.owner, { name: 'ORPHAN', value: VALUE });
+      await vi.waitFor(() => expect(putCalls).toHaveBeenCalled());
+      await withOrg(t.db, a.orgId, (tx) => tx.execute(sql`delete from projects where id = ${gone}`));
+      slow.release();
+      const res = await pending;
+      expect(res.statusCode).toBe(404);
+      expect(res.body).not.toContain(VALUE);
+    } finally {
+      slow.release();
+      putCalls.mockRestore();
+      slow.restore();
+    }
+    expect(await rows(a, gone)).toEqual([]);
+    expect(envSecretNames(a)).toHaveLength(1);
+    await clear(a, gone);
+  });
+
+  it('remove with a rejecting store delete still removes the entry and logs only the error class', async () => {
+    await clear(a, a.p1);
+    await send(t, 'POST', secretsUrl(a.p1), a.owner, { name: 'TOKEN', value: VALUE });
+    class StoreDownError extends Error {
+      override name = 'StoreDownError';
+    }
+    const errors = vi.spyOn(Logger.prototype, 'error').mockImplementation(() => undefined);
+    const spy = vi.spyOn(t.secrets, 'delete').mockRejectedValueOnce(new StoreDownError(`boom ${VALUE}`));
+    const res = await send(t, 'DELETE', secretsUrl(a.p1, 'TOKEN'), a.owner);
+    spy.mockRestore();
+    const logged = JSON.stringify(errors.mock.calls);
+    errors.mockRestore();
+    expect(res.statusCode).toBe(204);
+    expect(await rows(a, a.p1)).toEqual([]);
+    expect((await listAll(a, a.owner, a.p1, 'kind=secret')).total).toBe(0);
+    expect(logged).toContain('StoreDownError');
+    expect(logged).not.toContain(VALUE);
+    expect(logged).not.toContain('boom');
+    for (const n of envSecretNames(a)) await t.secrets.delete(n);
+  });
+
+  it('BR-28: an update racing a remove and re-create under the same name is 404 and leaves no Secret for the old entry', async () => {
+    await clear(a, a.p1);
+    await send(t, 'POST', secretsUrl(a.p1), a.owner, { name: 'TOKEN', value: VALUE });
+    const oldName = projectEnvSecretName(a.orgId, await entryId(a, a.p1, 'TOKEN'));
+    const slow = slowStore(t);
+    const putCalls = vi.spyOn(t.secrets, 'put');
+    try {
+      const update = send(t, 'PUT', secretsUrl(a.p1, 'TOKEN'), a.owner, { value: 'racing-secret-value' });
+      await vi.waitFor(() => expect(putCalls).toHaveBeenCalledTimes(1));
+      expect((await send(t, 'DELETE', secretsUrl(a.p1, 'TOKEN'), a.owner)).statusCode).toBe(204);
+      slow.restore(); // the in-flight put keeps waiting; the re-create writes at once and commits first
+      const recreate = await send(t, 'POST', secretsUrl(a.p1), a.owner, {
+        name: 'TOKEN',
+        value: 'second-secret-value',
+      });
+      expect(recreate.statusCode).toBe(201);
+      slow.release();
+      expect((await update).statusCode).toBe(404);
+    } finally {
+      slow.release();
+      putCalls.mockRestore();
+      slow.restore();
+    }
+    const newName = projectEnvSecretName(a.orgId, await entryId(a, a.p1, 'TOKEN'));
+    expect(newName).not.toBe(oldName);
+    expect(await t.secrets.get(oldName)).toBeNull();
+    expect(envSecretNames(a)).toEqual([newName]);
+    for (const n of envSecretNames(a)) await t.secrets.delete(n);
+  });
+
+  it('BR-28: an update whose project is deleted during the store put is 404 and leaves no Secret', async () => {
+    const connectionId = await installFake(t, a.owner);
+    const gone = (await makeProject(t, a.owner, connectionId)).projectId;
+    await clear(a, gone);
+    await send(t, 'POST', secretsUrl(gone), a.owner, { name: 'TOKEN', value: VALUE });
+    const slow = slowStore(t);
+    const putCalls = vi.spyOn(t.secrets, 'put');
+    try {
+      const update = send(t, 'PUT', secretsUrl(gone, 'TOKEN'), a.owner, { value: 'racing-secret-value' });
+      await vi.waitFor(() => expect(putCalls).toHaveBeenCalled());
+      await withOrg(t.db, a.orgId, (tx) => tx.execute(sql`delete from projects where id = ${gone}`));
+      slow.release();
+      expect((await update).statusCode).toBe(404);
+    } finally {
+      slow.release();
+      putCalls.mockRestore();
+      slow.restore();
+    }
+    expect(envSecretNames(a)).toEqual([]);
+  });
+
+  it('BR-28: an update racing a remove is 404 and leaves no Secret for that entry', async () => {
+    await clear(a, a.p1);
+    await send(t, 'POST', secretsUrl(a.p1), a.owner, { name: 'TOKEN', value: VALUE });
+    const name = projectEnvSecretName(a.orgId, await entryId(a, a.p1, 'TOKEN'));
+    const slow = slowStore(t);
+    const putCalls = vi.spyOn(t.secrets, 'put');
+    try {
+      const update = send(t, 'PUT', secretsUrl(a.p1, 'TOKEN'), a.owner, { value: 'racing-secret-value' });
+      await vi.waitFor(() => expect(putCalls).toHaveBeenCalled());
+      expect((await send(t, 'DELETE', secretsUrl(a.p1, 'TOKEN'), a.owner)).statusCode).toBe(204);
+      slow.release();
+      expect((await update).statusCode).toBe(404);
+    } finally {
+      slow.release();
+      putCalls.mockRestore();
+      slow.restore();
+    }
+    expect(await rows(a, a.p1)).toEqual([]);
+    expect(await t.secrets.get(name)).toBeNull();
+  });
+
+  describe('size and cap count both kinds', () => {
+    /** 31 secret rows of 8198 bytes each, leaving 8006 bytes of the 262144. */
+    async function fillWithSecrets(): Promise<void> {
+      await clear(a, a.p1);
+      await withOrg(t.db, a.orgId, (tx) =>
+        tx.execute(sql`
+          insert into project_env_vars (org_id, project_id, name, kind, value, size_bytes, updated_by)
+          select ${a.orgId}::uuid, ${a.p1}::uuid, 'BIG_' || lpad(i::text, 2, '0'), 'secret', null, 8198, 'seed'
+          from generate_series(1, 31) as i`),
+      );
+    }
+
+    it('31 secrets plus one more entry over the total is 409 for either kind, with no Secret written', async () => {
+      await fillWithSecrets();
+      const before = envSecretNames(a);
+      const secret = await send(t, 'POST', secretsUrl(a.p1), a.owner, { name: 'LAST', value: 'a'.repeat(8003) });
+      expect(secret.statusCode).toBe(409);
+      const plain = await send(t, 'POST', varsUrl(a.p1), a.owner, { name: 'LAST', value: 'a'.repeat(8003) });
+      expect(plain.statusCode).toBe(409);
+      expect(envSecretNames(a)).toEqual(before);
+      expect(await rows(a, a.p1)).toHaveLength(31);
+      const exact = await send(t, 'POST', secretsUrl(a.p1), a.owner, { name: 'LAST', value: 'a'.repeat(8002) });
+      expect(exact.statusCode).toBe(201);
+    });
+
+    it('an update over the total is 409 and keeps the old Secret; a racing add that loses the re-check deletes its Secret', async () => {
+      await fillWithSecrets();
+      await send(t, 'POST', secretsUrl(a.p1), a.owner, { name: 'LAST', value: 'a'.repeat(100) });
+      const id = await entryId(a, a.p1, 'LAST');
+      const over = await send(t, 'PUT', secretsUrl(a.p1, 'LAST'), a.owner, { value: 'b'.repeat(8100) });
+      expect(over.statusCode).toBe(409);
+      expect(await t.secrets.get(projectEnvSecretName(a.orgId, id))).toEqual({ value: 'a'.repeat(100) });
+      await send(t, 'DELETE', secretsUrl(a.p1, 'LAST'), a.owner);
+      const kept = envSecretNames(a);
+
+      const slow = slowStore(t);
+      const putCalls = vi.spyOn(t.secrets, 'put');
+      let res;
+      try {
+        const both = Promise.all([
+          send(t, 'POST', secretsUrl(a.p1), a.owner, { name: 'RACE_A', value: 'a'.repeat(4000) }),
+          send(t, 'POST', secretsUrl(a.p1), a.admin, { name: 'RACE_B', value: 'b'.repeat(4000) }),
+        ]);
+        await vi.waitFor(() => expect(putCalls).toHaveBeenCalledTimes(2));
+        slow.release();
+        res = await both;
+      } finally {
+        slow.release();
+        putCalls.mockRestore();
+        slow.restore();
+      }
+      expect(res.map((r) => r.statusCode).sort()).toEqual([201, 409]);
+      expect(envSecretNames(a)).toHaveLength(kept.length + 1);
+      expect(await rows(a, a.p1)).toHaveLength(32);
+    });
+  });
+
+  it('holds no database lock while the store put is in flight', async () => {
+    await clear(a, a.p1);
+    const slow = slowStore(t);
+    const putCalls = vi.spyOn(t.secrets, 'put');
+    try {
+      const pending = send(t, 'POST', secretsUrl(a.p1), a.owner, { name: 'SLOW', value: VALUE });
+      await vi.waitFor(() => expect(putCalls).toHaveBeenCalled());
+      const script = await send(t, 'PUT', `/api/projects/${a.p1}/setup-script`, a.owner, {
+        body: 'echo lock',
+        baseVersion: null,
+      });
+      expect(script.statusCode).toBeLessThan(300);
+      expect((await send(t, 'POST', varsUrl(a.p1), a.owner, { name: 'DURING', value: '1' })).statusCode).toBe(201);
+      expect((await send(t, 'GET', listUrl(a.p1), a.owner)).statusCode).toBe(200);
+      const probe = await t.db.pool.connect();
+      try {
+        await probe.query('begin');
+        await probe.query("select set_config('app.org_id', $1, true)", [a.orgId]);
+        const locked = await probe.query('select id from projects where id = $1 for update nowait', [a.p1]);
+        expect(locked.rowCount).toBe(1);
+        await probe.query('rollback');
+      } finally {
+        probe.release();
+      }
+      slow.release();
+      expect((await pending).statusCode).toBe(201);
+    } finally {
+      slow.release();
+      putCalls.mockRestore();
+      slow.restore();
+    }
+  });
+});
+
 describe('audit', () => {
   it('each variable route writes one row with action, actor, project, name and kind, and no value', async () => {
     await clear(a, a.p1);
@@ -371,6 +772,24 @@ describe('audit', () => {
     for (const r of fresh) {
       expect(r).toMatchObject({ target_id: a.p1, payload: { name: 'AUD_ONE', kind: 'plain' } });
       expect(r.actor_user_id).not.toBeNull();
+      expect(JSON.stringify(r)).not.toContain('audit-secret-text');
+    }
+  });
+
+  it('each secret route writes one row with kind secret, the name and no value', async () => {
+    await clear(a, a.p1);
+    const before = await auditRows();
+    await send(t, 'POST', secretsUrl(a.p1), a.owner, { name: 'AUD_SEC', value: 'audit-secret-text' });
+    await send(t, 'PUT', secretsUrl(a.p1, 'AUD_SEC'), a.owner, { value: 'audit-secret-text-2' });
+    await send(t, 'DELETE', secretsUrl(a.p1, 'AUD_SEC'), a.owner);
+    const fresh = (await auditRows()).slice(before.length);
+    expect(fresh.map((r) => r.action)).toEqual([
+      'POST projectEnv.createSecret',
+      'PUT projectEnv.updateSecret',
+      'DELETE projectEnv.removeSecret',
+    ]);
+    for (const r of fresh) {
+      expect(r).toMatchObject({ target_id: a.p1, payload: { name: 'AUD_SEC', kind: 'secret' } });
       expect(JSON.stringify(r)).not.toContain('audit-secret-text');
     }
   });

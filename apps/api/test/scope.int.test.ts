@@ -191,6 +191,14 @@ describe('BR-28: a project outside the caller scope is 404', () => {
     ['projectEnv.createVar', 'POST', `/api/projects/${p2}/env-vars`, { name: 'OTHER_VAR', value: 'x' }],
     ['projectEnv.updateVar', 'PUT', `/api/projects/${p2}/env-vars/OTHER_VAR`, { value: 'x' }],
     ['projectEnv.removeVar', 'DELETE', `/api/projects/${p2}/env-vars/OTHER_VAR`, undefined],
+    [
+      'projectEnv.createSecret',
+      'POST',
+      `/api/projects/${p2}/env-secrets`,
+      { name: 'OTHER_SECRET', value: 'other-secret' },
+    ],
+    ['projectEnv.updateSecret', 'PUT', `/api/projects/${p2}/env-secrets/OTHER_SECRET`, { value: 'other-secret' }],
+    ['projectEnv.removeSecret', 'DELETE', `/api/projects/${p2}/env-secrets/OTHER_SECRET`, undefined],
     ['setup.plugins', 'GET', `/api/projects/${p2}/plugins`, undefined],
     ['setupTests.create', 'POST', `/api/projects/${p2}/setup-tests`, { script: 'echo hi' }],
     ['setupTests.latest', 'GET', `/api/projects/${p2}/setup-tests/latest`, undefined],
@@ -218,9 +226,6 @@ describe('BR-28: a project outside the caller scope is 404', () => {
   // Exclusions: WebSocket upgrades cannot be driven through inject; their out-of-scope close codes are tested in terminal.int.test.ts.
   const excluded: Record<string, string> = {
     'projects.remove': 'project:delete is org-level, so no project-scoped caller holds it: 403 for them, see below',
-    'projectEnv.createSecret': 'no handler until plan Task 7: move it into the cases then',
-    'projectEnv.updateSecret': 'no handler until plan Task 7: move it into the cases then',
-    'projectEnv.removeSecret': 'no handler until plan Task 7: move it into the cases then',
     'runs.terminal': 'WebSocket upgrade: close code covered in terminal.int.test.ts',
     'setupTests.terminal': 'WebSocket upgrade: close code covered in terminal.int.test.ts',
   };

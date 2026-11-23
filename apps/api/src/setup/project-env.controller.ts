@@ -1,10 +1,12 @@
 import { Body, Controller, Delete, Get, HttpCode, Inject, Param, Post, Put, Query } from '@nestjs/common';
 import {
   routes,
+  type CreateEnvSecretRequest,
   type CreateEnvVarRequest,
   type EnvEntryDto,
   type EnvListQuery,
   type Page,
+  type UpdateEnvSecretRequest,
   type UpdateEnvVarRequest,
 } from '@agentdesk/contracts';
 import { CurrentOrg, type OrgContext } from '../auth/org-context';
@@ -17,6 +19,8 @@ const EntryParams = new ZodPipe(routes.projectEnv.updateVar.params);
 const ListQuery = new ZodPipe(routes.projectEnv.list.query);
 const CreateVarBody = new ZodPipe(routes.projectEnv.createVar.body);
 const UpdateVarBody = new ZodPipe(routes.projectEnv.updateVar.body);
+const CreateSecretBody = new ZodPipe(routes.projectEnv.createSecret.body);
+const UpdateSecretBody = new ZodPipe(routes.projectEnv.updateSecret.body);
 
 interface EntryParamsValue {
   projectId: string;
@@ -58,5 +62,29 @@ export class ProjectEnvController {
   @HttpCode(204)
   removeVar(@CurrentOrg() org: OrgContext, @Param(EntryParams) p: EntryParamsValue): Promise<void> {
     return this.service.removeVar(org, p.projectId, p.name);
+  }
+
+  @Post(routePath(routes.projectEnv.createSecret))
+  createSecret(
+    @CurrentOrg() org: OrgContext,
+    @Param(ProjectParam) p: { projectId: string },
+    @Body(CreateSecretBody) body: CreateEnvSecretRequest,
+  ): Promise<EnvEntryDto> {
+    return this.service.createSecret(org, p.projectId, org.userId, body);
+  }
+
+  @Put(routePath(routes.projectEnv.updateSecret))
+  updateSecret(
+    @CurrentOrg() org: OrgContext,
+    @Param(EntryParams) p: EntryParamsValue,
+    @Body(UpdateSecretBody) body: UpdateEnvSecretRequest,
+  ): Promise<EnvEntryDto> {
+    return this.service.updateSecret(org, p.projectId, org.userId, p.name, body);
+  }
+
+  @Delete(routePath(routes.projectEnv.removeSecret))
+  @HttpCode(204)
+  removeSecret(@CurrentOrg() org: OrgContext, @Param(EntryParams) p: EntryParamsValue): Promise<void> {
+    return this.service.removeSecret(org, p.projectId, p.name);
   }
 }

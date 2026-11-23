@@ -37,12 +37,7 @@ import { freshStateDir, installFake, makeProject, wideFakeRepos } from './helper
  * Route keys whose controllers are added by later tasks of the RBAC plan. Each entry is asserted to be still
  * unregistered, so the task that adds the controller must delete its line here.
  */
-const NOT_REGISTERED_YET: RouteKey[] = [
-  // the secret routes of project env vars and secrets are implemented by plan Task 7
-  'projectEnv.createSecret',
-  'projectEnv.updateSecret',
-  'projectEnv.removeSecret',
-];
+const NOT_REGISTERED_YET: RouteKey[] = [];
 
 /** Served through a WebSocket gateway, not a Nest HTTP controller. */
 const TERMINAL_KEYS: RouteKey[] = ['runs.terminal', 'setupTests.terminal'];
@@ -1160,6 +1155,8 @@ describe('denial table over every route, stream and terminal', () => {
       'setupScript.put': { body: 'echo denied', baseVersion: null },
       'projectEnv.createVar': { name: 'DENIED_VAR', value: 'denied' },
       'projectEnv.updateVar': { value: 'denied' },
+      'projectEnv.createSecret': { name: 'DENIED_SECRET', value: 'denied-secret' },
+      'projectEnv.updateSecret': { value: 'denied-secret' },
       'setupTests.create': { script: 'echo denied' },
       'assignments.create': { userId: spareId, roleId: memberRole, scope: { type: 'project', projectId: p1 } },
       'members.updateRole': { roleId: viewerRole },
