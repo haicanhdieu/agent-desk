@@ -43,7 +43,7 @@ const artboard = (height: number): NonNullable<Story['decorators']> => [
 ];
 
 const project = projects[0];
-/** The app bar of an owner: the org crumb with Settings, the account menu, and the Runs and Desk tabs. */
+/** The app bar of an owner: the org crumb with Settings, the account menu, and the Runs and Settings tabs. */
 const org: OrgSwitchProps = {
   ...orgSwitchFixtures.severalOrgsSettings,
   orgHref: (o) => `#${o.slug}`,

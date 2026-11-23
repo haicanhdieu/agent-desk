@@ -55,10 +55,10 @@ describe.each(['member', 'viewer'] as const)('a %s', (role) => {
     expect(seen.filter((p) => ORG_INVITATIONS.test(p))).toEqual([]);
   });
 
-  it('has no Desk tab on the runs page and no Desk data is requested there', async () => {
+  it('has no Settings tab on the runs page and no Desk data is requested there', async () => {
     await open(`/o/acme/p/${P1}/runs`, role);
     expect(await screen.findByRole('link', { name: /^Runs/ })).toBeInTheDocument();
-    expect(screen.queryByRole('link', { name: 'Desk' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Settings' })).not.toBeInTheDocument();
     expect(deskCalls()).toEqual([]);
   });
 
@@ -87,9 +87,9 @@ describe.each(['owner', 'orgAdmin'] as const)('an %s', (role) => {
     expect(screen.queryByRole('heading', FORBIDDEN)).not.toBeInTheDocument();
   });
 
-  it('sees the Desk tab on the runs page', async () => {
+  it('sees the Settings tab on the runs page', async () => {
     await open(`/o/acme/p/${P1}/runs`, role);
-    expect(await screen.findByRole('link', { name: 'Desk' })).toBeInTheDocument();
+    expect(await screen.findByRole('link', { name: 'Settings' })).toBeInTheDocument();
   });
 });
 

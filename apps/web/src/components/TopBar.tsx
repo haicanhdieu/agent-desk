@@ -28,7 +28,7 @@ export interface TopBarProps {
   run?: { runsHref: string; label: string };
   children?: ReactNode;
   actions?: ReactNode;
-  /** In-app hrefs; `projects` defaults to the org crumb's `projectsHref`, then "/projects"; "/runs" for Runs. The Desk tab shows only with `desk`. */
+  /** In-app hrefs; `projects` defaults to the org crumb's `projectsHref`, then "/projects"; "/runs" for Runs. The Settings tab shows only with `desk`. */
   links?: { projects?: string; runs?: string; desk?: string };
 }
 
