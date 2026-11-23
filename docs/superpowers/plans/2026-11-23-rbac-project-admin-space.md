@@ -1024,13 +1024,13 @@ export interface DeskMembersProps {
 - Consumes: `DeskMembers` (Task 18), `useDeskFrame` (Task 21), MSW (Task 12).
 - Produces: `projectMembersListKey(org, projectId)` = `['org', org, 'projects', projectId, 'members', 'list']`; `projectMembersQuery(org, projectId, q)`; `toProjectMemberRow(dto: ProjectMemberDto, selfUserId: string): ProjectMemberRowView`; route `/o/$org/p/$project/desk/members` (`?page`), `beforeLoad: requirePermission(qc, org, 'assignment:read', { projectId })`, exporting the page component's state hook for Tasks 25 to 27 to extend.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
   - `map.test.ts` (BR-4): roles joined with ", "; `you` from the session user; null handle kept null (Review Focus 4).
   - `members.route.test.tsx`: BR-4 rows and intro note; BR-15 loading, error + Retry, empty; BR-11 own row without menu; BR-2 member and viewer → Forbidden with no `projectMembers.list` request; BR-3 projectAdmin on `OTHER_PROJECT` → "Page not found"; paging.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/features/projectMembers`. Expected: FAIL.
-- [ ] **Step 3: Implement** queries (`keepPreviousData` within the same project), mapper, the route (Add, Invite and row actions as no-ops until Tasks 25 to 27) and regenerate `routeTree.gen.ts`.
-- [ ] **Step 4: Run** Step 2's command and `pnpm --filter @agentdesk/web typecheck`. Expected: PASS. E2E: Task 28.
-- [ ] **Step 5: Commit**: `feat(web): project Members page`.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/features/projectMembers`. Expected: FAIL.
+- [x] **Step 3: Implement** queries (`keepPreviousData` within the same project), mapper, the route (Add, Invite and row actions as no-ops until Tasks 25 to 27) and regenerate `routeTree.gen.ts`.
+- [x] **Step 4: Run** Step 2's command and `pnpm --filter @agentdesk/web typecheck`. Expected: PASS. E2E: Task 28.
+- [x] **Step 5: Commit**: `feat(web): project Members page`.
 
 ---
 
