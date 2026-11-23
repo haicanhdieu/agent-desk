@@ -33,6 +33,7 @@ export const ONBOARDING_SCENARIOS = [
   'projectAdmin',
   'member',
   'viewer',
+  'setupReader',
   'invitationsPaged',
   'invitationsExpiry',
   'invitationChanged',
@@ -347,6 +348,13 @@ const seeders: Record<OnboardingScenario, () => void> = {
   viewer() {
     acmeProjects([P1, P2]);
     inAcme('viewer');
+    state().checklists[ids.org.acme] = checklistFixtures.none;
+    state().invitations = acmeInvitations();
+  },
+  // Acme with a role that reads the setup but changes none of it (not a built-in role): the read-only Environment tab.
+  setupReader() {
+    acmeProjects([P1, P2]);
+    inAcme('setup-reader');
     state().checklists[ids.org.acme] = checklistFixtures.none;
     state().invitations = acmeInvitations();
   },

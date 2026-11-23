@@ -547,11 +547,11 @@ graph LR
   - `MockLists.env?: { variables: number; secrets: number }` seeding generated rows (names `VAR_001`..., `SEC_001`..., sorted) for `invoicer-api` through `seedLists`.
   - Role fixture `setup-reader` (`project:read`, `setup:read`) in `roleFixtures` and scenario `setupReader` (`inAcme('setup-reader')`) in `onboardingScenarios.ts`.
 
-- [ ] **Step 1: Write the failing tests:** `contract.test.ts` (environment fixtures and the new role fixture parse with the contracts schemas; handler responses pass `expectContract`-style parsing); `deskAccess.test.ts` (the `setup-reader` role gets 403 on the 6 write routes and 200 on the list; member and viewer 403 on all 7; owner and admin allowed); `e2eLists.test.ts` (`env` key seeds 23 variables and 22 secrets deterministically and the order is by name); `onboardingScenarios.test.ts` (`setupReader` signs in as that role); handler behaviour tests for 409 either kind, 404 missing, a secret create stores no value anywhere in the store.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/mocks`. Expected: FAIL.
-- [ ] **Step 3: Implement** fixtures, store, handlers, `env` list seeding, role fixture and scenario (register `setupReader` in `ONBOARDING_SCENARIOS` and `seeders`).
-- [ ] **Step 4: Run** the Step 2 command and `pnpm --filter @agentdesk/web typecheck`. Expected: PASS.
-- [ ] **Step 5: Commit**: `feat(web): mock project env data layer and setup-reader role`.
+- [x] **Step 1: Write the failing tests:** `contract.test.ts` (environment fixtures and the new role fixture parse with the contracts schemas; handler responses pass `expectContract`-style parsing); `deskAccess.test.ts` (the `setup-reader` role gets 403 on the 6 write routes and 200 on the list; member and viewer 403 on all 7; owner and admin allowed); `e2eLists.test.ts` (`env` key seeds 23 variables and 22 secrets deterministically and the order is by name); `onboardingScenarios.test.ts` (`setupReader` signs in as that role); handler behaviour tests for 409 either kind, 404 missing, a secret create stores no value anywhere in the store.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/mocks`. Expected: FAIL.
+- [x] **Step 3: Implement** fixtures, store, handlers, `env` list seeding, role fixture and scenario (register `setupReader` in `ONBOARDING_SCENARIOS` and `seeders`).
+- [x] **Step 4: Run** the Step 2 command and `pnpm --filter @agentdesk/web typecheck`. Expected: PASS.
+- [x] **Step 5: Commit**: `feat(web): mock project env data layer and setup-reader role`.
 
 ---
 

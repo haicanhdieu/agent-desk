@@ -9,6 +9,7 @@ import type {
   OrgStatus,
   ProjectMemberDto,
   ProjectConnectionDto,
+  EnvEntryDto,
   PluginsDto,
   PrState,
   ProjectDto,
@@ -35,7 +36,7 @@ import { ruleFixtures } from '../dto/rules';
 import { runFixtures, type MockRun } from '../dto/runs';
 import { prStateFixtures } from '../dto/prStates';
 import type { PrStatesScenario } from './prStates';
-import { pluginFixtures, setupScriptFixtures } from '../dto/setup';
+import { environmentFixtures, pluginFixtures, setupScriptFixtures } from '../dto/setup';
 import { skillFixtures } from '../dto/skills';
 
 // In-memory store behind every MSW handler (Vitest, Storybook and `dev:mock`). Rows carry their org so handlers can
@@ -184,6 +185,8 @@ export interface MockState {
   setupTestEvents: Record<string, RunEventDto[]>;
   /** The plugins panel per project; a project without an entry has none. */
   plugins: Record<string, PluginsDto>;
+  /** Environment entries per project (variables and secrets together); a secret entry never holds a value. */
+  environment: Record<string, EnvEntryDto[]>;
 }
 
 const emptyPolling: TriggerState['polling'] = {
@@ -274,6 +277,7 @@ export function seedState(): MockState {
     setupTests: [],
     setupTestEvents: {},
     plugins: pluginFixtures,
+    environment: environmentFixtures,
   };
   // Every test and page load mutates its own copy, never the fixtures.
   return structuredClone(state);

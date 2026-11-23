@@ -2,6 +2,7 @@ import {
   AccessDto,
   AgentDto,
   AgentModelsDto,
+  EnvEntryDto,
   AssignmentDto,
   AuditEntryDto,
   ConnectionDto,
@@ -72,9 +73,10 @@ import { ignoredFixtures, projectConnectionFixtures, projectFixtures } from '../
 import { ruleFixtures } from '../dto/rules';
 import { runFixtures, type MockRun } from '../dto/runs';
 import { prStateFixtures } from '../dto/prStates';
-import { pluginFixtures, setupScriptFixtures } from '../dto/setup';
+import { environmentFixtures, pluginFixtures, setupScriptFixtures } from '../dto/setup';
 import { skillFixtures } from '../dto/skills';
 import { mockDb } from './db';
+import { applyMockLists } from './e2eLists';
 import { routeHandlers } from './handlers';
 import { linkedTicketsFor } from './linkedTickets';
 import { seedPlatformAdmins, withLastWorkingAdmin } from './platformAdmins';
@@ -113,6 +115,7 @@ describe('MSW handlers cover the contract', () => {
       [RunEventDto, Object.values(runEventFixtures).flat()],
       [SetupScriptDto, Object.values(setupScriptFixtures).flat()],
       [PluginsDto, Object.values(pluginFixtures)],
+      [EnvEntryDto, Object.values(environmentFixtures).flat()],
       [RoleDto, roleFixtures],
       [AssignmentDto, assignmentFixtures],
       [InvitationDto, invitationFixtures],
@@ -979,6 +982,178 @@ describe('MSW handler semantics', () => {
     it("hides other orgs' projects", async () => {
       const e = await rejection(api.setupScript.get({ params: { projectId: ids.project.storefront } }));
       expect(e.status).toBe(404);
+    });
+  });
+
+  describe('project environment', () => {
+    const EMPTY = ids.project.docsSite;
+    const SECRET_VALUE = 'test-token-not-real-123456';
+    const list = (projectId: string, kind: 'plain' | 'secret', page = 1, pageSize = 20) =>
+      api.projectEnv.list({ params: { projectId }, query: { kind, page, pageSize } });
+    const addVar = (name: string, value = 'v', projectId = EMPTY) =>
+      api.projectEnv.createVar({ params: { projectId }, body: { name, value } });
+    const addSecret = (name: string, value = SECRET_VALUE, projectId = EMPTY) =>
+      api.projectEnv.createSecret({ params: { projectId }, body: { name, value } });
+    const EXISTS = (name: string) => `${name} already exists. A name can be used once, as a variable or a secret.`;
+
+    it('serves the fixtures per kind, secrets without a value; other projects are empty', async () => {
+      const vars = await list(P, 'plain');
+      expect(vars).toMatchObject({ total: 3, page: 1, pageSize: 20 });
+      expect(vars.items.map((e) => e.name)).toContain('DB_HOST');
+      expect(vars.items.every((e) => e.kind === 'plain' && e.value !== null)).toBe(true);
+      const secrets = await list(P, 'secret');
+      expect(secrets.items.map((e) => e.name)).toContain('NPM_TOKEN');
+      expect(secrets).toMatchObject({ total: 2 });
+      expect(secrets.items.every((e) => e.kind === 'secret' && e.value === null)).toBe(true);
+      await expect(list(EMPTY, 'plain')).resolves.toMatchObject({ items: [], total: 0 });
+      await expect(list(EMPTY, 'secret')).resolves.toMatchObject({ items: [], total: 0 });
+    });
+
+    it('lists in byte order of the name and pages with the real total', async () => {
+      for (const name of ['abc', '_x', 'Zed', 'ABC', 'db_host']) await addVar(name);
+      expect((await list(EMPTY, 'plain')).items.map((e) => e.name)).toEqual(['ABC', 'Zed', '_x', 'abc', 'db_host']);
+      const second = await list(EMPTY, 'plain', 2, 2);
+      expect(second).toMatchObject({ total: 5, page: 2, pageSize: 2 });
+      expect(second.items.map((e) => e.name)).toEqual(['_x', 'abc']);
+      await expect(list(EMPTY, 'plain', 4, 2)).resolves.toMatchObject({ items: [], total: 5 });
+    });
+
+    it('creates a variable (201) with who and when, and lists it; names are case-sensitive', async () => {
+      const res = await fetch(`http://localhost:3000/api/projects/${EMPTY}/env-vars`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ name: 'DB_HOST', value: 'localhost' }),
+      });
+      expect(res.status).toBe(201);
+      const lower = await addVar('db_host', 'lower');
+      expect(lower).toMatchObject({ name: 'db_host', kind: 'plain', value: 'lower', updatedBy: expect.any(String) });
+      expect((await list(EMPTY, 'plain')).items.map((e) => e.name)).toEqual(['DB_HOST', 'db_host']);
+    });
+
+    it('answers 409 with the name error when the name exists in either kind, and changes nothing', async () => {
+      await addVar('DB_HOST', 'first');
+      await addSecret('NPM_TOKEN');
+      const cases = [
+        () => addVar('DB_HOST', 'other'),
+        () => addVar('NPM_TOKEN', 'x'),
+        () => addSecret('DB_HOST', 'test-token-not-real-5'),
+        () => addSecret('NPM_TOKEN', 'test-token-not-real-6'),
+      ];
+      for (const call of cases) {
+        const e = await rejection(call());
+        expect(e.status).toBe(409);
+        expect(e.errors).toHaveLength(1);
+        expect(e.errors?.[0]).toMatchObject({ pointer: '/name' });
+      }
+      expect((await rejection(addVar('NPM_TOKEN'))).errors?.[0]?.detail).toBe(EXISTS('NPM_TOKEN'));
+      expect((await rejection(addSecret('DB_HOST'))).errors?.[0]?.detail).toBe(EXISTS('DB_HOST'));
+      expect((await list(EMPTY, 'plain')).items).toMatchObject([{ name: 'DB_HOST', value: 'first' }]);
+      expect((await list(EMPTY, 'secret')).items.map((e) => e.name)).toEqual(['NPM_TOKEN']);
+    });
+
+    it('answers 400 with the schema pointer for an invalid or reserved name and a short or empty secret', async () => {
+      const name = await rejection(addVar('1BAD'));
+      expect(name.status).toBe(400);
+      expect(name.errors?.[0]?.pointer).toBe('/name');
+      expect((await rejection(addVar('PATH'))).errors?.[0]).toMatchObject({
+        pointer: '/name',
+        detail: 'PATH is reserved: Agent Desk sets it for every run.',
+      });
+      expect((await rejection(addSecret('OK_NAME', '12345'))).errors?.[0]).toMatchObject({
+        pointer: '/value',
+        detail: 'Too short to hide in logs.',
+      });
+      expect((await rejection(addSecret('OK_NAME', ''))).errors?.[0]?.detail).toBe('Enter a value.');
+      await expect(addSecret('OK_NAME', '123456')).resolves.toMatchObject({ name: 'OK_NAME', value: null });
+    });
+
+    it('updates a variable value; an update never creates (404 for a missing name or the other kind)', async () => {
+      await addVar('DB_HOST', 'old');
+      await addSecret('NPM_TOKEN');
+      const put = (kind: 'Var' | 'Secret', name: string, value: string) =>
+        kind === 'Var'
+          ? api.projectEnv.updateVar({ params: { projectId: EMPTY, name }, body: { value } })
+          : api.projectEnv.updateSecret({ params: { projectId: EMPTY, name }, body: { value } });
+      await expect(put('Var', 'DB_HOST', 'new')).resolves.toMatchObject({ name: 'DB_HOST', value: 'new' });
+      expect((await list(EMPTY, 'plain')).items).toMatchObject([{ name: 'DB_HOST', value: 'new' }]);
+      expect((await rejection(put('Var', 'MISSING', 'x'))).status).toBe(404);
+      expect((await rejection(put('Var', 'NPM_TOKEN', 'x'))).status).toBe(404);
+      expect((await rejection(put('Secret', 'DB_HOST', SECRET_VALUE))).status).toBe(404);
+      expect((await rejection(put('Secret', 'MISSING', SECRET_VALUE))).status).toBe(404);
+      expect((await list(EMPTY, 'plain')).total).toBe(1);
+      expect((await list(EMPTY, 'secret')).total).toBe(1);
+    });
+
+    it('removes by kind; a missing name or the other kind is 404', async () => {
+      await addVar('DB_HOST');
+      await addSecret('NPM_TOKEN');
+      const p = (name: string) => ({ projectId: EMPTY, name });
+      expect((await rejection(api.projectEnv.removeVar({ params: p('NPM_TOKEN') }))).status).toBe(404);
+      expect((await rejection(api.projectEnv.removeSecret({ params: p('DB_HOST') }))).status).toBe(404);
+      expect((await rejection(api.projectEnv.removeVar({ params: p('MISSING') }))).status).toBe(404);
+      await api.projectEnv.removeVar({ params: p('DB_HOST') });
+      await api.projectEnv.removeSecret({ params: p('NPM_TOKEN') });
+      expect((await list(EMPTY, 'plain')).total).toBe(0);
+      expect((await list(EMPTY, 'secret')).total).toBe(0);
+    });
+
+    it('never echoes or keeps a secret value: not in a response, an error, the store or its snapshot', async () => {
+      const created = await addSecret('NPM_TOKEN');
+      expect(created.value).toBeNull();
+      const replaced = await api.projectEnv.updateSecret({
+        params: { projectId: EMPTY, name: 'NPM_TOKEN' },
+        body: { value: 'test-token-not-real-replaced' },
+      });
+      expect(replaced.value).toBeNull();
+      const dup = await rejection(addSecret('NPM_TOKEN', 'test-token-not-real-dup'));
+      const wire = JSON.stringify([
+        created,
+        replaced,
+        dup.title,
+        dup.detail,
+        dup.errors,
+        dup.message,
+        await list(EMPTY, 'secret'),
+      ]);
+      const store = JSON.stringify(mockDb.snapshot()) + JSON.stringify(mockDb.state);
+      for (const v of [SECRET_VALUE, 'test-token-not-real-replaced', 'test-token-not-real-dup']) {
+        expect(wire).not.toContain(v);
+        expect(store).not.toContain(v);
+      }
+    });
+
+    it("answers 404 for another org's project and for an unknown one", async () => {
+      expect((await rejection(list(ids.project.storefront, 'plain'))).status).toBe(404);
+      expect((await rejection(addVar('X_ONE', 'v', ids.project.storefront))).status).toBe(404);
+    });
+
+    it('refuses an add at the entry cap (409) while edit and remove still work', async () => {
+      applyMockLists({ env: { variables: 500, secrets: 0 } });
+      const e = await rejection(addVar('ONE_MORE', 'v', P));
+      expect(e.status).toBe(409);
+      expect(e.title).toBe('Too many entries');
+      expect(e.detail).toContain('500');
+      expect((await list(P, 'plain')).total).toBe(500);
+      await expect(
+        api.projectEnv.updateVar({ params: { projectId: P, name: 'VAR_001' }, body: { value: 'edited' } }),
+      ).resolves.toMatchObject({ value: 'edited' });
+      await api.projectEnv.removeVar({ params: { projectId: P, name: 'VAR_001' } });
+      await expect(addVar('ONE_MORE', 'v', P)).resolves.toMatchObject({ name: 'ONE_MORE' });
+    });
+
+    it('refuses a write that would pass 256 KiB of names and values together (409 Too large)', async () => {
+      const big = 'x'.repeat(8192);
+      for (let i = 1; i <= 31; i += 1) await addVar(`E2E_FILL_${String(i).padStart(2, '0')}`, big);
+      const e = await rejection(addVar('NEWVAR', big));
+      expect(e.status).toBe(409);
+      expect(e.title).toBe('Too large');
+      await addVar('SMALL', 'x');
+      await addVar('GROW', 'short');
+      const grow = await rejection(
+        api.projectEnv.updateVar({ params: { projectId: EMPTY, name: 'GROW' }, body: { value: big } }),
+      );
+      expect(grow.status).toBe(409);
+      expect((await list(EMPTY, 'plain', 1, 100)).items.find((x) => x.name === 'GROW')?.value).toBe('short');
     });
   });
 

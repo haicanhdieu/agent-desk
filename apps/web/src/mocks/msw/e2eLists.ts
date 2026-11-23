@@ -1,5 +1,6 @@
 import {
   FINAL_RUN_STATUSES,
+  type EnvEntryDto,
   RunStatus,
   type IgnoredEventDto,
   type RuleDto,
@@ -57,6 +58,8 @@ export const MockLists = z.object({
   /** A count (generated names), or the exact names. */
   skills: z.union([count, z.array(z.string().min(1))]).optional(),
   versions: count.optional(),
+  /** Replaces invoicer-api's environment entries with generated ones: VAR_001.. variables and SEC_001.. secrets. */
+  env: z.object({ variables: count, secrets: count }).optional(),
   /** Holds the answer of a route back for `ms` (then the route answers as usual). `page`/`pageSize` narrow it. */
   hold: z
     .array(
@@ -279,6 +282,24 @@ function ticketRunsOf(entries: readonly TicketRunEntry[], generated: readonly Ru
   });
 }
 
+/** `variables` plain and `secrets` secret entries named VAR_001.., SEC_001.., ascending (the byte order of the list). */
+function generateEnv(counts: { variables: number; secrets: number }): EnvEntryDto[] {
+  const entry = (kind: EnvEntryDto['kind'], i: number): EnvEntryDto => {
+    const n = String(i + 1).padStart(3, '0');
+    return {
+      name: `${kind === 'plain' ? 'VAR' : 'SEC'}_${n}`,
+      kind,
+      value: kind === 'plain' ? `value-${n}` : null,
+      updatedAt: new Date(Date.parse('2026-11-12T10:00:00.000Z') + i * minute).toISOString(),
+      updatedBy: 'kim-hale',
+    };
+  };
+  return [
+    ...Array.from({ length: counts.variables }, (_, i) => entry('plain', i)),
+    ...Array.from({ length: counts.secrets }, (_, i) => entry('secret', i)),
+  ];
+}
+
 /** Replaces the invoicer-api lists (and alice's projects) with generated rows; deterministic. */
 export function applyMockLists(lists: MockLists): void {
   const state = mockDb.state;
@@ -305,6 +326,7 @@ export function applyMockLists(lists: MockLists): void {
     state.rules = [...state.rules.filter((r) => r.projectId !== projectId), ...generateRules(lists.rules)];
   }
   if (lists.skills !== undefined) state.skills[projectId] = generateSkills(lists.skills);
+  if (lists.env !== undefined) state.environment[projectId] = generateEnv(lists.env);
   if (lists.versions !== undefined) {
     const total = lists.versions;
     state.setupScripts[projectId] = Array.from({ length: total }, (_, i) => ({

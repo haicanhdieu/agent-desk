@@ -1,4 +1,4 @@
-import type { PluginsDto, SetupScriptDto } from '@agentdesk/contracts';
+import type { EnvEntryDto, PluginsDto, SetupScriptDto } from '@agentdesk/contracts';
 import { setupScript } from '../setup';
 import { ids } from './ids';
 
@@ -34,3 +34,24 @@ export const pluginFixtures: Record<string, PluginsDto> = {
 
 /** What a project without fixtures gets: the approved stores and no plugins. */
 export const noPlugins = (): PluginsDto => ({ approvedStores: [OFFICIAL], plugins: [], settingsError: null });
+
+// Project environment (workspace setup, Environment tab): plain variables and secrets of a project, both kinds in one
+// list (the API's `kind` splits them). A secret entry never has a value (`value: null`). A project without an entry
+// has none. Generated rows for paging come from `env` in msw/e2eLists.ts.
+const envEntry = (name: string, kind: EnvEntryDto['kind'], value: string | null, updatedAt: string): EnvEntryDto => ({
+  name,
+  kind,
+  value: kind === 'secret' ? null : value,
+  updatedAt,
+  updatedBy: 'kim-hale',
+});
+
+export const environmentFixtures: Record<string, EnvEntryDto[]> = {
+  [ids.project.invoicerApi]: [
+    envEntry('DB_HOST', 'plain', 'db.internal.example.com', '2026-11-12T10:00:00.000Z'),
+    envEntry('LOG_LEVEL', 'plain', 'info', '2026-11-12T10:05:00.000Z'),
+    envEntry('REGION', 'plain', 'eu-west-1', '2026-11-12T10:10:00.000Z'),
+    envEntry('NPM_TOKEN', 'secret', null, '2026-11-13T09:00:00.000Z'),
+    envEntry('SENTRY_DSN', 'secret', null, '2026-11-13T09:30:00.000Z'),
+  ],
+};

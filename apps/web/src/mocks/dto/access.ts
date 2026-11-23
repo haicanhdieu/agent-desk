@@ -23,6 +23,7 @@ const roleId = {
   admin: uuid('b1000000', 2),
   member: uuid('b1000000', 3),
   viewer: uuid('b1000000', 4),
+  setupReader: uuid('b1000000', 5),
 };
 
 const TENANT_PERMISSIONS = Permission.options.filter((p) => !isPlatformPermission(p));
@@ -69,6 +70,16 @@ export const roleFixtures: RoleDto[] = [
     builtIn: true,
     assignableScopes: ['org', 'project'],
     permissions: readOnly.map(any),
+  },
+  // A test fixture, not a built-in role: it can read a project's setup but change none of it (no built-in role reaches
+  // that state), for the read-only Environment tab and the 403 the API gives its writes.
+  {
+    id: roleId.setupReader,
+    key: 'setup-reader',
+    name: 'Setup reader',
+    builtIn: false,
+    assignableScopes: ['org', 'project'],
+    permissions: (['project:read', 'setup:read'] as const).map(any),
   },
 ];
 

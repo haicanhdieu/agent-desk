@@ -19,6 +19,9 @@ import {
   type RouteDef,
   type RuleDto,
   FINAL_RUN_STATUSES,
+  ENV_MAX_TOTAL_BYTES,
+  type EnvEntryDto,
+  type EnvKind,
   slicePage,
   type LinkedTicketDto,
   type ProjectConnectionDto,
@@ -517,6 +520,78 @@ const nextSha = () => {
 const setupVersionsOf = (projectId: string): SetupScriptDto[] => db().setupScripts[projectId] ?? [];
 const findSetupTest = (id: string): SetupTestDto | undefined => db().setupTests.find((t) => t.id === id);
 
+// Project environment helpers. The caps are the API's: 500 entries by default and 256 KiB of names and values. The
+// mock keeps no secret value, so its size check counts the names of both kinds and the values of variables only.
+const ENV_MAX_ENTRIES = 500;
+const envEntriesOf = (projectId: string): EnvEntryDto[] => db().environment[projectId] ?? [];
+/** Byte order of the name (names are ASCII), as the API's `COLLATE "C"`. */
+const byName = (a: EnvEntryDto, b: EnvEntryDto): number => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0);
+const byteLength = (s: string): number => new TextEncoder().encode(s).length;
+const envBytes = (e: EnvEntryDto): number => byteLength(e.name) + byteLength(e.value ?? '');
+
+function assertEnvRoom(list: EnvEntryDto[], change: { addEntry: boolean; deltaBytes: number }): void {
+  if (change.addEntry && list.length >= ENV_MAX_ENTRIES) {
+    throw new Problem({
+      status: 409,
+      title: 'Too many entries',
+      type: 'conflict',
+      detail: `This project already has the maximum of ${ENV_MAX_ENTRIES} environment entries.`,
+    });
+  }
+  const used = list.reduce((sum, e) => sum + envBytes(e), 0);
+  if (change.deltaBytes > 0 && used + change.deltaBytes > ENV_MAX_TOTAL_BYTES) {
+    throw new Problem({
+      status: 409,
+      title: 'Too large',
+      type: 'conflict',
+      detail: `Names and values together cannot exceed ${ENV_MAX_TOTAL_BYTES} bytes (256 KiB) per project.`,
+    });
+  }
+}
+
+function createEnvEntry(projectParam: string, kind: EnvKind, name: string, value: string): EnvEntryDto {
+  const projectId = projectRow(projectParam).id;
+  const list = envEntriesOf(projectId);
+  if (list.some((e) => e.name === name)) {
+    const detail = `${name} already exists. A name can be used once, as a variable or a secret.`;
+    throw conflict('Name already exists', [{ pointer: '/name', detail }], detail);
+  }
+  const entry: EnvEntryDto = {
+    name,
+    kind,
+    value: kind === 'plain' ? value : null,
+    updatedAt: now(),
+    updatedBy: session().user.handle,
+  };
+  assertEnvRoom(list, { addEntry: true, deltaBytes: envBytes(entry) });
+  db().environment[projectId] = [...list, entry];
+  return entry;
+}
+
+function updateEnvEntry(projectParam: string, kind: EnvKind, name: string, value: string): EnvEntryDto {
+  const projectId = projectRow(projectParam).id;
+  const list = envEntriesOf(projectId);
+  const current = list.find((e) => e.name === name && e.kind === kind);
+  if (!current) throw notFound(kind === 'plain' ? 'Variable' : 'Secret');
+  const next: EnvEntryDto = {
+    ...current,
+    value: kind === 'plain' ? value : null,
+    updatedAt: now(),
+    updatedBy: session().user.handle,
+  };
+  assertEnvRoom(list, { addEntry: false, deltaBytes: envBytes(next) - envBytes(current) });
+  db().environment[projectId] = list.map((e) => (e === current ? next : e));
+  return next;
+}
+
+function removeEnvEntry(projectParam: string, kind: EnvKind, name: string): null {
+  const projectId = projectRow(projectParam).id;
+  const list = envEntriesOf(projectId);
+  if (!list.some((e) => e.name === name && e.kind === kind)) throw notFound(kind === 'plain' ? 'Variable' : 'Secret');
+  db().environment[projectId] = list.filter((e) => !(e.name === name && e.kind === kind));
+  return null;
+}
+
 /** Lowercase hex SHA-256 of the text's UTF-8 bytes (WebCrypto: the browser and the Vitest environment have it). */
 async function sha256Hex(text: string): Promise<string> {
   const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));
@@ -683,6 +758,7 @@ const impl: Impl = {
     delete s.ignored[row.id];
     delete s.setupScripts[row.id];
     delete s.plugins[row.id];
+    delete s.environment[row.id];
     for (const t of s.setupTests.filter((x) => x.projectId === row.id)) delete s.setupTestEvents[t.id];
     s.setupTests = s.setupTests.filter((t) => t.projectId !== row.id);
     return null;
@@ -818,6 +894,23 @@ const impl: Impl = {
     return found;
   },
   'setup.plugins': ({ params }) => db().plugins[projectRow(params.projectId).id] ?? noPlugins(),
+
+  // Project environment. The mock mirrors apps/api project-env.service.ts: 404 for a missing or other-kind entry, 409
+  // when a create's name exists in either kind or a limit is hit. A secret stores its name, who and when only: the
+  // value is read by the schema and dropped, so no response and no store snapshot can carry it.
+  'projectEnv.list': ({ params, query }) =>
+    slicePage(
+      envEntriesOf(projectRow(params.projectId).id)
+        .filter((e) => e.kind === query.kind)
+        .sort(byName),
+      query,
+    ),
+  'projectEnv.createVar': ({ params, body }) => createEnvEntry(params.projectId, 'plain', body.name, body.value),
+  'projectEnv.updateVar': ({ params, body }) => updateEnvEntry(params.projectId, 'plain', params.name, body.value),
+  'projectEnv.removeVar': ({ params }) => removeEnvEntry(params.projectId, 'plain', params.name),
+  'projectEnv.createSecret': ({ params, body }) => createEnvEntry(params.projectId, 'secret', body.name, body.value),
+  'projectEnv.updateSecret': ({ params, body }) => updateEnvEntry(params.projectId, 'secret', params.name, body.value),
+  'projectEnv.removeSecret': ({ params }) => removeEnvEntry(params.projectId, 'secret', params.name),
   'setupTests.create': async ({ params, body }) => {
     const projectId = projectRow(params.projectId).id;
     const sha = await sha256Hex(body.script);
@@ -1067,7 +1160,7 @@ const impl: Impl = {
 
   'me.access': () => accessOf(sessionUser()),
   'me.platform': () => ({ platformAdmin: sessionUser().platformAdmin }),
-  'roles.list': () => roleFixtures,
+  'roles.list': () => roleFixtures.filter((r) => r.builtIn),
   'members.list': async ({ params, query }) => {
     const { user, orgId } = session();
     requireActiveOrg(params.orgId, orgId);
@@ -1168,7 +1261,7 @@ const impl: Impl = {
   'platform.reactivateOrg': ({ params, body }) =>
     setPlatformOrgStatus(params.orgId, 'active', body.reason, actorOf(sessionUser())),
   'platform.listProjects': ({ query }) => slicePage(platformProjectFixtures, query),
-  'platform.listRoles': () => roleFixtures,
+  'platform.listRoles': () => roleFixtures.filter((r) => r.builtIn),
   'platform.listMembers': ({ query }) => slicePage(platformMemberFixtures, query),
   'platform.listAssignments': ({ query }) => slicePage(assignmentFixtures, query),
   'platform.createAssignment': () => assignmentFixtures[0] ?? never('assignment'),
@@ -1187,6 +1280,8 @@ const STATUS: Partial<Record<RouteKey, number>> = {
   'connections.install': 201,
   'connections.sync': 201,
   'projects.create': 201,
+  'projectEnv.createVar': 201,
+  'projectEnv.createSecret': 201,
   'rules.create': 201,
   'projects.pollNow': 202,
   'runs.cancel': 202,
