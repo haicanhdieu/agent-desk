@@ -1306,9 +1306,9 @@ export function toAuditRow(dto: AuditEntryDto, now: Date, timeZone?: string): Au
 
 - Consumes: as Task 31; the cast's request contexts for the BR-18 API calls.
 
-- [ ] **Step 1: Write the specs** for BR-2 (TC-2.4, 2.5), BR-13 (TC-13.9), BR-14 (TC-14.1, 14.2), BR-16 (TC-16.3, 16.4) and BR-18 (TC-18.1 to 18.8; the role-based case: member, viewer and P1 admin get 403 on PATCH org, PUT role, DELETE member and GET audit; org admin gets 403 on owner changes and 200 on TC-18.7; afterwards the owner sees nothing changed).
-- [ ] **Step 2: Run** with the stack up: `pnpm --filter @agentdesk/web exec playwright test e2e/local/org-settings.spec.ts`. Expected: PASS.
-- [ ] **Step 3: Commit** `test(web): local e2e for settings access, General and refusals`.
+- [x] **Step 1: Write the specs** for BR-2 (TC-2.4, 2.5), BR-13 (TC-13.9), BR-14 (TC-14.1, 14.2), BR-16 (TC-16.3, 16.4) and BR-18 (TC-18.1 to 18.8; the role-based case: member, viewer and P1 admin get 403 on PATCH org, PUT role, DELETE member and GET audit; org admin gets 403 on owner changes and 200 on TC-18.7; afterwards the owner sees nothing changed).
+- [x] **Step 2: Run** with the stack up: `pnpm --filter @agentdesk/web exec playwright test e2e/local/org-settings.spec.ts`. Expected: PASS.
+- [x] **Step 3: Commit** `test(web): local e2e for settings access, General and refusals`.
 
 ---
 
