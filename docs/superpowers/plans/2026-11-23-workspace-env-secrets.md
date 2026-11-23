@@ -415,11 +415,11 @@ graph LR
   - `const PROJECT_ENV_READ_CONCURRENCY = 10`
   - `loadProjectEnv(db: Db, secrets: SecretStore, ctx: { orgId: string; projectId: string }): Promise<LoadedProjectEnv>`: reads rows under `withOrg` with org and project filter, then `secrets.get(projectEnvSecretName(orgId, id))` per secret row with at most 10 reads in flight. A secret row whose Secret (or its `value` key) is missing throws `ApplicationFailure.nonRetryable` with a message naming only the variable; any other store read error throws a retryable error whose message carries no value; a Secret with no row is never read.
 
-- [ ] **Step 1: Write the failing tests** (real Postgres, `MemorySecretStore` wrapped in a counting spy): returns plain values verbatim (leading and trailing spaces, empty) and secret values by name; 25 secret entries are read with at most 10 reads in flight (spy counts concurrency, the test releases a promise, no timers); an orphan Secret with no row is never read; another project's and another org's rows are never read; a missing Secret for a secret row fails non-retryably and the message holds the name and no value; a store read error is retryable and the message has no value; empty project gives `{ plain: [], secrets: {} }`.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/worker exec vitest run test/project-env.int.test.ts`. Expected: FAIL.
-- [ ] **Step 3: Implement** `loadProjectEnv` with a small bounded-concurrency loop (no new dependency).
-- [ ] **Step 4: Run** the Step 2 command and `pnpm --filter @agentdesk/worker typecheck`. Expected: PASS.
-- [ ] **Step 5: Commit**: `feat(worker): add loadProjectEnv`. Label `review:sensitive`.
+- [x] **Step 1: Write the failing tests** (real Postgres, `MemorySecretStore` wrapped in a counting spy): returns plain values verbatim (leading and trailing spaces, empty) and secret values by name; 25 secret entries are read with at most 10 reads in flight (spy counts concurrency, the test releases a promise, no timers); an orphan Secret with no row is never read; another project's and another org's rows are never read; a missing Secret for a secret row fails non-retryably and the message holds the name and no value; a store read error is retryable and the message has no value; empty project gives `{ plain: [], secrets: {} }`.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/worker exec vitest run test/project-env.int.test.ts`. Expected: FAIL.
+- [x] **Step 3: Implement** `loadProjectEnv` with a small bounded-concurrency loop (no new dependency).
+- [x] **Step 4: Run** the Step 2 command and `pnpm --filter @agentdesk/worker typecheck`. Expected: PASS.
+- [x] **Step 5: Commit**: `feat(worker): add loadProjectEnv`. Label `review:sensitive`.
 
 ---
 
@@ -437,11 +437,11 @@ graph LR
 - Consumes: `loadProjectEnv`, `LoadedProjectEnv` (Task 9); `ProjectEnvInput`, `ProjectEnvClashError` (Task 4).
 - Produces: `createRunSecretAndJob` (fresh run and resume) calls `loadProjectEnv`, copies each secret into the `run-{runId}` Secret data under its env name, passes `projectEnv: { plain, secretNames }` to `buildRunJob`, maps `ProjectEnvClashError` to `ApplicationFailure.nonRetryable` naming the variable only. `redactionList` is unchanged and picks the new values up from the run Secret. Workflow inputs and results still hold ids only.
 
-- [ ] **Step 1: Write the failing tests** in a new `describe('createRunSecretAndJob project env')`: plain entry is a literal env of the Job and a secret entry is a key of `run-{id}` referenced by `secretKeyRef`, with the expected values; empty project gives a Job and Secret equal to the pre-change ones (Review Focus 3); values with leading or trailing spaces stay verbatim; a retry after a later save re-reads current values with one Secret and one Job (pinned as accepted); a save after Job creation leaves the existing Job and Secret untouched; a resume builds the Job from fresh rows and Secrets; a Job-create failure deletes the run Secret again and leaks no value; a dynamic-name clash (project secret named like the credential env) fails non-retryably with the name only; `redactionList` contains each project secret value and a printed value is `***` in the prompt, failure reason, finish comment, scrollback and transcript; no secret value in activity errors, workflow inputs or results or the Job JSON.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/worker exec vitest run test/run.activities.int.test.ts -t "project env"`. Expected: FAIL.
-- [ ] **Step 3: Implement** the wiring in `createRunSecretAndJob` (`ensureSecret` and `ensureJob` 409-is-success path unchanged).
-- [ ] **Step 4: Run** the Step 2 command, the whole `run.activities.int.test.ts`, the existing replay and activity wiring tests unchanged (`pnpm --filter @agentdesk/worker test`), and `pnpm --filter @agentdesk/worker typecheck`. Expected: PASS.
-- [ ] **Step 5: Commit**: `feat(worker): inject project env into run Jobs`. Label `review:sensitive`.
+- [x] **Step 1: Write the failing tests** in a new `describe('createRunSecretAndJob project env')`: plain entry is a literal env of the Job and a secret entry is a key of `run-{id}` referenced by `secretKeyRef`, with the expected values; empty project gives a Job and Secret equal to the pre-change ones (Review Focus 3); values with leading or trailing spaces stay verbatim; a retry after a later save re-reads current values with one Secret and one Job (pinned as accepted); a save after Job creation leaves the existing Job and Secret untouched; a resume builds the Job from fresh rows and Secrets; a Job-create failure deletes the run Secret again and leaks no value; a dynamic-name clash (project secret named like the credential env) fails non-retryably with the name only; `redactionList` contains each project secret value and a printed value is `***` in the prompt, failure reason, finish comment, scrollback and transcript; no secret value in activity errors, workflow inputs or results or the Job JSON.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/worker exec vitest run test/run.activities.int.test.ts -t "project env"`. Expected: FAIL.
+- [x] **Step 3: Implement** the wiring in `createRunSecretAndJob` (`ensureSecret` and `ensureJob` 409-is-success path unchanged).
+- [x] **Step 4: Run** the Step 2 command, the whole `run.activities.int.test.ts`, the existing replay and activity wiring tests unchanged (`pnpm --filter @agentdesk/worker test`), and `pnpm --filter @agentdesk/worker typecheck`. Expected: PASS.
+- [x] **Step 5: Commit**: `feat(worker): inject project env into run Jobs`. Label `review:sensitive`.
 
 ---
 
@@ -459,11 +459,11 @@ graph LR
 - Consumes: Tasks 4 and 9 as in Task 10.
 - Produces: `createSetupTestJob` builds the setup-test Secret and Job with the project env like Task 10; the setup-test redaction list includes the project secret values.
 
-- [ ] **Step 1: Write the failing tests:** plain literal env and secrets in the setup-test Secret referenced by `secretKeyRef`; empty project unchanged; the env secret in the redaction list is stored as `***` in the setup log and transcript; a clash fails non-retryably with the name only; no value in errors.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/worker exec vitest run test/setup-test.activities.int.test.ts -t "project env"`. Expected: FAIL.
-- [ ] **Step 3: Implement** the wiring in `createSetupTestJob` and the redaction list.
-- [ ] **Step 4: Run** the Step 2 command, the whole file, and typecheck. Expected: PASS.
-- [ ] **Step 5: Commit**: `feat(worker): inject project env into setup-test Jobs`. Label `review:sensitive`.
+- [x] **Step 1: Write the failing tests:** plain literal env and secrets in the setup-test Secret referenced by `secretKeyRef`; empty project unchanged; the env secret in the redaction list is stored as `***` in the setup log and transcript; a clash fails non-retryably with the name only; no value in errors.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/worker exec vitest run test/setup-test.activities.int.test.ts -t "project env"`. Expected: FAIL.
+- [x] **Step 3: Implement** the wiring in `createSetupTestJob` and the redaction list.
+- [x] **Step 4: Run** the Step 2 command, the whole file, and typecheck. Expected: PASS.
+- [x] **Step 5: Commit**: `feat(worker): inject project env into setup-test Jobs`. Label `review:sensitive`.
 
 ---
 

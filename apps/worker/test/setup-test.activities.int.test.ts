@@ -5,11 +5,13 @@ import pg from 'pg';
 import { eq } from 'drizzle-orm';
 import { ApplicationFailure } from '@temporalio/common';
 import { MockActivityEnvironment } from '@temporalio/testing';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import {
   FakeKubeGateway,
+  MemorySecretStore,
   createAdapterRegistry,
   parseConfig,
+  projectEnvSecretName,
   setupTestJobName,
   type Config,
   type KubeGateway,
@@ -30,6 +32,7 @@ let dir: string;
 let projectId: string;
 let kube: FakeKubeGateway;
 let config: Config;
+const secrets = new MemorySecretStore();
 
 async function asOwner<T>(fn: (c: pg.Client) => Promise<T>): Promise<T> {
   const c = new pg.Client({ connectionString: pgx.ownerUrl });
@@ -63,6 +66,7 @@ function deps(over: Partial<SetupTestActivityDeps> = {}): SetupTestActivityDeps 
   return {
     db,
     kube,
+    secrets,
     adapters: createAdapterRegistry(config, { now: () => new Date() }),
     clock: { now: () => new Date() },
     config,
@@ -278,6 +282,168 @@ describe('createSetupTestJob', () => {
     }
     expect(await kube.readSecret(setupTestJobName(ref.setupTestId))).toBeNull();
     expect(await kube.getRunPod(setupTestJobName(ref.setupTestId))).toBeNull();
+  });
+});
+
+describe('createSetupTestJob project env', () => {
+  const PLAIN = 'plain-value-123';
+  const SECRET_A = 'project-secret-aaaa-1111';
+  const jobs: unknown[] = [];
+  const rowIds: string[] = [];
+  const capturing = () =>
+    wrapKube({
+      ensureJob: async (j) => {
+        jobs.push(j);
+        return kube.ensureJob(j);
+      },
+    });
+
+  async function setEntry(name: string, kind: 'plain' | 'secret', value: string): Promise<void> {
+    const id = await asOwner(async (c) => {
+      const r = await c.query<{ id: string }>(
+        `insert into project_env_vars (org_id, project_id, name, kind, value, size_bytes, updated_by)
+         values ($1, $2, $3, $4, $5, 10, 'tester') returning id`,
+        [ORG, projectId, name, kind, kind === 'plain' ? value : null],
+      );
+      return r.rows[0]?.id ?? '';
+    });
+    rowIds.push(id);
+    if (kind === 'secret') await secrets.put(projectEnvSecretName(ORG, id), { value });
+  }
+
+  afterEach(async () => {
+    await asOwner((c) => c.query('delete from project_env_vars where project_id = $1', [projectId]));
+    for (const id of rowIds) await secrets.delete(projectEnvSecretName(ORG, id));
+    rowIds.length = 0;
+    jobs.length = 0;
+  });
+
+  it('a plain entry is a literal env and a secret entry is a Secret key behind a secretKeyRef', async () => {
+    await setEntry('E2E_PLAIN', 'plain', PLAIN);
+    await setEntry('E2E_SECRET', 'secret', SECRET_A);
+    const ref = await seedTest();
+    const acts = createSetupTestActivities(deps({ kube: capturing() }));
+    await acts.createSetupTestJob(ref);
+    const name = setupTestJobName(ref.setupTestId);
+    expect(await kube.readSecret(name)).toMatchObject({ E2E_SECRET: SECRET_A });
+    expect(await kube.podEnv(name)).toMatchObject({ E2E_PLAIN: PLAIN, E2E_SECRET: SECRET_A });
+    const json = JSON.stringify(jobs);
+    expect(json).toContain(PLAIN);
+    expect(json).toContain('"secretKeyRef"');
+    expect(json).not.toContain(SECRET_A);
+    await acts.finalizeSetupTest(ref);
+  });
+
+  it('an empty project gives the same Secret and no extra env as before', async () => {
+    const ref = await seedTest();
+    const acts = createSetupTestActivities(deps({ kube: capturing() }));
+    await acts.createSetupTestJob(ref);
+    expect(await kube.readSecret(setupTestJobName(ref.setupTestId))).toEqual({
+      REPO_CLONE_URL: 'https://fake.invalid/dev/demo.git',
+      'workspace-token': CLONE_TOKEN,
+    });
+    const refs = JSON.stringify(jobs).match(/"key":"[^"]+"/g) ?? [];
+    expect(new Set(refs)).toEqual(new Set(['"key":"REPO_CLONE_URL"', '"key":"workspace-token"']));
+    await acts.finalizeSetupTest(ref);
+  });
+
+  it('a printed secret value is *** in the stored setup log and events', async () => {
+    await setEntry('E2E_SECRET', 'secret', SECRET_A);
+    const ref = await seedTest();
+    const acts = createSetupTestActivities(deps());
+    await acts.createSetupTestJob(ref);
+    const printing = wrapKube({
+      async *streamLogs() {
+        yield 'agentdesk: setup begin';
+        yield `setup| value is ${SECRET_A}`;
+        yield 'agentdesk: setup passed';
+        yield 'agentdesk: session started';
+      },
+      getRunPod: async (n) => ({ name: n, phase: 'Running', pendingSince: null, reason: null, exitCode: null }),
+    });
+    await follow(deps({ kube: printing }), ref).promise;
+    const dump = JSON.stringify(await load(ref));
+    expect(dump).toContain('***');
+    expect(dump).not.toContain(SECRET_A);
+    await acts.finalizeSetupTest(ref);
+  });
+
+  it('a project secret named like a platform key fails non-retryably naming the variable only', async () => {
+    await setEntry('REPO_CLONE_URL', 'secret', SECRET_A);
+    const ref = await seedTest();
+    const err = await createSetupTestActivities(deps())
+      .createSetupTestJob(ref)
+      .catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(ApplicationFailure);
+    expect((err as ApplicationFailure).nonRetryable).toBe(true);
+    expect((err as Error).message).toContain('REPO_CLONE_URL');
+    expect((err as Error).message).not.toContain(SECRET_A);
+    expect((err as Error).message).not.toContain(CLONE_TOKEN);
+    expect(await kube.readSecret(setupTestJobName(ref.setupTestId))).toBeNull();
+  });
+
+  it('secrets named __proto__ and toString reach the test Secret, not a platform clash', async () => {
+    await setEntry('__proto__', 'secret', SECRET_A);
+    await setEntry('toString', 'secret', 'other-secret-bbbb-2222');
+    const ref = await seedTest();
+    // Captured at the gateway call: the fake gateway's own Secret file schema is not what is under test.
+    let data: Record<string, string> = {};
+    const acts = createSetupTestActivities(
+      deps({
+        kube: wrapKube({
+          ensureSecret: async (n, d, l) => {
+            data = d;
+            return kube.ensureSecret(n, d, l);
+          },
+        }),
+      }),
+    );
+    await acts.createSetupTestJob(ref);
+    expect(Object.getOwnPropertyDescriptor(data, '__proto__')?.value).toBe(SECRET_A);
+    expect(data.toString).toBe('other-secret-bbbb-2222');
+    await acts.finalizeSetupTest(ref);
+  });
+
+  it('a plain entry named like a platform env fails non-retryably and leaves no Secret', async () => {
+    await setEntry('RUN_MODE', 'plain', 'x');
+    const ref = await seedTest();
+    const err = await createSetupTestActivities(deps())
+      .createSetupTestJob(ref)
+      .catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(ApplicationFailure);
+    expect((err as ApplicationFailure).nonRetryable).toBe(true);
+    expect((err as Error).message).toContain('RUN_MODE');
+    expect(await kube.readSecret(setupTestJobName(ref.setupTestId))).toBeNull();
+  });
+
+  it('a Job-create failure removes the Secret and leaks no value', async () => {
+    await setEntry('E2E_PLAIN', 'plain', PLAIN);
+    await setEntry('E2E_SECRET', 'secret', SECRET_A);
+    const ref = await seedTest();
+    const failing = wrapKube({
+      ensureJob: async () => {
+        throw new Error(`apply failed ${SECRET_A} ${PLAIN}`);
+      },
+    });
+    const err = await createSetupTestActivities(deps({ kube: failing }))
+      .createSetupTestJob(ref)
+      .catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(ApplicationFailure);
+    expect((err as Error).message).not.toContain(SECRET_A);
+    expect(await kube.readSecret(setupTestJobName(ref.setupTestId))).toBeNull();
+  });
+
+  it('a secret whose store value is missing fails non-retryably naming the variable only', async () => {
+    await setEntry('E2E_SECRET', 'secret', SECRET_A);
+    await secrets.delete(projectEnvSecretName(ORG, rowIds[0] ?? ''));
+    const ref = await seedTest();
+    const err = await createSetupTestActivities(deps())
+      .createSetupTestJob(ref)
+      .catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(ApplicationFailure);
+    expect((err as ApplicationFailure).nonRetryable).toBe(true);
+    expect((err as Error).message).toContain('E2E_SECRET');
+    expect(await kube.readSecret(setupTestJobName(ref.setupTestId))).toBeNull();
   });
 });
 

@@ -35,6 +35,7 @@ export function createActivities(deps: ActivityDeps): Activities {
     ...createSetupTestActivities({
       db: deps.db,
       kube: deps.kube,
+      secrets: deps.secrets,
       adapters: deps.adapters,
       clock: deps.clock,
       config: deps.config,

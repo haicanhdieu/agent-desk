@@ -129,12 +129,14 @@ const logEnv = () => {
     );
   }
 };
+// Logs the raw value now and returns its pane write; a fresh start runs that write only after the volume dir exists
+// (and its pane copy is reset), because pane() mirrors to the volume.
 const echoEnv = () => {
   const m = /--fake-echo-env=(E2E_[A-Za-z0-9_]*)/.exec(prompt);
   const value = m ? process.env[m[1]] : undefined;
-  if (value === undefined) return;
+  if (value === undefined) return () => {};
   log(value);
-  pane(`${value}\r\n`);
+  return () => pane(`${value}\r\n`);
 };
 const pane = (text) => {
   appendFileSync(file('pane'), text);
@@ -242,11 +244,11 @@ if (prompt.includes('--fake-pending')) {
     // RESUME_NOTE is the continued session's first message (the runner passes it to `claude --continue`): pane text only.
     const resumeNote = process.env.RESUME_NOTE ?? '';
     if (resumeNote !== '') appendFileSync(file('pane'), `${resumeNote}\r\n`);
-    echoEnv();
+    echoEnv()();
   } else {
     logIdentity();
     logEnv();
-    echoEnv();
+    const echoToPane = echoEnv();
     log(`agentdesk: checkout ${'0'.repeat(40)}`);
     log('agentdesk: plugins begin');
     log('agentdesk: plugins end');
@@ -268,6 +270,7 @@ if (prompt.includes('--fake-pending')) {
         writeFileSync(volumeFile('pane'), '');
         writeFileSync(volumeFile('session-started'), new Date().toISOString());
       }
+      echoToPane();
       initSession();
       if (!setupTest) record(userEntry(prompt));
       log('agentdesk: session started');

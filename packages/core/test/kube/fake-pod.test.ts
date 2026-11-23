@@ -131,6 +131,15 @@ describe('fake-pod.mjs', () => {
       expect(read('log')).toContain('hello-raw');
     });
 
+    it('echoes on a fresh start with a volume: raw value in pane and volume copy, hash line logged, no crash', async () => {
+      const vol = join(dir, 'fresh-volume'); // not created: the pod makes it on a fresh start
+      await boot({ E2E_X: 'hello-raw', PROMPT: '--fake-echo-env=E2E_X', FAKE_VOLUME_DIR: vol });
+      expect(read('exit')).not.toBe('137');
+      expect(logLines()).toContain(`agentdesk: env E2E_X ${hash('hello-raw')}`);
+      expect(read('pane')).toContain('hello-raw');
+      expect(readFileSync(join(vol, 'pane'), 'utf8')).toContain('hello-raw');
+    });
+
     it('keeps the raw value out of the log and pane without the flag', async () => {
       await boot({ E2E_A: 'hello-raw' });
       advance(TURN_MS * 2);
