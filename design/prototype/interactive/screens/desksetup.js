@@ -290,7 +290,9 @@ ${section(ctx, 'secrets', st, ui, listState(s, 'secrets'), can.secrets)}
       const kind = d.list === 'secrets' ? 'secret' : 'variable';
       overlay = AD.dialog({ label: 'Remove ' + d.name + '?', w: 480, body: `<h2 style="font-size:18px">Remove <span class="mono" style="font-size:17px">${esc(d.name)}</span>?</h2><p class="muted" style="font-size:13.5px">${esc(C.removeBody)}</p>`, foot: `<button class="btn ghost" data-act="dialog-close"${d.busy ? ' disabled' : ''}>Keep</button><button class="btn solid-danger" data-act="env-remove-confirm"${d.busy ? ' disabled aria-busy="true"' : ''}>${d.busy ? 'Removing…' : 'Remove ' + kind}</button>` });
     }
-    const html = AD.fixLinks(body.replace(boardMain, () => main)) + overlay;
+    let html = AD.fixLinks(body.replace(boardMain, () => main)) + overlay;
+    // The read-only fixtures (DeskSetupEnvironmentReadOnly / SecretsReadOnly) draw a person without the side menu's "Access" group.
+    if (s === 'env-readonly' || s === 'env-secrets-readonly') html = AD.stripDeskAccess(html);
     const focus = ui.focus; ui.focus = null;
     return {
       header: 'project', h: 900, fixed: true, title: 'Desk, workspace setup, Environment', html,

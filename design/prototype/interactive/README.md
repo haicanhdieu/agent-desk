@@ -69,7 +69,7 @@ Clicks, as the proposal promises: Projects <-> Settings is one click with the ta
 - Settings is a tab (org pages) and an org-menu item (every page). The Settings button on the Projects page header is gone by default (a proposal toggle brings it back). The avatar-menu Settings item and its toggle are dropped.
 - The run page crumb "invoicer-api" no longer leads to the all-projects list; the crumbs are now the org and project switchers followed by "Runs" (the project's Runs list).
 - The needs-you page has the bar. My invitations is reached from sign-in, not from the account menu. "Sign out" is now "Logout" everywhere (the code uses "Logout").
-- The 209 static boards are still drawn inside the live bar: the bar of each board's header strip is replaced by the live one (120 org-level, 58 project-level, 21 run-level). Boards drawn without a bar and now given one: the needs-you explainer (org bar) and the page-crash and loading boards (bar of the current area). Boards that stay barless: Main (index), the two sign-in boards, Pagination and RunTranscriptStates (explainers). The check script counts the bars of every board: exactly one, never two.
+- The 246 static boards are still drawn inside the live bar: the bar of each board's header strip is replaced by the live one (122 org-level, 93 project-level, 21 run-level). Boards drawn without a bar and now given one: the needs-you explainer (org bar) and the page-crash and loading boards (bar of the current area). Boards that stay barless: Main (index), the two sign-in boards, Pagination and RunTranscriptStates (explainers). The check script counts the bars of every board: exactly one, never two.
 - Board text changes done at display time (the boards stay untouched): "This list is one click away on the logo." reads "... on the Projects tab." on Projects boards, and the Settings or Invitations button in the head of the Projects boards is hidden unless the first proposal toggle is on.
 
 ### Proposals to review (open questions 2 and 3 of the proposal, not decided)
@@ -94,7 +94,9 @@ The proposal's question 1 (is "Settings two clicks from inside a project" accept
 | `#/o/<org>/needs-you` | Needs you outside the run page (under the org bar) | NeedsYou* |
 | `#/o/<org>/p/<project>/runs` | Runs (grouped, flat, problems, linked) | Runs* |
 | `#/o/<org>/p/<project>/runs/<n>` | Run page (starting, running, idle, stopped, failed, ...) | Run* |
-| `#/o/<org>/p/<project>/desk/agent\|rules\|skills` | Desk (agent settings, routing rules, skills) | DeskAgent*, DeskRules*, DeskSkill* |
+| `#/o/<org>/p/<project>/desk/agent\|rules\|skills` | Desk (agent settings, routing rules, skills); a project admin gets Agent & settings without the Danger zone | DeskAgent*, DeskRules*, DeskSkill* |
+| `#/o/<org>/p/<project>/desk/members` | Project Settings > Members (project admin space): project roles, Add member, Invite people, Change role, Remove. Member and viewer get the Forbidden page. Reached from the Desk side menu's "Access" group (Members, Audit log), drawn on every Desk board and shown only to org owner, org admin and the admin of that project | DeskMembers* |
+| `#/o/<org>/p/<project>/desk/audit` | Project Settings > Audit log (project admin space). Member and viewer get the Forbidden page | DeskAudit* |
 | `#/o/<org>/p/<project>/desk/setup` | Desk > Workspace setup, Setup script tab (drawn board with the live "Setup script \| Environment" tab strip) | DeskSetup, DeskSetupPaged, DeskSetupTest, DeskSetupVersions* |
 | `#/o/<org>/p/<project>/desk/setup?tab=environment` | Desk > Workspace setup, Environment tab (live: variables and secrets in memory) | DeskSetupEnvironment* |
 | `#/o/<org>/settings` | Redirects to the first tab the role may open | n/a |
@@ -126,7 +128,7 @@ Faked or static:
 
 ## Coverage of every board
 
-There are 209 boards in `design/prototype/project/`. Every one is reproduced: each is reachable through the route in the table and also from the Scenario selector on its screen. "Live screen" means the default route is the working, stateful screen. "Board snapshot" means the route shows the board as drawn inside the live header and navigation. Where a board's states can be produced live, the last column says how. Routes assume `harbor-labs` and `invoicer-api`; the Screen map and the Scenario selector build them for the current org and project.
+There are 246 boards in `design/prototype/project/`. Every one is reproduced: each is reachable through the route in the table and also from the Scenario selector on its screen. "Live screen" means the default route is the working, stateful screen. "Board snapshot" means the route shows the board as drawn inside the live header and navigation. Where a board's states can be produced live, the last column says how. Routes assume `harbor-labs` and `invoicer-api`; the Screen map and the Scenario selector build them for the current org and project.
 
 Three default routes depend on the role: CreateOrg (Platform admin; others see CreateOrgForbidden), MyInvitations (New user with invitations; others see the empty board) and InvitationAccept (New user with invitations; others see "not available"). Their other boards are reachable with `?s=`.
 
@@ -163,7 +165,7 @@ Boards not reproduced: none. Closest to not reproduced: `OrgInvitationsInviteTab
 | `index.html` | Entry; loads the CSS and scripts in order |
 | `board-styles.css` | Union of the boards' shared CSS (generated) |
 | `styles.css` | Prototype-only styles: sticky bar, name truncation in the bar, menus, toasts, controls panel, screen map (tokens only) |
-| `data/boards.js` | The 209 boards' markup (generated) |
+| `data/boards.js` | The 246 boards' markup (generated) |
 | `js/core.js` | Fake data, roles, permission rules, fake API |
 | `js/router.js` | Hash router |
 | `js/boards.js` | Board lookup, board-to-route mapping, generic states |
@@ -196,6 +198,41 @@ No routes changed with the Option A navigation update, so every row below still 
 | `DeskAgentAutoResumeChanged` | `#/o/harbor-labs/p/invoicer-api/desk/agent?s=DeskAgentAutoResumeChanged` | Board snapshot, live header and navigation | Static board (not stateful in this prototype) |
 | `DeskAgentAutoResumeError` | `#/o/harbor-labs/p/invoicer-api/desk/agent?s=DeskAgentAutoResumeError` | Board snapshot, live header and navigation | Static board (not stateful in this prototype) |
 | `DeskAgentCustomModel` | `#/o/harbor-labs/p/invoicer-api/desk/agent?s=DeskAgentCustomModel` | Board snapshot, live header and navigation | Static board (not stateful in this prototype) |
+| `DeskAgentProjectAdmin` | `#/o/harbor-labs/p/invoicer-api/desk/agent?s=DeskAgentProjectAdmin` | Board snapshot, live header and navigation | Live: Project admin persona opens Agent & settings (no Danger zone) |
+| `DeskAudit` | `#/o/harbor-labs/p/invoicer-api/desk/audit` | Board snapshot, live header and navigation | Static board (not stateful in this prototype) |
+| `DeskAuditEmpty` | `#/o/harbor-labs/p/invoicer-api/desk/audit?s=DeskAuditEmpty` | Board snapshot, live header and navigation | Static board (not stateful in this prototype) |
+| `DeskAuditError` | `#/o/harbor-labs/p/invoicer-api/desk/audit?s=DeskAuditError` | Board snapshot, live header and navigation | Static board (not stateful in this prototype) |
+| `DeskAuditInvitationExpired` | `#/o/harbor-labs/p/invoicer-api/desk/audit?s=DeskAuditInvitationExpired` | Board snapshot, live header and navigation | Static board (not stateful in this prototype) |
+| `DeskAuditInvitationNoEmail` | `#/o/harbor-labs/p/invoicer-api/desk/audit?s=DeskAuditInvitationNoEmail` | Board snapshot, live header and navigation | Static board (not stateful in this prototype) |
+| `DeskAuditLoading` | `#/o/harbor-labs/p/invoicer-api/desk/audit?s=DeskAuditLoading` | Board snapshot, live header and navigation | Static board (not stateful in this prototype) |
+| `DeskAuditPaged` | `#/o/harbor-labs/p/invoicer-api/desk/audit?s=DeskAuditPaged` | Board snapshot, live header and navigation | Static board (not stateful in this prototype) |
+| `DeskMembers` | `#/o/harbor-labs/p/invoicer-api/desk/members` | Board snapshot, live header and navigation | Static board (not stateful in this prototype); member or viewer persona: DeskMembersForbidden |
+| `DeskMembersAdd` | `#/o/harbor-labs/p/invoicer-api/desk/members?s=DeskMembersAdd` | Board snapshot, live header and navigation | Static board (not stateful in this prototype) |
+| `DeskMembersAddAllAdded` | `#/o/harbor-labs/p/invoicer-api/desk/members?s=DeskMembersAddAllAdded` | Board snapshot, live header and navigation | Static board (not stateful in this prototype) |
+| `DeskMembersAddAlreadyOnProject` | `#/o/harbor-labs/p/invoicer-api/desk/members?s=DeskMembersAddAlreadyOnProject` | Board snapshot, live header and navigation | Static board (not stateful in this prototype) |
+| `DeskMembersAddFieldErrors` | `#/o/harbor-labs/p/invoicer-api/desk/members?s=DeskMembersAddFieldErrors` | Board snapshot, live header and navigation | Static board (not stateful in this prototype) |
+| `DeskMembersAddFormError` | `#/o/harbor-labs/p/invoicer-api/desk/members?s=DeskMembersAddFormError` | Board snapshot, live header and navigation | Static board (not stateful in this prototype) |
+| `DeskMembersAddNoMatch` | `#/o/harbor-labs/p/invoicer-api/desk/members?s=DeskMembersAddNoMatch` | Board snapshot, live header and navigation | Static board (not stateful in this prototype) |
+| `DeskMembersAddSaving` | `#/o/harbor-labs/p/invoicer-api/desk/members?s=DeskMembersAddSaving` | Board snapshot, live header and navigation | Static board (not stateful in this prototype) |
+| `DeskMembersAddSearch` | `#/o/harbor-labs/p/invoicer-api/desk/members?s=DeskMembersAddSearch` | Board snapshot, live header and navigation | Static board (not stateful in this prototype) |
+| `DeskMembersAdded` | `#/o/harbor-labs/p/invoicer-api/desk/members?s=DeskMembersAdded` | Board snapshot, live header and navigation | Static board (not stateful in this prototype) |
+| `DeskMembersBusy` | `#/o/harbor-labs/p/invoicer-api/desk/members?s=DeskMembersBusy` | Board snapshot, live header and navigation | Static board (not stateful in this prototype) |
+| `DeskMembersChangeRole` | `#/o/harbor-labs/p/invoicer-api/desk/members?s=DeskMembersChangeRole` | Board snapshot, live header and navigation | Static board (not stateful in this prototype) |
+| `DeskMembersChangeRoleError` | `#/o/harbor-labs/p/invoicer-api/desk/members?s=DeskMembersChangeRoleError` | Board snapshot, live header and navigation | Static board (not stateful in this prototype) |
+| `DeskMembersChangeRoleSaving` | `#/o/harbor-labs/p/invoicer-api/desk/members?s=DeskMembersChangeRoleSaving` | Board snapshot, live header and navigation | Static board (not stateful in this prototype) |
+| `DeskMembersEmpty` | `#/o/harbor-labs/p/invoicer-api/desk/members?s=DeskMembersEmpty` | Board snapshot, live header and navigation | Static board (not stateful in this prototype) |
+| `DeskMembersError` | `#/o/harbor-labs/p/invoicer-api/desk/members?s=DeskMembersError` | Board snapshot, live header and navigation | Static board (not stateful in this prototype) |
+| `DeskMembersForbidden` | `#/o/harbor-labs/p/invoicer-api/desk/members?s=DeskMembersForbidden` | Board snapshot, live header and navigation | Static board (not stateful in this prototype) |
+| `DeskMembersGone` | `#/o/harbor-labs/p/invoicer-api/desk/members?s=DeskMembersGone` | Board snapshot, live header and navigation | Static board (not stateful in this prototype) |
+| `DeskMembersInvite` | `#/o/harbor-labs/p/invoicer-api/desk/members?s=DeskMembersInvite` | Board snapshot, live header and navigation | Static board (not stateful in this prototype) |
+| `DeskMembersInviteCreated` | `#/o/harbor-labs/p/invoicer-api/desk/members?s=DeskMembersInviteCreated` | Board snapshot, live header and navigation | Static board (not stateful in this prototype) |
+| `DeskMembersLoading` | `#/o/harbor-labs/p/invoicer-api/desk/members?s=DeskMembersLoading` | Board snapshot, live header and navigation | Static board (not stateful in this prototype) |
+| `DeskMembersPaged` | `#/o/harbor-labs/p/invoicer-api/desk/members?s=DeskMembersPaged` | Board snapshot, live header and navigation | Static board (not stateful in this prototype) |
+| `DeskMembersRemoveConfirm` | `#/o/harbor-labs/p/invoicer-api/desk/members?s=DeskMembersRemoveConfirm` | Board snapshot, live header and navigation | Static board (not stateful in this prototype) |
+| `DeskMembersRemoved` | `#/o/harbor-labs/p/invoicer-api/desk/members?s=DeskMembersRemoved` | Board snapshot, live header and navigation | Static board (not stateful in this prototype) |
+| `DeskMembersRemoving` | `#/o/harbor-labs/p/invoicer-api/desk/members?s=DeskMembersRemoving` | Board snapshot, live header and navigation | Static board (not stateful in this prototype) |
+| `DeskMembersRoleChanged` | `#/o/harbor-labs/p/invoicer-api/desk/members?s=DeskMembersRoleChanged` | Board snapshot, live header and navigation | Static board (not stateful in this prototype) |
+| `DeskMembersRowMenu` | `#/o/harbor-labs/p/invoicer-api/desk/members?s=DeskMembersRowMenu` | Board snapshot, live header and navigation | Static board (not stateful in this prototype) |
 | `DeskRules` | `#/o/harbor-labs/p/invoicer-api/desk/rules` | Board snapshot, live header and navigation | Static board (not stateful in this prototype) |
 | `DeskRulesEmpty` | `#/o/harbor-labs/p/invoicer-api/desk/rules?s=DeskRulesEmpty` | Board snapshot, live header and navigation | Static board (not stateful in this prototype) |
 | `DeskRulesPaged` | `#/o/harbor-labs/p/invoicer-api/desk/rules?s=DeskRulesPaged` | Board snapshot, live header and navigation | Static board (not stateful in this prototype) |
@@ -258,6 +295,8 @@ No routes changed with the Option A navigation update, so every row below still 
 | `OrgAuditEmpty` | `#/o/harbor-labs/settings/audit?s=OrgAuditEmpty` | Board snapshot, live header and navigation | Live: switch to Northwind (empty audit) |
 | `OrgAuditError` | `#/o/harbor-labs/settings/audit?s=OrgAuditError` | Board snapshot, live header and navigation | Scenario selector: Error |
 | `OrgAuditForbidden` | `#/o/harbor-labs/settings/audit?s=OrgAuditForbidden` | Board snapshot, live header and navigation | Live: sign in as Member/Viewer and open the URL |
+| `OrgAuditInvitationNoEmail` | `#/o/harbor-labs/settings/audit?s=OrgAuditInvitationNoEmail` | Board snapshot, live header and navigation | Board snapshot (static): invitation sentences name the listed projects (rbac-project-admin-space spec); the live Audit log still draws the old sentences |
+| `OrgAuditInvitationProjects` | `#/o/harbor-labs/settings/audit?s=OrgAuditInvitationProjects` | Board snapshot, live header and navigation | Board snapshot (static): invitation sentences name the listed projects (rbac-project-admin-space spec); the live Audit log still draws the old sentences |
 | `OrgAuditLoading` | `#/o/harbor-labs/settings/audit?s=OrgAuditLoading` | Board snapshot, live header and navigation | Scenario selector: Loading |
 | `OrgAuditPaged` | `#/o/harbor-labs/settings/audit?s=OrgAuditPaged` | Board snapshot, live header and navigation | Live: 25 entries, page size 20, page 2 |
 | `OrgGeneral` | `#/o/harbor-labs/settings/general` | Live screen | Live: Settings > General |
