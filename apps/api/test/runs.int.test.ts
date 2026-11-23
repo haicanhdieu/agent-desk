@@ -89,7 +89,7 @@ describe('runs list', () => {
     const pid = (await makeProject(t, alice, await installFake(t, alice))).projectId;
     await insertRun({ ticketRef: 'abc' }, pid);
     await insertRun({ ticketRef: 'def' }, pid);
-    const res = expectContract('runs.list', await listRuns('?q=abc', pid)) as RunListResponse;
+    const res = expectContract('runs.list', await listRuns('?ticket=abc', pid)) as RunListResponse;
     expect(res.items.map((r) => r.ticket.ref)).toEqual(['abc']);
     expect((await listRuns('', pid, bob)).statusCode).toBe(404);
   });
@@ -153,11 +153,11 @@ describe('runs list', () => {
     }
   });
 
-  it('total counts the filter and the search', async () => {
+  it('total counts the filter and the ticket', async () => {
     const pid = (await makeProject(t, alice, await installFake(t, alice))).projectId;
     for (const status of ['succeeded', 'failed', 'running', 'queued']) await insertRun({ status, ticketRef: 'T' }, pid);
     await insertRun({ status: 'failed', ticketRef: 'U' }, pid);
-    const res = await pageOf('?filter=ended&q=T', pid);
+    const res = await pageOf('?filter=ended&ticket=T', pid);
     expect(res.total).toBe(2);
     expect(res.items.map((r) => r.ticket.ref)).toEqual(['T', 'T']);
     expect((await pageOf('?filter=ended', pid)).total).toBe(3);
@@ -1097,6 +1097,15 @@ describe('runs list search (q)', () => {
     expectContract('runs.list', await listRuns(`?q=${encodeURIComponent(q)}${extra}`, pid)) as RunListResponse;
   const idsOf = (res: RunListResponse) => res.items.map((i) => i.id).sort();
   const want = (...rs: { id: string }[]) => rs.map((r) => r.id).sort();
+
+  it('combines the exact ticket ref with q (both must hold)', async () => {
+    const pid = await newProject();
+    const hit = await row(pid, { ticketRef: '31', ticketNumber: 31, ticketTitle: 'Login loop', command: 'fix' });
+    await row(pid, { ticketRef: '32', ticketNumber: 32, ticketTitle: 'Login page' });
+    expect(idsOf(await search(pid, 'login', '&ticket=31'))).toEqual(want(hit));
+    expect((await search(pid, 'nomatch', '&ticket=31')).items).toEqual([]);
+    expect(idsOf(await search(pid, 'login'))).toHaveLength(2);
+  });
 
   it('matches the ticket title, case-insensitively and by substring or phrase', async () => {
     const pid = await newProject();

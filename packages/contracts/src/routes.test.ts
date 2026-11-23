@@ -143,7 +143,8 @@ describe('contract boundaries', () => {
     });
     expect(RunListQuery.parse({ q: '  fix the login  ' }).q).toBe('fix the login');
     expect(RunListQuery.safeParse({ q: 'x'.repeat(201) }).success).toBe(false);
-    expect(RunListQuery.safeParse({ ticket: '7' }).success).toBe(false);
+    // The exact `ticket` ref stays beside `q`; both may be given (the server ANDs them).
+    expect(RunListQuery.parse({ ticket: '7', q: 'login' })).toEqual({ ticket: '7', q: 'login', page: 1, pageSize: 20 });
     expect(RunListQuery.safeParse({ limit: '5' }).success).toBe(false);
     expect(RunListQuery.safeParse({ cursor: 'x' }).success).toBe(false);
     expect(RunListQuery.safeParse({ pageSize: '101' }).success).toBe(false);

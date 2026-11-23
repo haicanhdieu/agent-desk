@@ -110,6 +110,8 @@ export const RUN_SEARCH_MAX = 200;
 // Strict: the retired `cursor` and `limit` parameters are a 400, not silently ignored.
 export const RunListQuery = PageQuery.extend({
   filter: RunListFilter.optional(),
+  /** Exact ticket ref (the provider-local ticket number like `12`): the runs on that one ticket. ANDed with `q`. */
+  ticket: z.string().optional(),
   /** Free-text search over the run's identifying fields and its (linked) tickets; matched on the server. */
   q: z.string().trim().max(RUN_SEARCH_MAX).optional(),
 }).strict();

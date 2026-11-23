@@ -172,6 +172,29 @@ describe('applyRunStatus', () => {
     expect(qc.getQueryState(other)?.isInvalidated).toBe(false);
   });
 
+  it('keeps the ticket in key slot 7 beside the search text: a searched list is invalidated by a status change that moves a run in', () => {
+    const qc = seeded();
+    const searched = runsQueries.list(org, projectId, {
+      filter: 'needs_you',
+      q: 'login',
+      page: 1,
+      pageSize: 20,
+    }).queryKey;
+    const searchedOtherTicket = runsQueries.list(org, projectId, {
+      filter: 'needs_you',
+      ticket: 'not-this-ticket',
+      q: 'login',
+      page: 1,
+      pageSize: 20,
+    }).queryKey;
+    qc.setQueryData(searched, listOf());
+    qc.setQueryData(searchedOtherTicket, listOf());
+    // Run 63 is cached, so its ticket is known and the search text is not mistaken for a ticket ref.
+    applyRunStatus(qc, org, projectId, status(63, 'idle', 5));
+    expect(qc.getQueryState(searched)?.isInvalidated).toBe(true);
+    expect(qc.getQueryState(searchedOtherTicket)?.isInvalidated).toBe(false);
+  });
+
   it('a status change invalidates the cached run stats, in any case of the change', () => {
     const qc = seeded();
     const stats = runsQueries.stats(org, projectId, SINCE).queryKey;

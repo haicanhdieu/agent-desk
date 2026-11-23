@@ -862,6 +862,7 @@ const impl: Impl = {
     const matching = db()
       .runs.filter((r) => r.projectId === projectId)
       .filter((r) => matchesFilter(query.filter, r.status))
+      .filter((r) => query.ticket === undefined || r.ticket.ref === query.ticket)
       .filter((r) =>
         matchesSearch(
           r,

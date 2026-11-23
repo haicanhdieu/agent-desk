@@ -225,7 +225,12 @@ export class RunsService {
   async list(org: OrgContext, projectId: string, q: RunListQuery): Promise<RunListResponse> {
     return withOrg(this.db, org.orgId, async (tx) => {
       await this.requireProject(tx, projectId);
-      const where = and(eq(runs.projectId, projectId), this.statusIn(q.filter), runSearchCondition(projectId, q.q));
+      const where = and(
+        eq(runs.projectId, projectId),
+        this.statusIn(q.filter),
+        q.ticket === undefined ? undefined : eq(runs.ticketRef, q.ticket),
+        runSearchCondition(projectId, q.q),
+      );
       const { limit, offset } = pageWindow(q);
       const [counted] = await tx
         .select({ total: sql<number>`count(*)::int` })
