@@ -31,7 +31,8 @@ describe('Brand', () => {
     // The name is part of the drawing, not a text node of the link.
     const link = screen.getByRole('link', { name: 'Agent Desk, all projects' });
     expect([...link.childNodes].filter((n) => n.nodeType === Node.TEXT_NODE)).toHaveLength(0);
-    expect([...container.querySelectorAll('svg text')].map((t) => t.textContent)).toEqual(['Agent', 'Desk']);
+    // One text element, so the name carries a real space: "Agent Desk", not "AgentDesk".
+    expect([...container.querySelectorAll('svg text')].map((t) => t.textContent)).toEqual(['Agent Desk']);
   });
   it('draws the icon alone, sized to the prop, when the name is off', () => {
     const { container } = render(<Brand withName={false} href="/projects" size={26} />);

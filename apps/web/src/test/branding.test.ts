@@ -67,6 +67,17 @@ describe('index.html branding', () => {
   });
 });
 
+describe('logo wordmark', () => {
+  it.each(['horizontal', 'dark', 'monochrome'])('reads "Agent Desk", with a space, in agent-desk-%s.svg', (name) => {
+    const svg = new DOMParser().parseFromString(
+      readFileSync(publicFile(`/agent-desk-${name}.svg`), 'utf8'),
+      'image/svg+xml',
+    ).documentElement;
+    const wordmark = [...svg.querySelectorAll('text')].map((t) => t.textContent).join('');
+    expect(wordmark).toBe('Agent Desk');
+  });
+});
+
 describe('Brand logo', () => {
   const tokensCss = readFileSync(resolve(webRoot, 'src/ds/tokens.css'), 'utf8');
   const brandCss = readFileSync(resolve(webRoot, 'src/components/Brand.module.css'), 'utf8');
@@ -137,6 +148,7 @@ describe('Brand logo', () => {
       expect(shape(logo)).toEqual(shape(lockupFile));
       const words = (root: Element) => [...root.querySelectorAll('text')].map((t) => t.textContent);
       expect(words(logo)).toEqual(words(lockupFile));
+      expect(words(logo).join('')).toBe('Agent Desk');
     });
 
     it('paints the lockup with the --logo-* tokens so the name is readable on the dark bar', () => {

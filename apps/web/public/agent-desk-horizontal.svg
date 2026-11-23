@@ -9,6 +9,5 @@
     <circle cx="77" cy="24" r="7" fill="#625BFF"/>
     <circle cx="91" cy="55" r="7" fill="#20C9B0"/>
   </g>
-  <text x="142" y="79" font-family="Inter, ui-sans-serif, system-ui, -apple-system, Segoe UI, sans-serif" font-size="54" font-weight="750" letter-spacing="-2.4" fill="#111827">Agent</text>
-  <text x="290" y="79" font-family="Inter, ui-sans-serif, system-ui, -apple-system, Segoe UI, sans-serif" font-size="54" font-weight="750" letter-spacing="-2.4" fill="#625BFF">Desk</text>
+  <text x="142" y="79" font-family="Inter, ui-sans-serif, system-ui, -apple-system, Segoe UI, sans-serif" font-size="54" font-weight="750" letter-spacing="-2.4" fill="#111827">Agent <tspan fill="#625BFF">Desk</tspan></text>
 </svg>
