@@ -50,6 +50,7 @@ import type { OrgContext } from '../auth/org-context';
 import { DB } from '../db/db.module';
 import { TEMPORAL_CLIENT } from '../temporal/temporal-client.module';
 import { assembleLinkedTickets, newestLinks, newestSnapshots } from './linked-tickets';
+import { runSearchCondition } from './run-search';
 
 /** The log endpoint has no pagination in the contract: it returns at most the newest LOG_CAP events, oldest first. */
 export const LOG_CAP = 5000;
@@ -224,11 +225,7 @@ export class RunsService {
   async list(org: OrgContext, projectId: string, q: RunListQuery): Promise<RunListResponse> {
     return withOrg(this.db, org.orgId, async (tx) => {
       await this.requireProject(tx, projectId);
-      const where = and(
-        eq(runs.projectId, projectId),
-        this.statusIn(q.filter),
-        q.ticket === undefined ? undefined : eq(runs.ticketRef, q.ticket),
-      );
+      const where = and(eq(runs.projectId, projectId), this.statusIn(q.filter), runSearchCondition(projectId, q.q));
       const { limit, offset } = pageWindow(q);
       const [counted] = await tx
         .select({ total: sql<number>`count(*)::int` })

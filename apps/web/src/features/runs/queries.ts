@@ -32,10 +32,10 @@ export type CachedRunDetail = RunDto & { statusNote?: string };
 /** One page of a runs list, as cached. */
 export type RunList = Page<CachedRun>;
 
-/** Which page of a runs list: the filter, the ticket ref (the provider-local ticket number like `12`) and the page. */
+/** Which page of a runs list: the filter, the search text `q` (matched by the server) and the page. */
 export interface RunListParams {
   filter: RunListFilter;
-  ticket?: string;
+  q?: string;
   page: number;
   pageSize: number;
 }
@@ -49,12 +49,12 @@ export const runStatsKey = (org: string, projectId: string) => [...runsKey(org, 
 // `projectsQueries.detail`).
 export const runsQueries = {
   /**
-   * One page of the runs matching `filter` (and `ticket`), newest first, with the total the server counted. The page
+   * One page of the runs matching `filter` (and `q`), newest first, with the total the server counted. The page
    * is the last part of the key, so every page of every list is covered by the `...'list'` prefix.
    */
   list: (org: string, projectId: string, p: RunListParams) =>
     queryOptions({
-      queryKey: [...runsKey(org, projectId), 'list', p.filter, p.ticket ?? null, p.page, p.pageSize] as const,
+      queryKey: [...runsKey(org, projectId), 'list', p.filter, p.q ?? null, p.page, p.pageSize] as const,
       queryFn: async ({ client }): Promise<RunList> => {
         const res = await api.runs.list({
           params: { projectId },
@@ -62,7 +62,7 @@ export const runsQueries = {
             filter: p.filter,
             page: p.page,
             pageSize: p.pageSize,
-            ...(p.ticket !== undefined && { ticket: p.ticket }),
+            ...(p.q !== undefined && { q: p.q }),
           },
         });
         return { ...res, items: res.items.map((r) => withPendingNote(client, r)) };

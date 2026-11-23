@@ -436,6 +436,28 @@ function endRun(run: RunDto, status: 'succeeded' | 'cancelled', note: string) {
   setRunStatus(run, status);
 }
 
+/** As the API's `q`: a number matches exactly (run number, ticket number or reference); text is a case-insensitive
+ *  substring of the command, login, title, reference or a label, on the run's ticket or any ticket linked to it. */
+function matchesSearch(run: MockRun, projectRuns: readonly MockRun[], q: string | undefined): boolean {
+  const text = q?.trim();
+  if (text === undefined || text === '') return true;
+  const digits = /^#?(\d{1,9})$/.exec(text)?.[1];
+  const tickets: { ref: string; number: number; title: string; labels: { name: string }[] }[] = [
+    run.ticket,
+    ...linkedTicketsFor(run, projectRuns),
+  ];
+  if (digits !== undefined) {
+    return run.number === Number(digits) || tickets.some((t) => t.number === Number(digits) || t.ref === digits);
+  }
+  const has = (v: string | null | undefined, needle: string) => (v ?? '').toLowerCase().includes(needle.toLowerCase());
+  const command = text.replace(/^\/+/, '');
+  return (
+    (command !== '' && has(run.command, command)) ||
+    has(run.triggeredBy, text) ||
+    tickets.some((t) => has(t.title, text) || has(t.ref, text) || t.labels.some((l) => has(l.name, text)))
+  );
+}
+
 const matchesFilter = (filter: RunListFilter | undefined, s: RunStatus): boolean => {
   switch (filter) {
     case 'needs_you':
@@ -840,7 +862,13 @@ const impl: Impl = {
     const matching = db()
       .runs.filter((r) => r.projectId === projectId)
       .filter((r) => matchesFilter(query.filter, r.status))
-      .filter((r) => query.ticket === undefined || r.ticket.ref === query.ticket)
+      .filter((r) =>
+        matchesSearch(
+          r,
+          db().runs.filter((x) => x.projectId === projectId),
+          query.q,
+        ),
+      )
       .sort((a, b) => b.number - a.number)
       .map((r) => withTicketRunCount(withAgentIdleEnd(r)));
     return slicePage(matching, query);

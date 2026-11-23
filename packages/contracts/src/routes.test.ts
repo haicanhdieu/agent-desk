@@ -135,12 +135,15 @@ describe('contract boundaries', () => {
   });
   it('runs.list takes a page query and answers with a page envelope', () => {
     expect(RunListQuery.parse({})).toEqual({ page: 1, pageSize: 20 });
-    expect(RunListQuery.parse({ filter: 'ended', ticket: '7', page: '3', pageSize: '50' })).toEqual({
+    expect(RunListQuery.parse({ filter: 'ended', q: 'login', page: '3', pageSize: '50' })).toEqual({
       filter: 'ended',
-      ticket: '7',
+      q: 'login',
       page: 3,
       pageSize: 50,
     });
+    expect(RunListQuery.parse({ q: '  fix the login  ' }).q).toBe('fix the login');
+    expect(RunListQuery.safeParse({ q: 'x'.repeat(201) }).success).toBe(false);
+    expect(RunListQuery.safeParse({ ticket: '7' }).success).toBe(false);
     expect(RunListQuery.safeParse({ limit: '5' }).success).toBe(false);
     expect(RunListQuery.safeParse({ cursor: 'x' }).success).toBe(false);
     expect(RunListQuery.safeParse({ pageSize: '101' }).success).toBe(false);

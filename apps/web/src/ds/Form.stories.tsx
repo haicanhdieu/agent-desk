@@ -238,3 +238,22 @@ function LabelsDemo() {
   );
 }
 export const LabelInputStory: Story = { name: 'Label input', render: () => <LabelsDemo /> };
+
+function ClearableSearchDemo() {
+  const [value, setValue] = useState('login');
+  return (
+    <Field label="Search with a clear button" labelAs="span">
+      {() => (
+        <SearchInput
+          placeholder="Ticket number or title"
+          aria-label="Search runs"
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          onClear={() => setValue('')}
+        />
+      )}
+    </Field>
+  );
+}
+
+export const SearchClearable: Story = { name: 'Search with clear', render: () => <ClearableSearchDemo /> };

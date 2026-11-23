@@ -77,6 +77,19 @@ describe('inputs', () => {
     expect(screen.getByText('main, default branch')).toBeInTheDocument();
   });
 
+  it('SearchInput shows a trailing Clear search button only with a value and an onClear', async () => {
+    const onClear = vi.fn();
+    const { rerender } = render(
+      <SearchInput placeholder="Search" aria-label="s" value="" onChange={() => {}} onClear={onClear} />,
+    );
+    expect(screen.queryByRole('button', { name: 'Clear search' })).not.toBeInTheDocument();
+    rerender(<SearchInput placeholder="Search" aria-label="s" value="abc" onChange={() => {}} onClear={onClear} />);
+    await userEvent.click(screen.getByRole('button', { name: 'Clear search' }));
+    expect(onClear).toHaveBeenCalledTimes(1);
+    rerender(<SearchInput placeholder="Search" aria-label="s" value="abc" onChange={() => {}} />);
+    expect(screen.queryByRole('button', { name: 'Clear search' })).not.toBeInTheDocument();
+  });
+
   it('DurationInput: a number and a unit control, both labelled, the unit change reported', async () => {
     const onUnit = vi.fn();
     render(

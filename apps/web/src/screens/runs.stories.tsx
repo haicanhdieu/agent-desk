@@ -58,6 +58,7 @@ const common = {
   slots: { used: 2, total: 2 },
   today: 'Today: 9 runs, 1 failed',
 };
+const search = { value: '', applied: '', onChange: () => undefined };
 const counts: Record<RunsFilter, number> = { needs_you: 1, active: 2, queued: 1, ended: 6, all: 9, ignored: 3 };
 
 export const Runs: Story = {
@@ -66,6 +67,7 @@ export const Runs: Story = {
   globals: viewport(1440, 1000),
   render: () => (
     <RunsScreen
+      search={search}
       {...common}
       filter="all"
       counts={counts}
@@ -87,7 +89,49 @@ export const RunsQueuedOnly: Story = {
   name: 'Runs, queued run waiting, none idle',
   decorators: artboard(1000),
   globals: viewport(1440, 1000),
-  render: () => <RunsScreen {...common} filter="all" counts={counts} groups={ticketGroups} waitingRun={63} />,
+  render: () => (
+    <RunsScreen search={search} {...common} filter="all" counts={counts} groups={ticketGroups} waitingRun={63} />
+  ),
+};
+
+/** A search that matches nothing: the query in the title and a Clear search action. */
+export const RunsSearchEmpty: Story = {
+  name: 'Runs, search with no results',
+  decorators: artboard(1000),
+  globals: viewport(1440, 1000),
+  render: () => (
+    <RunsScreen
+      {...common}
+      filter="all"
+      counts={counts}
+      groups={[]}
+      search={{ value: 'zebra', applied: 'zebra', onChange: () => undefined }}
+    />
+  ),
+};
+
+/** The next results are loading: the box keeps the typed text and stays editable, the results are busy. */
+export const RunsSearchLoading: Story = {
+  name: 'Runs, search loading',
+  decorators: artboard(1000),
+  globals: viewport(1440, 1000),
+  render: () => (
+    <RunsScreen
+      {...common}
+      filter="all"
+      counts={counts}
+      groups={ticketGroups}
+      search={{ value: 'fix', applied: '', onChange: () => undefined }}
+      pagination={{
+        page: 1,
+        pageSize: 20,
+        total: 9,
+        busy: true,
+        onPageChange: () => undefined,
+        onPageSizeChange: () => undefined,
+      }}
+    />
+  ),
 };
 
 const credentialWarning: RunsProblemsWarning = {
@@ -226,6 +270,7 @@ export const RunsPaged: Story = {
   globals: viewport(1440, 1000),
   render: () => (
     <RunsScreen
+      search={search}
       {...pagedCommon}
       filter="all"
       counts={pagedCounts}
@@ -244,6 +289,7 @@ export const RunsFlatPaged: Story = {
   globals: viewport(1440, 1000),
   render: () => (
     <RunsScreen
+      search={search}
       {...pagedCommon}
       needsYou={0}
       slots={{ used: 0, total: 2 }}
@@ -263,6 +309,7 @@ export const RunsPageLoading: Story = {
   globals: viewport(1440, 1000),
   render: () => (
     <RunsScreen
+      search={search}
       {...pagedCommon}
       filter="all"
       counts={pagedCounts}
@@ -294,7 +341,7 @@ export const RunsLinked: Story = {
   name: 'Runs, grouped, issue with its PR',
   decorators: artboard(1000),
   globals: viewport(1440, 1000),
-  render: () => <RunsScreen {...linkedCommon} groups={linkedTicketGroups} />,
+  render: () => <RunsScreen search={search} {...linkedCommon} groups={linkedTicketGroups} />,
 };
 
 /** One issue with two PRs: PRs in number order, run limit counted per ticket. */
@@ -304,6 +351,7 @@ export const RunsLinkedSeveralPrs: Story = {
   globals: viewport(1440, 1000),
   render: () => (
     <RunsScreen
+      search={search}
       {...linkedCommon}
       today="Today: 10 runs, 1 failed"
       counts={{ ...linkedCounts, ended: 7, all: 10 }}
@@ -317,7 +365,7 @@ export const RunsLinkedSplitPr: Story = {
   name: 'Runs, grouped, one PR in two groups (older runs unlinked)',
   decorators: artboard(1000),
   globals: viewport(1440, 1000),
-  render: () => <RunsScreen {...linkedCommon} groups={linkedGroups.splitPr} />,
+  render: () => <RunsScreen search={search} {...linkedCommon} groups={linkedGroups.splitPr} />,
 };
 
 /** The Needs you filter keeps run 62 under the merged header with its full chain note. */
@@ -325,7 +373,7 @@ export const RunsLinkedFiltered: Story = {
   name: 'Runs, grouped, Needs you filter on a merged group',
   decorators: artboard(1000),
   globals: viewport(1440, 1000),
-  render: () => <RunsScreen {...linkedCommon} filter="needs_you" groups={linkedGroups.filtered} />,
+  render: () => <RunsScreen search={search} {...linkedCommon} filter="needs_you" groups={linkedGroups.filtered} />,
 };
 
 /** Six PRs: the title and then the chain note are cut off with an ellipsis; both carry a title tooltip. */
@@ -333,7 +381,7 @@ export const RunsLinkedLongChain: Story = {
   name: 'Runs, grouped, long chain note cut off',
   decorators: artboard(1000),
   globals: viewport(1440, 1000),
-  render: () => <RunsScreen {...linkedCommon} groups={linkedGroups.longChain} />,
+  render: () => <RunsScreen search={search} {...linkedCommon} groups={linkedGroups.longChain} />,
 };
 
 const linkedPagedCommon = {
@@ -348,7 +396,14 @@ export const RunsPagedLinkedPrOnly: Story = {
   name: 'Runs, grouped, page 4 of 4, only the PR runs of a merged group',
   decorators: artboard(1000),
   globals: viewport(1440, 1000),
-  render: () => <RunsScreen {...linkedPagedCommon} groups={linkedGroups.pagedPrOnly} pagination={pagination(4, 63)} />,
+  render: () => (
+    <RunsScreen
+      search={search}
+      {...linkedPagedCommon}
+      groups={linkedGroups.pagedPrOnly}
+      pagination={pagination(4, 63)}
+    />
+  ),
 };
 
 /** Page 4 of 4: only the issue's runs of a merged group are on this page. */
@@ -357,7 +412,12 @@ export const RunsPagedLinkedIssueOnly: Story = {
   decorators: artboard(1000),
   globals: viewport(1440, 1000),
   render: () => (
-    <RunsScreen {...linkedPagedCommon} groups={linkedGroups.pagedIssueOnly} pagination={pagination(4, 63)} />
+    <RunsScreen
+      search={search}
+      {...linkedPagedCommon}
+      groups={linkedGroups.pagedIssueOnly}
+      pagination={pagination(4, 63)}
+    />
   ),
 };
 
@@ -367,7 +427,12 @@ export const RunsPageLoadingLinked: Story = {
   decorators: artboard(1000),
   globals: viewport(1440, 1000),
   render: () => (
-    <RunsScreen {...linkedPagedCommon} groups={linkedGroups.pageLoading} pagination={pagination(4, 63, true)} />
+    <RunsScreen
+      search={search}
+      {...linkedPagedCommon}
+      groups={linkedGroups.pageLoading}
+      pagination={pagination(4, 63, true)}
+    />
   ),
 };
 
@@ -378,6 +443,7 @@ export const RunsEmpty: Story = {
   globals: viewport(1440, 1000),
   render: () => (
     <RunsScreen
+      search={search}
       {...pagedCommon}
       needsYou={0}
       slots={{ used: 0, total: 2 }}
@@ -452,6 +518,7 @@ export const RunsPrStates: Story = {
   globals: viewport(1440, 1000),
   render: () => (
     <RunsScreen
+      search={search}
       {...common}
       filter="all"
       counts={counts}

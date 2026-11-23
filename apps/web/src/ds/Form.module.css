@@ -120,6 +120,13 @@
 .search > input {
   padding-left: 8px;
 }
+.search > input::-webkit-search-cancel-button {
+  appearance: none;
+}
+.search > button {
+  margin-right: 2px;
+  flex: 0 0 auto;
+}
 .static {
   gap: 8px;
   padding: 0 10px;

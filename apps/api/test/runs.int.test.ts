@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { ApplicationFailure, WorkflowNotFoundError, WorkflowUpdateFailedError } from '@temporalio/client';
-import { eq, sql } from 'drizzle-orm';
+import { eq, inArray, sql } from 'drizzle-orm';
 import { UPDATE } from '@agentdesk/core';
 import { agents, inboundEvents, runEvents, runTranscriptEntries, runs, withOrg } from '@agentdesk/db';
 import type {
@@ -89,7 +89,7 @@ describe('runs list', () => {
     const pid = (await makeProject(t, alice, await installFake(t, alice))).projectId;
     await insertRun({ ticketRef: 'abc' }, pid);
     await insertRun({ ticketRef: 'def' }, pid);
-    const res = expectContract('runs.list', await listRuns('?ticket=abc', pid)) as RunListResponse;
+    const res = expectContract('runs.list', await listRuns('?q=abc', pid)) as RunListResponse;
     expect(res.items.map((r) => r.ticket.ref)).toEqual(['abc']);
     expect((await listRuns('', pid, bob)).statusCode).toBe(404);
   });
@@ -153,11 +153,11 @@ describe('runs list', () => {
     }
   });
 
-  it('total counts the filter and the ticket', async () => {
+  it('total counts the filter and the search', async () => {
     const pid = (await makeProject(t, alice, await installFake(t, alice))).projectId;
     for (const status of ['succeeded', 'failed', 'running', 'queued']) await insertRun({ status, ticketRef: 'T' }, pid);
     await insertRun({ status: 'failed', ticketRef: 'U' }, pid);
-    const res = await pageOf('?filter=ended&ticket=T', pid);
+    const res = await pageOf('?filter=ended&q=T', pid);
     expect(res.total).toBe(2);
     expect(res.items.map((r) => r.ticket.ref)).toEqual(['T', 'T']);
     expect((await pageOf('?filter=ended', pid)).total).toBe(3);
@@ -1072,6 +1072,215 @@ describe('ignored list', () => {
     const after = (await ignoredPage('', pid)).json();
     expect(after).toMatchObject({ total: 3 });
     expect(after).toEqual(before);
+  });
+});
+
+describe('runs list search (q)', () => {
+  const T0 = Date.parse('2026-05-01T00:00:00.000Z');
+  let tick = 0;
+  // The fake repos are few: two projects for the whole block, their runs wiped before each test.
+  let projectA: string;
+  let projectB: string;
+  beforeAll(async () => {
+    projectA = (await makeProject(t, alice, await installFake(t, alice))).projectId;
+    projectB = (await makeProject(t, alice, await installFake(t, alice))).projectId;
+  });
+  beforeEach(async () => {
+    await withOrg(t.db, orgId, async (tx) => {
+      await tx.delete(runs).where(inArray(runs.projectId, [projectA, projectB]));
+    });
+  });
+  const newProject = async () => projectA;
+  const row = (pid: string, over: Partial<typeof runs.$inferInsert>) =>
+    insertRun({ queuedAt: new Date(T0 + (tick += 1) * 1000), ...over }, pid);
+  const search = async (pid: string, q: string, extra = '') =>
+    expectContract('runs.list', await listRuns(`?q=${encodeURIComponent(q)}${extra}`, pid)) as RunListResponse;
+  const idsOf = (res: RunListResponse) => res.items.map((i) => i.id).sort();
+  const want = (...rs: { id: string }[]) => rs.map((r) => r.id).sort();
+
+  it('matches the ticket title, case-insensitively and by substring or phrase', async () => {
+    const pid = await newProject();
+    const hit = await row(pid, { ticketRef: '11', ticketNumber: 11, ticketTitle: 'Fix the Login redirect loop' });
+    await row(pid, { ticketRef: '12', ticketNumber: 12, ticketTitle: 'Update docs' });
+    expect(idsOf(await search(pid, 'LOGIN'))).toEqual(want(hit));
+    expect(idsOf(await search(pid, 'in redir'))).toEqual(want(hit));
+    expect(idsOf(await search(pid, 'login loop'))).toEqual([]);
+  });
+
+  it('treats % and _ in the text as plain characters', async () => {
+    const pid = await newProject();
+    const hit = await row(pid, { ticketRef: '1', ticketNumber: 1, ticketTitle: '100%_done' });
+    await row(pid, { ticketRef: '2', ticketNumber: 2, ticketTitle: 'plain title' });
+    expect(idsOf(await search(pid, '%_'))).toEqual(want(hit));
+    expect(idsOf(await search(pid, '%'))).toEqual(want(hit));
+  });
+
+  it('matches the ticket reference', async () => {
+    const pid = await newProject();
+    const hit = await row(pid, { ticketRef: 'acme/web#303', ticketNumber: 303, ticketTitle: 'x' });
+    await row(pid, { ticketRef: 'acme/api#304', ticketNumber: 304, ticketTitle: 'y' });
+    expect(idsOf(await search(pid, 'acme/web'))).toEqual(want(hit));
+  });
+
+  it('matches a ticket number exactly, with or without a leading #', async () => {
+    const pid = await newProject();
+    const hit = await row(pid, { ticketRef: '42', ticketNumber: 42, ticketTitle: 'Answer' });
+    await row(pid, { ticketRef: '421', ticketNumber: 421, ticketTitle: 'Close but no' });
+    await row(pid, { ticketRef: '142', ticketNumber: 142, ticketTitle: 'Version 42 notes' });
+    expect(idsOf(await search(pid, '42'))).toEqual(want(hit));
+    expect(idsOf(await search(pid, '#42'))).toEqual(want(hit));
+  });
+
+  it('matches the run number exactly', async () => {
+    const pid = await newProject();
+    const a = await row(pid, { ticketRef: 'a', ticketNumber: 900 });
+    const b = await row(pid, { ticketRef: 'b', ticketNumber: 901 });
+    expect(b.number).toBe(a.number + 1);
+    expect(idsOf(await search(pid, String(b.number)))).toEqual(want(b));
+  });
+
+  it('matches the routing rule command, with or without the slash', async () => {
+    const pid = await newProject();
+    const hit = await row(pid, { ticketRef: 'c1', command: 'code-build', skillName: 'code-build' });
+    await row(pid, { ticketRef: 'c2', command: 'review', skillName: 'review' });
+    expect(idsOf(await search(pid, 'code-bui'))).toEqual(want(hit));
+    expect(idsOf(await search(pid, '/code-build'))).toEqual(want(hit));
+  });
+
+  it('matches who triggered the run', async () => {
+    const pid = await newProject();
+    const hit = await row(pid, { ticketRef: 'u1', triggeredBy: 'Octo-Login' });
+    await row(pid, { ticketRef: 'u2', triggeredBy: 'someone-else' });
+    await row(pid, { ticketRef: 'u3', triggeredBy: null });
+    expect(idsOf(await search(pid, 'octo-log'))).toEqual(want(hit));
+  });
+
+  it('matches label names', async () => {
+    const pid = await newProject();
+    const hit = await row(pid, { ticketRef: 'l1', ticketLabels: [{ name: 'Needs-Triage', color: 'ff0000' }] });
+    await row(pid, { ticketRef: 'l2', ticketLabels: [{ name: 'docs', color: '00ff00' }] });
+    expect(idsOf(await search(pid, 'triage'))).toEqual(want(hit));
+    expect(idsOf(await search(pid, 'ff0000'))).toEqual([]);
+  });
+
+  it('does not search the prompts, args, failure text or the internal ids', async () => {
+    const pid = await newProject();
+    const secret = await row(pid, {
+      ticketRef: 'h1',
+      ticketTitle: 'Plain',
+      prompt: 'zebra-prompt',
+      finalPrompt: 'zebra-final',
+      args: 'zebra-args',
+      failureReason: 'zebra-failure',
+      agentNote: 'zebra-note',
+    });
+    for (const q of ['zebra', 'zebra-args', secret.id, secret.id.slice(0, 8)]) {
+      expect(idsOf(await search(pid, q)), q).toEqual([]);
+    }
+  });
+
+  it('a match on a linked issue includes the linked PR runs, and the other way round', async () => {
+    const pid = await newProject();
+    const issue = await row(pid, { ticketRef: '142', ticketNumber: 142, ticketTitle: 'Rate limiter' });
+    const prRun = await row(pid, {
+      ticketRef: '148',
+      ticketKind: 'pr',
+      ticketNumber: 148,
+      ticketTitle: 'Add middleware',
+      linkedIssueRefs: ['142'],
+    });
+    const sibling = await row(pid, {
+      ticketRef: '149',
+      ticketKind: 'pr',
+      ticketNumber: 149,
+      ticketTitle: 'Follow-up',
+      linkedIssueRefs: ['142'],
+    });
+    const other = await row(pid, { ticketRef: '150', ticketNumber: 150, ticketTitle: 'Unrelated' });
+    const otherPr = await row(pid, {
+      ticketRef: '151',
+      ticketKind: 'pr',
+      ticketNumber: 151,
+      ticketTitle: 'Unrelated PR',
+      linkedIssueRefs: ['150'],
+    });
+    // Title of the issue finds the issue run and the PR runs of its group.
+    expect(idsOf(await search(pid, 'rate limiter'))).toEqual(want(issue, prRun, sibling));
+    // Title of one PR finds that PR, the lead issue and the sibling PR.
+    expect(idsOf(await search(pid, 'add middleware'))).toEqual(want(issue, prRun, sibling));
+    // Number of a linked ticket works the same way.
+    expect(idsOf(await search(pid, '142'))).toEqual(want(issue, prRun, sibling));
+    expect(idsOf(await search(pid, '150'))).toEqual(want(other, otherPr));
+  });
+
+  it('a match on a linked ticket label or reference includes the group', async () => {
+    const pid = await newProject();
+    const issue = await row(pid, {
+      ticketRef: 'o/r#7',
+      ticketNumber: 7,
+      ticketLabels: [{ name: 'epic-checkout', color: '000000' }],
+    });
+    const prRun = await row(pid, {
+      ticketRef: 'o/r#8',
+      ticketKind: 'pr',
+      ticketNumber: 8,
+      linkedIssueRefs: ['o/r#7'],
+    });
+    await row(pid, { ticketRef: 'o/r#9', ticketNumber: 9 });
+    expect(idsOf(await search(pid, 'epic-checkout'))).toEqual(want(issue, prRun));
+    expect(idsOf(await search(pid, 'o/r#8'))).toEqual(want(issue, prRun));
+  });
+
+  it('uses the newest link of a PR, not an older one', async () => {
+    const pid = await newProject();
+    const oldIssue = await row(pid, { ticketRef: '1', ticketNumber: 1, ticketTitle: 'Old target' });
+    await row(pid, { ticketRef: '5', ticketKind: 'pr', ticketNumber: 5, linkedIssueRefs: ['1'] });
+    const newIssue = await row(pid, { ticketRef: '2', ticketNumber: 2, ticketTitle: 'New target' });
+    const newest = await row(pid, { ticketRef: '5', ticketKind: 'pr', ticketNumber: 5, linkedIssueRefs: ['2'] });
+    const found = idsOf(await search(pid, 'new target'));
+    expect(found).toContain(newIssue.id);
+    expect(found).toContain(newest.id);
+    expect(found).not.toContain(oldIssue.id);
+  });
+
+  it('combines with the status filter; total and page contents agree', async () => {
+    const pid = await newProject();
+    const ended = [];
+    for (let i = 0; i < 5; i += 1)
+      ended.push(await row(pid, { ticketRef: `e${i}`, ticketTitle: 'Widget', status: 'failed' }));
+    await row(pid, { ticketRef: 'q1', ticketTitle: 'Widget', status: 'queued' });
+    await row(pid, { ticketRef: 'q2', ticketTitle: 'Gadget', status: 'failed' });
+    const p1 = await search(pid, 'widget', '&filter=ended&pageSize=2&page=1');
+    expect(p1).toMatchObject({ total: 5, page: 1, pageSize: 2 });
+    expect(p1.items).toHaveLength(2);
+    const p3 = await search(pid, 'widget', '&filter=ended&pageSize=2&page=3');
+    expect(p3.items).toHaveLength(1);
+    expect((await search(pid, 'widget', '&filter=queued')).total).toBe(1);
+    expect((await search(pid, 'widget')).total).toBe(6);
+  });
+
+  it('a blank q is no search', async () => {
+    const pid = await newProject();
+    await row(pid, { ticketRef: 'b1' });
+    await row(pid, { ticketRef: 'b2' });
+    expect((await search(pid, '   ')).total).toBe(2);
+  });
+
+  it("never reaches another project's runs, nor another org's", async () => {
+    const pid = await newProject();
+    const other = projectB;
+    const mine = await row(pid, { ticketRef: 'x1', ticketTitle: 'shared words' });
+    await row(other, { ticketRef: 'x2', ticketTitle: 'shared words' });
+    expect(idsOf(await search(pid, 'shared words'))).toEqual(want(mine));
+    expect((await listRuns('?q=shared', pid, bob)).statusCode).toBe(404);
+  });
+
+  it('a link in another project does not join groups', async () => {
+    const pid = await newProject();
+    const other = projectB;
+    const lone = await row(pid, { ticketRef: '1', ticketNumber: 1, ticketTitle: 'Same ref lone' });
+    await row(other, { ticketRef: '2', ticketKind: 'pr', ticketNumber: 2, linkedIssueRefs: ['1'] });
+    expect(idsOf(await search(pid, 'same ref lone'))).toEqual(want(lone));
   });
 });
 

@@ -13,6 +13,14 @@ import styles from './Screens.module.css';
 
 export type RunsFilter = 'needs_you' | 'active' | 'queued' | 'ended' | 'all' | 'ignored';
 
+/** The search box above the list: the text in the box and the query the shown results are for. */
+export interface RunsSearch {
+  value: string;
+  /** The query of the results on screen (trimmed); empty when they are not filtered by text. */
+  applied: string;
+  onChange(value: string): void;
+}
+
 export interface RunsPageProps {
   project: Project;
   user: Actor;
@@ -25,6 +33,8 @@ export interface RunsPageProps {
   /** Whether the list is grouped by ticket; drives the toggle's pressed state. */
   grouped?: boolean;
   onGroupedChange?(grouped: boolean): void;
+  /** The search box; without it (the Ignored view, which has nothing to search) no box is drawn. */
+  search?: RunsSearch;
   /** When set, the chips are links to this href (e.g. `?filter=queued`) instead of buttons. */
   filterHref?(f: RunsFilter): string;
   /** In-app hrefs for the top bar. */
@@ -58,6 +68,7 @@ export function RunsPage({
   onFilter,
   grouped = true,
   onGroupedChange,
+  search,
   filterHref,
   links,
   projectMenu,
@@ -97,7 +108,15 @@ export function RunsPage({
             </span>
           </div>
           <div className={styles.runsTools}>
-            <SearchInput placeholder="Ticket number or title" aria-label="Search runs" />
+            {search && (
+              <SearchInput
+                placeholder="Ticket number or title"
+                aria-label="Search runs"
+                value={search.value}
+                onChange={(e) => search.onChange(e.target.value)}
+                onClear={() => search.onChange('')}
+              />
+            )}
             <Button icon="rule" aria-pressed={grouped} onClick={() => onGroupedChange?.(!grouped)}>
               Grouped by ticket
             </Button>

@@ -1,4 +1,4 @@
-import { RunListFilter, can } from '@agentdesk/contracts';
+import { RUN_SEARCH_MAX, RunListFilter, can } from '@agentdesk/contracts';
 import { useQueryClient, useSuspenseQuery } from '@tanstack/react-query';
 import { createFileRoute, useNavigate } from '@tanstack/react-router';
 import { z } from 'zod';
@@ -37,17 +37,24 @@ import {
 import { runHref, useProjectPage } from '@/features/runs/page';
 import { runsQueries, usePrStates } from '@/features/runs/queries';
 import { useGroupedPref } from '@/features/runs/useGroupedPref';
+import { useSearchBox } from '@/features/runs/useSearchBox';
 import { relativeTime } from '@/features/relativeTime';
 import { Runs, RunsProblems, type RunsFilter, type RunsProblemsWarning } from '@/screens';
 
-/** `filter`: a run list filter or `ignored`; anything else falls back to all. `ticket`: a ticket number. */
+/** `filter`: a run list filter or `ignored`; anything else falls back to all. `q`: the search text (trimmed; empty or too long is no search). */
 const RunsSearch = z.object({
   ...PageSearch.shape,
   filter: z
     .enum([...RunListFilter.options, 'ignored'])
     .optional()
     .catch(undefined),
-  ticket: z.string().regex(/^\d+$/).optional().catch(undefined),
+  q: z
+    .string()
+    .trim()
+    .max(RUN_SEARCH_MAX)
+    .optional()
+    .transform((v) => (v === '' ? undefined : v))
+    .catch(undefined),
 });
 type RunsSearch = z.infer<typeof RunsSearch>;
 
@@ -55,34 +62,30 @@ export const Route = createFileRoute('/o/$org/p/$project/runs/')({
   validateSearch: (search): RunsSearch => RunsSearch.parse(search),
   loaderDeps: ({ search }) => ({
     filter: search.filter ?? 'all',
-    ticket: search.ticket,
+    q: search.q,
     page: pageOfSearch(search),
   }),
-  loader: async ({ context: { queryClient }, params: { org, project }, deps: { filter, ticket, page }, cause }) => {
+  loader: async ({ context: { queryClient }, params: { org, project }, deps: { filter, q, page }, cause }) => {
     // The numbers come from runs.stats; the list and the ignored events load only for the view that shows them.
     await Promise.all([
       queryClient.ensureQueryData(projectsQueries.detail(org, project)),
       queryClient.ensureQueryData(runsQueries.stats(org, project, startOfLocalDay(new Date()))),
       filter === 'ignored'
         ? loadPage(queryClient, runsQueries.ignored(org, project, { page, pageSize: readPageSize() }), cause)
-        : loadPage(
-            queryClient,
-            runsQueries.list(org, project, { filter, ticket, page, pageSize: readPageSize() }),
-            cause,
-          ),
+        : loadPage(queryClient, runsQueries.list(org, project, { filter, q, page, pageSize: readPageSize() }), cause),
     ]);
   },
   component: RunsRoute,
 });
 
 /** What both views share: the project page, and the numbers (chips, Today, slots) from the server. */
-function useRunsCommon(org: string, projectId: string, ticket: string | undefined, now: Date) {
+function useRunsCommon(org: string, projectId: string, q: string | undefined, now: Date) {
   const page = useProjectPage(org, projectId, now);
   const { paths, dto } = page;
   const { data: stats } = useSuspenseQuery(runsQueries.stats(org, projectId, startOfLocalDay(now)));
-  const ticketQuery = ticket === undefined ? '' : `ticket=${ticket}`;
+  const searchQuery = q === undefined ? '' : new URLSearchParams({ q }).toString();
   const filterHref = (f: RunsFilter) => {
-    const query = [f === 'all' ? '' : `filter=${f}`, ticketQuery].filter(Boolean).join('&');
+    const query = [f === 'all' ? '' : `filter=${f}`, searchQuery].filter(Boolean).join('&');
     return query ? `${paths.runs}?${query}` : paths.runs;
   };
   const common = {
@@ -107,25 +110,15 @@ function RunsRoute() {
   const search = Route.useSearch();
   const now = useNow();
   return search.filter === 'ignored' ? (
-    <IgnoredView org={org} projectId={project} ticket={search.ticket} now={now} />
+    <IgnoredView org={org} projectId={project} q={search.q} now={now} />
   ) : (
-    <ListView org={org} projectId={project} filter={search.filter ?? 'all'} ticket={search.ticket} now={now} />
+    <ListView org={org} projectId={project} filter={search.filter ?? 'all'} q={search.q} now={now} />
   );
 }
 
-function IgnoredView({
-  org,
-  projectId,
-  ticket,
-  now,
-}: {
-  org: string;
-  projectId: string;
-  ticket: string | undefined;
-  now: Date;
-}) {
+function IgnoredView({ org, projectId, q, now }: { org: string; projectId: string; q: string | undefined; now: Date }) {
   const queryClient = useQueryClient();
-  const { page, common } = useRunsCommon(org, projectId, ticket, now);
+  const { page, common } = useRunsCommon(org, projectId, q, now);
   const navigate = useNavigate({ from: Route.fullPath });
   const current = pageOfSearch(Route.useSearch());
   const [pageSize] = usePageSize();
@@ -171,23 +164,23 @@ function ListView({
   org,
   projectId,
   filter,
-  ticket,
+  q,
   now,
 }: {
   org: string;
   projectId: string;
   filter: RunListFilter;
-  ticket: string | undefined;
+  q: string | undefined;
   now: Date;
 }) {
   const [grouped, setGroupedPref] = useGroupedPref();
   const toast = useToast();
-  const { page, stats, common } = useRunsCommon(org, projectId, ticket, now);
+  const { page, stats, common } = useRunsCommon(org, projectId, q, now);
   const { paths, dto } = page;
   const navigate = useNavigate({ from: Route.fullPath });
   const current = pageOfSearch(Route.useSearch());
   const [pageSize] = usePageSize();
-  const { data: listed, busy } = usePagedQuery({ filter, ticket, page: current, pageSize }, (q) =>
+  const { data: listed, busy } = usePagedQuery({ filter, q, page: current, pageSize }, (q) =>
     runsQueries.list(org, projectId, q),
   );
   const go = (p: number, replace = false) =>
@@ -200,6 +193,11 @@ function ListView({
     busy,
     go,
   });
+  // A new query shows page 1 of its results; the URL is replaced, so back does not step through every pause in typing.
+  const searchBox = useSearchBox(
+    q,
+    (next) => void navigate({ search: (prev) => ({ ...prev, q: next, page: undefined }), replace: true }),
+  );
   // Grouping changes what a page holds, so the toggle returns to page 1.
   const setGrouped = (next: boolean) => {
     setGroupedPref(next);
@@ -235,6 +233,7 @@ function ListView({
       filter={filter}
       grouped={grouped}
       onGroupedChange={setGrouped}
+      search={{ ...searchBox, applied: q ?? '' }}
       groups={withPrStates(
         groupByTicket(summaries, dto.maxRunsPerTicket, ticketRunCounts(listed.items), linkedTicketsByRun(listed.items)),
         prStates,
