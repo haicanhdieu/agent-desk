@@ -12,7 +12,7 @@ Our skills (`dev-build`, `dev-review`, `qa-write-e2e-test-cases`, `dev-plan`) sp
 | `medium` | `sonnet` | Anything that writes production code, finds a root cause, reviews against rules, or writes test cases                                                                                                                                                                  |
 | `low`    | `haiku`  | Mechanical, tightly specified work that never writes or judges code, and that the orchestrator checks after                                                                                                                                                            |
 
-Each skill's `agent-prompts.md` has a **Tier and effort** table: one row per role, with the reason it sits in that tier.
+Each skill's `prompts/README.md` (`agent-prompts.md` in `qa-write-e2e-test-cases`) has a **Tier and effort** table: one row per role, with the reason it sits in that tier.
 
 | Skill                     | `high`                                                                                                                                                                                                                            | `medium`                                                                                                                                                                                      | `low`                                                                                                          |
 | ------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
@@ -39,7 +39,7 @@ The orchestrator (the session you run the skill in) uses whatever model you chos
 
 ## 2. Move a role to another tier
 
-1. Open the skill's `agent-prompts.md` and find the role in the **Tier and effort** table.
+1. Open the skill's `prompts/README.md` (or `agent-prompts.md`) and find the role in the **Tier and effort** table.
 2. Change its tier (and the `Tier …, effort …` line above its prompt), and update **Why**. Moving a role down is fine when a script, validator or test suite catches its mistakes. Moving one up needs a concrete failure it would prevent.
 3. Try the skill once on a real ticket or PR and compare against the old tier before merging.
 

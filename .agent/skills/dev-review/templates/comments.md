@@ -1,6 +1,6 @@
 # Comments
 
-Post with `gh pr comment <pr> --body-file <file>` or `gh issue comment <n> --body-file <file>`. Plain everyday language, short ([AGENTS.md › Talking to humans](../../../AGENTS.md#talking-to-humans)). Fill the `<…>` slots; drop a line whose slot is empty. Every comment starts with `**dev-review` so a later run finds its own. Triage reads three headers to decide stop or resume: `**dev-review · round 1/3**`, `**dev-review: I stopped` and `**dev-review: decided without a human`. Write them exactly.
+Post with `gh pr comment <pr> --body-file <file>` or `gh issue comment <n> --body-file <file>`. Plain everyday language, short ([AGENTS.md › Talking to humans](../../../../AGENTS.md#talking-to-humans)). Fill the `<…>` slots; drop a line whose slot is empty. Every comment starts with `**dev-review` so a later run finds its own. Triage reads three headers to decide stop or resume: `**dev-review · round 1/3**`, `**dev-review: I stopped` and `**dev-review: decided without a human`. Write them exactly.
 
 ## Review (on the PR, once per round)
 

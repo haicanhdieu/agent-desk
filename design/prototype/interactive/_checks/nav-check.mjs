@@ -53,7 +53,7 @@ const ROLES = {
   'lee-park': { tabs: ['Projects', 'Settings'], orgItems: ['Projects', 'Settings'] },
   'mira-chen': { tabs: ['Projects'], orgItems: ['Projects', 'Harbor Labs', 'Northwind Analytics'] },
   'theo-brandt': { tabs: ['Projects'], orgItems: ['Projects'] },
-  'ops-admin': { tabs: ['Projects'], orgItems: ['Projects', 'Harbor Labs', 'Create organization'] },
+  'ops-admin': { tabs: ['Projects'], orgItems: ['Projects', 'Harbor Labs', 'Platform admin', 'Create organization'] },
 };
 for (const [persona, want] of Object.entries(ROLES)) {
   const p = await fresh();
@@ -214,7 +214,7 @@ for (const [persona, want] of Object.entries(ROLES)) {
   eq(await crumbs(p), ['No organization'], 'create org crumb');
   await shot(p, '53-create-org-platform');
   await p.click('header.top button.switch[data-menu="org"]');
-  eq(await menuItems(p), ['Harbor Labs', 'Create organization'], 'create org: org menu');
+  eq(await menuItems(p), ['Harbor Labs', 'Platform admin', 'Create organization'], 'create org: org menu');
   await p.keyboard.press('Escape');
   // create an org, land on its Projects page under the bar
   await p.fill('#on', 'Acme Rockets'); await p.fill('#oe', 'boss@acme.example'); await p.click('[data-act="createorg-submit"]'); await p.waitForTimeout(1000);
@@ -243,7 +243,7 @@ for (const [persona, want] of Object.entries(ROLES)) {
   await p.click('[data-act="mi-accept"] >> nth=0'); await p.waitForTimeout(1200);
   eq(await hash(p), '#/o/harbor-labs/projects', 'accepting still works');
   eq(await tabs(p), ['Projects'], 'new member: Projects tab only');
-  await p.click('header.top button.avatar'); await p.click('header.top .pop button:text-is("Logout")'); await p.waitForTimeout(150);
+  await p.click('header.top button.avatar'); await p.click('header.top .pop button[data-act="signout"]'); await p.waitForTimeout(150);
   eq(await hash(p), '#/signin', 'Logout signs out');
   await p.context().close();
 }
@@ -326,6 +326,111 @@ for (const persona of ['mira-chen', 'theo-brandt']) {
   await login(p, 'kim-hale', '/o/harbor-labs/p/invoicer-api/desk/skills');
   await shot(p, '70-desk-owner');
   await go(p, '/o/harbor-labs/settings/invitations'); await shot(p, '71-invitations-owner');
+  await p.context().close();
+}
+
+/* ---- 8. platform admin area (platform-admin-dashboard spec) ---- */
+{
+  const p = await fresh();
+  await login(p, 'ops-admin', '/orgs/new');
+  await p.evaluate(() => AD.controls.collapse(true)); // the controls panel would cover row actions
+  await openOrg(p); await p.click('header.top .pop [role=menuitem]:has-text("Platform admin")'); await p.waitForTimeout(150);
+  eq(await hash(p), '#/platform/orgs', 'Platform admin menu item opens the directory');
+  eq(await hdrCount(p), 1, 'platform: one bar'); eq(await tabs(p), [], 'platform: no tabs');
+  eq(await p.$$eval('nav.subnav[aria-label="Platform admin"] a', (a) => a.map((x) => x.textContent.trim())), ['Organizations', 'Platform admins', 'Audit log'], 'platform side menu');
+  eq(await p.$$eval('main tbody tr', (r) => r.length), 5, 'directory: 5 orgs');
+  await shot(p, '80-platform-orgs');
+  await p.fill('#oq', 'blue'); await p.waitForTimeout(450);
+  eq(await p.$$eval('main tbody tr', (r) => r.length), 1, 'directory search filters');
+  await p.fill('#oq', 'zzz'); await p.waitForTimeout(450);
+  ok(await p.$('main h3:text-is("No organizations match")'), 'directory: no match state');
+  await p.click('[data-act="pdir-clear"]'); await p.waitForTimeout(120);
+  await p.click('main tbody a:text-is("Harbor Labs")'); await p.waitForTimeout(120);
+  ok(/^#\/platform\/orgs\/[0-9a-f-]+$/.test(await hash(p)), 'directory row opens the detail');
+  // suspend: empty reason is refused, then suspended with a reason
+  await p.click('[data-act="porg-status-open"]'); await p.click('[data-act="porg-status"]'); await p.waitForTimeout(80);
+  ok(await p.$('.ferr:text-is("Enter a reason.")'), 'suspend: reason required');
+  await p.fill('#sr', 'Security review'); await p.click('[data-act="porg-status"]'); await p.waitForTimeout(900);
+  ok(await p.$('main .banner.warn'), 'suspended banner'); ok(await p.$('main button:text-is("Reactivate organization")'), 'Reactivate button');
+  await shot(p, '81-platform-org-suspended');
+  // members: add a project assignment, then remove it
+  await go(p, (await hash(p)) + '/members');
+  await p.click('main button[aria-label="Actions for Kim Hale"]'); await p.click('[data-act="pm-assign-open"]');
+  await p.click('[data-act="pa-mode"][data-v="project"]'); await p.click('[data-act="pm-assign"]'); await p.waitForTimeout(900);
+  ok((await p.innerText('main tbody tr:first-child')).includes('Member (invoicer-api)'), 'assignment added');
+  await p.click('main button[aria-label="Actions for Kim Hale"]'); await p.click('[data-act="pm-remove-open"][data-scope="invoicer-api"]'); await p.click('[data-act="pm-remove"]'); await p.waitForTimeout(900);
+  ok(!(await p.innerText('main tbody tr:first-child')).includes('invoicer-api'), 'assignment removed');
+  // audit: View audit log filters to the org with a removable chip
+  await p.click('main a:has-text("View audit log")'); await p.waitForTimeout(120);
+  ok((await p.innerText('main')).includes('Organization: Harbor Labs'), 'audit org chip');
+  ok((await p.innerText('main tbody tr:first-child')).includes('removed Kim Hale'), 'audit: newest entry first');
+  await shot(p, '82-platform-audit-org');
+  await p.click('[data-act="paud-chip-x"]'); await p.waitForTimeout(120);
+  ok(!(await p.innerText('main')).includes('Organization: Harbor Labs'), 'chip removed');
+  // admins: revoke Priya, then Morgan is the last working admin
+  await go(p, '/platform/admins');
+  await p.click('button[aria-label="Revoke platform access for priya.natarajan@agentdesk.example"]'); await p.click('[data-act="padm-revoke"]'); await p.waitForTimeout(900);
+  ok(await p.$('button[aria-label="Revoke platform access for morgan.avery@agentdesk.example"][disabled]'), 'last working admin: Revoke disabled');
+  await p.click('[data-act="padm-add-open"]'); await p.fill('#pe', 'jo.marsh@example.com'); await p.click('[data-act="padm-add"]'); await p.waitForTimeout(900);
+  ok(await p.$('.ferr:text-is("No account has this email yet.")'), 'add: no account');
+  await p.fill('#pe', 'jordan.wu@harborlabs.dev'); await p.click('[data-act="padm-add"]'); await p.waitForTimeout(900);
+  eq(await p.$$eval('main tbody tr', (r) => r.length), 3, 'add: new row');
+  await shot(p, '83-platform-admins');
+  // a member of the suspended org sees the fixed message; the switcher marks it
+  await p.evaluate(() => AD.controls.setPersona('kim-hale')); await go(p, '/o/harbor-labs/settings/members');
+  ok(await p.$('main h1:text-is("This organization is suspended")'), 'suspended org page for a member');
+  eq(await tabs(p), [], 'suspended page: no tabs');
+  await openOrg(p); ok((await menuItems(p)).includes('Harbor Labs Suspended'), 'switcher marks the suspended org');
+  await shot(p, '84-org-suspended-switcher');
+  await go(p, '/platform/admins');
+  ok(await p.$('main h1:text-is("You don\'t have access")'), 'non-admin: platform forbidden');
+  await p.context().close();
+}
+
+/* ---- 9. platform: Edit organization (name, URL with confirm, taken URL, suspended org, old link not found) ---- */
+{
+  const p = await fresh();
+  await login(p, 'ops-admin', '/platform/orgs');
+  await p.evaluate(() => AD.controls.collapse(true));
+  const hl = await p.evaluate(() => AD.platformOrgId('harbor-labs'));
+  const bf = await p.evaluate(() => AD.platformOrgId('bluefin-health'));
+  await go(p, '/platform/orgs/' + hl);
+  eq(await p.$$eval('main button.btn, main a.row', (b) => b.slice(0, 3).map((x) => x.textContent.trim())), ['Edit organization', 'Suspend organization', 'View audit log'], 'detail header actions order');
+  await p.click('[data-act="porg-edit-open"]');
+  ok(await p.$('#pe-save[disabled]'), 'edit: Save disabled until changed');
+  eq(await p.$eval('#en', (i) => i.value), 'Harbor Labs', 'edit: name prefilled');
+  // rename only: no confirm, toast, header and side-menu group show the new name
+  await p.fill('#en', 'Harbor Labs Group'); ok(!(await p.$('#pe-save[disabled]')), 'edit: Save enabled after a change');
+  await p.click('#pe-save'); await p.waitForTimeout(900);
+  eq(await p.$eval('main h1', (h) => h.textContent.trim()), 'Harbor Labs Group', 'rename: header');
+  ok((await p.innerText('nav.subnav')).includes('Harbor Labs Group'), 'rename: side-menu group');
+  // URL: taken slug, then confirm with Cancel keeping the input, then change
+  await p.click('[data-act="porg-edit-open"]'); await p.fill('#es', 'northwind'); await p.click('#pe-save');
+  ok(await p.$('h2:text-is("Change the organization URL?")'), 'URL change asks to confirm');
+  await p.click('[data-act="porg-edit-back"]');
+  eq(await p.$eval('#es', (i) => i.value), 'northwind', 'confirm Cancel keeps the input');
+  await p.click('#pe-save'); await p.click('[data-act="porg-edit-confirm"]'); await p.waitForTimeout(900);
+  ok(await p.$('.ferr:text-is("This URL is taken. Try another.")'), 'taken URL error at the field');
+  await p.fill('#es', '-bad-'); await p.click('#pe-save');
+  ok(await p.$('.ferr:text-is("Use lowercase letters, numbers and dashes, with no dash at the start or end.")'), 'URL format error');
+  await p.fill('#es', 'harbor-group'); await p.click('#pe-save'); await p.click('[data-act="porg-edit-confirm"]'); await p.waitForTimeout(900);
+  ok((await p.innerText('main')).includes('/o/harbor-group'), 'new URL on the detail');
+  eq(await hash(p), '#/platform/orgs/' + hl, 'detail URL keeps the org id');
+  await shot(p, '85-platform-org-edited');
+  await go(p, '/platform/orgs');
+  ok((await p.innerText('main tbody')).includes('Harbor Labs Group'), 'directory row shows the new name');
+  await go(p, '/platform/audit');
+  ok((await p.innerText('main tbody tr:first-child')).includes('changed the URL of Harbor Labs Group from /o/harbor-labs to /o/harbor-group'), 'platform audit: org edit entry');
+  // suspended org stays editable and stays suspended
+  await go(p, '/platform/orgs/' + bf); await p.click('[data-act="porg-edit-open"]'); await p.fill('#en', 'Bluefin Health Co'); await p.click('#pe-save'); await p.waitForTimeout(900);
+  ok((await p.innerText('main')).includes('Bluefin Health Co') && await p.$('main .banner.warn'), 'edit on a suspended org; still suspended');
+  // a member: old link not found, new link opens, the org audit shows the edit marked Platform admin
+  await p.evaluate(() => AD.controls.setPersona('kim-hale')); await go(p, '/o/harbor-labs/projects');
+  ok(await p.$('main h1:text-is("Not found")'), 'old /o/<slug> shows not found');
+  await go(p, '/o/harbor-group/settings/audit');
+  ok((await p.innerText('main tbody tr:first-child')).includes('changed the organization URL from /o/harbor-labs to /o/harbor-group'), 'org audit: URL change');
+  ok((await p.innerText('main tbody tr:first-child')).includes('Platform admin'), 'org audit: marked Platform admin');
+  await shot(p, '86-org-audit-platform-edit');
   await p.context().close();
 }
 

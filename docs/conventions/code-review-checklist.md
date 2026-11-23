@@ -123,7 +123,7 @@ Prefix every comment with its severity so the author knows what blocks merge.
 | **should-fix:** | Real problem that isn't dangerous: unclear design, missing edge case, weak naming, maintainability cost                                                  | Fix in this PR, or open a tracked follow-up the reviewer accepts |
 | **nit:**        | Style or preference, not covered by lint or Prettier. Never comment on what Prettier owns (quotes, wrapping, commas, indentation)                        | Author's choice; never blocks                                    |
 
-The `dev-review` skill rates findings **critical** or **high** (= blocker), **medium** (= should-fix) and **low** (= nit); see [its rubric](../../.agent/skills/dev-review/severity.md).
+The `dev-review` skill rates findings **critical** or **high** (= blocker), **medium** (= should-fix) and **low** (= nit); see [its rubric](../../.agent/skills/dev-review/reference/severity.md).
 
 Also useful: **question:** (you need to understand before judging) and **praise:** (call out good work worth repeating). Comment on the code, not the author. Give a concrete suggestion when you can.
 

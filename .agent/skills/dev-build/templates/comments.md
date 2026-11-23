@@ -2,11 +2,11 @@
 
 The PR body is owned by the `create-pr` skill, not this file.
 
-Post with `gh issue comment <n> --body-file <file>`. Plain everyday language, short ([AGENTS.md › Talking to humans](../../../AGENTS.md#talking-to-humans)). Fill the `<…>` slots; drop a line whose slot is empty.
+Post with `gh issue comment <n> --body-file <file>`. Plain everyday language, short ([AGENTS.md › Talking to humans](../../../../AGENTS.md#talking-to-humans)). Fill the `<…>` slots; drop a line whose slot is empty.
 
 ## Needs clarification
 
-One form, one question ([AGENTS.md › Talking to humans](../../../AGENTS.md#talking-to-humans): one question per message, answerable in 30 seconds); the next run asks the next gap. First header: Triage blocks on a gap, or a Fixer can't reproduce the bug. Second header: everything else (the Advisor's `HUMAN QUESTION`, an Advisor verdict you rejected, the Advisor cap or a repeat, a technical failure). Either way the run ends at **Blocked**.
+One form, one question ([AGENTS.md › Talking to humans](../../../../AGENTS.md#talking-to-humans): one question per message, answerable in 30 seconds); the next run asks the next gap. First header: Triage blocks on a gap, or a Fixer can't reproduce the bug. Second header: everything else (the Advisor's `HUMAN QUESTION`, an Advisor verdict you rejected, the Advisor cap or a repeat, a technical failure). Either way the run ends at **Blocked**.
 
 ```markdown
 **dev-build: I can't start this yet. The requirement isn't clear enough to build without guessing.**
@@ -28,7 +28,7 @@ One form, one question ([AGENTS.md › Talking to humans](../../../AGENTS.md#tal
 <Only if a branch exists:>
 Work so far is pushed on `<branch>`.
 <Multi-unit only:> Units: <U<id> merged <sha> | U<id> started | U<id> not started, joined by "; ">
-Stopped at: <build, task <k> of <total> | build (bug fix) | verify, round <r> | opening the PR | multi-unit: a value from the table in multi-unit.md, Blocking and resume>
+Stopped at: <build, task <k> of <total> | build (bug fix) | verify, round <r> | opening the PR | multi-unit: a value from the table in phases/multi-unit.md, Blocking and resume>
 
 Reply here with your pick, move the card back to **Ready**, and run `/dev-build <n>` again<If a branch exists: "; it continues from that branch">.
 ```
