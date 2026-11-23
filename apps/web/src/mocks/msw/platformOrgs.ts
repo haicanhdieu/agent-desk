@@ -71,6 +71,8 @@ export function setPlatformOrgStatus(
   if (!org) throw notFound('Organization');
   if (org.status === to) return getPlatformOrg(orgId);
   org.status = to;
+  const seat = mockDb.state.orgs.find((o) => o.id === orgId);
+  if (seat) seat.status = to;
   if (to === 'suspended') {
     const at = new Date().toISOString();
     org.suspendedAt = at;

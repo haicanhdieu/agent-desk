@@ -1,8 +1,10 @@
 // The contracts package's own client is what these tests drive; the restriction is for app code.
-import { PAGE_SIZE_DEFAULT } from '@agentdesk/contracts';
+import { ORG_SUSPENDED_PROBLEM_TYPE, PAGE_SIZE_DEFAULT } from '@agentdesk/contracts';
 import { ApiError, createApi } from '@agentdesk/contracts/client';
 import { describe, expect, it } from 'vitest';
+import { ids } from '../dto/ids';
 import { mockDb } from './db';
+import { getPlatformOrg } from './platformOrgs';
 import { platformOrgDtoFixtures } from '../dto/platform';
 import { PLATFORM_SCENARIO_KEY, PLATFORM_SCENARIOS, parsePlatformScenario } from './platformScenarios';
 import { scenarios } from './scenarios';
@@ -33,6 +35,8 @@ describe('platform scenarios', () => {
       'ownAdminRow',
       'unverifiedAccount',
       'manyOrgs',
+      'suspendedMember',
+      'suspendedPlatformAdmin',
     ]);
   });
 
@@ -147,5 +151,103 @@ describe('platform scenarios', () => {
     expect(account?.emailVerified).toBe(false);
     const items = (await api.platform.listAdmins({ query: {} })).items;
     expect(items.some((a) => a.email === 'unverified@example.test')).toBe(false);
+  });
+
+  describe('suspended orgs', () => {
+    // A client that pins every request to the active org, as the web app does.
+    const pinned = createApi({
+      baseUrl: 'http://localhost:3000',
+      parse: true,
+      orgId: () => mockDb.auth.activeOrganizationId ?? undefined,
+    });
+
+    it('suspendedMember: the suspended active org answers 403 org-suspended on me.access and a project list, with no reason', async () => {
+      scenarios.platform('suspendedMember');
+      for (const call of [() => pinned.me.access(), () => pinned.projects.list({ query: {} })]) {
+        const err = await rejection(call());
+        expect(err.status).toBe(403);
+        expect(err.type.endsWith(`:${ORG_SUSPENDED_PROBLEM_TYPE}`)).toBe(true);
+        expect(JSON.stringify(err)).not.toContain('Billing hold');
+        expect(err.message).not.toContain('Billing hold');
+      }
+    });
+
+    it('suspendedMember: the other org answers 200 once it is active', async () => {
+      scenarios.platform('suspendedMember');
+      mockDb.setActiveOrg(ids.org.acme);
+      await expect(pinned.me.access()).resolves.toBeTruthy();
+      await expect(pinned.projects.list({ query: {} })).resolves.toBeTruthy();
+    });
+
+    it('suspendedMember: the org list marks the suspended org and keeps the reason out', async () => {
+      scenarios.platform('suspendedMember');
+      const res = await fetch('http://localhost:3000/auth/organization/list');
+      const text = await res.text();
+      const rows = JSON.parse(text) as { id: string; status?: string }[];
+      expect(rows.find((o) => o.id === ids.org.alice)?.status).toBe('suspended');
+      expect(rows.find((o) => o.id === ids.org.acme)?.status).toBe('active');
+      expect(text).not.toContain('Billing hold');
+      expect(getPlatformOrg(ids.org.alice).suspension?.reason).toBe('Billing hold');
+    });
+
+    it('suspendedMember: a non-member gets the plain 403', async () => {
+      scenarios.platform('suspendedMember');
+      mockDb.state.memberships = mockDb.state.memberships.filter((m) => m.orgId !== ids.org.alice);
+      const err = await rejection(pinned.me.access());
+      expect(err.status).toBe(403);
+      expect(err.type).not.toMatch(/org-suspended/);
+    });
+
+    it('suspendedPlatformAdmin: is a platform admin and reads the suspended org', async () => {
+      scenarios.platform('suspendedPlatformAdmin');
+      expect((await pinned.me.platform()).platformAdmin).toBe(true);
+      expect((await rejection(pinned.me.access())).type).toMatch(/:org-suspended$/);
+      expect((await pinned.platform.getOrg({ params: { orgId: ids.org.alice } })).status).toBe('suspended');
+    });
+
+    it('suspendedMember: the user routes and set-active stay allowed for the suspended org', async () => {
+      scenarios.platform('suspendedMember');
+      await expect(pinned.me.platform()).resolves.toBeTruthy();
+      await expect(pinned.me.listInvitations({ query: {} })).resolves.toBeTruthy();
+      const res = await fetch('http://localhost:3000/auth/organization/set-active', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ organizationId: ids.org.acme }),
+      });
+      expect(res.status).toBe(200);
+    });
+
+    it('suspendedPlatformAdmin: a platform admin who is not a member gets the plain 403 on an org route', async () => {
+      scenarios.platform('suspendedPlatformAdmin');
+      mockDb.state.memberships = mockDb.state.memberships.filter((m) => m.orgId !== ids.org.alice);
+      const err = await rejection(pinned.projects.list({ query: {} }));
+      expect(err.status).toBe(403);
+      expect(err.type).not.toMatch(/org-suspended/);
+      expect((await pinned.me.platform()).platformAdmin).toBe(true);
+    });
+
+    it('suspendedMember: the stream routes of the suspended org answer 403 org-suspended, not data', async () => {
+      scenarios.platform('suspendedMember');
+      const run = mockDb.state.runs.find((r) =>
+        mockDb.state.projects.some((p) => p.id === r.projectId && p.orgId === ids.org.alice),
+      );
+      const project = mockDb.state.projects.find((p) => p.orgId === ids.org.alice);
+      if (!run || !project) throw new Error('seed has no run or project in the suspended org');
+      for (const path of [
+        `/api/runs/${run.id}/events`,
+        `/api/runs/${run.id}/terminal`,
+        `/api/projects/${project.id}/events`,
+      ]) {
+        const res = await fetch(`http://localhost:3000${path}`, { headers: { 'x-org-id': ids.org.alice } });
+        expect(res.status, path).toBe(403);
+        expect(((await res.json()) as { type: string }).type, path).toMatch(/:org-suspended$/);
+      }
+    });
+
+    it('reactivating through the platform route lets the member in again', async () => {
+      scenarios.platform('suspendedPlatformAdmin');
+      await pinned.platform.reactivateOrg({ params: { orgId: ids.org.alice }, body: { reason: 'Paid' } });
+      await expect(pinned.me.access()).resolves.toBeTruthy();
+    });
   });
 });

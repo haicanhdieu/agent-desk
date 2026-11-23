@@ -1,11 +1,12 @@
 import type { HttpHandler } from 'msw';
 import { PAGE_SIZE_DEFAULT, type PlatformAdminDto, type PlatformOrgDto } from '@agentdesk/contracts';
 import { platformAdminFixtures } from '../dto/access';
+import { ids } from '../dto/ids';
 import { mockDb } from './db';
 import { problemResponse, routeHandler } from './http';
 import { applyOnboardingScenario } from './onboardingScenarios';
 import { seedPlatformAdmins } from './platformAdmins';
-import { seedPlatformOrgs } from './platformOrgs';
+import { addPlatformOrg, seedPlatformOrgs, setPlatformOrgStatus } from './platformOrgs';
 
 // The platform-admin mock scenarios: one module for the route tests and the mocked e2e specs. A spec picks a scenario
 // through sessionStorage (`PLATFORM_SCENARIO_KEY`, written by e2e/mock/mock.ts `seedPlatform`); browser.ts reads it once
@@ -25,6 +26,8 @@ export const PLATFORM_SCENARIOS = [
   'ownAdminRow',
   'unverifiedAccount',
   'manyOrgs',
+  'suspendedMember',
+  'suspendedPlatformAdmin',
 ] as const;
 
 export type PlatformScenario = (typeof PLATFORM_SCENARIOS)[number];
@@ -89,6 +92,14 @@ function manyOrgEntries(): PlatformOrgDto[] {
   });
 }
 
+/** Lists the signed-in user's mock orgs in the directory, then suspends one with a reason. */
+function suspendMockOrg(orgId: string, reason: string): void {
+  for (const org of mockDb.state.orgs) {
+    addPlatformOrg({ id: org.id, name: org.name, slug: org.slug, createdAt: org.createdAt });
+  }
+  setPlatformOrgStatus(orgId, 'suspended', reason);
+}
+
 const seeders: Record<PlatformScenario, () => void> = {
   platformAdminOrgs: () => applyOnboardingScenario('platformAdminOneOrg'),
   platformAdminNoOrg: () => applyOnboardingScenario('platformAdminNoOrg'),
@@ -134,6 +145,15 @@ const seeders: Record<PlatformScenario, () => void> = {
       handle: 'unverified',
       platformAdmin: false,
     });
+  },
+  // A member of a suspended org (their active one, reason `Billing hold`) and of an active one.
+  suspendedMember() {
+    applyOnboardingScenario('twoOrgs');
+    suspendMockOrg(ids.org.alice, 'Billing hold');
+  },
+  suspendedPlatformAdmin() {
+    applyOnboardingScenario('platformAdminOneOrg');
+    suspendMockOrg(ids.org.alice, 'Billing hold');
   },
   revoke409: () => applyOnboardingScenario('platformAdminOneOrg'),
   manyOrgs() {
