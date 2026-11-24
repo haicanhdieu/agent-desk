@@ -303,6 +303,16 @@ describe('ChangeRoleDialog', () => {
         });
       });
 
+      it('enables Save access when one row is switched to the role the other already has', async () => {
+        const h = setup({ projectAccess: access({ grants: twice }) });
+        const save = screen.getByRole('button', { name: 'Save access' }) as HTMLButtonElement;
+        const selects = within(section()).getAllByRole('combobox', { name: /^Role in invoicer-api/ });
+        await userEvent.selectOptions(selects[1] as HTMLElement, first?.roleId ?? '');
+        expect(save.disabled).toBe(false);
+        await userEvent.click(save);
+        expect(h.onSave).toHaveBeenCalledTimes(1);
+      });
+
       it('removes only the row whose button was clicked', async () => {
         const h = setup({ projectAccess: access({ grants: twice }) });
         const buttons = within(section()).getAllByRole('button', { name: /^Remove access to invoicer-api/ });

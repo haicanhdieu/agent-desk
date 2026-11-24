@@ -105,4 +105,46 @@ describe('diffAccess', () => {
       remove: ['a1'],
     });
   });
+
+  describe('a project held twice', () => {
+    const twice = [
+      { assignmentId: 'a1', projectId: 'p1', projectName: 'Alpha', roleId: 'r-admin', roleName: 'Admin' },
+      { assignmentId: 'a2', projectId: 'p1', projectName: 'Alpha', roleId: 'r-member', roleName: 'Member' },
+    ];
+
+    it('creates one grant when both rows are set to the same new role, and removes both old ones', () => {
+      const d = draft({
+        projects: [
+          { assignmentId: 'a1', projectId: 'p1', roleId: 'r-viewer' },
+          { assignmentId: 'a2', projectId: 'p1', roleId: 'r-viewer' },
+        ],
+      });
+      expect(diffAccess('r-member', twice, d)).toEqual({
+        setOrgRole: false,
+        create: [{ projectId: 'p1', roleId: 'r-viewer' }],
+        remove: ['a1', 'a2'],
+      });
+    });
+
+    it('plans nothing for an extra wanted row of a grant already held', () => {
+      const d = draft({
+        projects: [
+          { assignmentId: 'a1', projectId: 'p1', roleId: 'r-admin' },
+          { assignmentId: 'a2', projectId: 'p1', roleId: 'r-member' },
+          { projectId: 'p1', roleId: 'r-admin' },
+        ],
+      });
+      expect(diffAccess('r-member', twice, d)).toEqual({ setOrgRole: false, create: [], remove: [] });
+    });
+
+    it('removes the row switched to a role the project already holds', () => {
+      const d = draft({
+        projects: [
+          { assignmentId: 'a1', projectId: 'p1', roleId: 'r-admin' },
+          { assignmentId: 'a2', projectId: 'p1', roleId: 'r-admin' },
+        ],
+      });
+      expect(diffAccess('r-member', twice, d)).toEqual({ setOrgRole: false, create: [], remove: ['a2'] });
+    });
+  });
 });

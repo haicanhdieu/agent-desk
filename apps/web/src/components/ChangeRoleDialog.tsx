@@ -1,5 +1,6 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import { Banner, Button, Dialog, Icon, IconButton, RadioCard, Select } from '@/ds';
+import { diffAccess } from '@/features/members/accessChange';
 import type { AccessChange, InviteOption, ProjectGrantView, RoleCardOption } from '@/mocks/types';
 import styles from './ChangeRoleDialog.module.css';
 
@@ -48,11 +49,6 @@ interface DraftGrant {
 }
 
 const draftOf = (g: ProjectGrantView): DraftGrant => ({ ...g, rowId: g.assignmentId });
-// A grant is its project and role, so a removed-then-re-added row with the same role is no change.
-const unchangedGrants = (draft: DraftGrant[], before: ProjectGrantView[]) =>
-  draft.length === before.length &&
-  draft.every((d) => before.some((b) => b.projectId === d.projectId && b.roleId === d.roleId));
-
 /**
  * Change one member's access: the org role and, on the org Members page, the project grants (one role per project
  * row; add and remove). Always open: mount it while the dialog is wanted. Text only, never HTML.
@@ -90,7 +86,9 @@ export function ChangeRoleDialog({
   const pickedCard = options.find((o) => o.roleId === picked);
   const ownerPicked = pickedCard?.key === 'owner';
   const stepDown = self && currentIsOwner && !ownerPicked;
-  const unchanged = picked === current && unchangedGrants(draft, projectGrants);
+  // The same plan a save would send (a grant is its project and role), so Save is enabled exactly when it would do something.
+  const plan = diffAccess(current, projectGrants, { roleId: picked, projects: draft });
+  const unchanged = !plan.setOrgRole && plan.create.length === 0 && plan.remove.length === 0;
   const addable = projects.filter((p) => !draft.some((d) => d.projectId === p.id));
   const roleNameOf = (roleId: string) => projectRoles.find((r) => r.roleId === roleId)?.name;
 

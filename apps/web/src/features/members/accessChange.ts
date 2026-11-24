@@ -38,7 +38,8 @@ export function diffAccess(
     // A grant is its project and role (the API's unique key), so a removed-then-re-added row is the same grant.
     const before = current.find((c) => c.projectId === w.projectId && c.roleId === w.roleId);
     if (before !== undefined) kept.add(before.assignmentId);
-    else create.push({ projectId: w.projectId, roleId: w.roleId });
+    else if (!create.some((c) => c.projectId === w.projectId && c.roleId === w.roleId))
+      create.push({ projectId: w.projectId, roleId: w.roleId });
   }
   return {
     setOrgRole: wanted.roleId !== currentOrgRoleId,
