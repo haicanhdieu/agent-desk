@@ -195,10 +195,11 @@ interface AuditRow {
   payload: unknown;
   created_at: unknown;
 }
+/** Grant and revoke rows only: inviting the user into an org writes an `invitation.created` row with the same email (BR-44). */
 const auditRows = async (email: string) =>
   (
     await t.db.pool.query<AuditRow>(
-      "select actor_user_id, action, target_type, target_id, payload, created_at::text as created_at from platform_audit_log where payload->>'email' = $1",
+      "select actor_user_id, action, target_type, target_id, payload, created_at::text as created_at from platform_audit_log where payload->>'email' = $1 and action like 'platform_admin.%'",
       [email],
     )
   ).rows;

@@ -29,8 +29,10 @@ afterAll(async () => {
   await t.close();
 });
 
-async function platformRows(orgId: string) {
-  const rows = await t.db.orm.select().from(platformAuditLog).where(eq(platformAuditLog.targetOrgId, orgId));
+/** Suspend and reactivate platform rows only: creating the org writes an `org.created` row (BR-44). */
+async function platformRows(orgId: string, actions = ['org.suspended', 'org.reactivated']) {
+  const all = await t.db.orm.select().from(platformAuditLog).where(eq(platformAuditLog.targetOrgId, orgId));
+  const rows = all.filter((r) => actions.includes(r.action));
   return rows.sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
 }
 

@@ -1609,14 +1609,14 @@ export const platformAuditFixtures: PlatformAuditEntryDto[]; // every action, on
 - Consumes: `writePlatformAuditEntry` with `targetOrgId` (Tasks 22, 35), `routeAccess`, `flattenRoutes`.
 - Produces: in the transaction that already writes the tenant row, when `actor.kind === 'platform_admin'`: `org.created` (target `org`), `assignment.granted`/`assignment.revoked` (target `assignment`, payload user id, role key, scope), `invitation.created`/`invitation.resent`/`invitation.revoked` (target `invitation`, payload invitee email, role key, scope), each with `target_org_id`. Responses unchanged.
 
-- [ ] **Step 1: Write the failing tests** in `platform-audit.int.test.ts` (BR-44):
+- [x] **Step 1: Write the failing tests** in `platform-audit.int.test.ts` (BR-44):
   - Table-driven over every mutating `scope: 'platform'` route key (org create, `platform.updateOrg`, suspend, reactivate, assignment create and remove, invitation create, resend and remove, admin grant and revoke): one row, the right `action`, `target_org_id` (null for admin rows), actor from the session, payload redacted (a seeded `ghp_`-style value is never stored); none on a 4xx and none on a no-op repeat.
   - Completeness: every mutating platform route key of `flattenRoutes(routes)` has a case, so a new one without an audit action fails.
   - Same transaction: an owner-added CHECK on a fresh DB that refuses the platform insert makes an assignment create fail and leaves no assignment and no tenant row.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/api exec vitest run test/platform-audit.int.test.ts`. Expected: FAIL.
-- [ ] **Step 3: Implement** the writer calls in the three services and the entry types.
-- [ ] **Step 4: Run** Step 2's command, `pnpm --filter @agentdesk/api exec vitest run test/assignments.int.test.ts test/invitations.int.test.ts test/invitation-resend.int.test.ts test/platform.int.test.ts src/audit`, `pnpm --filter @agentdesk/api typecheck`. Expected: PASS.
-- [ ] **Step 5: Commit**: `feat(api): audit every platform write`. Label `review:sensitive` (audit writes).
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/api exec vitest run test/platform-audit.int.test.ts`. Expected: FAIL.
+- [x] **Step 3: Implement** the writer calls in the three services and the entry types.
+- [x] **Step 4: Run** Step 2's command, `pnpm --filter @agentdesk/api exec vitest run test/assignments.int.test.ts test/invitations.int.test.ts test/invitation-resend.int.test.ts test/platform.int.test.ts src/audit`, `pnpm --filter @agentdesk/api typecheck`. Expected: PASS.
+- [x] **Step 5: Commit**: `feat(api): audit every platform write`. Label `review:sensitive` (audit writes).
 
 ---
 
