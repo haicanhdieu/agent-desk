@@ -808,6 +808,7 @@ const DENIAL_TABLE: Record<HttpKey, Expected> = {
   'runs.events': tenant('stream'),
   // anyone signed in reads their own access: empty for a member with no assignment, platformAdmin only with no active org
   'me.access': { none: 200, viewer: 200, pa: 200 },
+  'me.platform': { none: 200, viewer: 200, pa: 200 },
   'roles.list': tenant(403),
   'members.list': tenant(403),
   'assignments.list': tenant(403),
@@ -829,6 +830,9 @@ const DENIAL_TABLE: Record<HttpKey, Expected> = {
   'me.declineInvitation': { none: 404, viewer: 404, pa: 404 },
   'platform.createOrg': platformRoute(201),
   'platform.listOrgs': platformRoute(200),
+  'platform.getOrg': platformRoute(200),
+  'platform.suspendOrg': platformRoute(200),
+  'platform.reactivateOrg': platformRoute(200),
   'platform.listProjects': platformRoute(200),
   'platform.listRoles': platformRoute(200),
   'platform.listMembers': platformRoute(200),
@@ -1147,6 +1151,8 @@ describe('denial table over every route, stream and terminal', () => {
       'members.updateRole': { roleId: viewerRole },
       'invitations.create': { email: 'dt-denied@dev.local', roleId: viewerRole, scope: { type: 'org' } },
       'platform.createOrg': { name: 'Denial New', slug: 'denial-new' },
+      'platform.suspendOrg': { reason: 'x' },
+      'platform.reactivateOrg': { reason: 'x' },
       'platform.createAssignment': { userId: spareId, roleId: memberRole, scope: { type: 'project', projectId: p1 } },
       'platform.createInvitation': { email: 'dt-denied@dev.local', roleId: viewerRole, scope: { type: 'org' } },
     };

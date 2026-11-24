@@ -7,21 +7,32 @@ interface TokenPattern {
   min: number;
   /** Literal that ends a whole token, if any. */
   suffix?: string;
+  /**
+   * Most body characters a whole token has. Only for a pattern that needs its suffix: with no suffix after it, every
+   * start of the prefix would scan the whole rest of the text, which is quadratic on a hostile text.
+   */
+  max?: number;
 }
 
 const TOKEN_PATTERNS: TokenPattern[] = [
-  { prefix: 'x-access-token:', body: '[^@\\s]', min: 1, suffix: '@' },
+  { prefix: 'x-access-token:', body: '[^@\\s]', min: 1, max: 512, suffix: '@' },
   { prefix: 'ghs_', body: '[A-Za-z0-9]', min: 20 },
+  // GitHub classic user, OAuth, user-to-server and refresh tokens (36 body chars) and fine-grained tokens.
+  { prefix: 'ghp_', body: '[A-Za-z0-9]', min: 36 },
+  { prefix: 'gho_', body: '[A-Za-z0-9]', min: 36 },
+  { prefix: 'ghu_', body: '[A-Za-z0-9]', min: 36 },
+  { prefix: 'ghr_', body: '[A-Za-z0-9]', min: 36 },
+  { prefix: 'github_pat_', body: '[A-Za-z0-9_]', min: 22 },
   { prefix: 'sk-ant-', body: '[A-Za-z0-9_-]', min: 10 },
 ];
 
 const escape = (s: string): string => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 const PATTERNS = TOKEN_PATTERNS.map(
-  (p) => new RegExp(`${escape(p.prefix)}${p.body}{${p.min},}${escape(p.suffix ?? '')}`, 'g'),
+  (p) => new RegExp(`${escape(p.prefix)}${p.body}{${p.min},${p.max ?? ''}}${escape(p.suffix ?? '')}`, 'g'),
 );
 /** What a cut leaves of each pattern: the prefix and a body so far, at the end of the text. */
-const UNFINISHED = TOKEN_PATTERNS.map((p) => new RegExp(`${escape(p.prefix)}${p.body}*$`));
+const UNFINISHED = TOKEN_PATTERNS.map((p) => new RegExp(`${escape(p.prefix)}${p.body}{0,${p.max ?? ''}}$`));
 
 /** Shortest cut piece of a pattern's literal start that counts as the start of a token (shorter ones hold no secret). */
 const MIN_CUT_PREFIX = 4;

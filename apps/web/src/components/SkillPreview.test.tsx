@@ -157,7 +157,7 @@ describe('SkillPreview diagrams', () => {
     render(<SkillPreview value={skillPreviewSamples.diagram} />);
     // Wait until the plugin is loaded and the diagram is being drawn: the placeholder is then Streamdown's.
     await vi.waitFor(() => expect(FakeMermaid.rendered).toHaveLength(1));
-    expect(screen.getByText('Loading diagram…')).toBeInTheDocument();
+    expect(await screen.findByText('Loading diagram…')).toBeInTheDocument();
   });
 
   it('a diagram that cannot be drawn shows the notice, the error and the source; the rest renders', async () => {

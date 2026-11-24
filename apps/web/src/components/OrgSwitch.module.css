@@ -94,3 +94,8 @@
   font-size: var(--fs-12);
   color: var(--muted);
 }
+.suspended {
+  flex: 0 0 auto;
+  font-size: var(--fs-12);
+  color: var(--muted);
+}

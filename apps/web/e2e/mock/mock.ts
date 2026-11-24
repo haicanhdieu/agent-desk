@@ -4,6 +4,7 @@ import { PR_STATES_SCENARIO_KEY, type PrStatesScenario } from '../../src/mocks/m
 import { ids } from '../../src/mocks/dto/ids';
 import { MOCK_LISTS_KEY, type MockLists } from '../../src/mocks/msw/e2eLists';
 import { ONBOARDING_SCENARIO_KEY, type OnboardingScenario } from '../../src/mocks/msw/onboardingScenarios';
+import { PLATFORM_SCENARIO_KEY, type PlatformScenario } from '../../src/mocks/msw/platformScenarios';
 import {
   PROJECT_SPACE_KEY,
   type ProjectSpaceRole,
@@ -180,6 +181,19 @@ export async function seedTenantAdmin(page: Page, scenario: TenantAdminScenario)
       sessionStorage.setItem(key, value);
     },
     [TENANT_ADMIN_SCENARIO_KEY, scenario] as const,
+  );
+}
+
+/**
+ * Picks a platform-admin mock scenario (platformScenarios.ts) before the first `page.goto`: browser.ts reads the key once
+ * when the mock worker starts. It lives in sessionStorage, so a reload in the same tab keeps it.
+ */
+export async function seedPlatform(page: Page, scenario: PlatformScenario): Promise<void> {
+  await page.addInitScript(
+    ([key, value]) => {
+      sessionStorage.setItem(key, value);
+    },
+    [PLATFORM_SCENARIO_KEY, scenario] as const,
   );
 }
 

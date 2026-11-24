@@ -3,12 +3,14 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Db } from '@agentdesk/db';
 
 const checkTenantAccess = vi.hoisted(() => vi.fn());
-vi.mock('../access/check-access', () => ({ checkTenantAccess, isOrgMember: vi.fn() }));
+const orgMembership = vi.hoisted(() => vi.fn());
+vi.mock('../access/check-access', () => ({ checkTenantAccess, orgMembership }));
 const isPlatformAdmin = vi.hoisted(() => vi.fn());
 vi.mock('../access/platform-admin', () => ({ isPlatformAdmin }));
 
 import type { FastifyRequest } from 'fastify';
 import { OrgMismatchException, requestedOrgId } from '../common/org-mismatch';
+import { OrgSuspendedException } from '../common/org-suspended';
 import type { Auth } from './auth';
 import { SessionGuard, isPublicPath } from './session.guard';
 
@@ -192,5 +194,66 @@ describe('SessionGuard org check and user routes', () => {
     expect(req['sessionUser']).toEqual({ userId: 'user-1', email: 'u@x.io', emailVerified: true });
     expect(req['orgContext']).toBeUndefined();
     expect(checkTenantAccess).not.toHaveBeenCalled();
+  });
+});
+
+describe('SessionGuard suspended org', () => {
+  beforeEach(() => {
+    checkTenantAccess.mockReset();
+    orgMembership.mockReset();
+  });
+
+  it('throws OrgSuspendedException when the tenant check refuses with org-suspended', async () => {
+    checkTenantAccess.mockResolvedValue({ ok: false, status: 403, reason: 'org-suspended' });
+    const { guard, context, logger } = setup();
+    await expect(guard.canActivate(context)).rejects.toBeInstanceOf(OrgSuspendedException);
+    expect(logger.info).toHaveBeenCalledWith(
+      { requestId: 'req-1', orgId: ORG_ID, userId: 'user-1', routeKey: 'runs.cancel' },
+      'org suspended',
+    );
+  });
+
+  it('keeps the plain 403 for a not-a-member refusal', async () => {
+    checkTenantAccess.mockResolvedValue({ ok: false, status: 403, reason: 'not-a-member' });
+    const { guard, context } = setup();
+    const err: unknown = await guard.canActivate(context).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(ForbiddenException);
+    expect(err).not.toBeInstanceOf(OrgSuspendedException);
+  });
+
+  describe('dev routes', () => {
+    const devSetup = () => {
+      const ctx = setup();
+      ctx.req.method = 'GET';
+      ctx.req.url = '/dev/fake/tickets';
+      ctx.req.routeOptions = { url: '/dev/fake/tickets' };
+      return ctx;
+    };
+
+    it('refuses a member of a suspended org with org-suspended', async () => {
+      orgMembership.mockResolvedValue('suspended');
+      const { guard, context, req, logger } = devSetup();
+      await expect(guard.canActivate(context)).rejects.toBeInstanceOf(OrgSuspendedException);
+      expect(req).not.toHaveProperty('orgContext');
+      expect(logger.info).toHaveBeenCalledWith(
+        { requestId: 'req-1', orgId: ORG_ID, userId: 'user-1', routeKey: null },
+        'org suspended',
+      );
+    });
+
+    it('refuses a non-member with the plain 403', async () => {
+      orgMembership.mockResolvedValue('none');
+      const { guard, context } = devSetup();
+      const err: unknown = await guard.canActivate(context).catch((e: unknown) => e);
+      expect(err).toBeInstanceOf(ForbiddenException);
+      expect(err).not.toBeInstanceOf(OrgSuspendedException);
+    });
+
+    it('lets an active member through', async () => {
+      orgMembership.mockResolvedValue('active');
+      const { guard, context, req } = devSetup();
+      await expect(guard.canActivate(context)).resolves.toBe(true);
+      expect(req).toHaveProperty('orgContext');
+    });
   });
 });

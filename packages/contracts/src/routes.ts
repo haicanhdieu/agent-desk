@@ -31,9 +31,13 @@ import {
   PlatformAssignmentDto,
   PlatformInvitationDto,
   PlatformMemberDto,
+  OrgStatusChangeRequest,
+  PlatformOrgDetailDto,
   PlatformOrgDto,
+  PlatformOrgListQuery,
   PlatformProjectDto,
   PlatformRoleDto,
+  PlatformSessionDto,
 } from './schemas/platform';
 import {
   AgentDto,
@@ -386,6 +390,7 @@ export const routes = {
   },
   me: {
     access: { method: 'GET', path: '/api/me/access', response: AccessDto },
+    platform: { method: 'GET', path: '/api/me/platform', response: PlatformSessionDto },
     listInvitations: {
       method: 'GET',
       path: '/api/me/invitations',
@@ -530,7 +535,27 @@ export const routes = {
   },
   platform: {
     createOrg: { method: 'POST', path: '/api/platform/orgs', body: CreateOrgRequest, response: CreateOrgResponse },
-    listOrgs: { method: 'GET', path: '/api/platform/orgs', query: PageQuery, response: pageOf(PlatformOrgDto) },
+    listOrgs: {
+      method: 'GET',
+      path: '/api/platform/orgs',
+      query: PlatformOrgListQuery,
+      response: pageOf(PlatformOrgDto),
+    },
+    getOrg: { method: 'GET', path: '/api/platform/orgs/:orgId', params: orgParams, response: PlatformOrgDetailDto },
+    suspendOrg: {
+      method: 'POST',
+      path: '/api/platform/orgs/:orgId/suspend',
+      params: orgParams,
+      body: OrgStatusChangeRequest,
+      response: PlatformOrgDetailDto,
+    },
+    reactivateOrg: {
+      method: 'POST',
+      path: '/api/platform/orgs/:orgId/reactivate',
+      params: orgParams,
+      body: OrgStatusChangeRequest,
+      response: PlatformOrgDetailDto,
+    },
     listProjects: {
       method: 'GET',
       path: '/api/platform/orgs/:orgId/projects',

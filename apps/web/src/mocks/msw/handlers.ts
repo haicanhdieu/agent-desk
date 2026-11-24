@@ -3,6 +3,7 @@ import {
   INVITATION_EXPIRY_SECONDS,
   ORG_HEADER,
   ORG_MISMATCH_PROBLEM_TYPE,
+  ORG_SUSPENDED_PROBLEM_TYPE,
   can,
   holdsAnywhere,
   routeAccess,
@@ -34,13 +35,7 @@ import { authHandlers } from './auth-handlers';
 import { agentModelsAnswer } from './agentModels';
 import { PR_STATES_SLOW_MS, prStateItems } from './prStates';
 import type { MockRun } from '../dto/runs';
-import {
-  assignmentFixtures,
-  platformMemberFixtures,
-  platformOrgFixtures,
-  platformProjectFixtures,
-  roleFixtures,
-} from '../dto/access';
+import { assignmentFixtures, platformMemberFixtures, platformProjectFixtures, roleFixtures } from '../dto/access';
 import { checklistFixtures } from '../dto/invitations';
 import { promptPreviewFixture } from '../dto/rules';
 import { slowActionRuns, transcriptBehaviours } from '../dto/sessionRuns';
@@ -63,6 +58,7 @@ import {
   type RouteKey,
 } from './http';
 import { grantPlatformAdmin, listPlatformAdmins, revokePlatformAdmin } from './platformAdmins';
+import { addPlatformOrg, getPlatformOrg, listPlatformOrgs, setPlatformOrgStatus } from './platformOrgs';
 import { linkedTicketsFor, toDto } from './linkedTickets';
 import {
   changeMemberRole,
@@ -285,6 +281,7 @@ const requireOrg = (orgId: string): string => {
   if (!db().orgs.some((o) => o.id === orgId)) throw notFound('Organization');
   return orgId;
 };
+const actorOf = (u: MockUser) => ({ userId: u.id, name: u.name, handle: u.handle ?? null });
 const revokeNotPending = () => conflict('Invitation is not pending', []);
 
 function revokeInvitation(orgId: string, id: string): null {
@@ -1069,6 +1066,7 @@ const impl: Impl = {
   },
 
   'me.access': () => accessOf(sessionUser()),
+  'me.platform': () => ({ platformAdmin: sessionUser().platformAdmin }),
   'roles.list': () => roleFixtures,
   'members.list': async ({ params, query }) => {
     const { user, orgId } = session();
@@ -1160,9 +1158,15 @@ const impl: Impl = {
     const org = { id: mockDb.nextId(), name: body.name, slug: body.slug, logo: null, metadata: null, createdAt: now() };
     db().orgs.push(org);
     db().checklists[org.id] = checklistFixtures.none;
+    addPlatformOrg({ id: org.id, name: org.name, slug: org.slug, createdAt: org.createdAt });
     return { id: org.id, name: org.name, slug: org.slug };
   },
-  'platform.listOrgs': ({ query }) => slicePage(platformOrgFixtures, query),
+  'platform.listOrgs': ({ query }) => listPlatformOrgs(query),
+  'platform.getOrg': ({ params }) => getPlatformOrg(params.orgId),
+  'platform.suspendOrg': ({ params, body }) =>
+    setPlatformOrgStatus(params.orgId, 'suspended', body.reason, actorOf(sessionUser())),
+  'platform.reactivateOrg': ({ params, body }) =>
+    setPlatformOrgStatus(params.orgId, 'active', body.reason, actorOf(sessionUser())),
   'platform.listProjects': ({ query }) => slicePage(platformProjectFixtures, query),
   'platform.listRoles': () => roleFixtures,
   'platform.listMembers': ({ query }) => slicePage(platformMemberFixtures, query),
@@ -1239,6 +1243,26 @@ function queryOf(sp: URLSearchParams): Record<string, string | string[]> {
   return out;
 }
 
+/**
+ * The API guard's second step (after membership, before the permission): a member of a suspended active org is refused
+ * 403 `org-suspended` whatever their role, `me.access` included. The body is fixed text: no reason, no date. A non-member
+ * keeps the plain 403.
+ */
+function refuseSuspendedOrg(user: MockUser): void {
+  const orgId = mockDb.auth.activeOrganizationId;
+  if (!orgId) return;
+  if (db().orgs.find((o) => o.id === orgId)?.status !== 'suspended') return;
+  if (!db().memberships.some((m) => m.userId === user.id && m.orgId === orgId)) {
+    throw new Problem({ status: 403, title: 'Forbidden', type: 'forbidden' });
+  }
+  throw new Problem({
+    status: 403,
+    title: 'Forbidden',
+    type: ORG_SUSPENDED_PROBLEM_TYPE,
+    detail: 'This organization is suspended.',
+  });
+}
+
 function contractHandler<K extends JsonKey>(key: K, run: Impl[K]): HttpHandler {
   const def = routeDef(key);
   return routeHandler(key, async (request, rawParams) => {
@@ -1257,6 +1281,7 @@ function contractHandler<K extends JsonKey>(key: K, run: Impl[K]): HttpHandler {
           type: ORG_MISMATCH_PROBLEM_TYPE,
         });
       }
+      if (isOrgPinned(key)) refuseSuspendedOrg(caller);
       if (isOrgPinned(key) && key !== 'me.access') requireRouteAccess(key, session().user);
       const url = new URL(request.url);
       const parts = {
@@ -1282,7 +1307,15 @@ const build = <K extends JsonKey>(key: K) => contractHandler(key, impl[key]);
 
 /** The project a stream route's path parameters point at, when the signed-in user's active org can see it (RLS). */
 function streamProblem(key: StreamKey, params: Record<string, unknown>): Response | undefined {
-  if (!mockDb.currentUser()) return problemResponse({ status: 401, title: 'Unauthorized', type: 'unauthorized' });
+  const user = mockDb.currentUser();
+  if (!user) return problemResponse({ status: 401, title: 'Unauthorized', type: 'unauthorized' });
+  // The API refuses an SSE connect and a terminal attach of a suspended org like any other route (spec BR-38).
+  try {
+    refuseSuspendedOrg(user);
+  } catch (e) {
+    if (e instanceof Problem) return problemResponse(e.init);
+    throw e;
+  }
   const orgId = mockDb.auth.activeOrganizationId;
   const projectId =
     key === 'projects.events'
@@ -1295,7 +1328,7 @@ function streamProblem(key: StreamKey, params: Record<string, unknown>): Respons
 }
 
 /**
- * A stream route's auth and scope check (401, or 404 for a record the active org cannot see). When the request may go
+ * A stream route's auth and scope check (401, 403 for a suspended org, or 404 for a record the active org cannot see). When the request may go
  * on it answers nothing, so the next handler takes it: in the browser the SSE handlers (stream-handlers.ts, listed
  * after these guards) stream; the terminal route only exists as a WebSocket, played by fakeTerminal.ts. Vitest uses
  * FakeEventSource and FakeWebSocket instead, so no request gets past a guard there.

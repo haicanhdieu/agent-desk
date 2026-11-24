@@ -6,6 +6,7 @@ import type { Actor, OrgOption, Project } from '@/mocks/types';
 import { SignIn as SignInScreen, SignInNoInvitationError } from './SignIn';
 import { ProjectsEmpty as ProjectsEmptyScreen } from './ProjectsEmpty';
 import { Projects as ProjectsScreen } from './Projects';
+import { OrgSuspended as OrgSuspendedScreen } from './OrgSuspended';
 import { viewport } from './viewports';
 import styles from './Screens.module.css';
 
@@ -259,6 +260,20 @@ export const ProjectsOrgSwitchAdmin: Story = {
   play: openSwitch,
 };
 
+export const ProjectsOrgSwitchAdminPlatform: Story = {
+  name: 'Projects, platform admin, switcher open with Platform admin above Create organization',
+  render: () => (
+    <ProjectsScreen
+      user={opsAdmin}
+      projects={projects}
+      newHref="#"
+      org={{ ...orgOf(harbor, [harbor], true), platformHref: '/platform/orgs' }}
+      canCreate
+    />
+  ),
+  play: openSwitch,
+};
+
 export const ProjectsOrgSwitchOpen: Story = {
   name: 'Projects, switcher open, several orgs',
   render: () => (
@@ -289,4 +304,31 @@ export const ProjectsSwitching: Story = {
 export const SignInNoInvitation: Story = {
   name: 'Sign in, no invitation',
   render: () => <SignInScreen signInHref="#" error={<SignInNoInvitationError />} />,
+};
+
+/** A member of a suspended org: the top bar keeps the org name and the switcher, with no Projects or Settings tabs. */
+const suspendedOrg = { ...harbor, suspended: true };
+const suspendedOrgs: OrgOption[] = [suspendedOrg, northwind, riverside];
+const suspended = (user: Actor, org: OrgSwitchProps) => (
+  <>
+    <TopBar variant="global" user={user} org={org} tabs="none" />
+    <OrgSuspendedScreen orgName={harbor.name} />
+  </>
+);
+
+export const OrgSuspended: Story = {
+  name: 'Organization suspended, fixed message for every member, no reason',
+  render: () => suspended(user, orgOf(suspendedOrg, suspendedOrgs)),
+};
+
+export const OrgSuspendedSwitcher: Story = {
+  name: 'Organization suspended, switcher open: the suspended org is marked, other orgs open',
+  render: () => suspended(user, orgOf(suspendedOrg, suspendedOrgs)),
+  play: openSwitch,
+};
+
+export const OrgSuspendedPlatformAdmin: Story = {
+  name: 'Organization suspended, a platform admin still has Platform admin in the switcher',
+  render: () => suspended(opsAdmin, { ...orgOf(suspendedOrg, [suspendedOrg], true), platformHref: '/platform/orgs' }),
+  play: openSwitch,
 };

@@ -121,6 +121,7 @@ const MATRIX: Record<RouteKey, Row> = {
   'runs.events': ALL,
   'runs.terminal': OWN_RUN,
   'me.access': ALL,
+  'me.platform': ALL,
   'me.listInvitations': ALL,
   'me.getInvitation': ALL,
   'me.acceptInvitation': ALL,
@@ -146,6 +147,7 @@ const MATRIX: Record<RouteKey, Row> = {
   'orgs.checklist': ADMINS,
   'platform.createOrg': NOBODY,
   'platform.listOrgs': NOBODY,
+  'platform.getOrg': NOBODY,
   'platform.listProjects': NOBODY,
   'platform.listRoles': NOBODY,
   'platform.listMembers': NOBODY,
@@ -159,6 +161,8 @@ const MATRIX: Record<RouteKey, Row> = {
   'platform.listAdmins': NOBODY,
   'platform.grantAdmin': NOBODY,
   'platform.revokeAdmin': NOBODY,
+  'platform.suspendOrg': NOBODY,
+  'platform.reactivateOrg': NOBODY,
 };
 
 describe('role matrix over routeAccess', () => {

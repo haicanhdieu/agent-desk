@@ -484,6 +484,40 @@ describe('pollOnce', () => {
   });
 });
 
+describe('pollOnce: suspended organization', () => {
+  const setStatus = (orgId: string, status: 'active' | 'suspended') =>
+    admin.query(
+      `insert into organization (id, name, slug, created_at, status, suspended_at)
+       values ($1, $1, $1, now(), $2, case when $2 = 'suspended' then now() end)
+       on conflict (id) do update set status = excluded.status, suspended_at = excluded.suspended_at`,
+      [orgId, status],
+    );
+
+  it('the cursor moves past a suspended org comments and nothing replays after reactivation', async () => {
+    reset();
+    nowMs = Date.now(); // earlier tests moved the clock; comments in the fake board carry real time
+    const s = await seed();
+    await setStatus(s.orgId, 'suspended');
+    const c = await comment(s);
+    expect(await pollOnce(deps(), s)).toBe('ok');
+    expect(await runsOf(s)).toHaveLength(0);
+    expect(started).toHaveLength(0);
+    expect((await cursorOf(s)).since?.toISOString()).toBe(c.createdAt);
+    const inbound = await withOrg(db, s.orgId, (tx) => tx.select().from(inboundEvents));
+    expect(inbound.map((e) => e.outcome)).toEqual(['ignored_org_suspended']);
+
+    await setStatus(s.orgId, 'active');
+    expect(await pollOnce(deps(), s)).toBe('ok');
+    expect(await runsOf(s)).toHaveLength(0);
+    expect(started).toHaveLength(0);
+
+    await new Promise((r) => setTimeout(r, 5));
+    await comment(s);
+    expect(await pollOnce(deps(), s)).toBe('ok');
+    expect(await runsOf(s)).toHaveLength(1);
+  });
+});
+
 describe('pause helpers', () => {
   it('pausePollSchedule pauses and starts the resume timer only for rate limits', async () => {
     reset();

@@ -93,6 +93,11 @@ function tail(dto: AuditEntryDto, scope: 'org' | 'project'): AuditTextPart[] | n
       ]);
       return clauses.length > 0 ? clauses.flat() : null;
     }
+    // Platform admin actions on the org itself: the reason lives in the platform detail, never in this log.
+    case 'org.suspended':
+      return [plain(' suspended the organization')];
+    case 'org.reactivated':
+      return [plain(' reactivated the organization')];
     // The invitee's email arrives as the label of invitation entries, and only of these.
     case 'invitation.created':
       return [

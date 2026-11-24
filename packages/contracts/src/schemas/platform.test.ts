@@ -1,12 +1,21 @@
 import { describe, expect, it } from 'vitest';
+import { OrgStatus } from '../enums';
+import { ORG_STATUS_REASON_MAX } from '../org-context';
 import { pageOf } from './page';
 import {
   CreateOrgRequest,
   GrantPlatformAdminRequest,
   OrgDto,
+  OrgStatusChangeRequest,
+  PlatformAuditAction,
   PlatformAdminDto,
+  ORG_SEARCH_MAX,
   PlatformMemberDto,
+  PlatformOrgDetailDto,
+  PlatformOrgDto,
+  PlatformOrgListQuery,
   PlatformRoleDto,
+  PlatformSessionDto,
   UpdateOrgRequest,
 } from './platform';
 
@@ -80,15 +89,27 @@ describe('GrantPlatformAdminRequest', () => {
 describe('PlatformAdminDto', () => {
   const base = { id: ID, email: 'a@dev.local', grantedAt: '2026-01-01T00:00:00.000Z' };
   const entries = [
-    { ...base, userId: 'u1', name: 'Admin', handle: 'admin', grantedBy: null },
-    { ...base, userId: 'u2', name: 'Bo', handle: 'bo', grantedBy: { name: 'Admin', handle: 'admin' } },
-    { ...base, userId: null, name: null, handle: null, grantedBy: null },
+    { ...base, userId: 'u1', name: 'Admin', handle: 'admin', grantedBy: null, lastWorkingAdmin: true },
+    {
+      ...base,
+      userId: 'u2',
+      name: 'Bo',
+      handle: 'bo',
+      grantedBy: { name: 'Admin', handle: 'admin' },
+      lastWorkingAdmin: false,
+    },
+    { ...base, userId: null, name: null, handle: null, grantedBy: null, lastWorkingAdmin: false },
   ];
   it('parses an entry with no account and no granter', () => {
     expect(PlatformAdminDto.safeParse(entries[2]).success).toBe(true);
   });
   it('parses a page of entries', () => {
     expect(pageOf(PlatformAdminDto).safeParse({ items: entries, page: 1, pageSize: 20, total: 3 }).success).toBe(true);
+  });
+  it('requires lastWorkingAdmin to be a boolean', () => {
+    const { lastWorkingAdmin: _flag, ...without } = entries[0] ?? {};
+    expect(PlatformAdminDto.safeParse(without).success).toBe(false);
+    expect(PlatformAdminDto.safeParse({ ...entries[0], lastWorkingAdmin: 'yes' }).success).toBe(false);
   });
   it('rejects a granter without a handle', () => {
     expect(PlatformAdminDto.safeParse({ ...entries[1], grantedBy: { name: 'x' } }).success).toBe(false);
@@ -119,5 +140,92 @@ describe('UpdateOrgRequest', () => {
 describe('OrgDto', () => {
   it('parses id, name and slug', () => {
     expect(OrgDto.safeParse({ id: ID, name: 'Acme', slug: 'acme' }).success).toBe(true);
+  });
+});
+
+describe('PlatformSessionDto', () => {
+  it('parses { platformAdmin: boolean }', () => {
+    expect(PlatformSessionDto.safeParse({ platformAdmin: false }).success).toBe(true);
+  });
+  it('rejects an empty object and a non-boolean', () => {
+    expect(PlatformSessionDto.safeParse({}).success).toBe(false);
+    expect(PlatformSessionDto.safeParse({ platformAdmin: 'true' }).success).toBe(false);
+  });
+});
+
+describe('PlatformOrgDto directory fields', () => {
+  const org = {
+    id: ID,
+    name: 'Acme',
+    slug: 'acme',
+    memberCount: 1,
+    createdAt: '2026-11-01T10:00:00.000Z',
+    status: 'active',
+    suspendedAt: null,
+    projectCount: 0,
+    lastActivityAt: null,
+    owner: null,
+  };
+  it('accepts a null owner and a null lastActivityAt', () => {
+    expect(PlatformOrgDto.safeParse(org).success).toBe(true);
+  });
+  it('accepts an owner', () => {
+    const owner = { userId: 'u', name: 'N', handle: null, email: 'a@b.co' };
+    expect(PlatformOrgDto.safeParse({ ...org, owner }).success).toBe(true);
+  });
+  it.each(['status', 'suspendedAt', 'projectCount', 'lastActivityAt', 'owner'])('requires %s', (key) => {
+    const rest: Record<string, unknown> = { ...org };
+    delete rest[key];
+    expect(PlatformOrgDto.safeParse(rest).success).toBe(false);
+  });
+  it('rejects a status that is not active or suspended', () => {
+    expect(OrgStatus.safeParse('deleted').success).toBe(false);
+  });
+  it('the detail adds a nullable suspension', () => {
+    expect(PlatformOrgDetailDto.safeParse({ ...org, suspension: null }).success).toBe(true);
+    const suspension = {
+      at: '2026-11-02T10:00:00.000Z',
+      reason: 'abuse',
+      by: { userId: 'u', name: 'N', handle: null },
+    };
+    expect(PlatformOrgDetailDto.safeParse({ ...org, suspension }).success).toBe(true);
+    expect(PlatformOrgDetailDto.safeParse({ ...org, suspension: { ...suspension, by: null } }).success).toBe(true);
+    expect(PlatformOrgDetailDto.safeParse(org).success).toBe(false);
+  });
+});
+
+describe('PlatformOrgListQuery', () => {
+  it('caps the search at ORG_SEARCH_MAX', () => {
+    expect(ORG_SEARCH_MAX).toBe(100);
+  });
+  it.each([{}, { q: 'a'.repeat(100) }, { status: 'suspended' }])('accepts %j', (q) => {
+    expect(PlatformOrgListQuery.safeParse(q).success).toBe(true);
+  });
+  it.each([{ q: 'a'.repeat(101) }, { status: 'deleted' }])('rejects %j', (q) => {
+    expect(PlatformOrgListQuery.safeParse(q).success).toBe(false);
+  });
+});
+
+describe('OrgStatusChangeRequest (BR-33)', () => {
+  it.each([[''], ['   '], ['x'.repeat(ORG_STATUS_REASON_MAX + 1)]])('rejects reason %j at /reason', (reason) => {
+    const r = OrgStatusChangeRequest.safeParse({ reason });
+    expect(r.success).toBe(false);
+    expect(r.error?.issues[0]?.path).toEqual(['reason']);
+  });
+  it('accepts 1 and 500 characters, trimmed', () => {
+    expect(OrgStatusChangeRequest.parse({ reason: ' x ' }).reason).toBe('x');
+    expect(OrgStatusChangeRequest.safeParse({ reason: 'x'.repeat(ORG_STATUS_REASON_MAX) }).success).toBe(true);
+  });
+  it('rejects an extra key', () => {
+    expect(OrgStatusChangeRequest.safeParse({ reason: 'x', note: 'y' }).success).toBe(false);
+  });
+});
+
+describe('PlatformAuditAction (BR-53)', () => {
+  it('has the eleven actions, including org.updated', () => {
+    expect(PlatformAuditAction.options).toHaveLength(11);
+    expect(PlatformAuditAction.options).toEqual(
+      expect.arrayContaining(['org.suspended', 'org.reactivated', 'org.updated', 'platform_admin.granted']),
+    );
   });
 });

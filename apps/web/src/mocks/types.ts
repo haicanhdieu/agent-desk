@@ -209,6 +209,8 @@ export interface OrgOption {
   id: string;
   slug: string;
   name: string;
+  /** Platform view: the switcher menu marks the org "Suspended"; it still links. */
+  suspended?: boolean;
 }
 export interface OrgSwitchData {
   current: OrgOption | null;

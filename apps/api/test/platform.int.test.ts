@@ -1,17 +1,19 @@
 import { randomUUID } from 'node:crypto';
 import { join } from 'node:path';
+import { eq } from 'drizzle-orm';
 import type { QueryResultRow } from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type {
   CreateOrgResponse,
   Page,
   PlatformMemberDto,
+  PlatformOrgDetailDto,
   PlatformOrgDto,
   PlatformProjectDto,
   RoleDto,
 } from '@agentdesk/contracts';
 import { FakeKubeGateway } from '@agentdesk/core';
-import { connections, projects, seedPlatformAdmin, withOrg } from '@agentdesk/db';
+import { connections, organization, projects, runs, seedPlatformAdmin, withOrg } from '@agentdesk/db';
 import { FORBIDDEN_DETAIL } from '../src/access/authorize';
 import { createTestApp, type TestApp } from './helpers/app';
 import { asPlatformAdmin, cookieOf, createOrg, grant, inviteAndLogin, loginAs, revoke, userIdOf } from './helpers/auth';
@@ -179,7 +181,18 @@ describe('platform org and project lists', () => {
     });
     const page = expectContract('platform.listOrgs', res) as Page<PlatformOrgDto>;
     for (const item of page.items) {
-      expect(Object.keys(item).sort()).toEqual(['createdAt', 'id', 'memberCount', 'name', 'slug']);
+      expect(Object.keys(item).sort()).toEqual([
+        'createdAt',
+        'id',
+        'lastActivityAt',
+        'memberCount',
+        'name',
+        'owner',
+        'projectCount',
+        'slug',
+        'status',
+        'suspendedAt',
+      ]);
     }
     const ids = page.items.map((i) => i.id);
     expect(ids.indexOf(second.id)).toBeLessThan(ids.indexOf(first.id));
@@ -241,6 +254,255 @@ describe('platform org and project lists', () => {
       const res = await t.app.inject({ method: 'GET', url, headers: { cookie: alice } });
       expect(res.statusCode, url).toBe(403);
     }
+  });
+});
+
+async function listOrgsBy(query: string, cookie: string = admin) {
+  return t.app.inject({ method: 'GET', url: `/api/platform/orgs?${query}`, headers: { cookie } });
+}
+
+async function seedRunAt(orgId: string, projectId: string, queuedAt: Date): Promise<void> {
+  await withOrg(t.db, orgId, async (tx) => {
+    await tx.insert(runs).values({
+      orgId,
+      projectId,
+      command: 'fix',
+      skillName: 'fix',
+      ticketRef: `T-${randomUUID().slice(0, 6)}`,
+      ticketKind: 'issue',
+      checkoutRef: 'refs/heads/main',
+      triggerSource: 'webhook',
+      status: 'succeeded',
+      queuedAt,
+    });
+  });
+}
+
+describe('platform directory (BR-18 to BR-20)', () => {
+  it('BR-18: a no-owner, no-run org has owner null, zero projects, null activity and status active', async () => {
+    const org = await createOrg(t, 'Dir Bare', 'dir-bare');
+    const page = expectContract('platform.listOrgs', await listOrgsBy('pageSize=100')) as Page<PlatformOrgDto>;
+    const row = page.items.find((i) => i.id === org.id);
+    expect(row).toMatchObject({
+      status: 'active',
+      suspendedAt: null,
+      projectCount: 0,
+      lastActivityAt: null,
+      owner: null,
+    });
+    expect(page.items.every((i) => i.status === 'active')).toBe(true);
+  });
+
+  it('BR-18: shows the owner identity, the project count and the latest run queue time', async () => {
+    const org = await createOrg(t, 'Dir Full', 'dir-full');
+    const pid = await seedProject(org.id, 'DF1');
+    await seedProject(org.id, 'DF2');
+    const early = new Date('2026-01-02T03:04:05.000Z');
+    const late = new Date('2026-02-03T04:05:06.000Z');
+    await seedRunAt(org.id, pid, early);
+    await seedRunAt(org.id, pid, late);
+    await inviteAndLogin(t, org.id, 'dir-full-o', 'owner', { type: 'org' });
+    const ownerId = await userIdOf(t, 'dir-full-o');
+    const page = expectContract('platform.listOrgs', await listOrgsBy('q=dir-full')) as Page<PlatformOrgDto>;
+    expect(page.items).toHaveLength(1);
+    expect(page.items[0]).toMatchObject({
+      projectCount: 2,
+      lastActivityAt: late.toISOString(),
+      owner: { userId: ownerId, handle: 'dir-full-o', email: 'dir-full-o@dev.local' },
+    });
+    expect(Object.keys(page.items[0]?.owner ?? {}).sort()).toEqual(['email', 'handle', 'name', 'userId']);
+  });
+
+  it('BR-18: with two owners the earlier grant is shown', async () => {
+    const org = await createOrg(t, 'Dir Two', 'dir-two');
+    await inviteAndLogin(t, org.id, 'dir-two-a', 'owner', { type: 'org' });
+    await new Promise((r) => setTimeout(r, 20));
+    await inviteAndLogin(t, org.id, 'dir-two-b', 'owner', { type: 'org' });
+    const page = expectContract('platform.listOrgs', await listOrgsBy('q=dir-two')) as Page<PlatformOrgDto>;
+    expect(page.items[0]?.owner?.handle).toBe('dir-two-a');
+  });
+
+  it('BR-18: lists the newest org first, breaks a createdAt tie by id, and page 2 holds the next older org', async () => {
+    const a = await createOrg(t, 'Ordr A', 'ordr-a');
+    const b = await createOrg(t, 'Ordr B', 'ordr-b');
+    const c = await createOrg(t, 'Ordr C', 'ordr-c');
+    const all = expectContract('platform.listOrgs', await listOrgsBy('q=ordr-&pageSize=100')) as Page<PlatformOrgDto>;
+    expect(all.items.map((i) => i.id)).toEqual([c.id, b.id, a.id]);
+    const page2 = expectContract(
+      'platform.listOrgs',
+      await listOrgsBy('q=ordr-&pageSize=1&page=2'),
+    ) as Page<PlatformOrgDto>;
+    expect(page2.total).toBe(3);
+    expect(page2.items.map((i) => i.id)).toEqual([b.id]);
+
+    const same = new Date('2020-01-01T00:00:00.000Z');
+    await t.db.orm.update(organization).set({ createdAt: same }).where(eq(organization.id, a.id));
+    await t.db.orm.update(organization).set({ createdAt: same }).where(eq(organization.id, b.id));
+    const tied = expectContract('platform.listOrgs', await listOrgsBy('q=ordr-&pageSize=100')) as Page<PlatformOrgDto>;
+    expect(tied.items.map((i) => i.id)).toEqual([c.id, ...[a.id, b.id].sort()]);
+  });
+
+  it('BR-18: a page size above 100 is refused', async () => {
+    expect((await listOrgsBy('pageSize=101')).statusCode).toBe(400);
+  });
+
+  it('BR-20: q matches name and slug case-insensitively', async () => {
+    const org = await createOrg(t, 'Zebra Quartz Inc', 'srch-quartz-1');
+    const byName = expectContract('platform.listOrgs', await listOrgsBy('q=zEbRa%20qUARtz')) as Page<PlatformOrgDto>;
+    expect(byName.items.map((i) => i.id)).toEqual([org.id]);
+    const bySlug = expectContract('platform.listOrgs', await listOrgsBy('q=SRCH-QUARTZ')) as Page<PlatformOrgDto>;
+    expect(bySlug.items.map((i) => i.id)).toEqual([org.id]);
+    expect(bySlug.total).toBe(1);
+  });
+
+  it('BR-20: %, _ and \\ match only literally', async () => {
+    const lit = await createOrg(t, '50%_off\\deal', 'lit-special');
+    await createOrg(t, '50xyoffzdeal', 'lit-plain');
+    for (const q of ['50%', '%_off', '_off', 'off\\deal']) {
+      const page = expectContract(
+        'platform.listOrgs',
+        await listOrgsBy(`q=${encodeURIComponent(q)}`),
+      ) as Page<PlatformOrgDto>;
+      expect(
+        page.items.map((i) => i.id),
+        q,
+      ).toEqual([lit.id]);
+    }
+    const wild = expectContract('platform.listOrgs', await listOrgsBy('q=%25')) as Page<PlatformOrgDto>;
+    expect(wild.items.map((i) => i.id)).toEqual([lit.id]);
+  });
+
+  it('BR-20: status=suspended returns only suspended orgs and total follows the filter', async () => {
+    const sus = await createOrg(t, 'Filter Sus', 'filter-sus');
+    await createOrg(t, 'Filter Act', 'filter-act');
+    await withOrg(t.db, sus.id, async (tx) => {
+      await tx
+        .update(organization)
+        .set({ status: 'suspended', suspendedAt: new Date() })
+        .where(eq(organization.id, sus.id));
+    });
+    const page = expectContract(
+      'platform.listOrgs',
+      await listOrgsBy('status=suspended&q=filter-'),
+    ) as Page<PlatformOrgDto>;
+    expect(page.items.map((i) => i.id)).toEqual([sus.id]);
+    expect(page.items[0]?.status).toBe('suspended');
+    expect(page.items[0]?.suspendedAt).not.toBeNull();
+    expect(page.total).toBe(1);
+    const active = expectContract(
+      'platform.listOrgs',
+      await listOrgsBy('status=active&q=filter-'),
+    ) as Page<PlatformOrgDto>;
+    expect(active.items.map((i) => i.slug)).toEqual(['filter-act']);
+  });
+
+  it('BR-20: a 101-character q is a 400; a 100-character q is accepted', async () => {
+    expect((await listOrgsBy(`q=${'a'.repeat(101)}`)).statusCode).toBe(400);
+    expect((await listOrgsBy(`q=${'a'.repeat(100)}`)).statusCode).toBe(200);
+  });
+
+  it('BR-18: the directory carries counts and identity only, never tenant text', async () => {
+    const org = await createOrg(t, 'Dir Text', 'dir-text');
+    const pid = await seedProject(org.id, 'SecretProjectName');
+    await seedRunAt(org.id, pid, new Date());
+    const res = await listOrgsBy('q=dir-text');
+    expect(res.body).not.toContain('SecretProjectName');
+    expect(res.body).not.toContain('T-');
+  });
+
+  it('refuses every non-platform caller on the directory with 403', async () => {
+    const org = await createOrg(t, 'Dir Guard', 'dir-guard');
+    const owner = await inviteAndLogin(t, org.id, 'dir-guard-o', 'owner', { type: 'org' });
+    expect((await listOrgsBy('', owner)).statusCode).toBe(403);
+    expect((await t.app.inject({ method: 'GET', url: '/api/platform/orgs' })).statusCode).toBe(401);
+  });
+});
+
+describe('platform org detail (BR-24, BR-23)', () => {
+  const get = (id: string, cookie?: string, headers: Record<string, string> = {}) =>
+    t.app.inject({
+      method: 'GET',
+      url: `/api/platform/orgs/${id}`,
+      headers: { ...(cookie === undefined ? {} : { cookie }), ...headers },
+    });
+
+  it('BR-24: returns the detail with suspension null', async () => {
+    const org = await createOrg(t, 'Detail Org', 'detail-org');
+    await inviteAndLogin(t, org.id, 'detail-o', 'owner', { type: 'org' });
+    const detail = expectContract('platform.getOrg', await get(org.id, admin)) as PlatformOrgDetailDto;
+    expect(detail).toMatchObject({
+      id: org.id,
+      name: 'Detail Org',
+      slug: 'detail-org',
+      memberCount: 1,
+      status: 'active',
+      suspension: null,
+      owner: { handle: 'detail-o' },
+    });
+  });
+
+  it('BR-24: an unknown and a malformed id are 404 for the platform admin', async () => {
+    expect((await get(randomUUID(), admin)).statusCode).toBe(404);
+    expect((await get('not-a-uuid', admin)).statusCode).toBe(404);
+    expect((await get('x'.repeat(100), admin)).statusCode).toBe(404);
+  });
+
+  /** A signed-in user with no membership and no assignment: invited (so dev-login may sign them up) but never accepted. */
+  async function signedInWithoutOrg(handle: string, orgId: string): Promise<string> {
+    const roles = (
+      await t.app.inject({ method: 'GET', url: `/api/platform/orgs/${orgId}/roles`, headers: { cookie: admin } })
+    ).json<RoleDto[]>();
+    const viewer = roles.find((r) => r.key === 'viewer');
+    if (!viewer) throw new Error('no viewer role');
+    const res = await t.app.inject({
+      method: 'POST',
+      url: `/api/platform/orgs/${orgId}/invitations`,
+      headers: { cookie: admin },
+      payload: { email: `${handle}@dev.local`, roleId: viewer.id, scope: { type: 'org' } },
+    });
+    if (res.statusCode !== 201) throw new Error(`invite ${handle} answered ${res.statusCode}`);
+    const cookie = await loginAs(t, handle);
+    const memberships = await t.db.pool.query('select 1 from member where user_id = $1', [await userIdOf(t, handle)]);
+    expect(memberships.rowCount).toBe(0);
+    return cookie;
+  }
+
+  it('BR-24: every non-platform caller gets 403 before lookup, the same for a known and an unknown id', async () => {
+    const org = await createOrg(t, 'Detail Guard', 'detail-guard');
+    const other = await createOrg(t, 'Detail Other', 'detail-other');
+    const p1 = await seedProject(org.id, 'DG1');
+    const cookies: Record<string, string> = {
+      owner: await inviteAndLogin(t, org.id, 'dg-owner', 'owner', { type: 'org' }),
+      admin: await inviteAndLogin(t, org.id, 'dg-admin', 'admin', { type: 'org' }),
+      projectAdmin: await inviteAndLogin(t, org.id, 'dg-padmin', 'admin', { type: 'project', projectIds: [p1] }),
+      member: await inviteAndLogin(t, org.id, 'dg-member', 'member', { type: 'org' }),
+      viewer: await inviteAndLogin(t, org.id, 'dg-viewer', 'viewer', { type: 'org' }),
+      otherOrgOwner: await inviteAndLogin(t, other.id, 'dg-other-o', 'owner', { type: 'org' }),
+      noOrg: await signedInWithoutOrg('dg-nobody', org.id),
+    };
+    for (const [who, cookie] of Object.entries(cookies)) {
+      const known = await get(org.id, cookie);
+      const unknown = await get(randomUUID(), cookie);
+      expect(known.statusCode, who).toBe(403);
+      expect(unknown.statusCode, who).toBe(403);
+      expect((known.json() as { detail: string }).detail, who).toBe(FORBIDDEN_DETAIL);
+      expect(known.body, who).not.toContain('Detail Guard');
+    }
+  });
+
+  it('BR-24: answers 401 signed out', async () => {
+    const org = await createOrg(t, 'Detail Anon', 'detail-anon');
+    expect((await get(org.id)).statusCode).toBe(401);
+  });
+
+  it('BR-24: x-org-id is ignored', async () => {
+    const org = await createOrg(t, 'Detail Hdr', 'detail-hdr');
+    const other = await createOrg(t, 'Detail Hdr2', 'detail-hdr2');
+    const detail = expectContract(
+      'platform.getOrg',
+      await get(org.id, admin, { 'x-org-id': other.id }),
+    ) as PlatformOrgDetailDto;
+    expect(detail.id).toBe(org.id);
   });
 });
 

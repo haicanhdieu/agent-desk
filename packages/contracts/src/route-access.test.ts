@@ -71,6 +71,7 @@ const expected: Record<RouteKey, RouteAccess> = {
   'runs.events': project('run:read', 'runId'),
   'runs.terminal': project('terminal:attach', 'runId'),
   'me.access': { scope: 'self' },
+  'me.platform': { scope: 'user' },
   'me.listInvitations': { scope: 'user' },
   'me.getInvitation': { scope: 'user' },
   'me.acceptInvitation': { scope: 'user' },
@@ -96,6 +97,7 @@ const expected: Record<RouteKey, RouteAccess> = {
   'orgs.checklist': org('project:create'),
   'platform.createOrg': platform('platform-org:create'),
   'platform.listOrgs': platform('platform-org:read'),
+  'platform.getOrg': platform('platform-org:read'),
   'platform.listProjects': platform('platform-project:read'),
   'platform.listRoles': platform('platform-role:read'),
   'platform.listMembers': platform('platform-member:read'),
@@ -109,13 +111,15 @@ const expected: Record<RouteKey, RouteAccess> = {
   'platform.listAdmins': platform('platform-admin:read'),
   'platform.grantAdmin': platform('platform-admin:create'),
   'platform.revokeAdmin': platform('platform-admin:delete'),
+  'platform.suspendOrg': platform('platform-org:update'),
+  'platform.reactivateOrg': platform('platform-org:update'),
 };
 
 const flat = flattenRoutes(routes);
 
 describe('routeAccess', () => {
-  it('matches the approved permission map for all 89 keys', () => {
-    expect(Object.keys(expected)).toHaveLength(89);
+  it('matches the approved permission map for all 93 keys', () => {
+    expect(Object.keys(expected)).toHaveLength(93);
     expect(routeAccess).toEqual(expected);
   });
 

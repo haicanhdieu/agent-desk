@@ -13,6 +13,7 @@ const terminalArea = 'Screens/RunTerminalArea';
 const desk = 'Screens/Desk';
 const invitations = 'Screens/Invitations';
 const orgSettings = 'Screens/OrgSettings';
+const platform = 'Screens/Platform';
 
 /** The 97 boards of design/prototype/project/canvas.json, in canvas order. */
 export const boardStories = {
@@ -242,6 +243,42 @@ export const boardStories = {
   DeskMembersRemoving: { title: desk, exportName: 'DeskMembersRemoving' },
   DeskMembersRemoved: { title: desk, exportName: 'DeskMembersRemoved' },
   DeskMembersGone: { title: desk, exportName: 'DeskMembersGone' },
+  PlatformAdmins: { title: platform, exportName: 'PlatformAdmins' },
+  PlatformAdminsLoading: { title: platform, exportName: 'PlatformAdminsLoading' },
+  PlatformAdminsEmpty: { title: platform, exportName: 'PlatformAdminsEmpty' },
+  PlatformAdminsError: { title: platform, exportName: 'PlatformAdminsError' },
+  PlatformAdminsForbidden: { title: platform, exportName: 'PlatformAdminsForbidden' },
+  PlatformAdminsPaged: { title: platform, exportName: 'PlatformAdminsPaged' },
+  PlatformAdminsAdd: { title: platform, exportName: 'PlatformAdminsAdd' },
+  PlatformAdminsAddError: { title: platform, exportName: 'PlatformAdminsAddError' },
+  PlatformAdminsAddFieldErrors: { title: platform, exportName: 'PlatformAdminsAddFieldErrors' },
+  PlatformAdminsAddSaving: { title: platform, exportName: 'PlatformAdminsAddSaving' },
+  PlatformAdminsRevokeConfirm: { title: platform, exportName: 'PlatformAdminsRevokeConfirm' },
+  PlatformAdminsRevokeSelf: { title: platform, exportName: 'PlatformAdminsRevokeSelf' },
+  PlatformAdminsRevoking: { title: platform, exportName: 'PlatformAdminsRevoking' },
+  PlatformAdminsLastAdmin: { title: platform, exportName: 'PlatformAdminsLastAdmin' },
+  ProjectsOrgSwitchAdminPlatform: { title: entry, exportName: 'ProjectsOrgSwitchAdminPlatform' },
+  MyInvitationsEmptyPlatformAdminMenu: { title: invitations, exportName: 'MyInvitationsEmptyPlatformAdminMenu' },
+  PlatformOrgs: { title: platform, exportName: 'PlatformOrgs' },
+  PlatformOrgsLoading: { title: platform, exportName: 'PlatformOrgsLoading' },
+  PlatformOrgsEmpty: { title: platform, exportName: 'PlatformOrgsEmpty' },
+  PlatformOrgsEmptyFiltered: { title: platform, exportName: 'PlatformOrgsEmptyFiltered' },
+  PlatformOrgsError: { title: platform, exportName: 'PlatformOrgsError' },
+  PlatformOrgsPaged: { title: platform, exportName: 'PlatformOrgsPaged' },
+  PlatformOrgOverview: { title: platform, exportName: 'PlatformOrgOverview' },
+  PlatformOrgOverviewLoading: { title: platform, exportName: 'PlatformOrgOverviewLoading' },
+  PlatformOrgOverviewError: { title: platform, exportName: 'PlatformOrgOverviewError' },
+  PlatformOrgOverviewNotFound: { title: platform, exportName: 'PlatformOrgOverviewNotFound' },
+  PlatformOrgOverviewSuspended: { title: platform, exportName: 'PlatformOrgOverviewSuspended' },
+  PlatformOrgOverviewSuspendDialog: { title: platform, exportName: 'PlatformOrgOverviewSuspendDialog' },
+  PlatformOrgOverviewSuspendError: { title: platform, exportName: 'PlatformOrgOverviewSuspendError' },
+  PlatformOrgOverviewSuspendFormError: { title: platform, exportName: 'PlatformOrgOverviewSuspendFormError' },
+  PlatformOrgOverviewSuspendSaving: { title: platform, exportName: 'PlatformOrgOverviewSuspendSaving' },
+  PlatformOrgOverviewReactivateDialog: { title: platform, exportName: 'PlatformOrgOverviewReactivateDialog' },
+  OrgSuspended: { title: entry, exportName: 'OrgSuspended' },
+  OrgSuspendedSwitcher: { title: entry, exportName: 'OrgSuspendedSwitcher' },
+  OrgSuspendedPlatformAdmin: { title: entry, exportName: 'OrgSuspendedPlatformAdmin' },
+  OrgAuditPlatformSuspend: { title: orgSettings, exportName: 'OrgAuditPlatformSuspend' },
 } as const satisfies Record<string, BoardStory>;
 
 export type BoardName = keyof typeof boardStories;

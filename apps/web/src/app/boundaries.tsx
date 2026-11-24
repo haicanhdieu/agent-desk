@@ -2,10 +2,13 @@ import { ApiError } from '@agentdesk/contracts/client';
 import { useQueryErrorResetBoundary } from '@tanstack/react-query';
 import { useRouter, useRouterState, type ErrorComponentProps } from '@tanstack/react-router';
 import { useEffect } from 'react';
-import { EmptyState, RouteLoadError, RouteSkeleton } from '@/components';
+import { EmptyState, RouteLoadError, RouteSkeleton, TopBar } from '@/components';
 import { Button, type ToastInput } from '@/ds';
 import { ORG_SWITCHED_MESSAGE, isOrgMismatch } from '@/features/auth/orgResync';
+import { isOrgSuspendedError } from '@/features/auth/orgSuspended';
 import { signOutAndRedirect } from '@/features/auth/signOut';
+import { useAppBar } from '@/features/chrome/appBar';
+import { OrgSuspended } from '@/screens';
 import styles from './boundaries.module.css';
 
 // Error, not-found and pending UI for routes (spec §6). Route `errorComponent`s go through `RouteError`, which
@@ -47,6 +50,43 @@ export function Forbidden() {
         action={<ProjectsLink />}
       />
     </div>
+  );
+}
+
+/** The platform area for someone who is not a platform admin: the normal org top bar and no platform data. */
+export function PlatformForbidden() {
+  const bar = useAppBar(null);
+  return (
+    <>
+      <TopBar variant="global" user={bar.user} org={bar.org} tabs="org" />
+      <div className={styles.page}>
+        <EmptyState
+          title="You don't have access"
+          body="This area is for platform admins."
+          action={
+            <Button href="/projects" variant="primary">
+              Go to projects
+            </Button>
+          }
+        />
+      </div>
+    </>
+  );
+}
+
+/**
+ * A member's view of a suspended org: the top bar (switcher included, so they can leave) and the fixed message. The
+ * bar reads the session-wide data only, never the refused org-scoped access, and nothing of the org is loaded.
+ */
+export function SuspendedOrgPage() {
+  const slug = useOrgSlug();
+  const bar = useAppBar(null);
+  const name = bar.org.orgs.find((o) => o.slug === slug)?.name ?? 'this organization';
+  return (
+    <>
+      <TopBar variant="global" user={bar.user} org={bar.org} tabs="org" />
+      <OrgSuspended orgName={name} />
+    </>
   );
 }
 
@@ -100,7 +140,7 @@ export function RouteError({ error }: ErrorComponentProps) {
   if (error instanceof ApiError) {
     if (error.status === 401) return <SigningOut />;
     if (error.status === 404) return <NotFound />;
-    if (error.status === 403) return <Forbidden />;
+    if (error.status === 403) return isOrgSuspendedError(error) ? <SuspendedOrgPage /> : <Forbidden />;
     if (error.status === 0 || error.status >= 500) return <LoaderErrorBanner error={error} />;
   }
   return <RootErrorBoundary error={error} />;

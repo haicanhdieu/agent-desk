@@ -1,0 +1,1 @@
+CREATE INDEX "runs_org_queued_idx" ON "runs" USING btree ("org_id","queued_at");

@@ -49,7 +49,7 @@ return <Runs groups={runs.data} onFilter={setFilter} />;
 
 - **MUST** fetch only through `features/<area>/queries.ts` (`queryOptions` factories) and `mutations.ts`, which call the typed `api` client from `@agentdesk/contracts/client`. **MUST NOT** call `fetch` directly in web code (exceptions: `EventSource` / `WebSocket` URLs built with `sseRunPath`, `sseProjectPath`, `terminalPath`). Why: one typed path, one error type (`ApiError`), one 401 handler.
 - **MUST** use contracts types (`RunDto`, `CreateRuleRequest`, ...) for request and response shapes; never redeclare a DTO in web. Why: Zod in contracts is the single source for Nest and web.
-- **MUST** start every query key with `['org', orgSlug]` (only exception: `['session']`), built by the area's key factory. Why: switching org clears exactly the org cache.
+- **MUST** start every query key with `['org', orgSlug]` (exceptions: `['session']`, and the platform area: platform keys start `['platform', …]`, built by `platformKeys`, and the platform-admin flag is `['session', 'platform']`), built by the area's key factory. Why: switching org clears exactly the org cache and keeps what has no org.
 - **MUST** convert DTOs to screen types with pure mappers in `features/<area>/map.ts`, applied via Query `select`, with a unit test. Why: screens keep display-ready types (`'5 min'`, `'12m 4s'`); mapping is testable.
 - **MUST** pass `now: Date` into mappers and render relative times through the shared `useNow()` (30 s tick). Why: cached data doesn't go stale visually; tests stay deterministic.
 - **MUST** use the global Query defaults (staleTime 30 s, retry twice only for status 0 / 5xx, refetch on focus only for runs + connection); override per query only with a comment saying why.

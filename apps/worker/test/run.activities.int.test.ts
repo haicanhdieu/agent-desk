@@ -554,6 +554,105 @@ describe('createRunSecretAndJob', () => {
   });
 });
 
+describe('createRunSecretAndJob in a suspended organization', () => {
+  const OTHER_ORG = 'org_other_suspended';
+  const ownerQuery = async (sql: string, args: unknown[] = []) => {
+    const c = new pg.Client({ connectionString: pgx.ownerUrl });
+    await c.connect();
+    try {
+      await c.query(sql, args);
+    } finally {
+      await c.end();
+    }
+  };
+  const setOrgStatus = (orgId: string, status: 'active' | 'suspended') =>
+    ownerQuery(
+      `update organization set status = $2, suspended_at = case when $2 = 'suspended' then now() else null end where id = $1`,
+      [orgId, status],
+    );
+  /** A gateway that records every create call, so a refused start can be shown to touch nothing. */
+  const counting = () => {
+    const calls: string[] = [];
+    const gw = wrapKube({
+      ensureSecret: (n, d, l) => (calls.push('secret'), kube.ensureSecret(n, d, l)),
+      ensureJob: (j) => (calls.push('job'), kube.ensureJob(j)),
+      ensureVolumeClaim: (n, s, l) => (calls.push('volume'), kube.ensureVolumeClaim(n, s, l)),
+    });
+    return { calls, gw };
+  };
+
+  afterEach(async () => {
+    await setOrgStatus(ORG, 'active');
+    await ownerQuery('delete from organization where id = $1', [OTHER_ORG]);
+  });
+
+  it('refuses the first start non-retryably (OrgSuspended) and creates no Secret, Job, volume or token', async () => {
+    const runId = await seedRun('x');
+    const ctx = await ctxFor(runId);
+    await setOrgStatus(ORG, 'suspended');
+    const { calls, gw } = counting();
+    const minting = rotatingAdapters();
+    const err = await createRunActivities(deps({ kube: gw, adapters: minting.adapters }))
+      .createRunSecretAndJob(ctx)
+      .catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(ApplicationFailure);
+    expect((err as ApplicationFailure).nonRetryable).toBe(true);
+    expect((err as ApplicationFailure).type).toBe('OrgSuspended');
+    expect((err as ApplicationFailure).message).toBe('the organization is suspended');
+    expect(calls).toEqual([]);
+    expect(minting.mints()).toBe(0);
+    expect(await kube.readSecret(`run-${runId}`)).toBeNull();
+    expect(await kube.getRunPod(`run-${runId}`)).toBeNull();
+  });
+
+  it('starts on an active organization', async () => {
+    const runId = await seedRun('x');
+    const ctx = await ctxFor(runId);
+    const acts = createRunActivities(deps());
+    await acts.createRunSecretAndJob(ctx);
+    expect(await kube.getRunPod(`run-${runId}`)).not.toBeNull();
+    await acts.deleteJob(ctx);
+    await acts.deleteRunVolume(ctx);
+  });
+
+  it('a resume (an auto-resume is a resume) of a run in a suspended organization still creates its Job', async () => {
+    const runId = await seedRun('x', 'queued');
+    const ctx = await ctxFor(runId);
+    await setOrgStatus(ORG, 'suspended');
+    const acts = createRunActivities(deps());
+    await acts.createRunSecretAndJob(ctx, { resume: true, deadlineSeconds: 300 });
+    expect(await kube.getRunPod(`run-${runId}`)).not.toBeNull();
+    await acts.deleteJob(ctx);
+    await acts.deleteRunVolume(ctx);
+  });
+
+  it('refuses when the run row exists (intake passed) and the organization was suspended after that', async () => {
+    const runId = await seedRun('x', 'queued');
+    const ctx = await ctxFor(runId);
+    expect((await load(runId)).run?.status).toBe('queued');
+    await setOrgStatus(ORG, 'suspended');
+    const err = await createRunActivities(deps())
+      .createRunSecretAndJob(ctx)
+      .catch((e: unknown) => e);
+    expect((err as ApplicationFailure).type).toBe('OrgSuspended');
+    expect(await kube.getRunPod(`run-${runId}`)).toBeNull();
+  });
+
+  it("another organization's suspension does not stop this organization's run", async () => {
+    const runId = await seedRun('x');
+    const ctx = await ctxFor(runId);
+    await ownerQuery(`insert into organization (id, name, slug, created_at) values ($1, 'Other', 'other-s', now())`, [
+      OTHER_ORG,
+    ]);
+    await setOrgStatus(OTHER_ORG, 'suspended');
+    const acts = createRunActivities(deps());
+    await acts.createRunSecretAndJob(ctx);
+    expect(await kube.getRunPod(`run-${runId}`)).not.toBeNull();
+    await acts.deleteJob(ctx);
+    await acts.deleteRunVolume(ctx);
+  });
+});
+
 describe('createRunSecretAndJob agent env', () => {
   const setRunModel = (runId: string, model: string | null) =>
     asOwner((c) => c.query('update runs set model = $1 where id = $2', [model, runId]));

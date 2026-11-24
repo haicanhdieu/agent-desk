@@ -363,17 +363,17 @@ routes.me.platform = { method: 'GET', path: '/api/me/platform', response: Platfo
 export function withLastWorkingAdmin(entries: PlatformAdminDto[], verifiedEmails: ReadonlySet<string>): PlatformAdminDto[];
 ```
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
   - `platform.test.ts`: `PlatformAdminDto` requires `lastWorkingAdmin` (boolean); `PlatformSessionDto` rejects extra-less `{}`.
   - `routes.test.ts` and `route-access.test.ts`: `me.platform` is GET `/api/me/platform` with `{ scope: 'user' }`; route counts +1.
   - `platform-admins.int.test.ts` (BR-16, fresh DB): the flag is true only for the sole working admin; false on both when two working admins exist; a seeded entry with no account and an entry whose account is unverified or deleted are never flagged and do not count; same value on page 1 and page 2 of a paged list (`pageSize: 1`); list, grant and repeat-grant responses carry it; revoking the flagged entry is 409, any other 204.
   - `me-platform.int.test.ts`: a platform admin gets `{ platformAdmin: true }`, a verified non-admin and an unverified user whose email is in `platform_admins` get false; an `x-org-id` header is ignored; signed out 401; the body has exactly the key `platformAdmin`.
   - `authz.int.test.ts`: `DENIAL_TABLE['me.platform'] = { none: 200, viewer: 200, pa: 200 }`.
   - `contract.test.ts`: every admin fixture parses; `withLastWorkingAdmin` flags only the sole verified entry, none when two are verified.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/contracts exec vitest run src/schemas/platform.test.ts src/routes.test.ts src/route-access.test.ts`. Expected: FAIL.
-- [ ] **Step 3: Implement** the contracts; in `platform-admins.service.ts`, `list` runs one `count(*)` of working admins (the revoke guard's verified-user join) and selects the matched account's `email_verified`; `toDto(row, workingCount)` sets `lastWorkingAdmin = verified && workingCount === 1`; `grant` and `findPlatformAdmin` use the same mapper. `PlatformSessionController.get(@CurrentSessionUser() user): Promise<PlatformSessionDto>` returns `{ platformAdmin: await isPlatformAdmin(db, user) }`. MSW: the admins store maps every answer through `withLastWorkingAdmin`; `me.platform` answers from the session user's platform flag.
-- [ ] **Step 4: Run** Step 2's command, `pnpm --filter @agentdesk/api exec vitest run test/platform-admins.int.test.ts test/me-platform.int.test.ts test/authz.int.test.ts`, `pnpm --filter @agentdesk/web exec vitest run src/mocks/msw/contract.test.ts`, and `pnpm --filter @agentdesk/api typecheck && pnpm --filter @agentdesk/web typecheck`. Expected: PASS.
-- [ ] **Step 5: Commit** (`devbox run fix` first): `feat(contracts): last working admin flag and the me.platform route`. Label `review:sensitive`.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/contracts exec vitest run src/schemas/platform.test.ts src/routes.test.ts src/route-access.test.ts`. Expected: FAIL.
+- [x] **Step 3: Implement** the contracts; in `platform-admins.service.ts`, `list` runs one `count(*)` of working admins (the revoke guard's verified-user join) and selects the matched account's `email_verified`; `toDto(row, workingCount)` sets `lastWorkingAdmin = verified && workingCount === 1`; `grant` and `findPlatformAdmin` use the same mapper. `PlatformSessionController.get(@CurrentSessionUser() user): Promise<PlatformSessionDto>` returns `{ platformAdmin: await isPlatformAdmin(db, user) }`. MSW: the admins store maps every answer through `withLastWorkingAdmin`; `me.platform` answers from the session user's platform flag.
+- [x] **Step 4: Run** Step 2's command, `pnpm --filter @agentdesk/api exec vitest run test/platform-admins.int.test.ts test/me-platform.int.test.ts test/authz.int.test.ts`, `pnpm --filter @agentdesk/web exec vitest run src/mocks/msw/contract.test.ts`, and `pnpm --filter @agentdesk/api typecheck && pnpm --filter @agentdesk/web typecheck`. Expected: PASS.
+- [x] **Step 5: Commit** (`devbox run fix` first): `feat(contracts): last working admin flag and the me.platform route`. Label `review:sensitive`.
 
 ---
 
@@ -405,11 +405,11 @@ export async function seedPlatform(page: Page, scenario: PlatformScenario): Prom
 
   `platformAdminOrgs`: the signed-in user is a platform admin and an owner of one org. `platformAdminNoOrg`: delegates to the onboarding scenario of the same name. `ownerNoPlatform`: an org owner, not a platform admin. `lastAdmin`: one working admin plus seeded no-account entries filling three pages at the default page size, the working one on page 2 (a variant flag puts it on page 1). `revoke409`: `platform.revokeAdmin` answers 409 with a problem title. `platformEmpty`: no other admin rows (only the signed-in one is removed from the list answer), later tasks add empty orgs and audit.
 
-- [ ] **Step 1: Write the failing tests** in `platformScenarios.test.ts` (node MSW server): each scenario's `me.platform` value; `lastAdmin` flags exactly one entry, on page 2; `revoke409` answers 409; `platformEmpty` lists no admins; `parsePlatformScenario` rejects unknown names.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/mocks/msw/platformScenarios.test.ts`. Expected: FAIL.
-- [ ] **Step 3: Implement** the module (onboardingScenarios style, reset through `mockDb.onReset`), the `browser.ts` read of `PLATFORM_SCENARIO_KEY` from sessionStorage, `scenarios.platform`, and `seedPlatform` (same `addInitScript` pattern as `seedTenantAdmin`).
-- [ ] **Step 4: Run** Step 2's command, `pnpm --filter @agentdesk/web exec vitest run src/mocks`, `pnpm --filter @agentdesk/web typecheck`. Expected: PASS.
-- [ ] **Step 5: Commit**: `feat(web): platform mock scenarios`.
+- [x] **Step 1: Write the failing tests** in `platformScenarios.test.ts` (node MSW server): each scenario's `me.platform` value; `lastAdmin` flags exactly one entry, on page 2; `revoke409` answers 409; `platformEmpty` lists no admins; `parsePlatformScenario` rejects unknown names.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/mocks/msw/platformScenarios.test.ts`. Expected: FAIL.
+- [x] **Step 3: Implement** the module (onboardingScenarios style, reset through `mockDb.onReset`), the `browser.ts` read of `PLATFORM_SCENARIO_KEY` from sessionStorage, `scenarios.platform`, and `seedPlatform` (same `addInitScript` pattern as `seedTenantAdmin`).
+- [x] **Step 4: Run** Step 2's command, `pnpm --filter @agentdesk/web exec vitest run src/mocks`, `pnpm --filter @agentdesk/web typecheck`. Expected: PASS.
+- [x] **Step 5: Commit**: `feat(web): platform mock scenarios`.
 
 ---
 
@@ -438,13 +438,13 @@ export function PlatformLayout(props: PlatformLayoutProps): JSX.Element;
 OrgSwitchProps: + platformHref?: string // item "Platform admin" in the bottom group above "Create organization", also in the no-org menu
 ```
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
   - `PlatformLayout.test.tsx`: `nav` labelled "Platform admin" with items "Organizations", "Platform admins", "Audit log"; `active` sets `aria-current="page"`; with `org`, a group headed by the org name lists Overview and only the given links; a long org name renders as text with `title`.
   - `OrgSwitch.test.tsx` (BR-1): with `platformHref`, the menu shows "Platform admin" above "Create organization", also with no orgs and no current org; without it, no such item.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/components/PlatformLayout.test.tsx src/components/OrgSwitch.test.tsx`. Expected: FAIL.
-- [ ] **Step 3: Implement** the layout with `SubNav` and the geometry of `OrgSettingsLayout`; stories Default, OrgGroup, OrgGroupAllTabs; OrgSwitch stories WithPlatformItem and NoOrgPlatformItem.
-- [ ] **Step 4: Run** Step 2's command and `pnpm --filter @agentdesk/web exec vitest run src/test/stories.smoke.test.tsx`. Expected: PASS.
-- [ ] **Step 5: Commit**: `feat(web): platform layout and the platform switcher item in Storybook`.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/components/PlatformLayout.test.tsx src/components/OrgSwitch.test.tsx`. Expected: FAIL.
+- [x] **Step 3: Implement** the layout with `SubNav` and the geometry of `OrgSettingsLayout`; stories Default, OrgGroup, OrgGroupAllTabs; OrgSwitch stories WithPlatformItem and NoOrgPlatformItem.
+- [x] **Step 4: Run** Step 2's command and `pnpm --filter @agentdesk/web exec vitest run src/test/stories.smoke.test.tsx`. Expected: PASS.
+- [x] **Step 5: Commit**: `feat(web): platform layout and the platform switcher item in Storybook`.
 
 ---
 
@@ -482,11 +482,11 @@ export interface AddPlatformAdminDialogProps {
 export function AddPlatformAdminDialog(props: AddPlatformAdminDialogProps): JSX.Element;
 ```
 
-- [ ] **Step 1: Write the failing tests**: "You" after the name; "Not signed in yet" in place of the name with "—" for handle and added by; `lastWorkingAdmin` disables "Revoke" with visible "Last admin", `title` "Grant the role to someone else first." and `aria-describedby`; the Revoke `aria-label` is "Revoke platform access for <email>"; a name with markup renders as text. Dialog: label "Email", hint text, "Add"/"Adding…", not closable while saving, field error under Email, Banner with problem title and request id.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/components/PlatformAdminRow.test.tsx src/components/AddPlatformAdminDialog.test.tsx`. Expected: FAIL.
-- [ ] **Step 3: Implement** both with stories (row: Default, You, NeverSignedIn, LastAdmin, Busy; dialog: Idle, Saving, FieldError, FormError).
-- [ ] **Step 4: Run** Step 2's command and `pnpm --filter @agentdesk/web exec vitest run src/test/stories.smoke.test.tsx`. Expected: PASS.
-- [ ] **Step 5: Commit**: `feat(web): platform admin row and add dialog in Storybook`.
+- [x] **Step 1: Write the failing tests**: "You" after the name; "Not signed in yet" in place of the name with "—" for handle and added by; `lastWorkingAdmin` disables "Revoke" with visible "Last admin", `title` "Grant the role to someone else first." and `aria-describedby`; the Revoke `aria-label` is "Revoke platform access for <email>"; a name with markup renders as text. Dialog: label "Email", hint text, "Add"/"Adding…", not closable while saving, field error under Email, Banner with problem title and request id.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/components/PlatformAdminRow.test.tsx src/components/AddPlatformAdminDialog.test.tsx`. Expected: FAIL.
+- [x] **Step 3: Implement** both with stories (row: Default, You, NeverSignedIn, LastAdmin, Busy; dialog: Idle, Saving, FieldError, FormError).
+- [x] **Step 4: Run** Step 2's command and `pnpm --filter @agentdesk/web exec vitest run src/test/stories.smoke.test.tsx`. Expected: PASS.
+- [x] **Step 5: Commit**: `feat(web): platform admin row and add dialog in Storybook`.
 
 ---
 
@@ -520,11 +520,11 @@ export function PlatformAdmins(props: PlatformAdminsProps): JSX.Element;
 export function PlatformFrame(props: { active: PlatformLayoutProps['active']; org?: PlatformLayoutProps['org']; children: ReactNode }): JSX.Element;
 ```
 
-- [ ] **Step 1: Write the failing tests** in `platform.test.tsx`: the ready view has h1 "Platform admins" (`tabIndex={-1}`) and the six columns; empty rows show "No platform admins"; the revoke confirm reads "Revoke platform access for <name or email>?" or, own, "Revoke your own platform access?" with "You lose access right away and go to the home page."; busy shows "Revoking…" and cannot close; forbidden shows "You don't have access" / "This area is for platform admins." / "Go to projects".
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/screens/platform.test.tsx`. Expected: FAIL.
-- [ ] **Step 3: Implement** the screen (inline revoke confirm, as `OrgMembers.removeConfirm`), the frame, the stories `PlatformAdmins`, `…Loading`, `…Empty`, `…Error`, `…Forbidden`, `…Paged`, `…Add`, `…AddError`, `…AddFieldErrors`, `…AddSaving`, `…RevokeConfirm`, `…RevokeSelf`, `…Revoking`, `…LastAdmin` (title `Screens/Platform`, fullscreen), `ProjectsOrgSwitchAdminPlatform` in `entry.stories.tsx`, `MyInvitationsEmptyPlatformAdminMenu` in `invitations.stories.tsx`; barrel lines for Tasks 3 and 4; register the 16 boards; coverage 189 to 205 and Screens story files 9 to 10; regenerate the interactive prototype; parity notes.
+- [x] **Step 1: Write the failing tests** in `platform.test.tsx`: the ready view has h1 "Platform admins" (`tabIndex={-1}`) and the six columns; empty rows show "No platform admins"; the revoke confirm reads "Revoke platform access for <name or email>?" or, own, "Revoke your own platform access?" with "You lose access right away and go to the home page."; busy shows "Revoking…" and cannot close; forbidden shows "You don't have access" / "This area is for platform admins." / "Go to projects".
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/screens/platform.test.tsx`. Expected: FAIL.
+- [x] **Step 3: Implement** the screen (inline revoke confirm, as `OrgMembers.removeConfirm`), the frame, the stories `PlatformAdmins`, `…Loading`, `…Empty`, `…Error`, `…Forbidden`, `…Paged`, `…Add`, `…AddError`, `…AddFieldErrors`, `…AddSaving`, `…RevokeConfirm`, `…RevokeSelf`, `…Revoking`, `…LastAdmin` (title `Screens/Platform`, fullscreen), `ProjectsOrgSwitchAdminPlatform` in `entry.stories.tsx`, `MyInvitationsEmptyPlatformAdminMenu` in `invitations.stories.tsx`; barrel lines for Tasks 3 and 4; register the 16 boards; coverage 189 to 205 and Screens story files 9 to 10; regenerate the interactive prototype; parity notes.
 - [ ] **Step 4: Run** Step 2's command, `pnpm --filter @agentdesk/web exec vitest run src/test/coverage.test.ts src/test/stories.smoke.test.tsx`, `pnpm --filter @agentdesk/web typecheck`, `pnpm --filter @agentdesk/web build-storybook && pnpm --filter @agentdesk/web parity`, then compare `parity-out/<board>.{story,proto}.png` for the 16 boards (never commit `parity-out/`). Expected: PASS.
-- [ ] **Step 5: Commit**: `feat(web): platform admins boards in Storybook`.
+- [x] **Step 5: Commit**: `feat(web): platform admins boards in Storybook`.
 
 ---
 
@@ -560,12 +560,12 @@ export function PlatformForbidden(): JSX.Element; // boundaries.tsx
 // useAppBar: OrgSwitchProps.platformHref = '/platform' when platformAdminQuery says true (org and personal pages); the switcher's platformAdmin flag comes from the same query
 ```
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
   - `keys.test.ts`: every platform key starts with `'platform'`; `setActiveOrganization` (removes `['org']`) keeps `['platform', …]` and `['session','platform']` data.
   - `appBar.test.tsx` and `orgSwitch.route.test.tsx` (BR-1): the item shows for a platform admin on an org page and in the no-org menu, never for `ownerNoPlatform`; Review Focus 2: `me.platform` 500 hides the item with no crash.
   - `shell.route.test.tsx` (BR-2, BR-3): `/platform` redirects to `/platform/admins`; the top bar shows "No organization" and no Projects or Settings tabs; `ownerNoPlatform` on `/platform/admins` sees "You don't have access" with the normal org top bar and MSW logs zero `/api/platform/*` requests; signed out goes to sign-in; Review Focus 1: a child platform query answering 403 shows the same forbidden state; Review Focus 2: `me.platform` 500 on `/platform` shows the load error with "Retry".
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/features/platform src/features/chrome src/features/orgs/orgSwitch.route.test.tsx`. Expected: FAIL.
-- [ ] **Step 3: Implement** the query and keys, the `platform.tsx` layout (loader `ensureQueryData(platformAdminQuery)`, renders `PlatformForbidden` itself for a non-admin, `errorComponent` maps a 403 to it, `PlatformFrame` otherwise), `platform.index.tsx` redirect, the app-bar change; regenerate `routeTree.gen.ts` with the Vite plugin. frontend.md §3: platform keys start `['platform', …]` and `['session','platform']` (amends "every key starts `['org', slug]`").
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/features/platform src/features/chrome src/features/orgs/orgSwitch.route.test.tsx`. Expected: FAIL.
+- [x] **Step 3: Implement** the query and keys, the `platform.tsx` layout (loader `ensureQueryData(platformAdminQuery)`, renders `PlatformForbidden` itself for a non-admin, `errorComponent` maps a 403 to it, `PlatformFrame` otherwise), `platform.index.tsx` redirect, the app-bar change; regenerate `routeTree.gen.ts` with the Vite plugin. frontend.md §3: platform keys start `['platform', …]` and `['session','platform']` (amends "every key starts `['org', slug]`").
 - [ ] **Step 4: Run** Step 2's command and `pnpm --filter @agentdesk/web typecheck`. Expected: PASS.
 - [ ] **Step 5: Commit**: `feat(web): platform area shell and the platform admin switcher item`.
 
@@ -592,13 +592,13 @@ export function useRevokePlatformAdmin(): UseMutationResult<void, ApiError, { ad
 export function toPlatformAdminRow(dto: PlatformAdminDto, sessionUserId: string, now: Date): PlatformAdminRowView;
 ```
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
   - `map.test.ts` (BR-5 to BR-7, BR-16): "You" when `session.user.id === entry.userId`; `neverSignedIn` when `userId` is null; `lastWorkingAdmin` copied from the DTO; relative added time with the full date in `title` from a fixed `now`.
   - `admins.route.test.tsx`: paged list with `?page=N` (BR-5); grant closes the dialog, toasts "Platform admin added", refetches (BR-8); 400 shows the schema message, 404 "No account has this email yet.", 422 "This email is not verified yet." under Email with input kept (BR-9 to BR-11); 403/5xx show the dialog Banner; repeat grant 200 closes with no error and one entry (BR-12); confirm Revoke toasts "Platform admin revoked", refetches, focuses the h1 (BR-13); Cancel keeps the row (BR-14); own revoke removes `accessKeys.session()` and `['session','platform']` and lands on `/` (BR-15); `lastAdmin` disables Revoke with "Last admin" on page 2 and leaves page 1 enabled (BR-16); `revoke409` toasts the problem title and refetches (BR-17); loading, empty and `serverError` with Retry (BR-4); an admin name `<img src=x onerror=alert(1)>` renders as text.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/features/platform`. Expected: FAIL.
-- [ ] **Step 3: Implement** the route (`Pagination` + `?page=N` + `usePageSize()`, `useClampToLastPage`), TanStack Form with `GrantPlatformAdminRequest` and `fieldErrorsFromProblem`, the mutations (invalidate `['platform','admins']`), the mapper; regenerate `routeTree.gen.ts`.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/features/platform`. Expected: FAIL.
+- [x] **Step 3: Implement** the route (`Pagination` + `?page=N` + `usePageSize()`, `useClampToLastPage`), TanStack Form with `GrantPlatformAdminRequest` and `fieldErrorsFromProblem`, the mutations (invalidate `['platform','admins']`), the mapper; regenerate `routeTree.gen.ts`.
 - [ ] **Step 4: Run** Step 2's command and `pnpm --filter @agentdesk/web typecheck`. Expected: PASS.
-- [ ] **Step 5: Commit**: `feat(web): platform admins page`.
+- [x] **Step 5: Commit**: `feat(web): platform admins page`.
 
 ---
 
@@ -614,7 +614,7 @@ export function toPlatformAdminRow(dto: PlatformAdminDto, sessionUserId: string,
 
 Covers: BR-1 (TC-1.1, TC-1.2, TC-1.3), BR-3 (TC-3.1, TC-3.3, TC-3.4) in `platform-shell.spec.ts`; BR-4 (TC-4.1, TC-4.2, TC-4.3), BR-5 (TC-5.1, TC-5.3), BR-6 (TC-6.1), BR-7 (TC-7.1), BR-9 (TC-9.1 to TC-9.4), BR-10 (TC-10.1), BR-11 (TC-11.1), BR-14 (TC-14.1), BR-15 (TC-15.1), BR-16 (TC-16.1, TC-16.2, TC-16.3), BR-17 (TC-17.1) in `platform-admins.spec.ts`. Role-based case: TC-1.3 and TC-3.1.
 
-- [ ] **Step 1: Write the specs** with the spec's strings; TC-3.1 records requests with `page.on('request')` and expects none to `/api/platform/`; TC-9.x assert only that an error shows at the Email field (spec open question Q1); fixed clock `SESSION_MOCK_NOW`, `timezoneId: 'UTC'`; never a sleep.
+- [x] **Step 1: Write the specs** with the spec's strings; TC-3.1 records requests with `page.on('request')` and expects none to `/api/platform/`; TC-9.x assert only that an error shows at the Email field (spec open question Q1); fixed clock `SESSION_MOCK_NOW`, `timezoneId: 'UTC'`; never a sleep.
 - [ ] **Step 2: Run** `pnpm --filter @agentdesk/web exec vite build --mode mock`, then `pnpm --filter @agentdesk/web exec playwright test e2e/mock/platform-shell.spec.ts e2e/mock/platform-admins.spec.ts`. Expected: PASS.
 - [ ] **Step 3: Commit**: `test(web): mock e2e for the platform shell and admins page`.
 
@@ -632,7 +632,7 @@ Covers: BR-1 (TC-1.1, TC-1.2, TC-1.3), BR-3 (TC-3.1, TC-3.3, TC-3.4) in `platfor
 
 Covers: BR-5 (TC-5.2), BR-6 (TC-6.2), BR-8 (TC-8.1), BR-12 (TC-12.1), BR-13 (TC-13.1), BR-15 (TC-15.2), BR-16 (TC-16.4). BR-11 and BR-16's disabled side are Not e2e on local (Task 1, Task 8).
 
-- [ ] **Step 1: Write the spec**: every granted user is revoked in `finally` (errors swallowed); never revoke `admin@dev.local`; rows found by email, never by position.
+- [x] **Step 1: Write the spec**: every granted user is revoked in `finally` (errors swallowed); never revoke `admin@dev.local`; rows found by email, never by position.
 - [ ] **Step 2: Run** with the stack up (`devbox run dev`): `pnpm --filter @agentdesk/web exec playwright test e2e/local/platform-admins-ui.spec.ts`. Expected: PASS. If the stack cannot start, list the spec in the PR as written and not run.
 - [ ] **Step 3: Commit**: `test(web): local e2e for the platform admins page`.
 
@@ -653,11 +653,11 @@ Covers: BR-5 (TC-5.2), BR-6 (TC-6.2), BR-8 (TC-8.1), BR-12 (TC-12.1), BR-13 (TC-
 
 - Produces: Drizzle `organization.status` (`text('status').notNull().default('active')`, check `organization_status_check`), `organization.suspendedAt` (`timestamp('suspended_at', { withTimezone: true })`, check `organization_suspended_at_check`); index `runs_org_queued_idx` on `runs (org_id, queued_at)`.
 
-- [ ] **Step 1: Write the failing tests** in `migrate.int.test.ts`, new describe "organization status on an upgraded database": a DB migrated to 0035 with two orgs; after the rest, both read `status = 'active'`, `suspended_at` null; an update to `status = 'paused'` fails on `organization_status_check`; `status = 'suspended'` with null `suspended_at` and `status = 'active'` with a time both fail on `organization_suspended_at_check`; `runs_org_queued_idx` exists.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/db exec vitest run test/migrate.int.test.ts`. Expected: FAIL.
-- [ ] **Step 3: Implement** the columns, checks and index in the schema and generate 0036 with drizzle-kit (review the SQL; constant defaults only).
-- [ ] **Step 4: Run** Step 2's command, `pnpm --filter @agentdesk/db exec vitest run test/rls.int.test.ts`, `pnpm --filter @agentdesk/db typecheck && pnpm --filter @agentdesk/api typecheck`. Expected: PASS.
-- [ ] **Step 5: Commit**: `feat(db): organization status and suspended_at`. Label `review:sensitive` (migration).
+- [x] **Step 1: Write the failing tests** in `migrate.int.test.ts`, new describe "organization status on an upgraded database": a DB migrated to 0035 with two orgs; after the rest, both read `status = 'active'`, `suspended_at` null; an update to `status = 'paused'` fails on `organization_status_check`; `status = 'suspended'` with null `suspended_at` and `status = 'active'` with a time both fail on `organization_suspended_at_check`; `runs_org_queued_idx` exists.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/db exec vitest run test/migrate.int.test.ts`. Expected: FAIL.
+- [x] **Step 3: Implement** the columns, checks and index in the schema and generate 0036 with drizzle-kit (review the SQL; constant defaults only).
+- [x] **Step 4: Run** Step 2's command, `pnpm --filter @agentdesk/db exec vitest run test/rls.int.test.ts`, `pnpm --filter @agentdesk/db typecheck && pnpm --filter @agentdesk/api typecheck`. Expected: PASS.
+- [x] **Step 5: Commit**: `feat(db): organization status and suspended_at`. Label `review:sensitive` (migration).
 
 ---
 
@@ -682,13 +682,13 @@ export interface PlatformOrgStatsRow { orgId: string; projectCount: number; last
 export async function platformOrgStats(db: Db, orgIds: readonly string[]): Promise<PlatformOrgStatsRow[]>;
 ```
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
   - `functions.int.test.ts`: two orgs with projects, runs and owner assignments: counts per org, `lastActivityAt` = latest `queued_at`, the earliest of two owner assignments, null owner and null activity for a bare org; an empty array returns `[]`; 101 ids raise; an unknown id returns no row; the result columns are exactly the four (no ticket, run or comment text).
   - `migrate.int.test.ts`: the function is `prosecdef`, its `proconfig` pins `search_path=public, pg_temp`, `agentdesk_app` may execute it and PUBLIC may not; the two policies exist for `agentdesk_owner` with their predicates; as `agentdesk_app` without `withOrg`, `select count(*) from role_assignments` and `from roles` return 0.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/db exec vitest run test/functions.int.test.ts test/migrate.int.test.ts`. Expected: FAIL.
-- [ ] **Step 3: Implement** the hand-written migration (like 0001 and 0025: function, owner, revoke, grant, the two `definer_read`-style policies), its journal entry and copied snapshot, the wrapper (`db.pool.query` with `$1::uuid[]`, throws above 100 before the call), the export. database.md §2 and architecture.md §4: five definer functions; "ids, counts and timestamps" (cite the spec; ADR-0038 follows in Task 23).
-- [ ] **Step 4: Run** Step 2's command, `pnpm --filter @agentdesk/db exec vitest run test/rls.int.test.ts`, `pnpm --filter @agentdesk/db typecheck`. Expected: PASS.
-- [ ] **Step 5: Commit**: `feat(db): platform_org_stats definer function`. Label `review:sensitive` (migration, definer, RLS policies).
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/db exec vitest run test/functions.int.test.ts test/migrate.int.test.ts`. Expected: FAIL.
+- [x] **Step 3: Implement** the hand-written migration (like 0001 and 0025: function, owner, revoke, grant, the two `definer_read`-style policies), its journal entry and copied snapshot, the wrapper (`db.pool.query` with `$1::uuid[]`, throws above 100 before the call), the export. database.md §2 and architecture.md §4: five definer functions; "ids, counts and timestamps" (cite the spec; ADR-0038 follows in Task 23).
+- [x] **Step 4: Run** Step 2's command, `pnpm --filter @agentdesk/db exec vitest run test/rls.int.test.ts`, `pnpm --filter @agentdesk/db typecheck`. Expected: PASS.
+- [x] **Step 5: Commit**: `feat(db): platform_org_stats definer function`. Label `review:sensitive` (migration, definer, RLS policies).
 
 ---
 
@@ -728,16 +728,16 @@ export function getPlatformOrg(orgId: string): PlatformOrgDetailDto; // throws n
 export const platformOrgDtoFixtures: PlatformOrgDto[]; // active, suspended, no owner, two owners (earliest shown), no activity, long name, "Acme"/acme, "Beta"/beta-labs
 ```
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
   - `platform.test.ts` (BR-18 to BR-20 contract): the new keys; `owner` and `lastActivityAt` nullable; `PlatformOrgListQuery` accepts `{}`, `{q: 'a'.repeat(100)}`, `{status: 'suspended'}`; rejects `{q: 'a'.repeat(101)}`, `{status: 'deleted'}`.
   - `routes.test.ts`, `route-access.test.ts`: `platform.getOrg` path, method and entry; counts +1.
   - `authz.int.test.ts`: `'platform.getOrg': platformRoute(200)` and the key in `NOT_REGISTERED_YET`.
   - `contract.test.ts`: the fixtures parse; `listPlatformOrgs({q: 'ACME'})` returns only Acme, `{q: 'labs'}` only Beta, `{status: 'suspended'}` only suspended rows, `{q: '%'}` none; `getPlatformOrg('unknown')` is a 404.
   - `platformScenarios.test.ts`: `platformAdminOrgs` lists the directory fixtures; `platformEmpty` lists no org.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/contracts exec vitest run`. Expected: FAIL.
-- [ ] **Step 3: Implement** the contracts; in `orgs.service.ts` `listOrgs` returns the placeholder values named in the Agent calls (Task 13 replaces them); the MSW store, handlers (`platform.listOrgs`, `platform.getOrg`, `platform.createOrg` adds to the store with `owner: null`) and the two scenarios' org data; move the old `platformOrgFixtures` users to the new store.
-- [ ] **Step 4: Run** Step 2's command, `pnpm --filter @agentdesk/api typecheck`, `pnpm --filter @agentdesk/api exec vitest run test/authz.int.test.ts`, `pnpm --filter @agentdesk/web exec vitest run src/mocks`, `pnpm --filter @agentdesk/web typecheck`. Expected: PASS.
-- [ ] **Step 5: Commit**: `feat(contracts): platform directory fields, search and org detail route`. Label `review:sensitive` (routeAccess).
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/contracts exec vitest run`. Expected: FAIL.
+- [x] **Step 3: Implement** the contracts; in `orgs.service.ts` `listOrgs` returns the placeholder values named in the Agent calls (Task 13 replaces them); the MSW store, handlers (`platform.listOrgs`, `platform.getOrg`, `platform.createOrg` adds to the store with `owner: null`) and the two scenarios' org data; move the old `platformOrgFixtures` users to the new store.
+- [x] **Step 4: Run** Step 2's command, `pnpm --filter @agentdesk/api typecheck`, `pnpm --filter @agentdesk/api exec vitest run test/authz.int.test.ts`, `pnpm --filter @agentdesk/web exec vitest run src/mocks`, `pnpm --filter @agentdesk/web typecheck`. Expected: PASS.
+- [x] **Step 5: Commit**: `feat(contracts): platform directory fields, search and org detail route`. Label `review:sensitive` (routeAccess).
 
 ---
 
@@ -763,17 +763,17 @@ export function likeContains(text: string): string; // in orgs.service.ts
 PlatformOrgsController.get(@CurrentPlatformAdmin() admin, @Param() p: { orgId: string }): Promise<PlatformOrgDetailDto>;
 ```
 
-- [ ] **Step 1: Write the failing tests** in `platform.int.test.ts`:
+- [x] **Step 1: Write the failing tests** in `platform.int.test.ts`:
   - BR-18, BR-19: exact keys per row; newest first; a no-owner org has `owner: null`; an org with two owners shows the earlier one; no run gives `lastActivityAt: null`, a run gives its `queued_at`; `pageSize: 100` cap; `status: 'active'` on every existing org.
   - BR-20: `q` case-insensitive on name and on slug; `%`, `_` and `\` match only literally; `status=suspended` (set through `withOrg` in the test until Task 22 adds the route) returns only it; `total` follows the same filter; 400 for a 101-character `q`.
   - BR-24: `getOrg` 200 with the detail and `suspension: null`; 404 unknown id and malformed id for the admin; 403 before lookup for owner, admin, project admin, member, viewer and a no-org user, with an unknown id giving the same 403; 401 signed out; `x-org-id` ignored.
   - BR-25: `listProjects` returns exactly `{ id, name }` per project.
   - BR-23: the existing "BR-38" case (platform admin gets no tenant data) stays green.
   - `authz.int.test.ts`: remove `platform.getOrg` from `NOT_REGISTERED_YET`.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/api exec vitest run test/platform.int.test.ts`. Expected: FAIL.
-- [ ] **Step 3: Implement** `listOrgs` (one count and one page query with the same WHERE, `lower(name) like $1 escape '\' or lower(slug) like $1 escape '\'`, then one `platformOrgStats(ids)` call and one `user` lookup for the owner ids, on plain `db.orm`), `getOrg` (same row mapping for one id), the controller route; info log on nothing (reads only).
-- [ ] **Step 4: Run** Step 2's command, `pnpm --filter @agentdesk/api exec vitest run test/authz.int.test.ts test/scope.int.test.ts`, `pnpm --filter @agentdesk/api typecheck`. Expected: PASS.
-- [ ] **Step 5: Commit**: `feat(api): platform directory with owner, counts, status and search; org detail`. Label `review:sensitive`.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/api exec vitest run test/platform.int.test.ts`. Expected: FAIL.
+- [x] **Step 3: Implement** `listOrgs` (one count and one page query with the same WHERE, `lower(name) like $1 escape '\' or lower(slug) like $1 escape '\'`, then one `platformOrgStats(ids)` call and one `user` lookup for the owner ids, on plain `db.orm`), `getOrg` (same row mapping for one id), the controller route; info log on nothing (reads only).
+- [x] **Step 4: Run** Step 2's command, `pnpm --filter @agentdesk/api exec vitest run test/authz.int.test.ts test/scope.int.test.ts`, `pnpm --filter @agentdesk/api typecheck`. Expected: PASS.
+- [x] **Step 5: Commit**: `feat(api): platform directory with owner, counts, status and search; org detail`. Label `review:sensitive`.
 
 ---
 
@@ -806,11 +806,11 @@ export const platformOrgColumns: DataTableColumn[]; // Organization, Owner, Memb
 export function PlatformOrgRow(props: { row: PlatformOrgRowView }): JSX.Element;
 ```
 
-- [ ] **Step 1: Write the failing tests**: OrgStatus shows glyph plus text for both states; the row name is a link to `href` with `/o/<slug>` in mono beside it; "No owner yet" and "No activity yet"; relative times carry the full date in `title`; a long name ellipsizes with `title`; markup in a name renders as text.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/components/PlatformOrgRow.test.tsx src/components/OrgStatus.test.tsx`. Expected: FAIL.
-- [ ] **Step 3: Implement** both with stories (OrgStatus: Active, Suspended; row: Default, Suspended, NoOwner, NoActivity, LongName).
-- [ ] **Step 4: Run** Step 2's command and `pnpm --filter @agentdesk/web exec vitest run src/test/stories.smoke.test.tsx`. Expected: PASS.
-- [ ] **Step 5: Commit**: `feat(web): platform org row and org status in Storybook`.
+- [x] **Step 1: Write the failing tests**: OrgStatus shows glyph plus text for both states; the row name is a link to `href` with `/o/<slug>` in mono beside it; "No owner yet" and "No activity yet"; relative times carry the full date in `title`; a long name ellipsizes with `title`; markup in a name renders as text.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/components/PlatformOrgRow.test.tsx src/components/OrgStatus.test.tsx`. Expected: FAIL.
+- [x] **Step 3: Implement** both with stories (OrgStatus: Active, Suspended; row: Default, Suspended, NoOwner, NoActivity, LongName).
+- [x] **Step 4: Run** Step 2's command and `pnpm --filter @agentdesk/web exec vitest run src/test/stories.smoke.test.tsx`. Expected: PASS.
+- [x] **Step 5: Commit**: `feat(web): platform org row and org status in Storybook`.
 
 ---
 
@@ -839,11 +839,11 @@ export interface PlatformOrgsProps {
 export function PlatformOrgs(props: PlatformOrgsProps): JSX.Element;
 ```
 
-- [ ] **Step 1: Write the failing tests** in `platform.test.tsx`: h1 "Organizations", "Create organization" links to `createHref`, search labelled "Search organizations" (`maxLength` 100), status select "All statuses / Active / Suspended"; empty unfiltered "No organizations yet" / "Create one to invite its first owner."; empty filtered "No organizations match" with "Clear filters"; the table scrolls horizontally inside `main`.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/screens/platform.test.tsx`. Expected: FAIL.
-- [ ] **Step 3: Implement** the screen and stories `PlatformOrgs`, `…Loading`, `…Empty`, `…EmptyFiltered`, `…Error`, `…Paged`; barrel lines for Task 14; register the 6 boards; coverage 205 to 211; regenerate the interactive prototype; parity notes.
+- [x] **Step 1: Write the failing tests** in `platform.test.tsx`: h1 "Organizations", "Create organization" links to `createHref`, search labelled "Search organizations" (`maxLength` 100), status select "All statuses / Active / Suspended"; empty unfiltered "No organizations yet" / "Create one to invite its first owner."; empty filtered "No organizations match" with "Clear filters"; the table scrolls horizontally inside `main`.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/screens/platform.test.tsx`. Expected: FAIL.
+- [x] **Step 3: Implement** the screen and stories `PlatformOrgs`, `…Loading`, `…Empty`, `…EmptyFiltered`, `…Error`, `…Paged`; barrel lines for Task 14; register the 6 boards; coverage 205 to 211; regenerate the interactive prototype; parity notes.
 - [ ] **Step 4: Run** the same commands as Task 5 Step 4 for these 6 boards. Expected: PASS.
-- [ ] **Step 5: Commit**: `feat(web): organizations directory boards in Storybook`.
+- [x] **Step 5: Commit**: `feat(web): organizations directory boards in Storybook`.
 
 ---
 
@@ -867,13 +867,13 @@ export function toPlatformOrgRow(dto: PlatformOrgDto, now: Date): PlatformOrgRow
 // route search: { page?: number; q?: string; status?: OrgStatus }
 ```
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
   - `map.test.ts`: owner name or "No owner yet"; `lastActivity` null for no run, else relative with `title`; status passthrough.
   - `orgs.route.test.tsx` (BR-18 to BR-21): rows newest first; typing `ACME` puts `q` in the URL (fake timers if the input is debounced) and lists only Acme; the status select puts `status` in the URL; a filter change resets `page` to 1 (TC-20.5); "Clear filters" clears both; "Create organization" goes to `/orgs/new`; loading, empty, filtered empty and `serverError` with Retry (BR-4); `/platform` now redirects to `/platform/orgs`; Review Focus 5: `?page=5&q=acme` with one match lands on page 1.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/features/platform`. Expected: FAIL.
-- [ ] **Step 3: Implement** the route (search params validated with Zod, `keepPreviousData`, `useClampToLastPage`), the query and mapper, the index redirect change; regenerate `routeTree.gen.ts`.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/features/platform`. Expected: FAIL.
+- [x] **Step 3: Implement** the route (search params validated with Zod, `keepPreviousData`, `useClampToLastPage`), the query and mapper, the index redirect change; regenerate `routeTree.gen.ts`.
 - [ ] **Step 4: Run** Step 2's command, `pnpm --filter @agentdesk/web exec vitest run src/features/orgs/createOrg.route.test.tsx`, `pnpm --filter @agentdesk/web typecheck`. Expected: PASS.
-- [ ] **Step 5: Commit**: `feat(web): organizations directory with search and status filter`.
+- [x] **Step 5: Commit**: `feat(web): organizations directory with search and status filter`.
 
 ---
 
@@ -890,9 +890,9 @@ export function toPlatformOrgRow(dto: PlatformOrgDto, now: Date): PlatformOrgRow
 
 Covers: BR-2 (TC-2.1, TC-2.2, TC-2.3) in `platform-shell.spec.ts`; BR-4 (TC-4.4, TC-4.5, TC-4.6), BR-18 (TC-18.1, TC-18.3), BR-19 (TC-19.1), BR-20 (TC-20.1 to TC-20.5), BR-21 (TC-21.1), BR-22 (TC-22.1 to TC-22.4) in `platform-orgs.spec.ts`.
 
-- [ ] **Step 1: Write the specs**; search uses `expect.poll`/`toHaveURL`, never a sleep.
+- [x] **Step 1: Write the specs**; search uses `expect.poll`/`toHaveURL`, never a sleep.
 - [ ] **Step 2: Run** the mock build, then `pnpm --filter @agentdesk/web exec playwright test e2e/mock/platform-orgs.spec.ts e2e/mock/platform-shell.spec.ts`. Expected: PASS.
-- [ ] **Step 3: Commit**: `test(web): mock e2e for the organizations directory`.
+- [x] **Step 3: Commit**: `test(web): mock e2e for the organizations directory`.
 
 ---
 
@@ -908,9 +908,9 @@ Covers: BR-2 (TC-2.1, TC-2.2, TC-2.3) in `platform-shell.spec.ts`; BR-4 (TC-4.4,
 
 Covers: BR-18 (TC-18.2), BR-19 (TC-19.2), BR-20 (TC-20.6), BR-21 (TC-21.2) in `platform-orgs.spec.ts`; BR-23 (TC-23.1, TC-23.2) in `platform-access.spec.ts` (role-based: platform admin without membership gets no org data).
 
-- [ ] **Step 1: Write the specs**: fresh `e2e-<rand>` orgs only; rows found by searching the fresh slug, never by position or global count.
+- [x] **Step 1: Write the specs**: fresh `e2e-<rand>` orgs only; rows found by searching the fresh slug, never by position or global count.
 - [ ] **Step 2: Run** with the stack up: `pnpm --filter @agentdesk/web exec playwright test e2e/local/platform-orgs.spec.ts e2e/local/platform-access.spec.ts`. Expected: PASS.
-- [ ] **Step 3: Commit**: `test(web): local e2e for the organizations directory`.
+- [x] **Step 3: Commit**: `test(web): local e2e for the organizations directory`.
 
 ---
 
@@ -929,11 +929,11 @@ Covers: BR-18 (TC-18.2), BR-19 (TC-19.2), BR-20 (TC-20.6), BR-21 (TC-21.2) in `p
 
 - Produces: Drizzle `platformAuditLog.targetOrgId` (`uuid('target_org_id')`, nullable), index `platform_audit_log_target_org_idx` on `(target_org_id, created_at, id)`.
 
-- [ ] **Step 1: Write the failing test** in `migrate.int.test.ts`: a DB migrated to 0037 with two platform audit rows; after the rest, both have null `target_org_id`; the index exists with those columns; `agentdesk_app` holds SELECT and INSERT only on the table; no RLS on it.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/db exec vitest run test/migrate.int.test.ts`. Expected: FAIL.
-- [ ] **Step 3: Implement** the column and index; generate 0038 with drizzle-kit.
-- [ ] **Step 4: Run** Step 2's command, `pnpm --filter @agentdesk/db exec vitest run test/rls.int.test.ts`, `pnpm --filter @agentdesk/db typecheck && pnpm --filter @agentdesk/api typecheck`. Expected: PASS.
-- [ ] **Step 5: Commit**: `feat(db): target org on platform audit rows`. Label `review:sensitive` (migration).
+- [x] **Step 1: Write the failing test** in `migrate.int.test.ts`: a DB migrated to 0037 with two platform audit rows; after the rest, both have null `target_org_id`; the index exists with those columns; `agentdesk_app` holds SELECT and INSERT only on the table; no RLS on it.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/db exec vitest run test/migrate.int.test.ts`. Expected: FAIL.
+- [x] **Step 3: Implement** the column and index; generate 0038 with drizzle-kit.
+- [x] **Step 4: Run** Step 2's command, `pnpm --filter @agentdesk/db exec vitest run test/rls.int.test.ts`, `pnpm --filter @agentdesk/db typecheck && pnpm --filter @agentdesk/api typecheck`. Expected: PASS.
+- [x] **Step 5: Commit**: `feat(db): target org on platform audit rows`. Label `review:sensitive` (migration).
 
 ---
 
@@ -970,17 +970,17 @@ routeAccess: both platform('platform-org:update')
 export function setPlatformOrgStatus(orgId: string, to: OrgStatus, reason: string): PlatformOrgDetailDto; // repeat is a no-op
 ```
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
   - `access.test.ts`: `PERMISSION_LEVEL['platform-org:update'] === 'platform'`; platform count +1.
   - `platform.test.ts` (BR-33): `reason` empty, spaces only and 501 characters rejected; 1 and 500 accepted (trimmed); an extra key rejected; `PlatformAuditAction.options` has the eleven values and includes `org.updated` (BR-53).
   - `audit.test.ts`: the two actions and the `status` change field.
   - `routes.test.ts`, `route-access.test.ts`: both routes and entries; counts +2. `org-context.test.ts`: the constant.
   - `authz.int.test.ts`: both keys `platformRoute(200)` and in `NOT_REGISTERED_YET`; the platform write bodies `{ reason: 'x' }`.
   - `contract.test.ts`: suspend sets `status`, `suspendedAt` and `suspension.reason`; a repeat changes nothing; reactivate clears them.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/contracts exec vitest run`. Expected: FAIL.
-- [ ] **Step 3: Implement** the contracts and the MSW store and handlers (400 with pointer `/reason` from the schema, 404 unknown org).
-- [ ] **Step 4: Run** Step 2's command, `pnpm --filter @agentdesk/api typecheck`, `pnpm --filter @agentdesk/api exec vitest run test/authz.int.test.ts`, `pnpm --filter @agentdesk/web exec vitest run src/mocks`, `pnpm --filter @agentdesk/web typecheck`. Expected: PASS.
-- [ ] **Step 5: Commit**: `feat(contracts): suspend and reactivate routes, org-suspended problem type, platform audit actions`. Label `review:sensitive` (permission, routeAccess).
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/contracts exec vitest run`. Expected: FAIL.
+- [x] **Step 3: Implement** the contracts and the MSW store and handlers (400 with pointer `/reason` from the schema, 404 unknown org).
+- [x] **Step 4: Run** Step 2's command, `pnpm --filter @agentdesk/api typecheck`, `pnpm --filter @agentdesk/api exec vitest run test/authz.int.test.ts`, `pnpm --filter @agentdesk/web exec vitest run src/mocks`, `pnpm --filter @agentdesk/web typecheck`. Expected: PASS.
+- [x] **Step 5: Commit**: `feat(contracts): suspend and reactivate routes, org-suspended problem type, platform audit actions`. Label `review:sensitive` (permission, routeAccess).
 
 ---
 
@@ -998,9 +998,9 @@ export function setPlatformOrgStatus(orgId: string, to: OrgStatus, reason: strin
 - Consumes: `ORG_SUSPENDED_PROBLEM_TYPE`, `setPlatformOrgStatus` (Task 20).
 - Produces: `PLATFORM_SCENARIOS` + `'suspendedMember'`, `'suspendedPlatformAdmin'`. Every org-pinned mock route of a suspended org (`me.access` included) answers 403 problem `type: 'org-suspended'` after the membership check, with no reason in the body; `/auth/organization/list` rows carry `status`; platform routes keep answering for a suspended org. `suspendedMember`: a member of a suspended org (active org, its suspension reason `Billing hold`) and of an active org. `suspendedPlatformAdmin`: a platform admin whose active org is suspended.
 
-- [ ] **Step 1: Write the failing tests** in `platformScenarios.test.ts`: `suspendedMember` gets 403 `org-suspended` on `me.access` and on a project list of the suspended org, 200 on the other org; no response body contains "Billing hold"; the org list marks the suspended org; `suspendedPlatformAdmin` gets `me.platform` true and 200 on `platform.getOrg` of that org.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/mocks/msw/platformScenarios.test.ts`. Expected: FAIL.
-- [ ] **Step 3: Implement** the status field in the mock org rows, the refusal in the guard step of `handlers.ts` (after membership, before `requireRouteAccess`), the org-list field, the two scenarios.
+- [x] **Step 1: Write the failing tests** in `platformScenarios.test.ts`: `suspendedMember` gets 403 `org-suspended` on `me.access` and on a project list of the suspended org, 200 on the other org; no response body contains "Billing hold"; the org list marks the suspended org; `suspendedPlatformAdmin` gets `me.platform` true and 200 on `platform.getOrg` of that org.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/mocks/msw/platformScenarios.test.ts`. Expected: FAIL.
+- [x] **Step 3: Implement** the status field in the mock org rows, the refusal in the guard step of `handlers.ts` (after membership, before `requireRouteAccess`), the org-list field, the two scenarios.
 - [ ] **Step 4: Run** `pnpm --filter @agentdesk/web exec vitest run src/mocks`, `pnpm --filter @agentdesk/web typecheck`. Expected: PASS.
 - [ ] **Step 5: Commit**: `feat(web): mock refusals and scenarios for suspended orgs`.
 
@@ -1039,16 +1039,16 @@ export function reactivateOrgRoute(t: TestApp, cookie: string, orgId: string, bo
 export async function suspendedOrgApp(t: TestApp, orgId: string, reason?: string): Promise<void>;
 ```
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
   - `platform-suspend.int.test.ts`: BR-32, BR-34: suspend answers 200 `PlatformOrgDetailDto` with `status: 'suspended'`, `suspendedAt` from the injected `Clock`, `suspension.reason` and `by`; `getOrg` agrees; reactivate returns `active`, `suspension: null`; one `platform_audit_log` row each with `target_org_id`, the reason in `payload`, actor from the session; one tenant `audit_log` row each (`org.suspended`/`org.reactivated`, `actor_kind 'platform_admin'`, payload status from/to, no reason). BR-33: empty, spaces-only, 501-character reason and an extra key are 400 with pointer `/reason`, org unchanged, no rows. BR-35: a repeat is 200, no change, no row in either table; two concurrent suspends (`Promise.all`) give one change and one row each; suspend racing reactivate leaves audit rows equal to the real changes (outcome sets). BR-36: 403 before lookup for that org's owner, admin, project admin, member, viewer, another org's owner and a no-org user; an unknown id gives the same 403; 401 signed out; 404 unknown and malformed id for the admin. A seeded secret-looking reason (`ghp_` + 36 characters) is stored redacted.
   - `audit.int.test.ts` (BR-43): the org's owner reads both rows after reactivation through `audit.list`, tagged `platform_admin`, change field `status`, no reason anywhere in the DTO; none on a repeat.
   - `audit-view.test.ts`: `org.suspended` maps to one `status` change `active → suspended`.
   - `platform-audit-entry.test.ts`: `targetOrgId` is copied; payload goes through `redactBody`.
   - `authz.int.test.ts`: remove both keys from `NOT_REGISTERED_YET`.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/api exec vitest run test/platform-suspend.int.test.ts test/audit.int.test.ts src/audit`. Expected: FAIL.
-- [ ] **Step 3: Implement** `setStatus` in one `withOrg(orgId)` transaction (`select … for update` on the org row; no change when already in `to`; else update `status` and `suspended_at`, write the tenant row and the platform row), the two controller routes, the audit-entry type, the view mapping, info log `{ requestId, actorUserId, orgId, action }` (never the reason), the helpers. platform-setup.md: how suspend and reactivate work and what members see.
-- [ ] **Step 4: Run** Step 2's command, `pnpm --filter @agentdesk/api exec vitest run test/authz.int.test.ts test/platform.int.test.ts`, `pnpm --filter @agentdesk/api typecheck`. Expected: PASS.
-- [ ] **Step 5: Commit**: `feat(api): suspend and reactivate an organization with tenant and platform audit`. Label `review:sensitive`.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/api exec vitest run test/platform-suspend.int.test.ts test/audit.int.test.ts src/audit`. Expected: FAIL.
+- [x] **Step 3: Implement** `setStatus` in one `withOrg(orgId)` transaction (`select … for update` on the org row; no change when already in `to`; else update `status` and `suspended_at`, write the tenant row and the platform row), the two controller routes, the audit-entry type, the view mapping, info log `{ requestId, actorUserId, orgId, action }` (never the reason), the helpers. platform-setup.md: how suspend and reactivate work and what members see.
+- [x] **Step 4: Run** Step 2's command, `pnpm --filter @agentdesk/api exec vitest run test/authz.int.test.ts test/platform.int.test.ts`, `pnpm --filter @agentdesk/api typecheck`. Expected: PASS.
+- [x] **Step 5: Commit**: `feat(api): suspend and reactivate an organization with tenant and platform audit`. Label `review:sensitive`.
 
 ---
 
@@ -1079,14 +1079,14 @@ export class OrgSuspendedException extends ForbiddenException { readonly problem
 // auth.ts: organization plugin schema.organization.additionalFields.status = { type: 'string', required: false, input: false }
 ```
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
   - `check-access.test.ts`, `session.guard.test.ts`: order membership → org active → permission → scope; a non-member of a suspended org gets `not-a-member`; dev routes (`match.kind === 'dev'`) refuse a suspended org.
   - `problem.filter.test.ts`: `OrgSuspendedException` gives `type: 'org-suspended'` and no detail beyond the fixed text.
   - `org-suspended.int.test.ts` (BR-37, BR-38, BR-40, BR-42, BR-49, BR-51; org suspended through `suspendedOrgApp`): every role, owner included, gets 403 `org-suspended` on a read, a write, `/api/me/access`, SSE connect, terminal attach, a dev route; an open terminal closes at its next re-auth (small `TERMINAL_REAUTH_MS`); a start, resume and reopen of a run are refused and `FakeTemporalClient` saw no start or signal and no run row was added; the problem body holds no reason and no `suspended_at`; the member's other org answers 200; `/auth/organization/set-active` to the suspended org works and its list row carries `status: 'suspended'`; a non-member gets the plain 403 without the type; platform routes for that org still answer 200 to the admin; an invitation into the suspended org is accepted and creates the membership; `GET /api/me/platform` is `true` for a platform admin whose active org is suspended while `/api/me/access` is 403; after `reactivateOrgRoute` the member's next request is 200; a client cannot write `status` through any better-auth org path.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/api exec vitest run test/org-suspended.int.test.ts src/access src/auth src/common`. Expected: FAIL.
-- [ ] **Step 3: Implement** `orgMembership` replacing `isOrgMember` inside `checkTenantAccess` (keep `isOrgMember` as a thin wrapper for its other callers), the exception and the generic filter, the dev branch in `SessionGuard`, the better-auth field. ADR-0038 (status model; guard order; first-start refusal with resume and auto-resume exempt; `/api/me/platform`; `target_org_id`; the fifth definer function), ADR-0036's guard order gains "org active" after membership, ADR-0037's "no org_id" line points to `target_org_id`, the rbac-foundation spec's guard-order lines.
-- [ ] **Step 4: Run** Step 2's command, `pnpm --filter @agentdesk/api exec vitest run test/org-check.int.test.ts test/terminal.int.test.ts test/sse.int.test.ts test/authz.int.test.ts test/my-invitations.int.test.ts`, `pnpm --filter @agentdesk/api typecheck`. Expected: PASS.
-- [ ] **Step 5: Commit**: `feat(api): refuse members of a suspended organization at the tenant guard`. Label `review:sensitive`.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/api exec vitest run test/org-suspended.int.test.ts src/access src/auth src/common`. Expected: FAIL.
+- [x] **Step 3: Implement** `orgMembership` replacing `isOrgMember` inside `checkTenantAccess` (keep `isOrgMember` as a thin wrapper for its other callers), the exception and the generic filter, the dev branch in `SessionGuard`, the better-auth field. ADR-0038 (status model; guard order; first-start refusal with resume and auto-resume exempt; `/api/me/platform`; `target_org_id`; the fifth definer function), ADR-0036's guard order gains "org active" after membership, ADR-0037's "no org_id" line points to `target_org_id`, the rbac-foundation spec's guard-order lines.
+- [x] **Step 4: Run** Step 2's command, `pnpm --filter @agentdesk/api exec vitest run test/org-check.int.test.ts test/terminal.int.test.ts test/sse.int.test.ts test/authz.int.test.ts test/my-invitations.int.test.ts`, `pnpm --filter @agentdesk/api typecheck`. Expected: PASS.
+- [x] **Step 5: Commit**: `feat(api): refuse members of a suspended organization at the tenant guard`. Label `review:sensitive`.
 
 ---
 
@@ -1104,14 +1104,14 @@ export class OrgSuspendedException extends ForbiddenException { readonly problem
 - Consumes: `organization.status` (Task 10).
 - Produces: intake outcome `'ignored_org_suspended'` (recorded on the `inbound_events` row, no run row); `WebhooksController.receive` answers `{ outcome: 'ignored' }` for that outcome and keeps every other outcome's body.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
   - `intake.int.test.ts` (BR-39, BR-42): a command comment on a project of a suspended org, on the webhook and the poll channel: outcome `ignored_org_suspended`, the event recorded, no run; the same on an active org creates a run; after reactivation the earlier comment starts nothing and a new one starts a run.
-  - `webhooks.int.test.ts`: a bad signature is refused first with no lookup (status read count 0); a verified delivery for a suspended org answers 200 `{ outcome: 'ignored' }`, the same body as an event with no command.
+  - `webhooks.int.test.ts`: a bad signature is refused first with no lookup (status read count 0); a verified delivery for a suspended org answers 200 `{ outcome: 'ignored' }`, the plain `ignored` body a null-parse event gets.
   - `poll.int.test.ts`: the cursor advances past a suspended org's comments and nothing replays after reactivation.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/core exec vitest run test/intake.int.test.ts`, `pnpm --filter @agentdesk/api exec vitest run test/webhooks.int.test.ts`, `pnpm --filter @agentdesk/worker exec vitest run test/poll.int.test.ts`. Expected: FAIL.
-- [ ] **Step 3: Implement** the check in `process-ticket-event.ts` right after the project is resolved, inside the same transaction (read `organization.status` by the resolved org id; `finish('ignored_org_suspended', 'organization suspended')`), and the one-outcome mapping in the controller.
-- [ ] **Step 4: Run** Step 2's commands and `pnpm --filter @agentdesk/core typecheck && pnpm --filter @agentdesk/api typecheck`. Expected: PASS.
-- [ ] **Step 5: Commit**: `feat(core): intake ignores events of a suspended organization`. Label `review:sensitive` (webhooks).
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/core exec vitest run test/intake.int.test.ts`, `pnpm --filter @agentdesk/api exec vitest run test/webhooks.int.test.ts`, `pnpm --filter @agentdesk/worker exec vitest run test/poll.int.test.ts`. Expected: FAIL.
+- [x] **Step 3: Implement** the check in `process-ticket-event.ts` right after the project is resolved, inside the same transaction (read `organization.status` by the resolved org id; `finish('ignored_org_suspended', 'organization suspended')`), and the one-outcome mapping in the controller.
+- [x] **Step 4: Run** Step 2's commands and `pnpm --filter @agentdesk/core typecheck && pnpm --filter @agentdesk/api typecheck`. Expected: PASS.
+- [x] **Step 5: Commit**: `feat(core): intake ignores events of a suspended organization`. Label `review:sensitive` (webhooks).
 
 ---
 
@@ -1129,13 +1129,13 @@ export class OrgSuspendedException extends ForbiddenException { readonly problem
 - Consumes: `organization.status` (Task 10).
 - Produces: `RunDetails.orgStatus: 'active' | 'suspended'` selected by `details(tx, orgId, runId)`; in `createRunSecretAndJob`, `if (!resume && d.orgStatus === 'suspended') throw ApplicationFailure.nonRetryable('the organization is suspended', 'OrgSuspended')` right after the `isFinal` check.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
   - `run.activities.int.test.ts` (BR-47, BR-41): a first start on a suspended org throws a non-retryable `OrgSuspended` failure and the fake gateway saw no Secret, no Job and no token mint; on an active org it starts; a resume and an auto-resume attempt on a suspended org create their Job; a race case: the run row exists (intake passed), the org is suspended, then the first start refuses.
   - `run.workflow.test.ts`: that activity failure ends the run `failed` with a reason containing "the organization is suspended" through the existing failure path.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/worker exec vitest run test/run.activities.int.test.ts test/run.workflow.test.ts`. Expected: FAIL.
-- [ ] **Step 3: Implement** the select and the guard.
-- [ ] **Step 4: Run** Step 2's command, the existing replay tests `pnpm --filter @agentdesk/worker exec vitest run test/run.workflow.auto-resume.test.ts test/run.workflow.resuming.test.ts test/run.workflow.reopened.test.ts test/run.workflow.in-process.test.ts`, `pnpm --filter @agentdesk/worker typecheck`. Expected: PASS.
-- [ ] **Step 5: Commit**: `feat(worker): refuse the first start of a run in a suspended organization`. Label `review:sensitive` (run Job).
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/worker exec vitest run test/run.activities.int.test.ts test/run.workflow.test.ts`. Expected: FAIL.
+- [x] **Step 3: Implement** the select and the guard.
+- [x] **Step 4: Run** Step 2's command, the existing replay tests `pnpm --filter @agentdesk/worker exec vitest run test/run.workflow.auto-resume.test.ts test/run.workflow.resuming.test.ts test/run.workflow.reopened.test.ts test/run.workflow.in-process.test.ts`, `pnpm --filter @agentdesk/worker typecheck`. Expected: PASS.
+- [x] **Step 5: Commit**: `feat(worker): refuse the first start of a run in a suspended organization`. Label `review:sensitive` (run Job).
 
 ---
 
@@ -1174,11 +1174,11 @@ export interface PlatformOrgOverviewView { facts: { slug: string; owner: string 
 export const activeOrgOverview: PlatformOrgOverviewView; export const suspendedOrgOverview: PlatformOrgOverviewView;
 ```
 
-- [ ] **Step 1: Write the failing tests**: header h1 with `tabIndex={-1}`, `/o/<slug>` in mono, `OrgStatus`, "Suspend organization" (danger) or "Reactivate organization" (default) by status, "View audit log" link; no Edit button without `onEdit`. Dialog: title "Suspend <org>?" with its body, label "Reason" (`rows`), "Suspend"/"Suspending…" solid danger, reactivate title "Reactivate <org>?" body "People can open it again." button "Reactivate"/"Reactivating…" primary, field error, Banner, not closable while saving, Escape closes when idle. OrgSwitch (BR-48): a suspended option reads "Suspended" and still links.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/components/PlatformOrgHeader.test.tsx src/components/SuspendOrgDialog.test.tsx src/components/OrgSwitch.test.tsx`. Expected: FAIL.
-- [ ] **Step 3: Implement** with stories (header: Active, Suspended; dialog: Suspend, SuspendSaving, SuspendFieldError, SuspendFormError, Reactivate; OrgSwitch: WithSuspendedOrg).
-- [ ] **Step 4: Run** Step 2's command and `pnpm --filter @agentdesk/web exec vitest run src/test/stories.smoke.test.tsx`. Expected: PASS.
-- [ ] **Step 5: Commit**: `feat(web): platform org header, suspend dialog and suspended switcher mark in Storybook`.
+- [x] **Step 1: Write the failing tests**: header h1 with `tabIndex={-1}`, `/o/<slug>` in mono, `OrgStatus`, "Suspend organization" (danger) or "Reactivate organization" (default) by status, "View audit log" link; no Edit button without `onEdit`. Dialog: title "Suspend <org>?" with its body, label "Reason" (`rows`), "Suspend"/"Suspending…" solid danger, reactivate title "Reactivate <org>?" body "People can open it again." button "Reactivate"/"Reactivating…" primary, field error, Banner, not closable while saving, Escape closes when idle. OrgSwitch (BR-48): a suspended option reads "Suspended" and still links.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/components/PlatformOrgHeader.test.tsx src/components/SuspendOrgDialog.test.tsx src/components/OrgSwitch.test.tsx`. Expected: FAIL.
+- [x] **Step 3: Implement** with stories (header: Active, Suspended; dialog: Suspend, SuspendSaving, SuspendFieldError, SuspendFormError, Reactivate; OrgSwitch: WithSuspendedOrg).
+- [x] **Step 4: Run** Step 2's command and `pnpm --filter @agentdesk/web exec vitest run src/test/stories.smoke.test.tsx`. Expected: PASS.
+- [x] **Step 5: Commit**: `feat(web): platform org header, suspend dialog and suspended switcher mark in Storybook`.
 
 ---
 
@@ -1204,11 +1204,11 @@ export interface PlatformOrgDetailProps { view: PlatformOrgDetailView; dialog?: 
 export function PlatformOrgDetail(props: PlatformOrgDetailProps): JSX.Element; // header + Overview KeyValue facts + suspended warning Banner
 ```
 
-- [ ] **Step 1: Write the failing tests** in `platform.test.tsx`: Overview labels Slug, Owner, Members, Projects, Last activity, Created, Status; the suspended Banner "This organization is suspended" with "Since 21 Nov 2026 by <name>. People cannot open it and no new runs start." and "Reason: <text>" (warning style, triangle icon); not found "Page not found" / "This organization does not exist." / "Back to organizations"; a reason with markup renders as text.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/screens/platform.test.tsx`. Expected: FAIL.
-- [ ] **Step 3: Implement** the screen and stories `PlatformOrgOverview`, `…Loading`, `…Error`, `…NotFound`, `…Suspended`, `…SuspendDialog`, `…SuspendError`, `…SuspendFormError`, `…SuspendSaving`, `…ReactivateDialog` (inside `PlatformFrame` with the org group showing Overview only); barrel lines for Task 26; register the 10 boards; coverage 211 to 221; regenerate the interactive prototype; parity notes.
+- [x] **Step 1: Write the failing tests** in `platform.test.tsx`: Overview labels Slug, Owner, Members, Projects, Last activity, Created, Status; the suspended Banner "This organization is suspended" with "Since 21 Nov 2026 by <name>. People cannot open it and no new runs start." and "Reason: <text>" (warning style, triangle icon); not found "Page not found" / "This organization does not exist." / "Back to organizations"; a reason with markup renders as text.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/screens/platform.test.tsx`. Expected: FAIL.
+- [x] **Step 3: Implement** the screen and stories `PlatformOrgOverview`, `…Loading`, `…Error`, `…NotFound`, `…Suspended`, `…SuspendDialog`, `…SuspendError`, `…SuspendFormError`, `…SuspendSaving`, `…ReactivateDialog` (inside `PlatformFrame` with the org group showing Overview only); barrel lines for Task 26; register the 10 boards; coverage 211 to 221; regenerate the interactive prototype; parity notes.
 - [ ] **Step 4: Run** the same commands as Task 5 Step 4 for these 10 boards. Expected: PASS.
-- [ ] **Step 5: Commit**: `feat(web): org detail and suspend boards in Storybook`.
+- [x] **Step 5: Commit**: `feat(web): org detail and suspend boards in Storybook`.
 
 ---
 
@@ -1226,11 +1226,11 @@ export function PlatformOrgDetail(props: PlatformOrgDetailProps): JSX.Element; /
 
 - Produces: `export function OrgSuspended(props: { orgName: string }): JSX.Element;` (title "This organization is suspended", body "You can't open <org> right now. Contact your Agent Desk administrator.", loads nothing); `mocks/audit.ts` gains tenant rows "<actor> suspended the organization" and "<actor> reactivated the organization" tagged "Platform admin".
 
-- [ ] **Step 1: Write the failing tests**: `entry.test.tsx` renders the fixed title and body with the org name and no reason text.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/screens/entry.test.tsx`. Expected: FAIL.
-- [ ] **Step 3: Implement** the screen and stories `OrgSuspended`, `OrgSuspendedSwitcher` (switcher open, suspended org marked, other orgs listed), `OrgSuspendedPlatformAdmin` (switcher shows "Platform admin") in `Screens/Entry`, top bar with the org name and no Projects or Settings tabs; `OrgAuditPlatformSuspend` in `Screens/OrgSettings`; register the 4 boards; coverage 221 to 225; regenerate the interactive prototype; parity notes.
+- [x] **Step 1: Write the failing tests**: `entry.test.tsx` renders the fixed title and body with the org name and no reason text.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/screens/entry.test.tsx`. Expected: FAIL.
+- [x] **Step 3: Implement** the screen and stories `OrgSuspended`, `OrgSuspendedSwitcher` (switcher open, suspended org marked, other orgs listed), `OrgSuspendedPlatformAdmin` (switcher shows "Platform admin") in `Screens/Entry`, top bar with the org name and no Projects or Settings tabs; `OrgAuditPlatformSuspend` in `Screens/OrgSettings`; register the 4 boards; coverage 221 to 225; regenerate the interactive prototype; parity notes.
 - [ ] **Step 4: Run** the same commands as Task 5 Step 4 for these 4 boards. Expected: PASS.
-- [ ] **Step 5: Commit**: `feat(web): suspended organization boards in Storybook`.
+- [x] **Step 5: Commit**: `feat(web): suspended organization boards in Storybook`.
 
 ---
 
@@ -1255,13 +1255,13 @@ export function toPlatformOrgOverview(dto: PlatformOrgDetailDto, now: Date): Pla
 // the $orgId layout renders PlatformFrame with org { name, links: { overview } } and the header; children render below
 ```
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
   - `map.test.ts`: facts from the DTO; Banner date "21 Nov 2026" in UTC; `by` null shows no name.
   - `orgDetail.route.test.tsx` (BR-24 header, BR-32 to BR-34): a directory row opens `/platform/orgs/<id>` with heading, `/o/<slug>` and status; "Suspend organization" opens the dialog; empty or spaces-only reason shows "Enter a reason." and sends nothing; a 501-character reason shows an error at Reason; a valid reason sets the detail from the response, toasts "Organization suspended", shows the Banner with the reason, invalidates `['platform','orgs']`; reactivate toasts "Organization reactivated" and removes the Banner; 403/5xx show the dialog Banner with input kept; 404 toasts "Organization not found" and goes to the directory; an unknown id shows the not-found state inside the platform layout; loading and `serverError` with Retry; Review Focus 4: two quick clicks on "Suspend" send one request.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/features/platform`. Expected: FAIL.
-- [ ] **Step 3: Implement** the layout and index routes, TanStack Form with `OrgStatusChangeRequest` and `fieldErrorsFromProblem` (pointer `/reason`), the mutation (`setQueryData` on `platformKeys.org(orgId)`, invalidate `['platform','orgs']`), directory rows linking to the detail; regenerate `routeTree.gen.ts`.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/features/platform`. Expected: FAIL.
+- [x] **Step 3: Implement** the layout and index routes, TanStack Form with `OrgStatusChangeRequest` and `fieldErrorsFromProblem` (pointer `/reason`), the mutation (`setQueryData` on `platformKeys.org(orgId)`, invalidate `['platform','orgs']`), directory rows linking to the detail; regenerate `routeTree.gen.ts`.
 - [ ] **Step 4: Run** Step 2's command and `pnpm --filter @agentdesk/web typecheck`. Expected: PASS.
-- [ ] **Step 5: Commit**: `feat(web): platform org detail with suspend and reactivate`.
+- [x] **Step 5: Commit**: `feat(web): platform org detail with suspend and reactivate`.
 
 ---
 
@@ -1279,15 +1279,15 @@ export function toPlatformOrgOverview(dto: PlatformOrgDetailDto, now: Date): Pla
 - Consumes: `ORG_SUSPENDED_PROBLEM_TYPE`, `OrgStatus` (Tasks 12, 20), `suspendedMember`, `suspendedPlatformAdmin` (Task 21), `OrgSuspended` (Task 28), `OrgOption.suspended` (Task 26).
 - Produces: `RouteError` maps `ApiError` 403 with `type === 'org-suspended'` to `OrgSuspended` (org name from the org list by slug); `createAppQueryClient` gets one global handler that, on an `org-suspended` error, removes `['org', slug]` data and calls `router.invalidate()`; `OrganizationList` parses `status: OrgStatus.default('active')`; `toOrgSwitch` sets `suspended`; the `OrgSuspended` page's top bar uses `useAppBar(null)` with non-suspense access queries; `features/audit/map.ts` sentences "<actor> suspended the organization" and "<actor> reactivated the organization".
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
   - `orgRoute.test.tsx` (BR-37, BR-38, BR-49): `suspendedMember` on `/` and on `/o/<suspended>/projects` renders the fixed message, requests no project list and shows no "Billing hold"; a page already open when an org route starts answering `org-suspended` switches to the message.
   - `orgSwitch.route.test.tsx` (BR-48, BR-37): the suspended org is listed with "Suspended", the other org links and opens normally.
   - `appBar.test.tsx` (BR-51): `suspendedPlatformAdmin` sees "Platform admin" on the suspended page and `/platform/orgs` opens.
   - `map.test.ts` (BR-43): both sentences with the "Platform admin" tag and no reason.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/app/orgRoute.test.tsx src/features/orgs src/features/chrome src/features/audit`. Expected: FAIL.
-- [ ] **Step 3: Implement** the mapping, the global handler, the org-list field and switcher mark, the app-bar change, the sentences.
-- [ ] **Step 4: Run** Step 2's command and `pnpm --filter @agentdesk/web typecheck`. Expected: PASS.
-- [ ] **Step 5: Commit**: `feat(web): show the suspended organization message and mark it in the switcher`.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/app/orgRoute.test.tsx src/features/orgs src/features/chrome src/features/audit`. Expected: FAIL.
+- [x] **Step 3: Implement** the mapping, the global handler, the org-list field and switcher mark, the app-bar change, the sentences.
+- [x] **Step 4: Run** Step 2's command and `pnpm --filter @agentdesk/web typecheck`. Expected: PASS.
+- [x] **Step 5: Commit**: `feat(web): show the suspended organization message and mark it in the switcher`.
 
 ---
 
@@ -1304,7 +1304,7 @@ export function toPlatformOrgOverview(dto: PlatformOrgDetailDto, now: Date): Pla
 
 Covers: BR-4 (TC-4.11), BR-32 (TC-32.1), BR-33 (TC-33.1 to TC-33.5), BR-34 (TC-34.1), BR-37 (TC-37.1, TC-37.2, TC-37.3), BR-48 (TC-48.1), BR-49 (TC-49.1), BR-51 (TC-51.1) in `platform-suspend.spec.ts`; BR-43 (TC-43.1) in `org-audit.spec.ts`. BR-35 is Not e2e (Task 22). Role-based case: TC-37.1 (a member sees no org data).
 
-- [ ] **Step 1: Write the specs**; TC-33.4 asserts an error at Reason (spec open question Q2); TC-49.1 asserts "Billing hold" appears nowhere.
+- [x] **Step 1: Write the specs**; TC-33.4 asserts an error at Reason (spec open question Q2); TC-49.1 asserts "Billing hold" appears nowhere.
 - [ ] **Step 2: Run** the mock build, then `pnpm --filter @agentdesk/web exec playwright test e2e/mock/platform-suspend.spec.ts e2e/mock/org-audit.spec.ts`. Expected: PASS.
 - [ ] **Step 3: Commit**: `test(web): mock e2e for suspend, reactivate and the suspended page`.
 
@@ -1330,7 +1330,7 @@ export async function reactivateOrg(pa: APIRequestContext, orgId: string, reason
 
 Covers: BR-32 (TC-32.2), BR-34 (TC-34.2), BR-37 (TC-37.4), BR-38 (TC-38.1 to TC-38.4), BR-42 (TC-42.1), BR-43 (TC-43.2), BR-51 (TC-51.2) in `platform-suspend.spec.ts`; BR-36 (TC-36.1 to TC-36.4) in `platform-access.spec.ts`. Role-based cases: TC-36.1, TC-36.2, TC-38.1, TC-38.2.
 
-- [ ] **Step 1: Write the helpers and specs**: fresh orgs only; every case that suspends reactivates in `finally` (errors swallowed); never suspend a shared org.
+- [x] **Step 1: Write the helpers and specs**: fresh orgs only; every case that suspends reactivates in `finally` (errors swallowed); never suspend a shared org.
 - [ ] **Step 2: Run** with the stack up: `pnpm --filter @agentdesk/web exec playwright test e2e/local/platform-suspend.spec.ts e2e/local/platform-access.spec.ts`. Expected: PASS.
 - [ ] **Step 3: Commit**: `test(web): local e2e for suspending an organization`.
 
@@ -1348,7 +1348,7 @@ Covers: BR-32 (TC-32.2), BR-34 (TC-34.2), BR-37 (TC-37.4), BR-38 (TC-38.1 to TC-
 
 Covers: BR-39 (TC-39.1, TC-39.2, TC-39.3), BR-40 (TC-40.1, TC-40.2), BR-41 (TC-41.1, TC-41.2), BR-42 (TC-42.2). BR-47 and BR-39's poll channel are Not e2e (Tasks 25 and 24). Role-based case: TC-40.1 (the owner cannot start a run).
 
-- [ ] **Step 1: Write the spec**: "no run started" is asserted on the recorded intake outcome (`ignored_org_suspended`) and on that ticket's run list, never by waiting for an absence; the webhook body is asserted equal to the body of an event with no command; reactivate in `finally`. TC-39.x and TC-40.x use the existing fake ticket source and run routes (spec open question Q3: outcomes only).
+- [x] **Step 1: Write the spec**: "no run started" is asserted on the recorded intake outcome (`ignored_org_suspended`) and on that ticket's run list, never by waiting for an absence; the webhook body is asserted equal to the plain `{ outcome: 'ignored' }` (the body of a null-parse event); reactivate in `finally`. TC-39.x and TC-40.x use the existing fake ticket source and run routes (spec open question Q3: outcomes only).
 - [ ] **Step 2: Run** with the stack up: `pnpm --filter @agentdesk/web exec playwright test e2e/local/platform-suspend-runs.spec.ts`. Expected: PASS.
 - [ ] **Step 3: Commit**: `test(web): local e2e for runs and webhooks of a suspended organization`.
 

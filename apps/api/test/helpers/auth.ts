@@ -380,3 +380,39 @@ export function memberSearch(
     headers: orgHeaders(cookie, orgId),
   });
 }
+
+/** `POST /api/platform/orgs/:orgId/suspend` as the cookie's user (no x-org-id: a platform route); returns the raw response. */
+export function suspendOrgRoute(
+  t: TestApp,
+  cookie: string,
+  orgId: string,
+  body: Record<string, unknown>,
+): ReturnType<TestApp['app']['inject']> {
+  return t.app.inject({
+    method: 'POST',
+    url: `/api/platform/orgs/${orgId}/suspend`,
+    headers: { cookie },
+    payload: body,
+  });
+}
+
+/** `POST /api/platform/orgs/:orgId/reactivate` as the cookie's user; returns the raw response. */
+export function reactivateOrgRoute(
+  t: TestApp,
+  cookie: string,
+  orgId: string,
+  body: Record<string, unknown>,
+): ReturnType<TestApp['app']['inject']> {
+  return t.app.inject({
+    method: 'POST',
+    url: `/api/platform/orgs/${orgId}/reactivate`,
+    headers: { cookie },
+    payload: body,
+  });
+}
+
+/** Suspends the org through the real route as admin@dev.local; throws unless 200. */
+export async function suspendedOrgApp(t: TestApp, orgId: string, reason = 'Suspended for a test'): Promise<void> {
+  const res = await suspendOrgRoute(t, await asPlatformAdmin(t), orgId, { reason });
+  if (res.statusCode !== 200) throw new Error(`suspendedOrgApp ${orgId} answered ${res.statusCode}: ${res.body}`);
+}

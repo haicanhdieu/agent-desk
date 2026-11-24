@@ -44,6 +44,9 @@ describe('AuditEntryDto projects', () => {
 });
 
 describe('AuditChange', () => {
+  it('accepts the status field', () => {
+    expect(AuditChange.safeParse({ field: 'status', from: 'active', to: 'suspended' }).success).toBe(true);
+  });
   it('rejects a field outside role, name and slug', () => {
     expect(AuditChange.safeParse({ field: 'email', from: 'a', to: 'b' }).success).toBe(false);
   });
@@ -52,7 +55,13 @@ describe('AuditChange', () => {
 describe('AuditAction', () => {
   it('lists the member and org action names', () => {
     expect(AuditAction.options).toEqual(
-      expect.arrayContaining(['member.role_changed', 'member.removed', 'org.updated']),
+      expect.arrayContaining([
+        'member.role_changed',
+        'member.removed',
+        'org.updated',
+        'org.suspended',
+        'org.reactivated',
+      ]),
     );
   });
 });

@@ -14,6 +14,14 @@ describe('redact', () => {
     expect(out).toBe('key *** and *** and ***');
   });
 
+  it('removes GitHub classic and fine-grained tokens, also glued to a word character', () => {
+    for (const prefix of ['ghp_', 'gho_', 'ghu_', 'ghr_']) {
+      expect(redact(`a my_${prefix}${'a'.repeat(36)} b`, [])).toBe('a my_*** b');
+    }
+    expect(redact(`x github_pat_${'B'.repeat(30)} y`, [])).toBe('x *** y');
+    expect(redact('ghp_short is not a token', [])).toBe('ghp_short is not a token');
+  });
+
   it('ignores empty secrets and regex metacharacters in secrets', () => {
     expect(redact('a.b+c', ['', 'a.b+c'])).toBe('***');
     expect(redact('abc', [''])).toBe('abc');
@@ -61,5 +69,28 @@ describe('unfinishedTokenStart', () => {
         expect(unfinishedTokenStart(text), text).toBeLessThanOrEqual(2);
       }
     }
+  });
+});
+
+describe('redact cost', () => {
+  it('stays linear on a long run of access-token prefixes with no @', () => {
+    const text = 'x-access-token:'.repeat(20000);
+    const start = performance.now();
+    expect(redact(text, [])).toBe(text);
+    // Unbounded, this took about 3 s for 300k characters (quadratic); bounded it is a few milliseconds.
+    expect(performance.now() - start).toBeLessThan(1000);
+  });
+
+  it('finds an unfinished token start in linear time on a hostile text', () => {
+    const text = `${'x-access-token:'.repeat(20000)} `;
+    const start = performance.now();
+    expect(unfinishedTokenStart(text)).toBe(text.length);
+    expect(performance.now() - start).toBeLessThan(1000);
+  });
+
+  it('still masks a real access-token URL and a long real token', () => {
+    expect(redact('https://x-access-token:abc123@github.com/a/b.git', [])).toBe('https://***github.com/a/b.git');
+    const tok = `ghp_${'A'.repeat(400)}`;
+    expect(redact(`t ${tok} e`, [])).toBe('t *** e');
   });
 });

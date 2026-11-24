@@ -114,6 +114,28 @@ export function pagedAuditFixtures(n: number): AuditEntryDto[] {
   }));
 }
 
+/** A platform admin suspended the org and later reactivated it: two entries, newest first, no reason (it lives in the platform detail). */
+export function platformSuspendAuditFixtures(): AuditEntryDto[] {
+  const pat = { userId: 'user-platform', name: 'Pat Platform', handle: 'pat' };
+  const org = { type: 'org', id: ids.org.alice, label: 'Harbor Labs' };
+  return [
+    entry(1, {
+      actor: pat,
+      actorKind: 'platform_admin',
+      action: 'org.reactivated',
+      target: org,
+      changes: [{ field: 'status', from: 'suspended', to: 'active' }],
+    }),
+    entry(15, {
+      actor: pat,
+      actorKind: 'platform_admin',
+      action: 'org.suspended',
+      target: org,
+      changes: [{ field: 'status', from: 'active', to: 'suspended' }],
+    }),
+  ];
+}
+
 // Project space (invoicer-api is P): the project Audit log fixtures. Invitation rows carry the listed projects the viewer can see.
 const P = ids.project.invoicerApi;
 const proj = (id: string, name: string) => ({ id, name });

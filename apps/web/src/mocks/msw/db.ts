@@ -6,6 +6,7 @@ import type {
   InvitationDto,
   MemberDto,
   OrgChecklistDto,
+  OrgStatus,
   ProjectMemberDto,
   ProjectConnectionDto,
   PluginsDto,
@@ -76,6 +77,8 @@ export interface MockOrg {
   logo: string | null;
   metadata: string | null;
   createdAt: string;
+  /** Absent means active. A suspended org refuses its members (handlers.ts); `setPlatformOrgStatus` keeps it in step. */
+  status?: OrgStatus;
 }
 
 export interface MockAuth {

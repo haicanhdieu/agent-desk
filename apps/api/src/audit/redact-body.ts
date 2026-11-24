@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import { redact as maskTokens } from '@agentdesk/core';
 
 const SECRET_KEY = /token|secret|password|credential|authorization|api[-_]?key|private[-_]?key/i;
 
@@ -48,5 +49,5 @@ function redact(v: unknown): unknown {
     }
     return out;
   }
-  return v;
+  return typeof v === 'string' ? maskTokens(v, []) : v;
 }

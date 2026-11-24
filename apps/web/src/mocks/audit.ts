@@ -221,3 +221,15 @@ export const pagedAuditLastPage: AuditRowView[] = [
     said([p('Morgan Avery', true), p(' invited '), p('kim.hale@harborlabs.dev', true), p(' as Owner')]),
   ),
 ];
+
+/** The approved OrgAuditPlatformSuspend board: a platform admin suspended and reactivated the org; no reason is shown. */
+export const platformSuspendAuditRows: AuditRowView[] = [
+  sentence(1, '1 min ago', [p('Morgan Avery', true), p(' reactivated the organization')], {
+    label: 'Morgan Avery',
+    tag: 'platform',
+  }),
+  sentence(15, '15 min ago', [p('Morgan Avery', true), p(' suspended the organization')], {
+    label: 'Morgan Avery',
+    tag: 'platform',
+  }),
+];

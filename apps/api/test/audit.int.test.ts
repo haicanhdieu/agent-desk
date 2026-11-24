@@ -14,14 +14,17 @@ import {
   inviteAndLogin,
   invite,
   grant,
+  asPlatformAdmin,
   loginAs,
   auditList,
   projectAudit,
+  reactivateOrgRoute,
   removeMember,
   removeProjectMember,
   revoke,
   roleIdsOf,
   setProjectRole,
+  suspendOrgRoute,
   updateOrg,
   userIdOf,
 } from './helpers/auth';
@@ -712,5 +715,37 @@ describe('projects.audit', () => {
       (e) => e.action === 'assignment.granted' && e.target.id === f.ids.c,
     );
     expect(kept).toBeDefined();
+  });
+});
+
+describe('platform suspension in the tenant audit (BR-43)', () => {
+  it('the owner reads both rows after a reactivation, tagged platform_admin, with a status change and no reason', async () => {
+    const f = await buildCast('au-susp');
+    const admin = await asPlatformAdmin(t);
+    const reasonA = 'unpaid-invoice-REASON-A';
+    const reasonB = 'paid-up-REASON-B';
+    expect((await suspendOrgRoute(t, admin, f.orgId, { reason: reasonA })).statusCode).toBe(200);
+    expect((await reactivateOrgRoute(t, admin, f.orgId, { reason: reasonB })).statusCode).toBe(200);
+    const res = await auditList(t, f.o, f.orgId, { pageSize: 100 });
+    expect(res.statusCode, res.body).toBe(200);
+    const page = expectContract('audit.list', res) as Page<AuditEntryDto>;
+    const susp = page.items.find((e) => e.action === 'org.suspended');
+    const react = page.items.find((e) => e.action === 'org.reactivated');
+    expect(susp?.actorKind).toBe('platform_admin');
+    expect(susp?.changes).toEqual([{ field: 'status', from: 'active', to: 'suspended' }]);
+    expect(react?.actorKind).toBe('platform_admin');
+    expect(react?.changes).toEqual([{ field: 'status', from: 'suspended', to: 'active' }]);
+    expect(res.body).not.toContain('REASON');
+  });
+
+  it('writes no row for a repeat', async () => {
+    const f = await buildCast('au-susp2');
+    const admin = await asPlatformAdmin(t);
+    expect((await suspendOrgRoute(t, admin, f.orgId, { reason: 'one' })).statusCode).toBe(200);
+    expect((await suspendOrgRoute(t, admin, f.orgId, { reason: 'two' })).statusCode).toBe(200);
+    expect((await reactivateOrgRoute(t, admin, f.orgId, { reason: 'back' })).statusCode).toBe(200);
+    const page = await entries(f.orgId, f.o);
+    expect(page.items.filter((e) => e.action === 'org.suspended')).toHaveLength(1);
+    expect(page.items.filter((e) => e.action === 'org.reactivated')).toHaveLength(1);
   });
 });

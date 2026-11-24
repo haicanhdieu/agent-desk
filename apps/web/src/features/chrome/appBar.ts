@@ -2,7 +2,7 @@ import { can, type Access } from '@agentdesk/contracts';
 import { useQuery, useSuspenseQuery } from '@tanstack/react-query';
 import type { OrgSwitchProps } from '@/components';
 import type { Actor, OrgSettingsTabKey } from '@/mocks/types';
-import { canInvite, orgAccessQuery, sessionAccessQuery, toAccess } from '../access/queries';
+import { canInvite, orgAccessQuery, platformAdminQuery, sessionAccessQuery, toAccess } from '../access/queries';
 import { orgsQuery, sessionQuery } from '../auth/session';
 import { toOrgSwitch } from '../orgs/orgSwitch';
 
@@ -50,9 +50,11 @@ export function useAppBar(orgSlug: string | null): AppBarData {
   const orgAccess = useQuery({ ...orgAccessQuery(orgSlug ?? ''), enabled: orgSlug !== null });
   const sessionAccess = useQuery({ ...sessionAccessQuery, enabled: orgSlug === null });
   const accessDto = (orgSlug === null ? sessionAccess : orgAccess).data;
+  // The platform-admin flag has its own query: the access one is refused for a suspended org. A failure hides the item.
+  const platformAdmin = useQuery(platformAdminQuery).data?.platformAdmin ?? false;
 
   const slug = orgSlug ?? orgs.find((o) => o.id === session?.activeOrganizationId)?.slug ?? null;
-  const switchData = toOrgSwitch(orgs, slug, accessDto?.platformAdmin ?? false);
+  const switchData = toOrgSwitch(orgs, slug, platformAdmin);
   const base = slug === null ? undefined : `/o/${encodeURIComponent(slug)}`;
   const showSettings = base !== undefined && accessDto !== undefined && canOpenSettings(toAccess(accessDto));
   const handle = session?.user.handle ?? '';
@@ -63,6 +65,7 @@ export function useAppBar(orgSlug: string | null): AppBarData {
       ...switchData,
       orgHref: (o) => `/o/${encodeURIComponent(o.slug)}/projects`,
       createHref: '/orgs/new',
+      ...(platformAdmin && { platformHref: '/platform' }),
       ...(base !== undefined && { projectsHref: `${base}/projects` }),
       ...(showSettings && { settingsHref: `${base}/settings` }),
     },

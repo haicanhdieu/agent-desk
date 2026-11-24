@@ -1,14 +1,17 @@
 import { platformAuditLog, type Tx } from '@agentdesk/db';
+import type { PlatformAuditAction } from '@agentdesk/contracts';
 import { redactBody } from './redact-body';
 
-export type PlatformAuditAction = 'platform_admin.granted' | 'platform_admin.revoked';
+export type { PlatformAuditAction } from '@agentdesk/contracts';
 
 export interface PlatformAuditEntry {
   actorUserId: string;
   action: PlatformAuditAction;
-  targetType: 'platform_admin';
+  targetType: 'platform_admin' | 'org' | 'assignment' | 'invitation';
   targetId: string;
-  payload: { email: string; userId: string | null };
+  /** The organization the row is about (suspend, reactivate); left out for rows that target no org. */
+  targetOrgId?: string;
+  payload: Record<string, unknown>;
 }
 
 /** The platform_audit_log row; payload = redactBody(payload). */
@@ -18,6 +21,7 @@ export function buildPlatformAuditRow(entry: PlatformAuditEntry): typeof platfor
     action: entry.action,
     targetType: entry.targetType,
     targetId: entry.targetId,
+    ...(entry.targetOrgId === undefined ? {} : { targetOrgId: entry.targetOrgId }),
     payload: redactBody(entry.payload),
   };
 }

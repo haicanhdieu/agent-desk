@@ -1762,3 +1762,192 @@ describe('audit project backfill migration (0039) on an upgraded database (N-BAC
     });
   });
 });
+
+describe('organization status and the runs index on an upgraded database (migrations 0040 and 0041)', () => {
+  let old: Awaited<ReturnType<typeof startPgAt>>;
+  const orgA = randomUUID();
+  const orgB = randomUUID();
+
+  const owner = async <T extends pg.QueryResultRow>(sql: string, params: unknown[] = []): Promise<T[]> =>
+    query<T>(old.ownerUrl, sql, params);
+
+  beforeAll(async () => {
+    old = await startPgAt('0039_backfill_audit_project_ids');
+    for (const id of [orgA, orgB]) {
+      await owner(`insert into organization (id, name, slug, created_at) values ($1, $1, $1, now())`, [id]);
+    }
+    await old.migrateRest();
+  }, 180_000);
+
+  afterAll(async () => {
+    await old?.stop();
+  });
+
+  it('reads existing organizations as active with no suspended_at', async () => {
+    const rows = await owner<{ id: string; status: string; suspended_at: Date | null }>(
+      'select id, status, suspended_at from organization where id = any($1) order by id',
+      [[orgA, orgB]],
+    );
+    expect(rows).toHaveLength(2);
+    for (const r of rows) {
+      expect(r.status).toBe('active');
+      expect(r.suspended_at).toBeNull();
+    }
+  });
+
+  it('rejects an unknown status on organization_status_check', async () => {
+    await expect(owner(`update organization set status = 'paused' where id = $1`, [orgA])).rejects.toMatchObject({
+      code: '23514',
+      constraint: 'organization_status_check',
+    });
+  });
+
+  it('rejects suspended without a time on organization_suspended_at_check', async () => {
+    await expect(owner(`update organization set status = 'suspended' where id = $1`, [orgA])).rejects.toMatchObject({
+      code: '23514',
+      constraint: 'organization_suspended_at_check',
+    });
+  });
+
+  it('rejects active with a time on organization_suspended_at_check', async () => {
+    await expect(owner(`update organization set suspended_at = now() where id = $1`, [orgA])).rejects.toMatchObject({
+      code: '23514',
+      constraint: 'organization_suspended_at_check',
+    });
+  });
+
+  it('accepts suspended with a time', async () => {
+    await owner(`update organization set status = 'suspended', suspended_at = now() where id = $1`, [orgB]);
+    const rows = await owner<{ status: string }>('select status from organization where id = $1', [orgB]);
+    expect(rows[0]?.status).toBe('suspended');
+  });
+
+  it('indexes runs by (org_id, queued_at)', async () => {
+    const rows = await owner<{ col: string }>(
+      `select a.attname as col from pg_index i
+       join pg_class c on c.oid = i.indexrelid
+       join pg_attribute a on a.attrelid = i.indrelid and a.attnum = any(i.indkey)
+       where c.relname = 'runs_org_queued_idx'
+       order by array_position(i.indkey::int2[], a.attnum)`,
+    );
+    expect(rows.map((r) => r.col)).toEqual(['org_id', 'queued_at']);
+  });
+});
+
+describe('platform_org_stats definer function (migration 0042)', () => {
+  const owner = (sql: string, params: unknown[] = []) => query<Record<string, unknown>>(env.ownerUrl, sql, params);
+
+  it('is security definer, owned by agentdesk_owner, with a pinned search_path', async () => {
+    expect(
+      await owner(
+        `select prosecdef, proconfig, pg_get_userbyid(proowner) as owner from pg_proc where proname = 'platform_org_stats'`,
+      ),
+    ).toEqual([{ prosecdef: true, proconfig: ['search_path=public, pg_temp'], owner: 'agentdesk_owner' }]);
+  });
+
+  it('is executable by the app role and not by PUBLIC', async () => {
+    expect(
+      await owner(
+        `select has_function_privilege('public', 'platform_org_stats(uuid[])', 'EXECUTE') as public_exec,
+                has_function_privilege('agentdesk_app', 'platform_org_stats(uuid[])', 'EXECUTE') as app_exec`,
+      ),
+    ).toEqual([{ public_exec: false, app_exec: true }]);
+    const grants = await owner(
+      `select grantee from information_schema.routine_privileges
+       where routine_name = 'platform_org_stats' and privilege_type = 'EXECUTE' order by 1`,
+    );
+    expect(grants.map((g) => g.grantee)).toEqual(['agentdesk_app', 'agentdesk_owner']);
+  });
+
+  it('adds two narrow read policies for agentdesk_owner', async () => {
+    const rows = await owner(
+      `select tablename, policyname, cmd, roles::text as roles, qual from pg_policies
+       where policyname = 'platform_stats_read' order by tablename`,
+    );
+    expect(rows).toEqual([
+      {
+        tablename: 'role_assignments',
+        policyname: 'platform_stats_read',
+        cmd: 'SELECT',
+        roles: '{agentdesk_owner}',
+        qual: expect.stringMatching(/scope_type = 'org'::text\)? AND \(?role_id IN .*roles.*key = 'owner'::text/s),
+      },
+      {
+        tablename: 'roles',
+        policyname: 'platform_stats_read',
+        cmd: 'SELECT',
+        roles: '{agentdesk_owner}',
+        qual: "(key = 'owner'::text)",
+      },
+    ]);
+  });
+
+  it('leaves the app role without org context seeing no role or assignment rows', async () => {
+    for (const table of ['role_assignments', 'roles']) {
+      expect(await query<{ n: number }>(env.appUrl, `select count(*)::int as n from ${table}`)).toEqual([{ n: 0 }]);
+    }
+  });
+});
+
+describe('platform_audit_log.target_org_id on an upgraded database (migration 0043)', () => {
+  let old: Awaited<ReturnType<typeof startPgAt>>;
+
+  const owner = async <T extends pg.QueryResultRow>(sql: string, params: unknown[] = []): Promise<T[]> =>
+    query<T>(old.ownerUrl, sql, params);
+  const priv = async (p: string): Promise<boolean> =>
+    (
+      await owner<{ ok: boolean }>("select has_table_privilege('agentdesk_app', 'platform_audit_log', $1) as ok", [p])
+    )[0]?.ok === true;
+
+  beforeAll(async () => {
+    old = await startPgAt('0042_platform_org_stats');
+    for (const action of ['platform_admin.granted', 'platform_admin.revoked']) {
+      await owner(
+        `insert into platform_audit_log (actor_user_id, action, target_type, target_id) values ('u-1', $1, 'platform_admin', 'x@x.io')`,
+        [action],
+      );
+    }
+    await old.migrateRest();
+  }, 180_000);
+
+  afterAll(async () => {
+    await old?.stop();
+  });
+
+  it('keeps existing audit rows with a null target_org_id', async () => {
+    const rows = await owner<{ target_org_id: string | null }>('select target_org_id from platform_audit_log');
+    expect(rows).toHaveLength(2);
+    expect(rows.every((r) => r.target_org_id === null)).toBe(true);
+  });
+
+  it('adds a nullable uuid target_org_id column', async () => {
+    expect(
+      await owner(
+        `select data_type, is_nullable from information_schema.columns
+         where table_name = 'platform_audit_log' and column_name = 'target_org_id'`,
+      ),
+    ).toEqual([{ data_type: 'uuid', is_nullable: 'YES' }]);
+  });
+
+  it('indexes platform_audit_log by (target_org_id, created_at, id)', async () => {
+    const rows = await owner<{ col: string }>(
+      `select a.attname as col from pg_index i
+       join pg_class c on c.oid = i.indexrelid
+       join pg_attribute a on a.attrelid = i.indrelid and a.attnum = any(i.indkey)
+       where c.relname = 'platform_audit_log_target_org_idx'
+       order by array_position(i.indkey::int2[], a.attnum)`,
+    );
+    expect(rows.map((r) => r.col)).toEqual(['target_org_id', 'created_at', 'id']);
+  });
+
+  it('leaves the app role with SELECT and INSERT only, and no RLS', async () => {
+    expect(await priv('SELECT')).toBe(true);
+    expect(await priv('INSERT')).toBe(true);
+    expect(await priv('UPDATE')).toBe(false);
+    expect(await priv('DELETE')).toBe(false);
+    const rls = await owner<{ relrowsecurity: boolean }>(
+      `select relrowsecurity from pg_class where relname = 'platform_audit_log'`,
+    );
+    expect(rls).toEqual([{ relrowsecurity: false }]);
+  });
+});

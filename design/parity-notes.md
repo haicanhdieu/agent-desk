@@ -338,6 +338,80 @@ Spec: `docs/superpowers/specs/2026-11-22-org-tenant-admin-design.md` (UI and Sto
 - Storybook and `parity.mjs` were not run in the runner pod (no Chromium). The 6 pixel pairs are unchecked: none is claimed
   to match.
 
+## Platform admin: Platform admins boards
+
+Spec: `docs/superpowers/specs/2026-11-23-platform-admin-dashboard-design.md` (UI and Storybook). Sixteen boards added, so
+`parity.mjs` finds 205: PlatformAdmins, PlatformAdminsLoading, PlatformAdminsEmpty, PlatformAdminsError, PlatformAdminsForbidden,
+PlatformAdminsPaged, PlatformAdminsAdd, PlatformAdminsAddError, PlatformAdminsAddFieldErrors, PlatformAdminsAddSaving,
+PlatformAdminsRevokeConfirm, PlatformAdminsRevokeSelf, PlatformAdminsRevoking, PlatformAdminsLastAdmin (`Screens/Platform`),
+ProjectsOrgSwitchAdminPlatform (`Screens/Entry`) and MyInvitationsEmptyPlatformAdminMenu (`Screens/Invitations`). The boards
+were missing from `canvas.json`; their entries (and order) are added after the Audit log boards.
+
+- Rows: the stories use the shared fixtures (`platformAdminRows`), so names and emails differ from the boards' sample people;
+  the columns, the "Not signed in yet" chip, the "You" chip and the dash cells are the shared `PlatformAdminRow`.
+- Paged: page 2 of 2 shows rows 21 to 25 of 25 from the fixture, where the board shows 21 to 23 of 23.
+- Empty, loading and error: `EmptyState` h2 "No platform admins" (the board draws an h3), a labelled busy status of `Skeleton`
+  blocks with no h1, the shared `RouteLoadError`.
+- Forbidden: the bar stays, the side menu is dropped; "Go to projects" is the shared link `Button`.
+- Dialogs: the shared `AddPlatformAdminDialog`, and an inline revoke confirm built on the design-system `Dialog` (480px).
+- Switcher boards: the open menu shows "Platform admin" above "Create organization" through `OrgSwitch`'s `platformHref`.
+- Storybook and `parity.mjs` were not run in the runner pod (no Chromium). The 16 pixel pairs are unchecked: none is claimed
+  to match. The interactive prototype (`_tools/build-boards.mjs`) was regenerated and came out unchanged: it already had these boards.
+
+## Platform admin: Organizations directory boards
+
+Spec: `docs/superpowers/specs/2026-11-23-platform-admin-dashboard-design.md` (UI and Storybook). Six boards added, so
+`parity.mjs` finds 211: PlatformOrgs, PlatformOrgsLoading, PlatformOrgsEmpty, PlatformOrgsEmptyFiltered, PlatformOrgsError and
+PlatformOrgsPaged (`Screens/Platform`). The boards were missing from `canvas.json`; their entries (and order) are added after
+the Platform admins boards.
+
+- Rows: the stories use the shared fixtures (`platformOrgRows`), so names and owners differ from the boards' sample orgs; the
+  columns, the status chip and the "No owner yet" and "No activity yet" cells are the shared `PlatformOrgRow`.
+- Filters: a labelled search box (100 characters) and a status select, shared `TextInput` and `Select`; hidden when the list
+  is empty and nothing is filtered, as on the Empty board.
+- Empty filtered: "No organizations match" with "Clear filters" as an `EmptyState` h2; the board also keeps the empty table
+  header above it, the story does not.
+- The table sits in a focusable region that scrolls sideways inside `main` (minimum width 960px).
+- Loading and error: a labelled busy status of `Skeleton` blocks with no h1, the shared `RouteLoadError`.
+- Storybook and `parity.mjs` were not run in the runner pod (no Chromium). The 6 pixel pairs are unchecked: none is claimed
+  to match. The interactive prototype (`_tools/build-boards.mjs`) was regenerated and came out unchanged: it already had these boards.
+
+## Platform admin: org detail Overview, suspend and reactivate boards
+
+Spec: `docs/superpowers/specs/2026-11-23-platform-admin-dashboard-design.md` (UI and Storybook). Ten boards added, so
+`parity.mjs` finds 221: PlatformOrgOverview, PlatformOrgOverviewLoading, PlatformOrgOverviewError, PlatformOrgOverviewNotFound,
+PlatformOrgOverviewSuspended, PlatformOrgOverviewSuspendDialog, PlatformOrgOverviewSuspendError, PlatformOrgOverviewSuspendFormError,
+PlatformOrgOverviewSuspendSaving and PlatformOrgOverviewReactivateDialog (`Screens/Platform`). The boards were missing from
+`canvas.json`; their entries (and order) are added after the Directory boards.
+
+- Content: the stories use the shared fixtures (`activeOrgOverview`, `suspendedOrgOverview`), so the org and people names differ
+  from the boards' samples. The side menu shows the org group with Overview only (the other tabs land with their own tasks).
+- Header: `PlatformOrgHeader` without the Edit organization button; actions are Suspend or Reactivate organization, then the
+  View audit log link. The dialogs are the shared `SuspendOrgDialog` with the spec text.
+- Suspended: a warning `Banner` with a triangle icon, "Since <date> by <name>. People cannot open it and no new runs start."
+  and "Reason: <text>" (text only).
+- Not found: an `EmptyState` h2 "Page not found" with "Back to organizations"; loading and error use a busy status of `Skeleton`
+  blocks and the shared `RouteLoadError`.
+- Storybook and `parity.mjs` were not run in the runner pod (no Chromium). The 10 pixel pairs are unchecked: none is claimed
+  to match. The interactive prototype (`_tools/build-boards.mjs`) was regenerated and came out unchanged: it already had these boards.
+
+## Platform admin: suspended organization boards
+
+Spec: `docs/superpowers/specs/2026-11-23-platform-admin-dashboard-design.md` (UI and Storybook). Four boards added, so
+`parity.mjs` finds 225: OrgSuspended, OrgSuspendedSwitcher, OrgSuspendedPlatformAdmin (`Screens/Entry`) and
+OrgAuditPlatformSuspend (`Screens/OrgSettings`). The boards were missing from `canvas.json`; their entries are added after the
+Org detail boards.
+
+- OrgSuspended: top bar with the org name in the switcher and no Projects or Settings tabs, then the fixed title "This
+  organization is suspended" and body "You can't open <org> right now. Contact your Agent Desk administrator." No reason, no links.
+  The screen takes only `orgName`; the top bar is composed by the story (and later by the route).
+- OrgSuspendedSwitcher / OrgSuspendedPlatformAdmin: the switcher is opened by a play step; the suspended org is marked
+  "Suspended" and still listed; for the platform admin the menu shows "Platform admin" above "Create organization".
+- OrgAuditPlatformSuspend: the shared `OrgAudit` screen with two rows from `platformSuspendAuditRows`, actor tagged
+  "Platform admin": "<actor> reactivated the organization" and "<actor> suspended the organization"; no reason text.
+- Storybook and `parity.mjs` were not run in the runner pod (no Chromium). The 4 pixel pairs are unchecked: none is claimed
+  to match. The interactive prototype (`_tools/build-boards.mjs`) was regenerated and came out unchanged: it already had these boards.
+
 ## Project admin space: Desk side menu and DeskAgentProjectAdmin
 
 Spec: `docs/superpowers/specs/2026-11-23-rbac-project-admin-space-design.md` (UI and Storybook). One board added, so

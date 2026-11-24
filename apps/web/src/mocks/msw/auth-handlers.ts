@@ -1,4 +1,5 @@
 import { HttpResponse, http, type HttpHandler } from 'msw';
+import { OrgStatus } from '@agentdesk/contracts';
 import { z } from 'zod';
 import { mockDb } from './db';
 
@@ -42,6 +43,8 @@ export const AuthOrganization = z.object({
   logo: z.string().nullable(),
   metadata: z.string().nullable(),
   createdAt: Iso,
+  // The org list carries the status so the switcher can mark a suspended org (the reason never rides here).
+  status: OrgStatus.default('active'),
 });
 
 const AuthError = z.object({ code: z.string(), message: z.string() });

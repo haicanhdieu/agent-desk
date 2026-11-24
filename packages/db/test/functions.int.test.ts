@@ -6,6 +6,7 @@ import {
   listenRunStatus,
   notifyRunStatus,
   pendingInvitationsForEmail,
+  platformOrgStats,
   queuedRunsWithoutWorkflow,
   resolveProject,
   withOrg,
@@ -368,5 +369,127 @@ describe('invitationOrgForEmail', () => {
 
   it('pendingInvitationsForEmail omits declined rows', async () => {
     expect(await pendingInvitationsForEmail(db, 'lookup-declined@x.io')).toEqual([]);
+  });
+});
+
+describe('platformOrgStats', () => {
+  const BARE = '33333333-3333-4333-8333-333333333333';
+  const earlyUser = 'u-early-owner';
+
+  async function ownerRun(orgId: string | null, stmt: string, params: unknown[] = []): Promise<pg.QueryResult> {
+    const client = new pg.Client({ connectionString: pgx.ownerUrl });
+    await client.connect();
+    try {
+      await client.query('begin');
+      if (orgId) await client.query(`select set_config('app.org_id', $1, true)`, [orgId]);
+      const r = await client.query(stmt, params);
+      await client.query('commit');
+      return r;
+    } finally {
+      await client.end();
+    }
+  }
+
+  beforeAll(async () => {
+    for (const id of [ORG_A, ORG_B, BARE]) {
+      await ownerRun(
+        null,
+        `insert into organization (id, name, slug, created_at) values ($1, $1, $1, now()) on conflict do nothing`,
+        [id],
+      );
+    }
+    await seedRun(pgx.ownerUrl, a, { ageSeconds: 7200, workflowId: null, ticketRef: '#stats-old' });
+    const newest = await seedRun(pgx.ownerUrl, a, { ageSeconds: 60, workflowId: null, ticketRef: '#stats-new' });
+    const q = await ownerRun(ORG_A, 'select queued_at from runs where id = $1', [newest]);
+    expect(q.rows[0].queued_at).toBeInstanceOf(Date);
+    await ownerRun(
+      null,
+      `insert into "user" (id, name, email, handle) values ($1, 'early', 'early@x.io', $1) on conflict do nothing`,
+      [earlyUser],
+    );
+    await ownerRun(
+      ORG_A,
+      `insert into role_assignments (org_id, user_id, role_id, scope_type, granted_by, granted_at)
+       values ($1, $2, $3, 'org', $2, now() - interval '1 day')`,
+      [ORG_A, earlyUser, a.ownerRoleId],
+    );
+  });
+
+  it('returns project counts, the latest run queue time and the earliest org owner per org', async () => {
+    const rows = await platformOrgStats(db, [ORG_A, ORG_B]);
+    const byOrg = new Map(rows.map((r) => [r.orgId, r]));
+    expect(rows).toHaveLength(2);
+    // Expected values come from owner queries, since earlier tests in this file add projects and runs.
+    for (const [org, owner] of [
+      [ORG_A, earlyUser],
+      [ORG_B, b.userId],
+    ] as const) {
+      const p = await ownerRun(org, 'select count(*)::int as n from projects where org_id = $1', [org]);
+      const r = await ownerRun(org, 'select max(queued_at) as m from runs where org_id = $1', [org]);
+      expect(byOrg.get(org)).toEqual({
+        orgId: org,
+        projectCount: p.rows[0].n,
+        lastActivityAt: r.rows[0].m,
+        ownerUserId: owner,
+      });
+    }
+    expect(byOrg.get(ORG_A)?.projectCount).toBeGreaterThanOrEqual(2);
+  });
+
+  it('ignores earlier non-owner org assignments and earlier project-scope owner assignments', async () => {
+    const ORG_C = '44444444-4444-4444-8444-444444444444';
+    await ownerRun(
+      null,
+      `insert into organization (id, name, slug, created_at) values ($1, $1, $1, now()) on conflict do nothing`,
+      [ORG_C],
+    );
+    const c = await seedOrg(pgx.ownerUrl, ORG_C, { externalId: 'acct-3', repoPath: 'dev/third' });
+    for (const id of ['u-c-member', 'u-c-proj-owner']) {
+      await ownerRun(
+        null,
+        `insert into "user" (id, name, email, handle) values ($1, $1, $1 || '@x.io', $1) on conflict do nothing`,
+        [id],
+      );
+    }
+    const memberRole = await ownerRun(ORG_C, `select id from roles where org_id = $1 and key = 'member'`, [ORG_C]);
+    // A non-owner role at org scope, granted before the owner, and an owner role at project scope, also earlier.
+    await ownerRun(
+      ORG_C,
+      `insert into role_assignments (org_id, user_id, role_id, scope_type, granted_by, granted_at)
+       values ($1, 'u-c-member', $2, 'org', 'u-c-member', now() - interval '3 days')`,
+      [ORG_C, memberRole.rows[0].id],
+    );
+    await ownerRun(
+      ORG_C,
+      `insert into role_assignments (org_id, user_id, role_id, scope_type, project_id, granted_by, granted_at)
+       values ($1, 'u-c-proj-owner', $2, 'project', $3, 'u-c-proj-owner', now() - interval '2 days')`,
+      [ORG_C, c.ownerRoleId, c.secondProjectId],
+    );
+    const rows = await platformOrgStats(db, [ORG_C]);
+    expect(rows.map((r) => r.ownerUserId)).toEqual([c.userId]);
+  });
+
+  it('gives a bare org zero projects, no activity and no owner', async () => {
+    expect(await platformOrgStats(db, [BARE])).toEqual([
+      { orgId: BARE, projectCount: 0, lastActivityAt: null, ownerUserId: null },
+    ]);
+  });
+
+  it('returns no rows for an empty array and for an unknown id', async () => {
+    expect(await platformOrgStats(db, [])).toEqual([]);
+    expect(await platformOrgStats(db, ['8f1f2d54-0000-4000-8000-000000000000'])).toEqual([]);
+  });
+
+  it('raises for more than 100 ids, in the wrapper and in the function itself', async () => {
+    const ids = Array.from({ length: 101 }, (_, i) => `00000000-0000-4000-8000-${String(i).padStart(12, '0')}`);
+    await expect(platformOrgStats(db, ids)).rejects.toThrow(/100/);
+    await expect(db.pool.query('select * from platform_org_stats($1::uuid[])', [ids])).rejects.toThrow(/100/);
+    expect(await platformOrgStats(db, ids.slice(0, 100))).toEqual([]);
+  });
+
+  it('returns exactly the four columns and no ticket, run or comment text', async () => {
+    const r = await db.pool.query('select * from platform_org_stats($1::uuid[])', [[ORG_A]]);
+    expect(r.fields.map((f) => f.name)).toEqual(['org_id', 'project_count', 'last_activity_at', 'owner_user_id']);
+    expect(JSON.stringify(r.rows)).not.toMatch(/#stats|fix|hello|echo hi/);
   });
 });

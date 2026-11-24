@@ -8,10 +8,12 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { and, eq, inArray } from 'drizzle-orm';
-import { account, connections, member, organization, pollCursors, projects, withOrg, type Db } from '@agentdesk/db';
+import { account, connections, organization, pollCursors, projects, withOrg, type Db } from '@agentdesk/db';
 import { Provider, can, type ConnectionDto, type InstallResponse, type RepoDto } from '@agentdesk/contracts';
 import { loadAccess, type AdapterRegistry, type NewConnection } from '@agentdesk/core';
+import { orgMembership } from '../access/check-access';
 import { ADAPTER_REGISTRY } from '../adapters/adapter-registry.module';
+import { OrgSuspendedException } from '../common/org-suspended';
 import { isUniqueViolation } from '../common/pg-errors';
 import { CONFIG, type Config } from '../config/config.module';
 import { DB } from '../db/db.module';
@@ -69,12 +71,14 @@ export class ConnectionsService {
     if (!identity) throw new BadRequestException('Invalid or expired install state');
     if (identity.userId !== sessionUserId) throw new ForbiddenException('Install state belongs to another user');
     const { orgId, userId } = identity;
-    const membership = await this.db.orm
-      .select({ role: member.role })
-      .from(member)
-      .where(and(eq(member.organizationId, orgId), eq(member.userId, userId)))
-      .limit(1);
-    if (!membership[0]) throw new ForbiddenException('Not a member of the organization');
+    // The state's org is not the guard's pinned (session) org, so the guard's membership and org-active checks do not
+    // cover it: decide both here. A non-member keeps the plain 403 and never learns the org's status.
+    const membership = await orgMembership(this.db, { userId, orgId });
+    if (membership === 'none') throw new ForbiddenException('Not a member of the organization');
+    if (membership === 'suspended') {
+      this.logger.log(`org suspended orgId=${orgId} userId=${userId} routeKey=connections.callback`);
+      throw new OrgSuspendedException();
+    }
     // The state was minted earlier, possibly for another org than the session's active one, and the user's grants may
     // have changed since: re-check connection:create at org scope now, under the state's org. Fails closed.
     const access = await withOrg(this.db, orgId, (tx) => loadAccess(tx, userId));

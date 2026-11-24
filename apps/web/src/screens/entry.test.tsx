@@ -6,6 +6,7 @@ import { checklistSteps, orgSwitchFixtures, projects, user } from '@/mocks';
 import { SignIn, SignInNoInvitationError } from './SignIn';
 import { ProjectsEmpty } from './ProjectsEmpty';
 import { Projects } from './Projects';
+import { OrgSuspended } from './OrgSuspended';
 
 describe('SignIn', () => {
   it('links "Sign in with GitHub" to signInHref', () => {
@@ -313,5 +314,18 @@ describe('org bar on Projects and ProjectsEmpty', () => {
     const nav = screen.getByRole('navigation', { name: 'Main' });
     expect(within(nav).getByRole('link', { name: /Projects/ })).toHaveAttribute('aria-current', 'page');
     expect(within(nav).queryByRole('link', { name: /Settings/ })).not.toBeInTheDocument();
+  });
+});
+
+describe('OrgSuspended', () => {
+  it('shows the fixed title and body with the org name, and no reason', () => {
+    render(<OrgSuspended orgName="Harbor Labs" />);
+    expect(screen.getAllByRole('main')).toHaveLength(1);
+    expect(screen.getByRole('heading', { level: 1, name: 'This organization is suspended' })).toBeInTheDocument();
+    expect(
+      screen.getByText("You can't open Harbor Labs right now. Contact your Agent Desk administrator."),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/reason/i)).not.toBeInTheDocument();
+    expect(screen.queryByRole('link')).not.toBeInTheDocument();
   });
 });

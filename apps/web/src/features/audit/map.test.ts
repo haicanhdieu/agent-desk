@@ -239,6 +239,32 @@ describe('toAuditRow: what, raw rows (TC-20.7)', () => {
   });
 });
 
+describe('toAuditRow: platform suspend and reactivate (BR-43)', () => {
+  const PLATFORM = { userId: 'u-ada', name: 'Ada Admin', handle: 'ada' };
+  it.each([
+    ['org.suspended', ' suspended the organization'],
+    ['org.reactivated', ' reactivated the organization'],
+  ] as const)('%s reads "<actor>%s" with the Platform admin tag and no reason', (action, tail) => {
+    const row = toAuditRow(
+      entry({
+        action,
+        actor: PLATFORM,
+        actorKind: 'platform_admin',
+        changes: [{ field: 'status', from: 'active', to: 'suspended' }],
+      }),
+      NOW,
+      TZ,
+    );
+    expect(row.who.tag).toBe('platform');
+    const what = sentence(row);
+    expect(what.title).toBe(`Ada Admin${tail}`);
+    expect(what.parts).toEqual([
+      { text: 'Ada Admin', strong: true },
+      { text: tail, strong: false },
+    ]);
+  });
+});
+
 const proj = (name: string, n = 1) => ({ id: `b6000000-0000-4000-8000-${String(n).padStart(12, '0')}`, name });
 const named = (...names: string[]) => names.map((name, i) => proj(name, i + 1));
 const text = (row: ReturnType<typeof toAuditRow>) =>

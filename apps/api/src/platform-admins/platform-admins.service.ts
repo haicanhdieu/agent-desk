@@ -28,6 +28,7 @@ const columns = {
   userId: account.id,
   name: account.name,
   handle: account.handle,
+  verified: account.emailVerified,
   granterName: granter.name,
   granterHandle: granter.handle,
   granterId: granter.id,
@@ -40,12 +41,22 @@ type Row = {
   userId: string | null;
   name: string | null;
   handle: string | null;
+  verified: boolean | null;
   granterName: string | null;
   granterHandle: string | null;
   granterId: string | null;
 };
 
-function toDto(r: Row): PlatformAdminDto {
+/** Entries backed by a verified account: the ones that can sign in as a platform admin. */
+async function countWorking(tx: Db['orm'] | Tx): Promise<number> {
+  const [working] = await tx
+    .select({ n: sql<number>`count(*)::int` })
+    .from(platformAdmins)
+    .innerJoin(user, and(sql`lower(${user.email}) = ${platformAdmins.email}`, eq(user.emailVerified, true)));
+  return working?.n ?? 0;
+}
+
+function toDto(r: Row, workingCount: number): PlatformAdminDto {
   return {
     id: r.id,
     email: r.email,
@@ -54,6 +65,7 @@ function toDto(r: Row): PlatformAdminDto {
     handle: r.handle,
     grantedAt: r.grantedAt.toISOString(),
     grantedBy: r.granterId === null ? null : toInviterDto({ name: r.granterName ?? '', handle: r.granterHandle }),
+    lastWorkingAdmin: r.verified === true && workingCount === 1,
   };
 }
 
@@ -67,7 +79,7 @@ export async function findPlatformAdmin(tx: Db['orm'] | Tx, id: string): Promise
     .where(eq(platformAdmins.id, id))
     .limit(1);
   const row = rows[0];
-  return row === undefined ? undefined : toDto(row);
+  return row === undefined ? undefined : toDto(row, await countWorking(tx));
 }
 
 /** Reads the entry inside the grant transaction, so a concurrent revoke cannot remove it before the answer. */
@@ -199,6 +211,11 @@ export class PlatformAdminsService {
       .orderBy(desc(platformAdmins.grantedAt), asc(platformAdmins.id))
       .limit(limit)
       .offset(offset);
-    return toPage(rows.map(toDto), counted?.total ?? 0, q);
+    const workingCount = await countWorking(orm);
+    return toPage(
+      rows.map((r) => toDto(r, workingCount)),
+      counted?.total ?? 0,
+      q,
+    );
   }
 }

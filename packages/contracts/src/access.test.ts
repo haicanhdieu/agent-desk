@@ -182,9 +182,9 @@ describe('PERMISSION_LEVEL', () => {
       ].sort(),
     );
   });
-  it('has 35 tenant and 15 platform permissions', () => {
+  it('has 35 tenant and 16 platform permissions', () => {
     expect(TENANT).toHaveLength(35);
-    expect(Permission.options).toHaveLength(50);
+    expect(Permission.options).toHaveLength(51);
   });
   it('marks project-audit:read as project level, counted from a project grant only on that project', () => {
     expect(PERMISSION_LEVEL['project-audit:read']).toBe('project');
@@ -208,6 +208,10 @@ describe('PERMISSION_LEVEL', () => {
       expect(holdsAnywhere(access(org('owner', OWNER)), p)).toBe(false);
     },
   );
+  it('platform-org:update is a platform-level permission the owner never holds', () => {
+    expect(PERMISSION_LEVEL['platform-org:update']).toBe('platform');
+    expect(holdsAnywhere(access(org('owner', OWNER)), 'platform-org:update')).toBe(false);
+  });
   it('treats platform-invitation:update as a platform permission', () => {
     expect(Permission.options).toContain('platform-invitation:update');
     expect(isPlatformPermission('platform-invitation:update')).toBe(true);

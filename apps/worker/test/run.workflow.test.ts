@@ -483,6 +483,20 @@ describe('RunWorkflow', () => {
     expect(expectFinishOnce(agent)).toMatchObject({ failureStage: 'agent' });
   });
 
+  it('a first start refused for a suspended organization ends the run failed with the reason, no pod to clean', async () => {
+    const s = newRun();
+    s.firstCreateFailure = { message: 'the organization is suspended', type: 'OrgSuspended' };
+    const h = await start(s);
+    const out = await h.result();
+    expect(out.status).toBe('failed');
+    expect(out.failureReason).toContain('the organization is suspended');
+    expect(s.statuses.at(-1)).toMatchObject({ status: 'failed' });
+    expect(s.statuses.at(-1)?.failureReason).toContain('the organization is suspended');
+    expect(count(s, 'createRunSecretAndJob')).toBe(1);
+    expect(count(s, 'followPodLogs')).toBe(0);
+    await gateForgot(s);
+  });
+
   it('followPodLogs fails non-retryably (PodPendingTimeout) → failed with the reason, Job deleted', async () => {
     const s = newRun({}, { firstLine: false });
     const h = await start(s);

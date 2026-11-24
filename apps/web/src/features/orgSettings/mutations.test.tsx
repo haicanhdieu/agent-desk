@@ -11,7 +11,9 @@ const AUDIT_KEY = (org: string) => ['org', org, 'audit', 'list', 1, 20] as const
 describe('useUpdateOrg: the audit log reads again', () => {
   const setup = () => {
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-    queryClient.setQueryData(orgsQuery.queryKey, [{ id: ids.org.alice, name: 'Alice', slug: 'alice' }]);
+    queryClient.setQueryData(orgsQuery.queryKey, [
+      { id: ids.org.alice, name: 'Alice', slug: 'alice', status: 'active' },
+    ]);
     for (const org of ['alice', 'alice-2']) queryClient.setQueryData(AUDIT_KEY(org), { items: [] });
     const wrapper = ({ children }: { children: ReactNode }) => (
       <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>

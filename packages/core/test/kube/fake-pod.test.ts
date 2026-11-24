@@ -51,6 +51,13 @@ async function boot(env: Record<string, string> = {}, stateDir: string | null = 
     PROMPT: '',
     SETUP_SCRIPT: '',
     RUN_MODE: '',
+    // The launch line reads these; a shell that sets them must not leak in.
+    AGENT_MODEL: '',
+    ANTHROPIC_BASE_URL: '',
+    RUN_AUTHOR_NAME: '',
+    RUN_AUTHOR_EMAIL: '',
+    RESUME_NOTE: '',
+    FAKE_VOLUME_DIR: '',
     FAKE_TURN_MS: String(TURN_MS),
     ...env,
   })) {

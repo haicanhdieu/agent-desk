@@ -91,7 +91,12 @@ export function createAuth(config: Config, db: Db) {
     if (pending.length === 0) throw refuse();
   }
 
-  const orgPlugin = organizationPlugin({ allowUserToCreateOrganization: false });
+  const orgPlugin = organizationPlugin({
+    allowUserToCreateOrganization: false,
+    // The list and set-active answers carry `status` so the web can mark a suspended org. `input: false` keeps a
+    // client from writing it; `suspended_at` is not declared, so it never reaches the client.
+    schema: { organization: { additionalFields: { status: { type: 'string', required: false, input: false } } } },
+  });
 
   return betterAuth({
     baseURL: config.PUBLIC_ORIGIN,
