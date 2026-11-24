@@ -1801,11 +1801,11 @@ export function PlatformMemberRow(props: { row: PlatformMemberRowView; busy?: bo
   onRemove: (row: PlatformMemberRowView, a: PlatformMemberAssignmentView) => void }): JSX.Element;
 ```
 
-- [ ] **Step 1: Write the failing tests**: project id in mono with ellipsis and full value in `title`, name as plain text, no link and no action (BR-25); member name with the handle under it, the handle alone when there is no name, roles joined with ", ", "—" when none; the row menu button "Actions for <name or handle>" offers "Add assignment" then one "Remove <Role> (<scope>)" per assignment; busy disables it; markup in names renders as text.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/components/PlatformProjectRow.test.tsx src/components/PlatformMemberRow.test.tsx`. Expected: FAIL.
-- [ ] **Step 3: Implement** both with stories (project: Default, LongId; member: Default, NoAssignment, NoName, MenuOpen, Busy) using `useRowMenu`/`menuKeyDown`.
-- [ ] **Step 4: Run** Step 2's command and `pnpm --filter @agentdesk/web exec vitest run src/test/stories.smoke.test.tsx`. Expected: PASS.
-- [ ] **Step 5: Commit**: `feat(web): platform project and member rows in Storybook`.
+- [x] **Step 1: Write the failing tests**: project id in mono with ellipsis and full value in `title`, name as plain text, no link and no action (BR-25); member name with the handle under it, the handle alone when there is no name, roles joined with ", ", "—" when none; the row menu button "Actions for <name or handle>" offers "Add assignment" then one "Remove <Role> (<scope>)" per assignment; busy disables it; markup in names renders as text.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/components/PlatformProjectRow.test.tsx src/components/PlatformMemberRow.test.tsx`. Expected: FAIL.
+- [x] **Step 3: Implement** both with stories (project: Default, LongId; member: Default, NoAssignment, NoName, MenuOpen, Busy) using `useRowMenu`/`menuKeyDown`.
+- [x] **Step 4: Run** Step 2's command and `pnpm --filter @agentdesk/web exec vitest run src/test/stories.smoke.test.tsx`. Expected: PASS.
+- [x] **Step 5: Commit**: `feat(web): platform project and member rows in Storybook`.
 
 ---
 
@@ -1835,11 +1835,11 @@ export function AssignmentDialog(props: AssignmentDialogProps): JSX.Element;
 // mocks/platform/assignment.ts: assignmentRoles, assignmentProjects
 ```
 
-- [ ] **Step 1: Write the failing tests** (BR-27): title "Add assignment", the person's name and handle; Access radio "Whole organization" (default) and "One project"; Role offers Owner, Admin, Member, Viewer for the whole organization and Admin, Member, Viewer for one project (Owner removed and a picked Owner cleared); the "Project" select shows only for one project; "Cancel", "Add assignment"/"Adding…", not closable while saving.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/components/AssignmentDialog.test.tsx`. Expected: FAIL.
-- [ ] **Step 3: Implement** with stories Org, Project, Saving, FormError.
-- [ ] **Step 4: Run** Step 2's command and `pnpm --filter @agentdesk/web exec vitest run src/test/stories.smoke.test.tsx`. Expected: PASS.
-- [ ] **Step 5: Commit**: `feat(web): assignment dialog in Storybook`.
+- [x] **Step 1: Write the failing tests** (BR-27): title "Add assignment", the person's name and handle; Access radio "Whole organization" (default) and "One project"; Role offers Owner, Admin, Member, Viewer for the whole organization and Admin, Member, Viewer for one project (Owner removed and a picked Owner cleared); the "Project" select shows only for one project; "Cancel", "Add assignment"/"Adding…", not closable while saving.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/components/AssignmentDialog.test.tsx`. Expected: FAIL.
+- [x] **Step 3: Implement** with stories Org, Project, Saving, FormError.
+- [x] **Step 4: Run** Step 2's command and `pnpm --filter @agentdesk/web exec vitest run src/test/stories.smoke.test.tsx`. Expected: PASS.
+- [x] **Step 5: Commit**: `feat(web): assignment dialog in Storybook`.
 
 ---
 

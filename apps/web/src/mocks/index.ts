@@ -102,6 +102,7 @@ export {
 } from './invitations';
 export { platformAdminRows, pagedPlatformAdminRows, type PlatformAdminRowView } from './platform/admins';
 export { platformOrgRows, pagedPlatformOrgRows, type PlatformOrgRowView, type OrgStatusView } from './platform/orgs';
+export { assignmentProjects, assignmentRoles } from './platform/assignment';
 export { activeOrgOverview, suspendedOrgOverview, type PlatformOrgOverviewView } from './platform/detail';
 export {
   editOrgDirtyValues,
@@ -110,3 +111,12 @@ export {
   editOrgSlugTaken,
   editOrgValues,
 } from './platform/edit';
+export {
+  platformProjectRows,
+  pagedPlatformProjectRows,
+  platformMemberRows,
+  pagedPlatformMemberRows,
+  type PlatformProjectRowView,
+  type PlatformMemberRowView,
+  type PlatformMemberAssignmentView,
+} from './platform/tabs';

@@ -143,4 +143,7 @@ export { AddPlatformAdminDialog, type AddPlatformAdminDialogProps } from './AddP
 export { PlatformOrgHeader, type PlatformOrgHeaderProps } from './PlatformOrgHeader';
 export { SuspendOrgDialog, type SuspendOrgDialogProps } from './SuspendOrgDialog';
 export { SlugChangeConfirm, type SlugChangeConfirmProps } from './SlugChangeConfirm';
+export { AssignmentDialog, type AssignmentDialogProps, type AssignmentRoleKey } from './AssignmentDialog';
 export { EditOrgDialog, type EditOrgDialogProps } from './EditOrgDialog';
+export { PlatformProjectRow, platformProjectColumns } from './PlatformProjectRow';
+export { PlatformMemberRow, platformMemberColumns, type PlatformMemberRowProps } from './PlatformMemberRow';
