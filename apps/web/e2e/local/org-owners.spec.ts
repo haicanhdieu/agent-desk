@@ -92,9 +92,8 @@ const membersUrl = (w: World): string => `/o/${w.org.slug}/settings/members`;
 const projectsUrl = (w: World): string => `/o/${w.org.slug}/projects`;
 
 const rowOf = (page: Page, text: string): Locator => page.locator('tbody tr').filter({ hasText: text });
-const cellOf = (row: Locator, index: number): Locator => row.getByRole('cell').nth(index);
-const ROLE = 1;
-const PROJECT_ROLES = 2;
+/** One chip per grant, as scope and role: `Organization · Admin`, `<project> · Member`. */
+const accessOf = (row: Locator): Locator => row.getByRole('listitem');
 const menuButton = (page: Page, name: string): Locator => page.getByRole('button', { name: `Actions for ${name}` });
 const roleDialog = (page: Page, name: string): Locator =>
   page.getByRole('dialog', { name: `Change access for ${name}` });
@@ -166,8 +165,8 @@ test('TC-5.3: B, now the sole owner, has no menu on the own row; the real API re
 
     const page = b.page;
     await openMembers(page, w);
-    await expect(cellOf(rowOf(page, b.handle), ROLE)).toHaveText('Owner');
-    await expect(cellOf(rowOf(page, w.o.handle), ROLE)).toHaveText('Admin');
+    await expect(accessOf(rowOf(page, b.handle)).first()).toHaveText('Organization · Owner');
+    await expect(accessOf(rowOf(page, w.o.handle)).first()).toHaveText('Organization · Admin');
     // positive control: the page loaded B's rights, so the other row has actions and the own row has none
     await expect(menuButton(page, await nameOf(w, w.o.userId))).toBeVisible();
     await expect(menuButton(page, name)).toHaveCount(0);
@@ -177,7 +176,7 @@ test('TC-5.3: B, now the sole owner, has no menu on the own row; the real API re
     });
     expect(put.status(), 'PUT own role').toBe(403);
     await reloadMembers(page);
-    await expect(cellOf(rowOf(page, b.handle), ROLE)).toHaveText('Owner');
+    await expect(accessOf(rowOf(page, b.handle)).first()).toHaveText('Organization · Owner');
     expect((await membersOf(w)).find((m) => m.userId === b.userId)?.assignments.map((a) => a.role.key)).toEqual([
       'owner',
     ]);
@@ -270,7 +269,7 @@ test('TC-40.1: O makes admin B an Owner: the Owner card shows its note, B is Own
 
     const page = w.o.page;
     await openMembers(page, w);
-    await expect(cellOf(rowOf(page, b.handle), ROLE)).toHaveText('Admin');
+    await expect(accessOf(rowOf(page, b.handle)).first()).toHaveText('Organization · Admin');
     await pickMenuItem(page, name, 'Change access');
     const dialog = roleDialog(page, name);
     await expect(dialog).toBeVisible();
@@ -282,8 +281,8 @@ test('TC-40.1: O makes admin B an Owner: the Owner card shows its note, B is Own
 
     await reloadMembers(page);
     const row = rowOf(page, b.handle);
-    await expect(cellOf(row, ROLE)).toHaveText('Owner');
-    await expect(cellOf(row, PROJECT_ROLES)).toHaveText(`${w.projectName} (Admin)`);
+    await expect(accessOf(row).first()).toHaveText('Organization · Owner');
+    await expect(accessOf(row)).toHaveText(['Organization · Owner', `${w.projectName} · Admin`]);
     const mine = (await membersOf(w)).find((x) => x.userId === b.userId);
     expect(
       mine?.assignments.map((x) => [x.role.key, x.scope.type]).sort(),
@@ -340,11 +339,11 @@ test('TC-41.1: O demotes the other owner B to Member; B shows Member after the r
     const name = await nameOf(w, b.userId);
     const page = w.o.page;
     await openMembers(page, w);
-    await expect(cellOf(rowOf(page, b.handle), ROLE)).toHaveText('Owner');
+    await expect(accessOf(rowOf(page, b.handle)).first()).toHaveText('Organization · Owner');
     await changeRoleThroughUi(page, name, 'Member');
     await reloadMembers(page);
-    await expect(cellOf(rowOf(page, b.handle), ROLE)).toHaveText('Member');
-    await expect(cellOf(rowOf(page, w.o.handle), ROLE)).toHaveText('Owner');
+    await expect(accessOf(rowOf(page, b.handle)).first()).toHaveText('Organization · Member');
+    await expect(accessOf(rowOf(page, w.o.handle)).first()).toHaveText('Organization · Owner');
   });
 });
 
@@ -387,9 +386,9 @@ test('TC-41.3: with owners O, B and C, O demotes B to Member and removes C; both
 
     await reloadMembers(page);
     await expect(page.locator('tbody tr')).toHaveCount(2);
-    await expect(cellOf(rowOf(page, b.handle), ROLE)).toHaveText('Member');
+    await expect(accessOf(rowOf(page, b.handle)).first()).toHaveText('Organization · Member');
     await expect(rowOf(page, c.handle)).toHaveCount(0);
-    await expect(cellOf(rowOf(page, w.o.handle), ROLE)).toHaveText('Owner');
+    await expect(accessOf(rowOf(page, w.o.handle)).first()).toHaveText('Organization · Owner');
   });
 });
 
@@ -405,8 +404,8 @@ test('TC-42.1: B steps O down to Admin: after the reload O has no Owner card and
 
     const page = w.o.page;
     await openMembers(page, w);
-    await expect(cellOf(rowOf(page, w.o.handle), ROLE)).toHaveText('Admin');
-    await expect(cellOf(rowOf(page, b.handle), ROLE)).toHaveText('Owner');
+    await expect(accessOf(rowOf(page, w.o.handle)).first()).toHaveText('Organization · Admin');
+    await expect(accessOf(rowOf(page, b.handle)).first()).toHaveText('Organization · Owner');
     // control: O still has actions on a Member row, so the page has finished loading its rights
     await expect(menuButton(page, nameC)).toBeVisible();
     await expect(menuButton(page, nameO)).toHaveCount(0);

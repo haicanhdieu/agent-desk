@@ -70,7 +70,7 @@ test('AC-2 and AC-8: changing, adding and removing project grants saves them and
     .getByRole('combobox', { name: 'Role in invoicer-web' })
     .selectOption({ label: 'Viewer' });
   await projectRow(d, 'invoicer-api').getByRole('button', { name: 'Remove access to invoicer-api' }).click();
-  await d.getByRole('combobox', { name: 'Project to add' }).selectOption({ label: 'docs-site' });
+  await d.getByRole('combobox', { name: 'Project to add', exact: true }).selectOption({ label: 'docs-site' });
   await d.getByRole('combobox', { name: 'Role in the project to add' }).selectOption({ label: 'Admin' });
   await d.getByRole('button', { name: 'Add project' }).click();
   await expect(projectRow(d, 'docs-site')).toBeVisible();

@@ -35,7 +35,7 @@ test.afterEach(async () => {
 const membersUrl = (c: Cast): string => `/o/${c.slug}/settings/members`;
 const rowOf = (page: Page, handle: string): Locator => page.locator('tbody tr').filter({ hasText: handle });
 const chips = (page: Page, handle: string): Locator => rowOf(page, handle).getByRole('listitem');
-const projectRow = (d: Locator, project: string): Locator => d.getByRole('listitem', { name: project });
+const projectRow = (d: Locator, project: string): Locator => d.getByRole('listitem', { name: project, exact: true });
 
 async function projectName(who: Actor, projectId: string): Promise<string> {
   return ProjectDto.parse(await ok(await who.api.get(`/api/projects/${projectId}`), 200, 'project')).name;
@@ -80,7 +80,7 @@ test('TC-259.1: O adds, changes and removes project grants of V in Change access
     [n1, 'Member'],
     [n2, 'Viewer'],
   ] as const) {
-    await d.getByRole('combobox', { name: 'Project to add' }).selectOption({ label: project });
+    await d.getByRole('combobox', { name: 'Project to add', exact: true }).selectOption({ label: project });
     await d.getByRole('combobox', { name: 'Role in the project to add' }).selectOption({ label: role });
     await d.getByRole('button', { name: 'Add project' }).click();
     await expect(projectRow(d, project)).toBeVisible();
@@ -105,10 +105,10 @@ test('TC-259.1: O adds, changes and removes project grants of V in Change access
   // 2. Change P1 to Viewer and remove P2.
   d = await openChangeAccess(o.page, v.handle);
   await projectRow(d, n1)
-    .getByRole('combobox', { name: `Role in ${n1}` })
+    .getByRole('combobox', { name: `Role in ${n1}`, exact: true })
     .selectOption({ label: 'Viewer' });
   await projectRow(d, n2)
-    .getByRole('button', { name: `Remove access to ${n2}` })
+    .getByRole('button', { name: `Remove access to ${n2}`, exact: true })
     .click();
   await d.getByRole('button', { name: 'Save access' }).click();
   await expect(o.page.getByRole('status').filter({ hasText: 'Access changed' })).toBeVisible();
@@ -136,7 +136,7 @@ test('TC-259.2: D (org admin) may change V access too, but the dialog never offe
     'Member',
     'Viewer',
   ]);
-  await d.getByRole('combobox', { name: 'Project to add' }).selectOption({ label: n1 });
+  await d.getByRole('combobox', { name: 'Project to add', exact: true }).selectOption({ label: n1 });
   await d.getByRole('button', { name: 'Add project' }).click();
   await d.getByRole('button', { name: 'Save access' }).click();
   await expect(admin.page.getByRole('status').filter({ hasText: 'Access changed' })).toBeVisible();
