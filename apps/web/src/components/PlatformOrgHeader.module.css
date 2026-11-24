@@ -36,8 +36,52 @@
   flex-wrap: wrap;
   gap: 8px;
 }
-.open {
-  display: inline-flex;
+.more {
+  position: relative;
+  display: flex;
+}
+.trigger {
+  width: 32px;
+  padding: 0;
+}
+.menu {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px;
+  text-align: left;
+}
+.item {
+  display: flex;
   align-items: center;
-  gap: 4px;
+  justify-content: flex-start;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-8);
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+  font: inherit;
+  font-size: var(--fs-13);
+  text-align: left;
+  text-decoration: none;
+}
+.item:hover,
+.item:focus-visible {
+  background: var(--raised);
+  text-decoration: none;
+}
+.danger {
+  color: var(--fail);
+}
+.danger:hover,
+.danger:focus-visible {
+  background: var(--danger-bg);
+}
+.separator {
+  height: 1px;
+  margin: 4px 0;
+  background: var(--line);
 }

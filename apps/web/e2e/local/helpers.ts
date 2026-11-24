@@ -583,3 +583,9 @@ export const isAgentPut = (r: { url(): string; request(): { method(): string } }
   new URL(r.url()).pathname.endsWith('/agent') && r.request().method() === 'PUT';
 export const isCredentialPut = (r: { url(): string; request(): { method(): string } }) =>
   /\/api\/agents\/[^/]+\/credential$/.test(new URL(r.url()).pathname) && r.request().method() === 'PUT';
+
+/** Opens the "More actions" menu of a platform org header and picks the item (status action or link). */
+export async function chooseAction(page: Page, name: string): Promise<void> {
+  await page.getByRole('button', { name: 'More actions' }).click();
+  await page.getByRole('menuitem', { name }).click();
+}

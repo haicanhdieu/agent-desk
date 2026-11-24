@@ -1,6 +1,6 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
 import type { PlatformScenario } from '../../src/mocks/msw/platformScenarios';
-import { ORG, SESSION_MOCK_NOW, seedPlatform } from './mock';
+import { ORG, SESSION_MOCK_NOW, chooseAction, seedPlatform } from './mock';
 
 /*
  * Suspend, reactivate and the suspended org page (spec 2026-11-23-platform-admin-dashboard-design.md "E2E requirements":
@@ -54,7 +54,7 @@ async function aliceLoaded(page: Page): Promise<void> {
 
 async function openSuspend(page: Page): Promise<Locator> {
   await acmeLoaded(page);
-  await page.getByRole('button', { name: 'Suspend organization' }).click();
+  await chooseAction(page, 'Suspend organization');
   const d = dialog(page, 'Suspend Acme?');
   await expect(d).toBeVisible();
   return d;
@@ -81,7 +81,7 @@ test.describe('BR-32: suspend an active organization', () => {
     await acmeLoaded(page);
     await expect(banner(page)).toHaveCount(0);
 
-    await page.getByRole('button', { name: 'Suspend organization' }).click();
+    await chooseAction(page, 'Suspend organization');
     const d = dialog(page, 'Suspend Acme?');
     await expect(d).toBeVisible();
     await expect(
@@ -173,7 +173,7 @@ test.describe('BR-33: the reason of a status change', () => {
   }) => {
     await open(page, 'suspendedPlatformAdmin', `/platform/orgs/${ALICE_ID}`);
     await aliceLoaded(page);
-    await page.getByRole('button', { name: 'Reactivate organization' }).click();
+    await chooseAction(page, 'Reactivate organization');
     const d = dialog(page, 'Reactivate Alice?');
     await expect(d).toBeVisible();
 
@@ -196,7 +196,7 @@ test.describe('BR-34: reactivate a suspended organization', () => {
     await aliceLoaded(page);
     await expect(banner(page)).toBeVisible();
 
-    await page.getByRole('button', { name: 'Reactivate organization' }).click();
+    await chooseAction(page, 'Reactivate organization');
     const d = dialog(page, 'Reactivate Alice?');
     await expect(d).toBeVisible();
     await expect(d.getByText('People can open it again.', { exact: true })).toBeVisible();

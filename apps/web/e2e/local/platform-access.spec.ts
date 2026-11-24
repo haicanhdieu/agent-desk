@@ -10,6 +10,7 @@ import { expect, request, test, type APIRequestContext, type BrowserContext, typ
 import {
   API,
   asPlatformAdmin,
+  chooseAction,
   createOrg,
   freshUser,
   grantPlatformAdmin,
@@ -342,7 +343,7 @@ test.describe('Open organization', () => {
     grantedAdmins.push(entry.id);
 
     await page.goto(`/platform/orgs/${orgId}`);
-    await page.getByRole('link', { name: 'Open organization' }).click();
+    await chooseAction(page, 'Open organization');
     await expect(page).toHaveURL(new RegExp(`/o/${handle}/projects$`));
     await expect(
       page.getByRole('button', { name: `Switch scope, currently organization E2E ${handle}` }),
@@ -360,7 +361,8 @@ test.describe('Open organization', () => {
 
     await page.goto(`/platform/orgs/${orgB.id}`);
     await expect(page.getByRole('heading', { name: `E2E ${slugB}`, level: 1 })).toBeVisible();
-    await expect(page.getByRole('link', { name: 'Open organization' })).toHaveCount(0);
+    await page.getByRole('button', { name: 'More actions' }).click();
+    await expect(page.getByRole('menuitem', { name: 'Open organization' })).toHaveCount(0);
 
     await page.goto(`/o/${slugB}/projects`);
     await expect(page.getByRole('heading', { name: 'Page not found' })).toBeVisible();
