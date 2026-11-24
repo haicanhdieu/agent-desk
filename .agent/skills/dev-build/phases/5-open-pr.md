@@ -7,7 +7,7 @@ Spawn the **PR agent** ([prompts/pr-agent.md](../prompts/pr-agent.md)). It runs 
 - head `<branch>`, base `main`, push authorized (`git push -u origin <branch>`);
 - type `bugfix` or `feature` (Triage's `KIND`), `agent-authored: true`, the issue number (it writes `Closes #<n>`, so merging closes the issue);
 - the summary, root cause (bugs), the Verifier's exact results and the head they ran on (so `create-pr` reuses them), the JUDGMENT CALLS of the builders, Self-reviewer, Advisor and you, and the plan path (feature);
-- with E2E requirements: under verification, the e2e commands and their results, the number of cases covered out of the section's total, and any local spec "written, not run" with the reason.
+- with E2E requirements: under verification, the e2e commands and their results, the number of cases covered out of the section's total, and any local spec "written, not run" with the reason. "Written, not run" is allowed only for `NO_ENGINE`. A test cut short by memory, a killed process or a pod restart never reaches this phase: it is a red [phase 4](4-verify.md) round. When you read the PR back, a body that says some cases or tests were not run for any other reason is wrong: go back to phase 4.
 
 Keep the "Authored by an AI agent (`dev-build`)" attribution out of the body; `agent-authored` is the label.
 
