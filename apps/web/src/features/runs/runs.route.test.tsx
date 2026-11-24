@@ -1057,3 +1057,32 @@ describe('runs route, PR states', () => {
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
   });
 });
+
+describe('runs route, usage', () => {
+  it('shows the Usage cell from the list payload', async () => {
+    const target = mockDb.state.runs.find((r) => r.projectId === projectId && r.number === 60);
+    if (!target) throw new Error('run 60 missing');
+    target.usage = {
+      inputTokens: 6120,
+      cacheReadTokens: 38400,
+      cacheWriteTokens: 2100,
+      outputTokens: 1593,
+      reasoningTokens: null,
+      totalInputTokens: 46620,
+      totalTokens: 48213,
+      modelCount: 1,
+      estimatedCostUsd: 0.42,
+      partial: false,
+      models: [],
+      priceAsOfEarliest: null,
+      priceAsOfLatest: null,
+      priceSource: null,
+    };
+    await renderRoute(`${base}/runs`);
+    const link = await screen.findByRole('link', { name: 'Run 60' });
+    const row = link.closest('tr');
+    if (!row) throw new Error('no row');
+    const cell = within(row).getByText(/48\.2k · ~\$0\.42/);
+    expect(cell.closest('td')).toHaveAttribute('title', '48,213 tokens in total, estimated cost $0.42, 1 model');
+  });
+});

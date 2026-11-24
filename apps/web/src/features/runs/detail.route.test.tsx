@@ -997,3 +997,71 @@ describe('run detail route, PR states', () => {
     await waitFor(() => expect(within(banner()).getByLabelText('Merged')).toBeInTheDocument());
   });
 });
+
+describe('run detail route, usage', () => {
+  const usageOf = (totalTokens: number) => ({
+    inputTokens: totalTokens,
+    cacheReadTokens: 0,
+    cacheWriteTokens: 0,
+    outputTokens: 0,
+    reasoningTokens: null,
+    totalInputTokens: totalTokens,
+    totalTokens,
+    modelCount: 1,
+    estimatedCostUsd: 0.1,
+    partial: false,
+    models: [
+      {
+        model: 'model-a',
+        inputTokens: totalTokens,
+        cacheReadTokens: 0,
+        cacheWriteTokens: 0,
+        outputTokens: 0,
+        reasoningTokens: null,
+        totalTokens,
+        estimatedCostUsd: 0.1,
+        costPartial: false,
+      },
+    ],
+    priceAsOfEarliest: '2026-11-21T12:00:00Z',
+    priceAsOfLatest: '2026-11-21T12:00:00Z',
+    priceSource: null,
+  });
+
+  it('an active run shows a larger total after a refetch', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true, toFake: ['Date'] });
+    dbRun(62).usage = usageOf(1234);
+    await renderRoute(`${base}/runs/62`);
+    const section = await screen.findByRole('region', { name: 'Usage' });
+    expect(within(section).getByText('Total tokens').closest('div')).toHaveTextContent('1,234');
+
+    dbRun(62).usage = usageOf(5678);
+    const before = mockDb.requests('GET', `/api/projects/${projectId}/runs/62`);
+    // Past the 30 s stale time, then the window regains focus.
+    vi.setSystemTime(Date.now() + 60_000);
+    act(() => {
+      focusManager.setFocused(false);
+      focusManager.setFocused(true);
+    });
+    await waitFor(() => expect(mockDb.requests('GET', `/api/projects/${projectId}/runs/62`)).toBeGreaterThan(before));
+    await waitFor(() =>
+      expect(
+        within(screen.getByRole('region', { name: 'Usage' }))
+          .getByText('Total tokens')
+          .closest('div'),
+      ).toHaveTextContent('5,678'),
+    );
+    act(() => focusManager.setFocused(undefined));
+  });
+
+  it('a failed run load shows the run error and no usage error or second Retry', async () => {
+    await renderRoute(`${base}/runs/62`, {
+      scenario: () => scenarios.problem('runs.byNumber', { status: 500, title: 'Boom' }),
+    });
+    await waitFor(() => expect(screen.queryByText(/^Run 62$/)).not.toBeInTheDocument());
+    expect(screen.queryByRole('region', { name: 'Usage' })).not.toBeInTheDocument();
+    expect(screen.queryByText(/usage/i)).not.toBeInTheDocument();
+    // The run's own error screen has the one Retry; usage adds none.
+    expect(screen.getAllByRole('button', { name: 'Retry' })).toHaveLength(1);
+  });
+});

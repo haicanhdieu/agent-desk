@@ -834,11 +834,11 @@ This task and Tasks 17 and 18 are the spec's "Blocker: Storybook first": Task 20
   - `toRunUsage(usage: RunUsageDetail | null, timeZone?: string): RunUsageView` (passes the contract's `totalTokens` and split through, never recomputes; `cacheWrite` from the contract value; `reasoning` only when not null; `priceSource` never used)
   - `toRunSummary` sets `usage: toUsageCell(dto.usage)`; `toRunDetail` sets `usage: toRunUsage(run.usage)`
 
-- [ ] **Step 1: Write the failing tests.** `usageFormat.test.ts`: the formatter values above plus Review Focus 3 (`2026-09-01T12:00:00Z` gives `1 Sep 2026`) and 4 (1,234,567, 999,950, 1234.5); `it.each` over `UTC`, `America/Los_Angeles`, `Asia/Ho_Chi_Minh` for `2026-11-21T03:30:00Z` (20, 21, 21 Nov); the no-argument call equals the call with `Intl.DateTimeFormat().resolvedOptions().timeZone`. `usage.map.test.ts`: `toUsageCell` for value, partial, no cost, sub-cent (title "2,104 tokens in total, estimated cost under $0.01, 1 model"), 2 models ("… 2 models"), null ("—" / "No usage data"), zero (`0 · ~$0.00`); `toRunUsage` for null (`state: 'none'`), zero (counts `0`, `~$0.00`, date set), partial (`atLeast`), none priced (`cost: '—'`, no `priceDate`), unpriced model (`unpriced: true`, `—`), reasoning present and absent, split equal to the input numbers, a range whose instants are one local day in `UTC` and two in `Asia/Ho_Chi_Minh`, and no output field contains the `priceSource` value. `map.test.ts` and `detail.map.test.ts`: the summary and detail carry the mapped usage. `detail.route.test.tsx`: with fake timers, a refetch of an active run brings a larger total (timers restored in `afterEach`); a failed run load shows the run's own error and no usage-specific error or Retry. `runs.route.test.tsx`: the list shows the usage cell from the list payload.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/features/runs`. Expected: FAIL.
-- [ ] **Step 3: Implement** the formatters, mappers and the two mapper calls.
-- [ ] **Step 4: Run** Step 2 again and `pnpm --filter @agentdesk/web typecheck`. Expected: PASS.
-- [ ] **Step 5: Commit**: `feat(web): show run usage from the run payload`.
+- [x] **Step 1: Write the failing tests.** `usageFormat.test.ts`: the formatter values above plus Review Focus 3 (`2026-09-01T12:00:00Z` gives `1 Sep 2026`) and 4 (1,234,567, 999,950, 1234.5); `it.each` over `UTC`, `America/Los_Angeles`, `Asia/Ho_Chi_Minh` for `2026-11-21T03:30:00Z` (20, 21, 21 Nov); the no-argument call equals the call with `Intl.DateTimeFormat().resolvedOptions().timeZone`. `usage.map.test.ts`: `toUsageCell` for value, partial, no cost, sub-cent (title "2,104 tokens in total, estimated cost under $0.01, 1 model"), 2 models ("… 2 models"), null ("—" / "No usage data"), zero (`0 · ~$0.00`); `toRunUsage` for null (`state: 'none'`), zero (counts `0`, `~$0.00`, date set), partial (`atLeast`), none priced (`cost: '—'`, no `priceDate`), unpriced model (`unpriced: true`, `—`), reasoning present and absent, split equal to the input numbers, a range whose instants are one local day in `UTC` and two in `Asia/Ho_Chi_Minh`, and no output field contains the `priceSource` value. `map.test.ts` and `detail.map.test.ts`: the summary and detail carry the mapped usage. `detail.route.test.tsx`: with fake timers, a refetch of an active run brings a larger total (timers restored in `afterEach`); a failed run load shows the run's own error and no usage-specific error or Retry. `runs.route.test.tsx`: the list shows the usage cell from the list payload.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/features/runs`. Expected: FAIL.
+- [x] **Step 3: Implement** the formatters, mappers and the two mapper calls.
+- [x] **Step 4: Run** Step 2 again and `pnpm --filter @agentdesk/web typecheck`. Expected: PASS.
+- [x] **Step 5: Commit**: `feat(web): show run usage from the run payload`.
 
 ---
 
@@ -856,9 +856,9 @@ This task and Tasks 17 and 18 are the spec's "Blocker: Storybook first": Task 20
 
 Covers BR-1 (TC-1.1 to TC-1.5), BR-4 (TC-4.1, TC-4.3), BR-5 (TC-5.1), BR-12 (TC-12.1, TC-12.2), BR-15 (TC-15.2).
 
-- [ ] **Step 1: Write the tests**, one `test('TC-<n.m> …')` per case, exactly as the spec's table: the Usage header is the last column after Duration; cell texts `48.2k · ~$0.42`, `2.1k · ~<$0.01`, `61.2k · ~$0.42+`, `12.8k · —`, `—`; titles read through `getAttribute('title')`; no row shows a model name, split, "provider bill" or "Prices as of"; TC-12.2 at a 390 px viewport: the cell's `scrollWidth <= clientWidth` (one line) and `document.documentElement.scrollWidth <= window.innerWidth`.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/web exec vite build --mode mock` then `pnpm --filter @agentdesk/web exec playwright test e2e/mock/runs-board.spec.ts -g "TC-1\.|TC-4\.[13]|TC-5\.1|TC-12\.|TC-15\.2"`. Expected: PASS (fix the code, not the test, on failure).
-- [ ] **Step 3: Commit**: `test(web): mock e2e for the Runs list usage cell`.
+- [x] **Step 1: Write the tests**, one `test('TC-<n.m> …')` per case, exactly as the spec's table: the Usage header is the last column after Duration; cell texts `48.2k · ~$0.42`, `2.1k · ~<$0.01`, `61.2k · ~$0.42+`, `12.8k · —`, `—`; titles read through `getAttribute('title')`; no row shows a model name, split, "provider bill" or "Prices as of"; TC-12.2 at a 390 px viewport: the cell's `scrollWidth <= clientWidth` (one line) and `document.documentElement.scrollWidth <= window.innerWidth`.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/web exec vite build --mode mock` then `pnpm --filter @agentdesk/web exec playwright test e2e/mock/runs-board.spec.ts -g "TC-1\.|TC-4\.[13]|TC-5\.1|TC-12\.|TC-15\.2"`. Expected: PASS (fix the code, not the test, on failure).
+- [x] **Step 3: Commit**: `test(web): mock e2e for the Runs list usage cell`.
 
 ---
 
@@ -876,9 +876,9 @@ Covers BR-1 (TC-1.1 to TC-1.5), BR-4 (TC-4.1, TC-4.3), BR-5 (TC-5.1), BR-12 (TC-
 
 Covers BR-2 (TC-2.1 to TC-2.4), BR-3 (TC-3.1 to TC-3.3), BR-4 (TC-4.2), BR-5 (TC-5.2, TC-5.3), BR-6 (TC-6.1, TC-6.2), BR-11 (TC-11.1, TC-11.2), BR-15 (TC-15.1), BR-17 (TC-17.1, TC-17.2).
 
-- [ ] **Step 1: Write the tests**, one per case, as the spec's table: TC-2.1 and TC-11.2 parse the four exact numbers (strip `,`) and assert their sum equals "Total tokens"; TC-2.3 and TC-3.3 check `aria-expanded`, the button label and that a reload starts open; TC-4.2 asserts the full note text once with "Your provider bill may differ." last; TC-5.3 checks the list cell then the detail; TC-6.1 hovers the unpriced cost title; TC-17.2 asserts the side panel's `scrollWidth <= clientWidth`.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/web exec vite build --mode mock` then `pnpm --filter @agentdesk/web exec playwright test e2e/mock/run.spec.ts -g "TC-2\.|TC-3\.|TC-4\.2|TC-5\.[23]|TC-6\.|TC-11\.|TC-15\.1|TC-17\."`. Expected: PASS.
-- [ ] **Step 3: Commit**: `test(web): mock e2e for the run detail Usage section`.
+- [x] **Step 1: Write the tests**, one per case, as the spec's table: TC-2.1 and TC-11.2 parse the four exact numbers (strip `,`) and assert their sum equals "Total tokens"; TC-2.3 and TC-3.3 check `aria-expanded`, the button label and that a reload starts open; TC-4.2 asserts the full note text once with "Your provider bill may differ." last; TC-5.3 checks the list cell then the detail; TC-6.1 hovers the unpriced cost title; TC-17.2 asserts the side panel's `scrollWidth <= clientWidth`.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/web exec vite build --mode mock` then `pnpm --filter @agentdesk/web exec playwright test e2e/mock/run.spec.ts -g "TC-2\.|TC-3\.|TC-4\.2|TC-5\.[23]|TC-6\.|TC-11\.|TC-15\.1|TC-17\."`. Expected: PASS.
+- [x] **Step 3: Commit**: `test(web): mock e2e for the run detail Usage section`.
 
 ---
 

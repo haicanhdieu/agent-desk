@@ -25,6 +25,7 @@ import {
   withPrState,
 } from './map';
 import type { CachedRunDetail, RunCore } from './queries';
+import { toRunUsage } from './usage.map';
 import type { TerminalState } from './useTerminal';
 
 // Run detail view model (spec §3.2): one RunDetailData per run, for the eight RunDetail boards.
@@ -631,6 +632,7 @@ export function toRunDetail(
   const resumed = resumedNote(run, events);
   return {
     run: toRunSummary(run, now),
+    usage: toRunUsage(run.usage),
     elapsed: clock(elapsedMs),
     rule: `/${run.command}`,
     finalPrompt: run.finalPrompt,

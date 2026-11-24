@@ -1068,3 +1068,42 @@ describe('withDetailPrStates', () => {
     expect(out.run.ticket.prState).toBeUndefined();
   });
 });
+
+describe('toRunDetail, usage', () => {
+  it('maps the run usage for the side panel', () => {
+    const usage = {
+      inputTokens: 10,
+      cacheReadTokens: 20,
+      cacheWriteTokens: 30,
+      outputTokens: 40,
+      reasoningTokens: null,
+      totalInputTokens: 60,
+      totalTokens: 100,
+      modelCount: 1,
+      estimatedCostUsd: 0.5,
+      partial: false,
+      models: [
+        {
+          model: 'model-a',
+          inputTokens: 10,
+          cacheReadTokens: 20,
+          cacheWriteTokens: 30,
+          outputTokens: 40,
+          reasoningTokens: null,
+          totalTokens: 100,
+          estimatedCostUsd: 0.5,
+          costPartial: false,
+        },
+      ],
+      priceAsOfEarliest: null,
+      priceAsOfLatest: null,
+      priceSource: null,
+    };
+    expect(detail(run({ usage })).usage).toMatchObject({ state: 'data', total: '100', cost: '~$0.50' });
+    expect(detail(run({ usage })).run.usage).toMatchObject({ text: '100 · ~$0.50' });
+  });
+
+  it('maps no usage to the none state', () => {
+    expect(detail(run({ usage: null })).usage).toEqual({ state: 'none' });
+  });
+});

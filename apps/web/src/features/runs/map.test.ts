@@ -610,3 +610,38 @@ describe('withPrStates', () => {
     expect(g?.runs.map((r) => r.ticket.prState)).toEqual(['open', 'open']);
   });
 });
+
+describe('toRunSummary, usage', () => {
+  it('carries the Usage cell of the list payload', () => {
+    const usage = {
+      inputTokens: 6120,
+      cacheReadTokens: 38400,
+      cacheWriteTokens: 2100,
+      outputTokens: 1593,
+      reasoningTokens: null,
+      totalInputTokens: 46620,
+      totalTokens: 48213,
+      modelCount: 1,
+      estimatedCostUsd: 0.42,
+      partial: false,
+    };
+    expect(
+      toRunSummary(
+        run({ usage: { ...usage, models: [], priceAsOfEarliest: null, priceAsOfLatest: null, priceSource: null } }),
+        now,
+      ).usage,
+    ).toEqual({
+      text: '48.2k · ~$0.42',
+      title: '48,213 tokens in total, estimated cost $0.42, 1 model',
+      srSuffix: ' tokens, estimated cost',
+    });
+  });
+
+  it('shows no usage data for a run without usage', () => {
+    expect(toRunSummary(run({ usage: null }), now).usage).toEqual({
+      text: '—',
+      title: 'No usage data',
+      srSuffix: 'No usage data',
+    });
+  });
+});

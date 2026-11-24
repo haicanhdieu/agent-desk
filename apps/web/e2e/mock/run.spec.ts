@@ -11,6 +11,7 @@ import {
   RESUME_FAILED_RUN,
   RESUMED_RUN,
   SCRIPTED_RUN,
+  USAGE_RUNS,
 } from './mock';
 
 // The scripted run takes about 16 s from queued to idle (mock.ts).
@@ -358,4 +359,286 @@ test('in a live run terminal an OSC 52 sequence with no user gesture leaves the 
   await printInTerminal(page, 'after the sequence');
   await expect(terminal).toContainText('after the sequence');
   expect(await page.evaluate(() => navigator.clipboard.readText())).toBe('stale');
+});
+
+/** The run detail Usage section (spec 2026-11-24-run-token-usage-cost, BR-2 to BR-6, BR-11, BR-15, BR-17). */
+const panel = (page: Page) => page.getByRole('complementary', { name: 'Run context' });
+
+const openDetail = async (page: Page, run: number): Promise<void> => {
+  await page.goto(`/o/${ORG}/p/${INVOICER_API}/runs/${run}`);
+  await expect(panel(page)).toBeVisible();
+};
+
+const usageSection = (page: Page) =>
+  panel(page)
+    .locator('section')
+    .filter({ has: page.getByText('Usage', { exact: true }) });
+/** The Usage header's own toggle (first button in DOM order) and the Models sub-header's (last). */
+const usageToggle = (page: Page, name: 'Hide' | 'Show') =>
+  usageSection(page).getByRole('button', { name, exact: true }).first();
+const modelsToggle = (page: Page, name: 'Hide' | 'Show') =>
+  usageSection(page).getByRole('button', { name, exact: true }).last();
+const modelsTable = (page: Page) => usageSection(page).getByRole('table', { name: 'Usage by model' });
+
+/** The value shown next to a label in the split list. */
+async function rowValue(page: Page, label: string): Promise<string> {
+  const row = usageSection(page)
+    .locator('dl > div')
+    .filter({ has: page.getByText(label, { exact: true }) });
+  return ((await row.locator('dd').first().textContent()) ?? '').trim();
+}
+const count = (text: string): number => Number(text.replace(/,/g, ''));
+const SPLIT = ['Input (uncached)', 'Cache read', 'Cache write', 'Output'];
+
+async function expectSplitAddsUp(page: Page): Promise<void> {
+  const parts = await Promise.all(SPLIT.map((l) => rowValue(page, l)));
+  for (const p of parts) expect(p).toMatch(/^\d{1,3}(,\d{3})*$/);
+  const head = usageSection(page).locator('dl > div').first();
+  const total = count(((await head.locator('dd').first().textContent()) ?? '').trim());
+  expect(parts.map(count).reduce((a, b) => a + b, 0)).toBe(total);
+}
+
+const NOTE =
+  'Estimate at public API rates, whatever credential the run used. Costs are fixed when recorded, so later price changes do not change them.';
+const PARTIAL = 'Some usage is missing or had no price when recorded, so tokens or cost may be low.';
+
+test.describe('run detail Usage section', () => {
+  test('TC-2.1: the Usage section shows the headline, four exact split rows adding up to the total, and Est. cost', async ({
+    page,
+  }) => {
+    await openDetail(page, USAGE_RUNS.oneModel);
+    const section = usageSection(page);
+    await expect(section.getByText('Total tokens')).toBeVisible();
+    await expect(section.getByText('all tokens processed')).toBeVisible();
+    for (const label of [...SPLIT, 'Est. cost'])
+      await expect(section.getByText(label, { exact: true }).first()).toBeVisible();
+    expect(await rowValue(page, 'Input (uncached)')).toBe('12,000');
+    expect(await rowValue(page, 'Cache read')).toBe('30,000');
+    expect(await rowValue(page, 'Cache write')).toBe('1,213');
+    expect(await rowValue(page, 'Output')).toBe('5,000');
+    await expectSplitAddsUp(page);
+    expect(await rowValue(page, 'Est. cost')).toBe('~$0.42');
+  });
+
+  test('TC-2.2: of which reasoning shows under Output only when reported and is not added to the split', async ({
+    page,
+  }) => {
+    await openDetail(page, USAGE_RUNS.reasoning);
+    const output = usageSection(page)
+      .locator('dl > div')
+      .filter({ has: page.getByText('Output', { exact: true }) });
+    await expect(output.getByText('of which reasoning')).toBeVisible();
+    await expect(output.getByText('300', { exact: true })).toBeVisible();
+    await expectSplitAddsUp(page);
+    await openDetail(page, USAGE_RUNS.oneModel);
+    await expect(usageSection(page).getByText('Total tokens')).toBeVisible();
+    await expect(usageSection(page).getByText('of which reasoning')).toHaveCount(0);
+  });
+
+  test('TC-2.3: Hide and Show collapse the Usage section, and a reload starts open', async ({ page }) => {
+    await openDetail(page, USAGE_RUNS.oneModel);
+    const section = usageSection(page);
+    await expect(usageToggle(page, 'Hide')).toHaveAttribute('aria-expanded', 'true');
+    await expect(section.getByText('Total tokens')).toBeVisible();
+
+    await usageToggle(page, 'Hide').click();
+    const show = usageToggle(page, 'Show');
+    await expect(show).toHaveAttribute('aria-expanded', 'false');
+    await expect(section.getByText('Usage', { exact: true })).toBeVisible();
+    for (const text of ['Total tokens', 'Est. cost', 'Models', 'Estimate at public API rates']) {
+      await expect(section.getByText(text).first()).toBeHidden();
+    }
+    await expect(modelsTable(page)).toBeHidden();
+
+    await show.click();
+    await expect(usageToggle(page, 'Hide')).toHaveAttribute('aria-expanded', 'true');
+    await expect(section.getByText('Total tokens')).toBeVisible();
+
+    await usageToggle(page, 'Hide').click();
+    await expect(usageToggle(page, 'Show')).toBeVisible();
+    await page.reload();
+    await expect(usageToggle(page, 'Hide')).toHaveAttribute('aria-expanded', 'true');
+    await expect(usageSection(page).getByText('Total tokens')).toBeVisible();
+  });
+
+  test('TC-2.4: a run with no usage shows no Hide or Show control on the Usage header', async ({ page }) => {
+    await openDetail(page, USAGE_RUNS.noUsage);
+    await expect(usageSection(page).getByText('Usage', { exact: true })).toBeVisible();
+    await expect(usageSection(page).getByRole('button', { name: /^(Hide|Show)$/ })).toHaveCount(0);
+  });
+
+  test('TC-3.1: a one-model run has a Models table with one row of name, tokens and cost', async ({ page }) => {
+    await openDetail(page, USAGE_RUNS.oneModel);
+    const table = modelsTable(page);
+    await expect(table.getByRole('columnheader')).toHaveText(['Model', 'Tokens', 'Est. cost']);
+    await expect(usageSection(page).getByText('Models', { exact: true })).toBeVisible();
+    const rows = table.locator('tbody tr');
+    await expect(rows).toHaveCount(1);
+    await expect(rows.first().locator('th, td')).toHaveText(['model-a', '48,213', '~$0.42']);
+  });
+
+  test('TC-3.2: a two-model run has two rows, the one with more tokens first', async ({ page }) => {
+    await openDetail(page, USAGE_RUNS.twoModel);
+    const rows = modelsTable(page).locator('tbody tr');
+    await expect(rows).toHaveCount(2);
+    await expect(rows.nth(0).locator('th, td')).toHaveText(['model-a', '40,000', '~$0.30']);
+    await expect(rows.nth(1).locator('th, td')).toHaveText(['model-b', '14,500', '~$0.10']);
+  });
+
+  test('TC-3.3: Hide and Show on the Models sub-header only touch the table, and a reload shows it', async ({
+    page,
+  }) => {
+    await openDetail(page, USAGE_RUNS.twoModel);
+    const section = usageSection(page);
+    await modelsToggle(page, 'Hide').click();
+    await expect(modelsTable(page)).toBeHidden();
+    await expect(modelsToggle(page, 'Show')).toHaveAttribute('aria-expanded', 'false');
+    await expect(modelsToggle(page, 'Show')).toHaveText('Show');
+    for (const text of ['Total tokens', 'Input (uncached)', 'Est. cost', 'Estimate at public API rates']) {
+      await expect(section.getByText(text).first()).toBeVisible();
+    }
+
+    await modelsToggle(page, 'Show').click();
+    await expect(modelsTable(page)).toBeVisible();
+    await expect(modelsToggle(page, 'Hide')).toHaveAttribute('aria-expanded', 'true');
+
+    await modelsToggle(page, 'Hide').click();
+    await expect(modelsTable(page)).toBeHidden();
+    await page.reload();
+    await expect(modelsTable(page)).toBeVisible();
+  });
+
+  test('TC-4.2: costs start with ~ and one note shows once, ending with the provider bill sentence', async ({
+    page,
+  }) => {
+    await openDetail(page, USAGE_RUNS.twoModel);
+    const section = usageSection(page);
+    expect(await rowValue(page, 'Est. cost')).toBe('~$0.40');
+    await expect(modelsTable(page).locator('tbody tr td:last-child')).toHaveText(['~$0.30', '~$0.10']);
+    const full = `${NOTE} Prices as of 21 Nov 2026. Your provider bill may differ.`;
+    await expect(section.getByText(full, { exact: true })).toHaveCount(1);
+    await expect(section.getByText('Your provider bill may differ.')).toHaveCount(1);
+    await expect(section.getByText(/Prices as of/)).toHaveCount(1);
+  });
+
+  test('TC-5.2: a run with no recorded usage reads No usage data and shows no numbers, cost, note or Models', async ({
+    page,
+  }) => {
+    await openDetail(page, USAGE_RUNS.noUsage);
+    const section = usageSection(page);
+    await expect(section.getByText('No usage data for this run.')).toBeVisible();
+    await expect(section).not.toContainText(/\$|\b0\b|Models|Estimate at public API|Total tokens/);
+    await expect(section.getByRole('table')).toHaveCount(0);
+  });
+
+  test('TC-5.3: an all-zero priced run shows 0 with ~$0.00 in the list and zeros with the price date in the detail', async ({
+    page,
+  }) => {
+    await page.goto(`/o/${ORG}/p/${INVOICER_API}/runs`);
+    const link = page.getByRole('link', { name: new RegExp(`^Run ${USAGE_RUNS.zeroUsage}\\b`) });
+    await expect(link).toBeVisible();
+    const heads = await page.getByRole('columnheader').allTextContents();
+    const col = heads.findIndex((h) => h.trim() === 'Usage');
+    expect(col).toBeGreaterThanOrEqual(0);
+    const row = page.getByRole('row').filter({ has: link });
+    const cell = row.getByRole('cell').nth(col);
+    await expect(cell).toBeVisible();
+    expect(await cell.evaluate((el) => el.firstChild?.textContent ?? '')).toBe('0 · ~$0.00');
+
+    await link.click();
+    await expect(panel(page)).toBeVisible();
+    for (const l of SPLIT) expect(await rowValue(page, l)).toBe('0');
+    expect(await rowValue(page, 'Est. cost')).toBe('~$0.00');
+    await expect(usageSection(page).getByText(/Prices as of 21 Nov 2026\./)).toBeVisible();
+  });
+
+  test('TC-6.1: an unpriced model shows a dash and a hover title, the total reads at least, and the partial note shows', async ({
+    page,
+  }) => {
+    await openDetail(page, USAGE_RUNS.unpriced);
+    const section = usageSection(page);
+    const rows = modelsTable(page).locator('tbody tr');
+    await expect(rows).toHaveCount(2);
+    const unpriced = rows.filter({ hasText: 'model-b' });
+    await expect(unpriced.locator('td').first()).toHaveText('12,960');
+    const cost = unpriced.locator('td').last();
+    await expect(cost).toHaveText('—');
+    await cost.getByText('—').hover();
+    await expect(cost.getByTitle('No price when this was recorded')).toBeVisible();
+    expect(await rowValue(page, 'Est. cost')).toMatch(/^at least\s*~\$0\.42$/);
+    await expect(section.getByText(PARTIAL)).toBeVisible();
+    const text = await section.innerText();
+    expect(text.indexOf('Estimate at public API rates')).toBeGreaterThan(-1);
+    expect(text.indexOf('Estimate at public API rates')).toBeLessThan(text.indexOf(PARTIAL));
+  });
+
+  test('TC-6.2: when no model is priced the cost is a dash, tokens still show, the partial note shows and no price date', async ({
+    page,
+  }) => {
+    await openDetail(page, USAGE_RUNS.nonePriced);
+    const section = usageSection(page);
+    expect(await rowValue(page, 'Est. cost')).toBe('—');
+    await expectSplitAddsUp(page);
+    const modelRows = modelsTable(page).locator('tbody tr');
+    const modelCount = await modelRows.count();
+    expect(modelCount).toBeGreaterThan(0);
+    for (let i = 0; i < modelCount; i++) {
+      await expect(modelRows.nth(i).locator('td').last()).toHaveText('—');
+    }
+    await expect(modelRows.first().locator('td').first()).toHaveText('12,840');
+    await expect(section.getByText(PARTIAL)).toBeVisible();
+    await expect(section.getByText(/Prices as of/)).toHaveCount(0);
+  });
+
+  test('TC-11.1: a run with no cache tokens shows 0 for Cache read and Cache write and a ~ cost', async ({ page }) => {
+    await openDetail(page, USAGE_RUNS.noCache);
+    expect(await rowValue(page, 'Cache read')).toBe('0');
+    expect(await rowValue(page, 'Cache write')).toBe('0');
+    expect(await rowValue(page, 'Est. cost')).toBe('~$0.06');
+  });
+
+  test('TC-11.2: with tokens in all four buckets the split rows add up to the total', async ({ page }) => {
+    await openDetail(page, USAGE_RUNS.oneModel);
+    for (const l of SPLIT) expect(count(await rowValue(page, l))).toBeGreaterThan(0);
+    await expectSplitAddsUp(page);
+  });
+
+  test('TC-15.1: a run that hit the call cap reads at least with the cost and shows the partial note', async ({
+    page,
+  }) => {
+    await openDetail(page, USAGE_RUNS.capPartial);
+    expect(await rowValue(page, 'Est. cost')).toMatch(/^at least\s*~\$0\.42$/);
+    await expect(usageSection(page).getByText(PARTIAL)).toBeVisible();
+  });
+
+  test('TC-17.1: a 128-character model name is one ellipsised line with the full name in its title', async ({
+    page,
+  }) => {
+    await openDetail(page, USAGE_RUNS.longModelName);
+    const name = 'Ab0._:/@-'.repeat(15).slice(0, 128);
+    expect(name).toHaveLength(128);
+    const head = modelsTable(page).locator('tbody th').first();
+    await head.hover();
+    await expect(head).toHaveAttribute('title', name);
+    await expect(head).toHaveText(name);
+    await expect(head).toHaveCSS('text-overflow', 'ellipsis');
+    expect(await head.evaluate((el) => el.scrollWidth > el.clientWidth)).toBe(true);
+    expect(await head.evaluate((el) => el.clientHeight < 40)).toBe(true);
+  });
+
+  test('TC-17.2: the side panel has no horizontal overflow with the long name, and the toggles work', async ({
+    page,
+  }) => {
+    await openDetail(page, USAGE_RUNS.longModelName);
+    const noOverflow = () => panel(page).evaluate((el) => el.scrollWidth <= el.clientWidth);
+    expect(await noOverflow()).toBe(true);
+    const cells = modelsTable(page).locator('tbody tr').first().locator('td');
+    await expect(cells).toHaveText(['48,213', '~$0.42']);
+    await modelsToggle(page, 'Hide').click();
+    await expect(modelsTable(page)).toBeHidden();
+    await modelsToggle(page, 'Show').click();
+    await expect(modelsTable(page)).toBeVisible();
+    await expect(cells).toHaveText(['48,213', '~$0.42']);
+    expect(await noOverflow()).toBe(true);
+  });
 });

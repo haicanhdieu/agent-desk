@@ -1,5 +1,5 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
-import { INVOICER_API, ORG, seedLists } from './mock';
+import { INVOICER_API, ORG, seedLists, USAGE_RUNS } from './mock';
 
 /** The routing rule command of run 65 (src/mocks/dto/runs.ts), long enough to be truncated in the Run List. */
 const LONG_COMMAND = 'code-build-with-a-very-long-routing-rule-command-name-that-overflows-the-cell';
@@ -368,4 +368,158 @@ test.describe('BR-18 an issue with no linked PR runs', () => {
     await expect(header(page, 'Issue #139')).toContainText(/3 of 10 runs$/);
     await expect(header(page, 'Issue #139')).not.toContainText(CHAIN_ARROW);
   });
+});
+
+/** The Usage column of the Runs list (spec 2026-11-24-run-token-usage-cost, BR-1, BR-4, BR-5, BR-12, BR-15). */
+async function openUsageRuns(page: Page): Promise<void> {
+  await page.goto(`/o/${ORG}/p/${INVOICER_API}/runs`);
+  await expect(page.getByRole('link', { name: new RegExp(`^Run ${USAGE_RUNS.oneModel}\\b`) })).toBeVisible();
+}
+
+function usageRow(page: Page, run: number): Locator {
+  return page.getByRole('row').filter({ has: page.getByRole('link', { name: new RegExp(`^Run ${run}\\b`) }) });
+}
+
+/** The row's Usage cell: the cell at the Usage header's column. */
+async function usageCell(page: Page, run: number): Promise<Locator> {
+  const heads = await page.getByRole('columnheader').allTextContents();
+  const col = heads.findIndex((h) => h.trim() === 'Usage');
+  expect(col).toBeGreaterThanOrEqual(0);
+  return usageRow(page, run).getByRole('cell').nth(col);
+}
+
+/** The visible text of the cell: its first text node, without the screen-reader-only suffix. */
+const visibleText = (cell: Locator) => cell.evaluate((el) => el.firstChild?.textContent ?? '');
+/** Lines of the cell's visible text: the distinct tops of its text node's line boxes. */
+const lineCount = (cell: Locator) =>
+  cell.evaluate((el) => {
+    const range = document.createRange();
+    if (el.firstChild) range.selectNodeContents(el.firstChild);
+    return new Set([...range.getClientRects()].map((r) => Math.round(r.top))).size;
+  });
+const titleOf = (cell: Locator) => cell.getAttribute('title');
+
+test('TC-1.1: the Usage column follows Duration and shows tokens and cost without model or split', async ({ page }) => {
+  await openUsageRuns(page);
+  const heads = (await page.getByRole('columnheader').allTextContents()).map((h) => h.trim());
+  const usage = heads.indexOf('Usage');
+  expect(usage).toBeGreaterThan(-1);
+  expect(usage).toBe(heads.indexOf('Duration') + 1);
+  // Usage is the last data column: only the screen-reader-only Actions column follows it.
+  expect(heads.slice(usage + 1)).toEqual(['Actions']);
+  const cell = await usageCell(page, USAGE_RUNS.oneModel);
+  expect(await visibleText(cell)).toBe('48.2k · ~$0.42');
+  const row = usageRow(page, USAGE_RUNS.oneModel);
+  await expect(row).not.toContainText(/model-[ab]|input|cache|output/i);
+});
+
+test('TC-1.2: a cost under one cent reads ~<$0.01 in the usage cell', async ({ page }) => {
+  await openUsageRuns(page);
+  expect(await visibleText(await usageCell(page, USAGE_RUNS.subCent))).toBe('2.1k · ~<$0.01');
+});
+
+test('TC-1.3: a run with an unpriced model shows a + after the cost', async ({ page }) => {
+  await openUsageRuns(page);
+  expect(await visibleText(await usageCell(page, USAGE_RUNS.unpriced))).toBe('61.2k · ~$0.42+');
+});
+
+test('TC-1.4: a run with no priced model shows tokens and a dash for cost', async ({ page }) => {
+  await openUsageRuns(page);
+  expect(await visibleText(await usageCell(page, USAGE_RUNS.nonePriced))).toBe('12.8k · —');
+});
+
+test('TC-1.5: the usage cell titles give tokens, cost and model count', async ({ page }) => {
+  await openUsageRuns(page);
+  const one = await usageCell(page, USAGE_RUNS.oneModel);
+  await one.hover();
+  expect(await titleOf(one)).toBe('48,213 tokens in total, estimated cost $0.42, 1 model');
+  const two = await usageCell(page, USAGE_RUNS.unpriced);
+  await two.hover();
+  expect(await titleOf(two)).toBe('61,173 tokens in total, estimated cost at least $0.42, 2 models');
+});
+
+test('TC-4.1: the list cell has a ~ cost, an estimate title and no provider bill note', async ({ page }) => {
+  await openUsageRuns(page);
+  const cell = await usageCell(page, USAGE_RUNS.oneModel);
+  await cell.hover();
+  expect(await visibleText(cell)).toContain('~$0.42');
+  const title = (await titleOf(cell)) ?? '';
+  expect(title).toContain('estimated cost');
+  expect(title.toLowerCase()).not.toContain('provider bill');
+  await expect(cell).not.toContainText(/provider bill/i);
+});
+
+test('TC-4.3: a sub-cent run shows ~<$0.01 and an under-one-cent title', async ({ page }) => {
+  await openUsageRuns(page);
+  const cell = await usageCell(page, USAGE_RUNS.subCent);
+  await cell.hover();
+  expect(await visibleText(cell)).toContain('~<$0.01');
+  expect(await titleOf(cell)).toBe('2,104 tokens in total, estimated cost under $0.01, 1 model');
+});
+
+test('TC-5.1: a run without recorded usage shows a dash and the title No usage data', async ({ page }) => {
+  await openUsageRuns(page);
+  const cell = await usageCell(page, USAGE_RUNS.noUsage);
+  await cell.hover();
+  expect(await visibleText(cell)).toBe('—');
+  expect(await titleOf(cell)).toBe('No usage data');
+  expect(await visibleText(cell)).not.toMatch(/\$|\b0\b/);
+});
+
+test('TC-12.1: every row has one one-line usage cell and no model, split, note or price date', async ({ page }) => {
+  await openUsageRuns(page);
+  const heads = await page.getByRole('columnheader').allTextContents();
+  expect(heads.filter((h) => h.trim() === 'Usage')).toHaveLength(1);
+  const rows = page.getByRole('row').filter({ has: page.getByRole('link', { name: /^Run \d+\b/ }) });
+  const count = await rows.count();
+  expect(count).toBeGreaterThan(5);
+  const col = heads.findIndex((h) => h.trim() === 'Usage');
+  for (let i = 0; i < count; i++) {
+    const row = rows.nth(i);
+    await expect(row.getByRole('cell')).toHaveCount(heads.length);
+    expect(await lineCount(row.getByRole('cell').nth(col))).toBe(1);
+    await expect(row).not.toContainText(
+      /model-[ab]|Input \(uncached\)|Cache read|Cache write|provider bill|Prices as of/i,
+    );
+  }
+});
+
+test('TC-12.2: at a narrow viewport the usage cell stays on one line and the page does not scroll sideways', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 800 });
+  await openUsageRuns(page);
+  for (const run of [USAGE_RUNS.oneModel, USAGE_RUNS.unpriced, USAGE_RUNS.nonePriced]) {
+    const cell = await usageCell(page, run);
+    await expect(cell).toBeVisible();
+    const fits = await cell.evaluate((el) => el.scrollWidth <= el.clientWidth);
+    expect(fits).toBe(true);
+    expect(await lineCount(cell)).toBe(1);
+  }
+  // The table scrolls inside its section: the section is the scroll container and the table adds no page width.
+  // (The app shell's own header is wider than 390 px, so the page width is compared with the section hidden.)
+  const section = page.getByRole('region', { name: 'Run results' });
+  const sectionScrolls = await section.evaluate(
+    (el) => getComputedStyle(el).overflowX === 'auto' && el.scrollWidth > el.clientWidth,
+  );
+  expect(sectionScrolls).toBe(true);
+  // The shell's header settles while the page loads, so read the width until two reads agree.
+  const pageWidth = async () => {
+    let last = -1;
+    for (let i = 0; i < 40; i++) {
+      const w = await page.evaluate(() => document.documentElement.scrollWidth);
+      if (w === last) return w;
+      last = w;
+      await page.waitForTimeout(150);
+    }
+    return last;
+  };
+  const withTable = await pageWidth();
+  await section.evaluate((el) => (el.style.display = 'none'));
+  expect(withTable).toBeLessThanOrEqual(await pageWidth());
+});
+
+test('TC-15.2: a run that reached the call cap carries a + after the cost in the list', async ({ page }) => {
+  await openUsageRuns(page);
+  expect(await visibleText(await usageCell(page, USAGE_RUNS.capPartial))).toBe('48.2k · ~$0.42+');
 });
