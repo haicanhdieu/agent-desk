@@ -225,6 +225,13 @@ describe('runs route', () => {
       expect(router.state.location.search).toEqual({ filter: 'queued' });
     });
 
+    it('keeps the saved view when a link opens a bare page of the list', async () => {
+      localStorage.setItem(viewKey, JSON.stringify({ filter: 'ended', q: '12' }));
+      await renderRoute(`${base}/runs?page=2`);
+      await screen.findByRole('heading', { level: 1, name: 'Runs' });
+      expect(JSON.parse(localStorage.getItem(viewKey) ?? 'null')).toEqual({ filter: 'ended', q: '12' });
+    });
+
     it('ignores a stored value it cannot read', async () => {
       localStorage.setItem(viewKey, '{not json');
       const { router } = await renderRoute(`${base}/runs`);

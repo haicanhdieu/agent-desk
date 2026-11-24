@@ -1,7 +1,7 @@
 import { RunListFilter, can } from '@agentdesk/contracts';
 import { useQueryClient, useSuspenseQuery } from '@tanstack/react-query';
 import { createFileRoute, redirect, useNavigate } from '@tanstack/react-router';
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { z } from 'zod';
 import {
   PageSearch,
@@ -107,10 +107,15 @@ function RunsRoute() {
   const search = Route.useSearch();
   const now = useNow();
   // Every filter and search shown is remembered, so the next visit starts from it.
-  useEffect(
-    () => writeSavedView(org, project, { filter: search.filter, q: search.q }),
-    [org, project, search.filter, search.q],
-  );
+  // A bare page link (`?page=N`) shows no view by chance, not by choice: it never erases the saved one.
+  const page = useRef(search.page);
+  useEffect(() => {
+    page.current = search.page;
+  });
+  useEffect(() => {
+    if (search.filter === undefined && search.q === undefined && page.current !== undefined) return;
+    writeSavedView(org, project, { filter: search.filter, q: search.q });
+  }, [org, project, search.filter, search.q]);
   return search.filter === 'ignored' ? (
     <IgnoredView org={org} projectId={project} q={search.q} now={now} />
   ) : (
