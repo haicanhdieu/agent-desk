@@ -233,3 +233,31 @@ export const platformSuspendAuditRows: AuditRowView[] = [
     tag: 'platform',
   }),
 ];
+
+/** The approved OrgAuditPlatformEdit board: a platform admin edited the org, marked Platform admin, old and new values shown. */
+export const platformEditAuditRows: AuditRowView[] = [
+  sentence(
+    19,
+    '19 min ago',
+    [
+      p('Morgan Avery', true),
+      p(' changed the organization URL from '),
+      p('/o/harbor', true),
+      p(' to '),
+      p('/o/harbor-labs', true),
+    ],
+    { label: 'Morgan Avery', tag: 'platform' },
+  ),
+  sentence(
+    20,
+    '20 min ago',
+    [
+      p('Morgan Avery', true),
+      p(' changed the organization name from '),
+      p('Harbor', true),
+      p(' to '),
+      p('Harbor Labs', true),
+    ],
+    { label: 'Morgan Avery', tag: 'platform' },
+  ),
+];

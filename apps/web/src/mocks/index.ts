@@ -72,7 +72,13 @@ export {
 export { pagedRuns, pagedIgnored, pagedNeedsYou, pagedProjects, pagedRules, pagedSkills, pagedVersions } from './paged';
 export { orgOptions, orgSwitchFixtures } from './orgs';
 export { accessProjectGrants, accessProjectRoleIds, accessProjects, memberRows, roleCards } from './members';
-export { auditRows, pagedAuditLastPage, pagedAuditRows, platformSuspendAuditRows } from './audit';
+export {
+  auditRows,
+  pagedAuditLastPage,
+  pagedAuditRows,
+  platformEditAuditRows,
+  platformSuspendAuditRows,
+} from './audit';
 export {
   projectMemberRows,
   pagedProjectMemberRows,
@@ -97,3 +103,10 @@ export {
 export { platformAdminRows, pagedPlatformAdminRows, type PlatformAdminRowView } from './platform/admins';
 export { platformOrgRows, pagedPlatformOrgRows, type PlatformOrgRowView, type OrgStatusView } from './platform/orgs';
 export { activeOrgOverview, suspendedOrgOverview, type PlatformOrgOverviewView } from './platform/detail';
+export {
+  editOrgDirtyValues,
+  editOrgFieldErrors,
+  editOrgFormError,
+  editOrgSlugTaken,
+  editOrgValues,
+} from './platform/edit';

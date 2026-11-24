@@ -302,6 +302,13 @@ export const boardStories = {
   DeskSetupEnvironmentReadOnly: { title: desk, exportName: 'DeskSetupEnvironmentReadOnly' },
   DeskSetupEnvironmentSecretsReadOnly: { title: desk, exportName: 'DeskSetupEnvironmentSecretsReadOnly' },
   DeskSetupEnvironmentTesting: { title: desk, exportName: 'DeskSetupEnvironmentTesting' },
+  PlatformOrgEdit: { title: platform, exportName: 'PlatformOrgEdit' },
+  PlatformOrgEditFieldErrors: { title: platform, exportName: 'PlatformOrgEditFieldErrors' },
+  PlatformOrgEditSlugTaken: { title: platform, exportName: 'PlatformOrgEditSlugTaken' },
+  PlatformOrgEditSaving: { title: platform, exportName: 'PlatformOrgEditSaving' },
+  PlatformOrgEditSlugConfirm: { title: platform, exportName: 'PlatformOrgEditSlugConfirm' },
+  PlatformOrgEditError: { title: platform, exportName: 'PlatformOrgEditError' },
+  OrgAuditPlatformEdit: { title: orgSettings, exportName: 'OrgAuditPlatformEdit' },
 } as const satisfies Record<string, BoardStory>;
 
 export type BoardName = keyof typeof boardStories;

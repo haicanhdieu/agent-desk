@@ -142,3 +142,5 @@ export { OrgStatus } from './OrgStatus';
 export { AddPlatformAdminDialog, type AddPlatformAdminDialogProps } from './AddPlatformAdminDialog';
 export { PlatformOrgHeader, type PlatformOrgHeaderProps } from './PlatformOrgHeader';
 export { SuspendOrgDialog, type SuspendOrgDialogProps } from './SuspendOrgDialog';
+export { SlugChangeConfirm, type SlugChangeConfirmProps } from './SlugChangeConfirm';
+export { EditOrgDialog, type EditOrgDialogProps } from './EditOrgDialog';

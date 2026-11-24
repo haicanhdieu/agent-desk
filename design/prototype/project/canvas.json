@@ -2289,6 +2289,62 @@
    "h": 900,
    "title": "Desk \u2014 workspace setup, environment, while a test runs",
    "expand": "fill"
+  },
+  "PlatformOrgEdit.dc.html": {
+   "x": 0,
+   "y": 72240,
+   "w": 1440,
+   "h": 900,
+   "title": "Organization detail \u2014 Edit organization: Name and URL prefilled, Save disabled until something changes",
+   "expand": "fill"
+  },
+  "PlatformOrgEditFieldErrors.dc.html": {
+   "x": 1520,
+   "y": 72240,
+   "w": 1440,
+   "h": 900,
+   "title": "Organization detail \u2014 Edit organization: name empty and URL outside the format",
+   "expand": "fill"
+  },
+  "PlatformOrgEditSlugTaken.dc.html": {
+   "x": 3040,
+   "y": 72240,
+   "w": 1440,
+   "h": 900,
+   "title": "Organization detail \u2014 Edit organization: URL taken by another org (409)",
+   "expand": "fill"
+  },
+  "PlatformOrgEditSaving.dc.html": {
+   "x": 4560,
+   "y": 72240,
+   "w": 1440,
+   "h": 900,
+   "title": "Organization detail \u2014 Edit organization: saving",
+   "expand": "fill"
+  },
+  "PlatformOrgEditSlugConfirm.dc.html": {
+   "x": 6080,
+   "y": 72240,
+   "w": 1440,
+   "h": 900,
+   "title": "Organization detail \u2014 Edit organization: confirm the URL change (old links stop working)",
+   "expand": "fill"
+  },
+  "PlatformOrgEditError.dc.html": {
+   "x": 0,
+   "y": 73520,
+   "w": 1440,
+   "h": 900,
+   "title": "Organization detail \u2014 Edit organization: server error banner in the dialog (403 or 5xx)",
+   "expand": "fill"
+  },
+  "OrgAuditPlatformEdit.dc.html": {
+   "x": 1520,
+   "y": 73520,
+   "w": 1440,
+   "h": 900,
+   "title": "Settings \u2014 Audit log: a platform admin renamed the organization (marked Platform admin)",
+   "expand": "fill"
   }
  },
  "order": [
@@ -2576,7 +2632,14 @@
   "DeskSetupEnvironmentAdded.dc.html",
   "DeskSetupEnvironmentReadOnly.dc.html",
   "DeskSetupEnvironmentSecretsReadOnly.dc.html",
-  "DeskSetupEnvironmentTesting.dc.html"
+  "DeskSetupEnvironmentTesting.dc.html",
+  "PlatformOrgEdit.dc.html",
+  "PlatformOrgEditFieldErrors.dc.html",
+  "PlatformOrgEditSlugTaken.dc.html",
+  "PlatformOrgEditSaving.dc.html",
+  "PlatformOrgEditSlugConfirm.dc.html",
+  "PlatformOrgEditError.dc.html",
+  "OrgAuditPlatformEdit.dc.html"
  ],
  "notes": {
   "t-intro": {
