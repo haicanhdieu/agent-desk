@@ -339,8 +339,8 @@ export function sendNew({ paths, stateDir, out, waitMs = 0, staleMs = LOCK_STALE
           } catch {
             continue;
           }
-          // Subagent files and sidechain rows only feed usage; their prompts and replies are not the run's thread.
-          if (!isSubagent && !(isRecord(entry) && entry.isSidechain === true)) {
+          // Subagent files only feed usage; their prompts and replies are not the run's thread.
+          if (!isSubagent) {
             for (const e of mapEntry(entry)) wire.push(wireLine(e));
           }
           const u = mapUsage(entry);

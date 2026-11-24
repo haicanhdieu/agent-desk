@@ -258,7 +258,7 @@ describe('sendNew usage lines', () => {
     expect((await usageSent()).map((s) => s.id).sort()).toEqual(['msg_main:req_01', 'msg_sub:req_01']);
   });
 
-  it('prints no transcript line for a subagent file or a sidechain row, but still prints their usage', async () => {
+  it('prints no transcript line for a subagent file, but still prints their usage', async () => {
     const path = join(home, 'sess.jsonl');
     const text = (t: string) => [{ type: 'text', text: t }];
     const main = {
@@ -287,6 +287,15 @@ describe('sendNew usage lines', () => {
     expect(printed).toHaveLength(1);
     expect(printed[0]).toContain('main reply');
     expect((await usageSent()).map((s) => s.id).sort()).toEqual(['msg_main:req_01', 'msg_sub:req_01']);
+  });
+
+  it('still prints the transcript line of a main-file row marked isSidechain', async () => {
+    const path = await copyFixture('sidechain-and-edge.jsonl');
+    sendNew({ paths: [path], stateDir, out });
+    const printed = (await readFile(out, 'utf8')).split('\n').filter((l) => l.startsWith('agentdesk: transcript '));
+    expect(printed.length).toBeGreaterThanOrEqual(2);
+    const first = Buffer.from(printed[0]!.slice('agentdesk: transcript '.length), 'base64').toString('utf8');
+    expect(first).toContain('00000000-0000-4000-8000-000000000009');
   });
 
   it('transcriptStep sends the subagent files of the hook transcript path', async () => {
