@@ -105,19 +105,29 @@ export class GithubCodeHostAdapter implements CodeHostAdapter {
     return `https://github.com/apps/${this.opts.appSlug}/installations/new?state=${encodeURIComponent(state)}`;
   }
 
-  /** The installation must be visible to the user's own linked account, so one user cannot claim another's install. */
+  /**
+   * The installation must be one the user's own linked account owns (their own account's, or an org they administer),
+   * not merely one visible to them, so one user cannot claim another's install.
+   */
   async completeInstall(params: Record<string, string>, user: InstallUser): Promise<NewConnection> {
     const installationId = Number(params.installation_id);
     if (!Number.isInteger(installationId) || installationId < 1) throw new Error('missing installation_id');
     if (!user.linkedAccountToken) throw new Error('no linked account for this user');
     // The user's token is only used for this one access check and is never stored or logged.
     const userClient = this.clients.user(user.linkedAccountToken);
-    const visible = UserInstallations.parse(
-      (await userClient.request('GET /user/installations', { per_page: 100 })).data,
-    );
-    if (!visible.installations.some((i) => i.id === installationId)) {
-      throw new Error('installation is not accessible to this user');
+    const isOwned = await this.ownershipTest(userClient);
+    let accessible = false;
+    for (let page = 1; page <= MAX_PAGES; page++) {
+      const res = await userClient.request('GET /user/installations', { per_page: PER_PAGE, page });
+      const { installations } = UserInstallations.parse(res.data);
+      const found = installations.find((i) => i.id === installationId);
+      if (found) {
+        accessible = await isOwned(found.account);
+        break;
+      }
+      if (installations.length < PER_PAGE) break;
     }
+    if (!accessible) throw new Error('installation is not accessible to this user');
     const info = InstallationInfo.parse(
       (
         await this.clients
@@ -142,20 +152,13 @@ export class GithubCodeHostAdapter implements CodeHostAdapter {
   async listInstallations(user: InstallUser): Promise<NewConnection[]> {
     if (!user.linkedAccountToken) return [];
     const client = this.clients.user(user.linkedAccountToken);
-    const me = GithubUser.parse((await client.request('GET /user')).data);
-    let adminOrgs: Set<string> | undefined; // fetched once, and only if an org install shows up
+    const isOwned = await this.ownershipTest(client);
     const out: NewConnection[] = [];
     for (let page = 1; page <= MAX_PAGES; page++) {
       const res = await client.request('GET /user/installations', { per_page: PER_PAGE, page });
       const { installations } = UserInstallations.parse(res.data);
       for (const i of installations) {
-        let owned = false;
-        if (i.account?.type === 'User') owned = i.account.id === me.id;
-        else if (i.account?.type === 'Organization') {
-          adminOrgs ??= await this.adminOrgLogins(client);
-          owned = adminOrgs.has(i.account.login);
-        }
-        if (!owned) continue;
+        if (!(await isOwned(i.account))) continue;
         out.push({
           provider: 'github',
           externalId: String(i.id),
@@ -167,6 +170,23 @@ export class GithubCodeHostAdapter implements CodeHostAdapter {
       if (installations.length < PER_PAGE) break;
     }
     return out;
+  }
+
+  /**
+   * Whether an installation's account belongs to the user: their own User account, or an Organization they administer.
+   * The admin list is fetched once, and only if an org install is checked.
+   */
+  private async ownershipTest(client: ReturnType<GithubClients['user']>) {
+    const me = GithubUser.parse((await client.request('GET /user')).data);
+    let adminOrgs: Set<string> | undefined;
+    return async (account: z.infer<typeof UserInstallations>['installations'][number]['account']): Promise<boolean> => {
+      if (account?.type === 'User') return account.id === me.id;
+      if (account?.type === 'Organization') {
+        adminOrgs ??= await this.adminOrgLogins(client);
+        return adminOrgs.has(account.login);
+      }
+      return false;
+    };
   }
 
   /** Logins of the orgs where the user is an active admin. A 403/404 (e.g. no Members permission) yields none. */

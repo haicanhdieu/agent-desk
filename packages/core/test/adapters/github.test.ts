@@ -988,33 +988,77 @@ describe('github code host', () => {
     });
   });
 
-  it('completeInstall requires the installation to be visible to the user linked account', async () => {
-    gh()
-      .intercept({
-        path: (p) => p.startsWith('/user/installations'),
-        method: 'GET',
-        headers: { authorization: 'token utok' },
-      })
-      .reply(200, '{"total_count":1,"installations":[{"id":4242}]}', { headers: JSON_HEADERS })
-      .persist();
-    gh()
-      .intercept({ path: '/app/installations/4242', method: 'GET' })
-      .reply(200, '{"id":4242,"account":{"login":"acme"}}', { headers: JSON_HEADERS });
-    expect(
-      await host().completeInstall({ installation_id: '4242' }, { userId: 'u', linkedAccountToken: 'utok' }),
-    ).toEqual({
+  describe('completeInstall', () => {
+    const user = { userId: 'u', linkedAccountToken: 'utok' };
+    const AUTH = { authorization: 'token utok' };
+    const reply = (path: (p: string) => boolean, status: number, body: string) =>
+      gh().intercept({ path, method: 'GET', headers: AUTH }).reply(status, body, { headers: JSON_HEADERS });
+    const mockAppInfo = (id: number, login: string) =>
+      gh()
+        .intercept({ path: `/app/installations/${id}`, method: 'GET' })
+        .reply(200, `{"id":${id},"account":{"login":"${login}"}}`, { headers: JSON_HEADERS });
+    const installs = (body: string) => {
+      reply((p) => p === '/user', 200, '{"id":100,"login":"me"}');
+      reply((p) => p.startsWith('/user/installations'), 200, `{"installations":[${body}]}`);
+    };
+    const inst = (id: number, login: string, type: string, accountId: number) =>
+      `{"id":${id},"account":{"login":"${login}","type":"${type}","id":${accountId}}}`;
+    const connection = (id: string, name: string) => ({
       provider: 'github',
-      externalId: '4242',
-      accountName: 'acme',
+      externalId: id,
+      accountName: name,
       capabilities: { code: true, board: true },
       manageUrl: null,
     });
-    await expect(
-      host().completeInstall({ installation_id: '999' }, { userId: 'u', linkedAccountToken: 'utok' }),
-    ).rejects.toThrow(/not accessible/);
-    await expect(
-      host().completeInstall({ installation_id: '4242' }, { userId: 'u', linkedAccountToken: null }),
-    ).rejects.toThrow(/linked account/);
+
+    it('links the user own account install', async () => {
+      installs(inst(4242, 'me', 'User', 100));
+      mockAppInfo(4242, 'me');
+      expect(await host().completeInstall({ installation_id: '4242' }, user)).toEqual(connection('4242', 'me'));
+    });
+
+    it('rejects an id that is not in the user installations, and a missing linked account', async () => {
+      installs(inst(4242, 'me', 'User', 100));
+      await expect(host().completeInstall({ installation_id: '999' }, user)).rejects.toThrow(/not accessible/);
+      await expect(
+        host().completeInstall({ installation_id: '4242' }, { userId: 'u', linkedAccountToken: null }),
+      ).rejects.toThrow(/linked account/);
+    });
+
+    it('rejects another user personal install that is only visible to the user', async () => {
+      installs(inst(7, 'other', 'User', 200));
+      await expect(host().completeInstall({ installation_id: '7' }, user)).rejects.toThrow(/not accessible/);
+    });
+
+    it('rejects an organization install where the user is only a member', async () => {
+      installs(inst(8, 'victim', 'Organization', 400));
+      reply(
+        (p) => p.startsWith('/user/memberships/orgs'),
+        200,
+        '[{"role":"member","organization":{"login":"victim"}}]',
+      );
+      await expect(host().completeInstall({ installation_id: '8' }, user)).rejects.toThrow(/not accessible/);
+    });
+
+    it('links an organization install where the user is an admin', async () => {
+      installs(inst(9, 'acme', 'Organization', 300));
+      reply((p) => p.startsWith('/user/memberships/orgs'), 200, '[{"role":"admin","organization":{"login":"acme"}}]');
+      mockAppInfo(9, 'acme');
+      expect(await host().completeInstall({ installation_id: '9' }, user)).toEqual(connection('9', 'acme'));
+    });
+
+    it('finds the installation on a later page', async () => {
+      reply((p) => p === '/user', 200, '{"id":100,"login":"me"}');
+      const full = Array.from({ length: 100 }, (_, i) => inst(1000 + i, `x${i}`, 'User', 9000 + i)).join(',');
+      reply((p) => p.startsWith('/user/installations') && p.includes('page=1'), 200, `{"installations":[${full}]}`);
+      reply(
+        (p) => p.startsWith('/user/installations') && p.includes('page=2'),
+        200,
+        `{"installations":[${inst(1, 'me', 'User', 100)}]}`,
+      );
+      mockAppInfo(1, 'me');
+      expect(await host().completeInstall({ installation_id: '1' }, user)).toEqual(connection('1', 'me'));
+    });
   });
 
   describe('listInstallations', () => {
