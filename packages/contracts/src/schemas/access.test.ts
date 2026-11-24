@@ -232,16 +232,30 @@ describe('project member schemas', () => {
     });
     expect(r.success).toBe(true);
   });
-  it('ProjectMemberDto accepts an inherited row: org roles only, source org', () => {
-    const r = ProjectMemberDto.safeParse({
+  it('ProjectMemberDto keeps the org roles and the source of an inherited row', () => {
+    const row = {
       userId: 'u2',
       name: 'Bo',
       handle: 'bo',
       source: 'org',
       projectRoles: [],
       orgRoles: [{ role: { id: ROLE, key: 'viewer', name: 'Viewer' } }],
-    });
+    };
+    const r = ProjectMemberDto.safeParse(row);
     expect(r.success).toBe(true);
+    expect(r.data).toEqual(row);
+  });
+  it.each(['source', 'orgRoles'])('ProjectMemberDto rejects a row without %s', (field) => {
+    const row: Record<string, unknown> = {
+      userId: 'u2',
+      name: 'Bo',
+      handle: null,
+      source: 'project',
+      projectRoles: [],
+      orgRoles: [],
+    };
+    delete row[field];
+    expect(ProjectMemberDto.safeParse(row).success).toBe(false);
   });
   it('ProjectMemberDto rejects an unknown source', () => {
     const r = ProjectMemberDto.safeParse({
