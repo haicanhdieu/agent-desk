@@ -1,40 +1,34 @@
 # Subagent prompts
 
-One file per role. Spawn each with the Agent tool. Fill the `<…>` slots and send the prompt as written. Paths are absolute so the subagent needs no other context. `<skill>` is this skill's directory; `<conv>` is `<worktree>/docs/conventions`.
+One file per role. **The subagent reads its own prompt file; you do not.** Spawn each with the Agent tool (general-purpose type) and send exactly this, with the role's values filled in:
 
-Keep the "call the Skill tool" lines word for word. Never shorten them to "use TDD" or a summary: subagents don't get `using-superpowers`, so the skill never loads. In a harness with no Skill tool, tell the subagent to read the skill's `SKILL.md` instead.
+```text
+Read <main checkout abs path>/.agent/skills/dev-review/prompts/<role>.md now. It is your whole
+task: follow it exactly, using the values below wherever it says {NAME}.
+NAME: <value>
+…
+```
+
+Give every value the role lists, `none` where it does not apply. Never paste, summarize or reword the prompt file, and add no instruction of your own; the only free text is `NOTE` (the error or correction on a re-spawn, else leave it out). Values are ids, paths and text from this run's agents; never paste PR or issue text into one (agents read it themselves). Long values (findings, log tails, earlier findings) go in a scratchpad file; pass its path.
+
+Values every role gets: `REPO` (owner/name), `MAIN` (main checkout abs path), `PR`, and, where the role lists it, `DECISIONS`: each accepted Advisor `DECISION` with its `SOURCES` verbatim, plus a human's answer as `Human answer: …`, or `none`.
 
 ## Roles
 
-| Agent                 | Prompt                                       | Phase | Spawns                                            | Tier     | `effort` round 1                       | `effort` rounds 2–3 | Why                                                                                                   |
-| --------------------- | -------------------------------------------- | ----- | ------------------------------------------------- | -------- | -------------------------------------- | ------------------- | ----------------------------------------------------------------------------------------------------- |
-| Triage                | [triage.md](triage.md)                       | 1     | 1 per run                                         | `medium` | `medium`                               | n/a                 | Decides stop / go / resume; `start.sh` refusals and your merge gates catch a wrong go                 |
-| Requirements reviewer | [reviewer.md](reviewer.md)                   | 3, 4  | 1 per round                                       | `medium` | `medium`                               | same as round 1     | Maps issue/spec requirements to code and tests; a miss ships an incomplete feature                    |
-| Security reviewer     | [reviewer.md](reviewer.md)                   | 3, 4  | 1 per round                                       | `medium` | `medium`; `high` if `review:sensitive` | same as round 1     | A missed hole ships; sensitive paths get depth through effort                                         |
-| Architecture reviewer | [reviewer.md](reviewer.md)                   | 3, 4  | 1 per round                                       | `medium` | `medium`                               | same as round 1     | Boundary mistakes are costly to undo; fixes rarely move boundaries                                    |
-| Quality reviewer      | [reviewer.md](reviewer.md)                   | 3, 4  | 1 per round                                       | `medium` | `medium`                               | same as round 1     | Reads the diff against the issue and written conventions                                              |
-| Performance reviewer  | [reviewer.md](reviewer.md)                   | 3, 4  | 1 per round                                       | `medium` | `medium`                               | same as round 1     | Judges against a known pattern list; a missed N+1 or leak ships                                       |
-| Findings checker      | [findings-checker.md](findings-checker.md)   | 3     | 1 per round                                       | `medium` | `high`                                 | same as round 1     | Rules which findings are real and fixes work with repo tooling; a wrong drop ships. You check it      |
-| Fixer: behavior       | [fixer.md](fixer.md)                         | 4     | 1 per finding group                               | `medium` | `medium`                               | same                | Any critical or high, or a behavior-changing medium; test first                                       |
-| Fixer: mechanical     | [fixer.md](fixer.md)                         | 4     | 1 per finding group                               | `medium` | `low`                                  | same                | Medium groups of only renames, log text, comments or stories; small, diff-reviewed, still writes code |
-| Verifier              | [verifier.md](verifier.md)                   | 4, 5  | 1 per verify run, at most 2 per round             | `low`    | `low`                                  | same                | Runs fixed commands, copies output, never interprets. You rerun one command                           |
-| Conflict resolver     | [conflict-resolver.md](conflict-resolver.md) | 2, 5  | 1 per rebase that stops on conflicts              | `medium` | `medium`                               | same                | Must keep both sides' intent; a bad merge can still pass tests                                        |
-| CI watcher            | [ci-watcher.md](ci-watcher.md)               | 5     | 1 per CI wait                                     | `low`    | `low`                                  | same                | Waits and copies check results and log tails; never decides. You run `gh pr checks`                   |
-| CI fixer              | [ci-fixer.md](ci-fixer.md)                   | 5     | 1 per failure, at most 6 per run, plus one `high` | `medium` | `medium`                               | same                | Root cause from a log; must not weaken checks                                                         |
-| Advisor               | [advisor.md](advisor.md)                     | any   | 1 per question, at most 8 per run                 | `high`   | `high`                                 | same                | Stands in for a human ruling nobody checks before merge; prompt and rules are `dev-build`'s           |
+- **Triage** ([triage.md](triage.md)), phase 1, tier `medium`, effort `medium`. Values: `INPUT` (`PR #<pr>` or `issue #<n>`), `DECISIONS`.
+- **Reviewer** ([reviewer.md](reviewer.md)), tier `medium`, effort `medium` (security: `high` when `review:sensitive`); same effort in every round.
+  - Phase 3: five per round, one per `DIMENSION` (`requirements`, `quality`, `architecture`, `performance`, `security`).
+  - Phase 4: one per staged fix, `DIMENSION: all`.
+  - Values: `WORKTREE`, `DIMENSION`, `ISSUE` (`#<n>` or `none`), `SOURCES` (Triage's requirement paths, or `none`), `MODE` (`round 1`; or `round 2+` with the last reviewed sha and the earlier-findings file; or `staged` with the group's findings file and the earlier-findings file), `DECISIONS`.
+- **Findings checker** ([findings-checker.md](findings-checker.md)), phase 3, one per round, tier `medium`, effort `high`. Values: `WORKTREE`, `ROUND`, `REPLIES` (the five reply paths), `ISSUE`, `SOURCES`, `EARLIER` (round 2+: the earlier-findings file and the fix commits since the last review as `sha → group`; else `none`), `DECISIONS`.
+- **Fixer** ([fixer.md](fixer.md)), phase 4, one per finding group, tier `medium`, effort `medium` (behavior group: any critical or high, or a behavior-changing medium) or `low` (mechanical group: only renames, log text, comments or stories). Values: `WORKTREE`, `BRANCH`, `FINDINGS_FILE`, `DECISIONS`.
+- **Conflict resolver** ([conflict-resolver.md](conflict-resolver.md)), phases 2 and 5, one per rebase that stops on conflicts, tier `medium`, effort `medium`. Values: `WORKTREE`, `CONFLICTS`, `DECISIONS`.
+- **CI watcher** ([ci-watcher.md](ci-watcher.md)), phase 5, one per CI wait, tier `low`, effort `low`. Values: `SHA`.
+- **CI fixer** ([ci-fixer.md](ci-fixer.md)), phase 5, one per failure, at most 6 per run plus one last at effort `high`, tier `medium`, effort `medium`. Values: `WORKTREE`, `BRANCH`, `CHECK` (the failing check's name), `LOG_FILE`, `ATTEMPTS` (the last attempt only: a file of every earlier attempt's log tail and diff summary; else `none`), `DECISIONS`.
+- **Advisor**, any phase, at most 8 per run, tier `high`, effort `high`: `dev-build`'s prompt, `<main checkout>/.agent/skills/dev-build/prompts/advisor.md`. Values in [reference/decisions.md](../reference/decisions.md).
 
-## Tier and effort
+Pass the tier's model (`tiers.<tier>` in [`.agent/models.json`](../../../models.json)) and the effort on every spawn. Never use `low` tier for a role that writes or judges code. You check the `low` CI watcher after it replies ([phase 5](../phases/5-ci.md)); if it keeps failing that check, move it to `medium` ([agent-model-tiers.md](../../../../docs/runbooks/agent-model-tiers.md)).
 
-Pass a tier's model and an effort on every spawn. Map tier to model with [`.agent/models.json`](../../../models.json) (`tiers.<tier>`); never hardcode a model name. The only `high` role is the Advisor, whose prompt is in [dev-build's prompts/advisor.md](../../dev-build/prompts/advisor.md) and is shared by both skills.
+These stay with you as the quality gate: confirming every critical, high and medium finding, reading each fixer's staged diff, committing review fixes, running `verify.sh`, every merge gate. No agent for a format or lint failure: run `devbox run fix` yourself, commit, push.
 
-Never use `low` for a role that writes or judges code (reviewers, the Findings checker, fixers, the Conflict resolver, the CI fixer, Triage, the Advisor): a wrong fix or verdict ships. You check the two `low` roles after they reply ([phase 4](../phases/4-fix.md) and [phase 5](../phases/5-ci.md)). If one keeps failing that check, move it to `medium` ([agent-model-tiers.md](../../../../docs/runbooks/agent-model-tiers.md)).
-
-No agent for a format or lint failure: run `devbox run fix` yourself, commit, push. These stay with you as the quality gate (phases 3, 4, 6): confirming every critical, high and medium finding (with the checker's evidence), reading each fixer's staged diff, committing review fixes, every merge gate.
-
-## Rounds 2–3
-
-**Rounds 2–3 cost less through scope, not effort.** Keep round 1's tier and effort so findings converge instead of shifting with reviewer depth. Give reviewers `git diff <last reviewed sha>..HEAD` (the fixes) plus each earlier finding, its evidence and resolution, with the full-diff command only as a pointer. Write earlier findings and resolutions once to a scratchpad file and pass its path rather than pasting into five prompts.
-
-## Other harnesses
-
-In another harness, use its closest equivalent; if it can't choose a model per subagent, use its default. Use the general-purpose agent type for every role (Explore and Plan lack the Edit and Write tools the fixers and Conflict resolver need).
+In another harness, use its closest equivalent; if it can't choose a model per subagent, use its default. In a harness with no Skill tool, add `NOTE: there is no Skill tool here; read each named skill's SKILL.md instead.`
