@@ -38,6 +38,7 @@ function pageUrl(baseUrl: string, afterId: string | null): URL {
 export function createClaudeAdapter(http: AgentHttpGet = defaultHttp): AgentAdapter {
   return {
     kind: 'claude',
+    pricing: { provider: 'anthropic' },
     builtinModels: ['opus', 'sonnet', 'haiku'].map((id) => ({ id, label: id })),
     credentialEnv: (type) => (type === 'oauth_token' ? 'CLAUDE_CODE_OAUTH_TOKEN' : 'ANTHROPIC_API_KEY'),
     launchEnv: ({ model, baseUrl }) => [

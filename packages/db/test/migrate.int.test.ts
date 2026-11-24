@@ -25,6 +25,7 @@ const APP_TABLES = [
   'role_assignments',
   'invitations',
   'project_env_vars',
+  'run_usage_entries',
 ];
 
 let env: TestPg;
@@ -2001,5 +2002,206 @@ describe('migration 0044: project_env_vars on a database that already has projec
       );
       expect(r?.ok, p).toBe(true);
     }
+  });
+});
+
+describe('migration 0046: run_usage_entries and global model price tables', () => {
+  let old: Awaited<ReturnType<typeof startPgAt>>;
+  const orgId = randomUUID();
+  let runId = '';
+  const owner = async <T extends pg.QueryResultRow>(sql: string, params: unknown[] = []): Promise<T[]> =>
+    query<T>(old.ownerUrl, sql, params);
+  /** Runs statements as the table owner inside the org's RLS context (FORCE RLS binds the owner too). */
+  async function asOrg<T>(fn: (c: pg.Client) => Promise<T>): Promise<T> {
+    const client = new pg.Client({ connectionString: old.ownerUrl });
+    await client.connect();
+    try {
+      await client.query('begin');
+      await client.query("select set_config('app.org_id', $1, true)", [orgId]);
+      const r = await fn(client);
+      await client.query('commit');
+      return r;
+    } finally {
+      await client.end();
+    }
+  }
+  const code = async (p: Promise<unknown>): Promise<unknown> =>
+    p.then(
+      () => undefined,
+      (e: { code?: string }) => e.code,
+    );
+  const usageInsert = (c: pg.Client, over: Record<string, unknown> = {}, id = randomUUID()) => {
+    const row: Record<string, unknown> = {
+      org_id: orgId,
+      run_id: runId,
+      source_id: id,
+      model: 'm',
+      input_tokens: 1,
+      output_tokens: 2,
+      ...over,
+    };
+    const keys = Object.keys(row);
+    return c.query(
+      `insert into run_usage_entries (${keys.join(',')}) values (${keys.map((_, i) => `$${i + 1}`).join(',')})`,
+      keys.map((k) => row[k]),
+    );
+  };
+  const priced = {
+    price_input: '3',
+    price_output: '15',
+    price_cache_read: '0.3',
+    price_cache_write: '3.75',
+    price_cache_write_long: '6',
+    price_as_of: new Date('2026-11-01T00:00:00Z'),
+    price_source: 'litellm',
+  };
+
+  beforeAll(async () => {
+    old = await startPgAt('0044_project_env_vars');
+    await owner(`insert into organization (id, name, slug, created_at) values ($1, $1, $1, now())`, [orgId]);
+    await asOrg(async (c) => {
+      const conn = await c.query<{ id: string }>(
+        `insert into connections (org_id, provider, capabilities, external_id, account_name)
+         values ($1, 'fake', '{"code":true,"board":true}', 'x', 'acct') returning id`,
+        [orgId],
+      );
+      const proj = await c.query<{ id: string }>(
+        `insert into projects (org_id, name, repo_path, code_connection_id, board_connection_id)
+         values ($1, 'pre', 'pre/p', $2, $2) returning id`,
+        [orgId, conn.rows[0]?.id],
+      );
+      const run = await c.query<{ id: string }>(
+        `insert into runs (org_id, project_id, command, skill_name, ticket_ref, ticket_kind, checkout_ref, trigger_source)
+         values ($1, $2, '/fix', 'fix', '#9', 'issue', 'main', 'manual') returning id`,
+        [orgId, proj.rows[0]?.id],
+      );
+      runId = run.rows[0]?.id ?? '';
+    });
+    await old.migrateRest();
+  }, 180_000);
+
+  afterAll(async () => {
+    await old?.stop();
+  });
+
+  it('applies over existing runs: no usage row appears and the run is unchanged', async () => {
+    const runs = await asOrg((c) => c.query('select id, command from runs'));
+    expect(runs.rows).toEqual([{ id: runId, command: '/fix' }]);
+    const usage = await asOrg((c) => c.query('select 1 from run_usage_entries'));
+    expect(usage.rowCount).toBe(0);
+  });
+
+  it('forces RLS on run_usage_entries', async () => {
+    const rows = await owner<{ relrowsecurity: boolean; relforcerowsecurity: boolean }>(
+      `select relrowsecurity, relforcerowsecurity from pg_class where relname = 'run_usage_entries'`,
+    );
+    expect(rows).toEqual([{ relrowsecurity: true, relforcerowsecurity: true }]);
+  });
+
+  it('grants the app role exactly the planned privileges per table', async () => {
+    const rows = await owner<{ table_name: string; privilege_type: string }>(
+      `select table_name, privilege_type from information_schema.role_table_grants
+       where grantee = 'agentdesk_app' and table_name in ('run_usage_entries','model_price_versions','model_prices')
+       order by 1, 2`,
+    );
+    const by = (t: string) => rows.filter((r) => r.table_name === t).map((r) => r.privilege_type);
+    expect(by('run_usage_entries')).toEqual(['DELETE', 'INSERT', 'SELECT', 'UPDATE']);
+    expect(by('model_price_versions')).toEqual(['INSERT', 'SELECT', 'UPDATE']);
+    expect(by('model_prices')).toEqual(['INSERT', 'SELECT']);
+  });
+
+  it('refuses UPDATE and DELETE on model_prices for the app role with 42501', async () => {
+    const app = new pg.Client({ connectionString: old.appUrl });
+    await app.connect();
+    try {
+      expect(await code(app.query('update model_prices set price_input = 1'))).toBe('42501');
+      expect(await code(app.query('delete from model_prices'))).toBe('42501');
+    } finally {
+      await app.end();
+    }
+  });
+
+  it('gives neither global table an org_id column', async () => {
+    const rows = await owner(
+      `select 1 from information_schema.columns
+       where column_name = 'org_id' and table_name in ('model_price_versions','model_prices')`,
+    );
+    expect(rows).toEqual([]);
+  });
+
+  async function newVersion(isCurrent = false): Promise<string> {
+    const [r] = await owner<{ id: string }>(
+      `insert into model_price_versions (source, fetched_at, checked_at, entry_count, is_current)
+       values ('litellm', now(), now(), 1, $1) returning id`,
+      [isCurrent],
+    );
+    return r?.id ?? '';
+  }
+  const priceRow = (versionId: string, over: Record<string, string> = {}) =>
+    owner(
+      `insert into model_prices (version_id, provider, model_key, price_input, price_output, price_cache_read, price_cache_write, price_cache_write_long)
+       values ($1, 'anthropic', $2, $3, 1, 1, 1, 1)`,
+      [versionId, over.model_key ?? `m-${randomUUID()}`, over.price_input ?? '1'],
+    );
+
+  it('allows at most one current price version (23505)', async () => {
+    await owner('delete from model_price_versions');
+    await newVersion(true);
+    expect(await code(newVersion(true))).toBe('23505');
+    await newVersion(false);
+    await owner('delete from model_price_versions');
+  });
+
+  it('bounds rates to 0..1000 and keeps six decimals', async () => {
+    const v = await newVersion();
+    expect(await code(priceRow(v, { price_input: '1000.000001' }))).toBe('23514');
+    expect(await code(priceRow(v, { price_input: '-0.000001' }))).toBe('23514');
+    await priceRow(v, { model_key: 'dec', price_input: '3.123456' });
+    const rows = await owner<{ price_input: string }>(`select price_input from model_prices where model_key = 'dec'`);
+    expect(rows).toEqual([{ price_input: '3.123456' }]);
+    await owner('delete from model_price_versions where id = $1', [v]);
+  });
+
+  it('restricts model_key to the normalised charset and length', async () => {
+    const v = await newVersion();
+    expect(await code(priceRow(v, { model_key: 'Upper' }))).toBe('23514');
+    expect(await code(priceRow(v, { model_key: '' }))).toBe('23514');
+    expect(await code(priceRow(v, { model_key: 'a'.repeat(129) }))).toBe('23514');
+    await priceRow(v, { model_key: 'claude-3.5-sonnet@2024:x/y' });
+    await owner('delete from model_price_versions where id = $1', [v]);
+  });
+
+  it('deleting a version cascades its prices and nulls the usage pointer', async () => {
+    const v = await newVersion();
+    await priceRow(v);
+    const id = randomUUID();
+    await asOrg((c) => usageInsert(c, { ...priced, price_version_id: v }, id));
+    await owner('delete from model_price_versions where id = $1', [v]);
+    expect(await owner('select 1 from model_prices where version_id = $1', [v])).toEqual([]);
+    const rows = await asOrg((c) =>
+      c.query('select price_version_id from run_usage_entries where source_id = $1', [id]),
+    );
+    expect(rows.rows).toEqual([{ price_version_id: null }]);
+  });
+
+  it('refuses a usage row with a negative counter, reasoning above output, a negative rate or half-set prices (23514)', async () => {
+    const attempt = (over: Record<string, unknown>) => code(asOrg((c) => usageInsert(c, over)));
+    expect(await attempt({ input_tokens: -1 })).toBe('23514');
+    expect(await attempt({ output_tokens: 5, reasoning_tokens: 6 })).toBe('23514');
+    expect(await attempt({ ...priced, price_input: '-1' })).toBe('23514');
+    expect(await attempt({ ...priced, price_as_of: null })).toBe('23514');
+    expect(await attempt({ output_tokens: 5, reasoning_tokens: 5 })).toBeUndefined();
+  });
+
+  it('keeps the primary key (run_id, source_id) and cascades from the run', async () => {
+    await asOrg((c) => usageInsert(c, {}, 'dup'));
+    expect(await code(asOrg((c) => usageInsert(c, {}, 'dup')))).toBe('23505');
+    const [pk] = await owner<{ conname: string }>(
+      `select conname from pg_constraint where conrelid = 'run_usage_entries'::regclass and contype = 'p'`,
+    );
+    expect(pk?.conname).toBe('run_usage_entries_pkey');
+    await asOrg((c) => c.query('delete from runs where id = $1', [runId]));
+    const rows = await asOrg((c) => c.query('select 1 from run_usage_entries'));
+    expect(rows.rowCount).toBe(0);
   });
 });

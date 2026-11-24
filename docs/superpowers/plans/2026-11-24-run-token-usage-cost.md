@@ -23,7 +23,7 @@
 - Rates numeric(12,6), bounded 0..1000. Change guards: reject when more than 5 % of shared entries moved more than 5x in any rate, the record count drops more than 20 %, or zero records; skipped for the first version and once after a source change (zero-match and bounds still apply).
 - Config: `MODEL_PRICES_SOURCE` `litellm` | `fake` | `off`, default `litellm`, `fake` refused when `NODE_ENV=production`; `MODEL_PRICES_URL` optional, `https:` only, no credentials, no fragment, at most 2048 chars, ignored by `fake` and `off`. `litellm` default URL `https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json`, `maxBytes` 15,000,000, `timeoutMs` 30,000, request host must equal the configured URL's host.
 - Schedule `price-sync`: every 6 h, overlap SKIP, `triggerImmediately`. Workflow input `{ maxAttempts?: number }` 1..5, default 5; activity start-to-close 120 s.
-- Migration `0045_*` (next free number), drizzle-kit generated, hand-written RLS and grant lines as in 0019. Never edit an applied migration.
+- Migration `0046_*` (next free number), drizzle-kit generated, hand-written RLS and grant lines as in 0019. Never edit an applied migration.
 - No new route, permission or role; `routes.test.ts`, `route-access.test.ts`, `access.ts` unchanged. `RunDto.costUsd` and `runs.cost_usd` stay as they are.
 - Agent-neutral names everywhere except `images/runner/agents/claude/*`, `packages/core/src/adapters/agents/claude.ts`, the `litellm` adapter, the fake pod and its tests. Neutral test ids: `vendor-a/model-1@2`, `model-a`, `model-b`, provider `vendor-a`.
 - Copy strings are the spec's "UI and Storybook > Copy", character for character. Web: tokens only; `components/` and `screens/` import no contracts types.
@@ -217,11 +217,11 @@ graph LR
   - `RunUsageDetail = RunUsageSummary & { models: ModelUsageDto[]; priceAsOfEarliest: Timestamp | null; priceAsOfLatest: Timestamp | null; priceSource: string | null }` (timestamps parse as `z.string().datetime({ offset: true })` via the existing `Timestamp`)
   - `RunDto.usage: RunUsageDetail | null`; `RunListItem` = `RunDto.omit({ prompt, finalPrompt, usage })` extended with `usage: RunUsageSummary | null` (so `RunStatsDto.idleRun` follows)
 
-- [ ] **Step 1: Write the failing tests.** `usage.test.ts` (`it.each`): a full valid entry parses; defaults fill the three cache fields with 0; id `msg_01:req_01` and `vendor-a.x-1` ok, `a b`, `x;rm`, `x'`, 129 chars refused; model `vendor-a/model-1@2` ok, a shell string, a SQL quote, a 10 KB string, `model é` refused; counts `-1`, `1.5`, `100000001`, `"5"` refused, `0` and `100000000` ok; `reasoningTokens` 300 with output 500 ok, 501 refused; unknown key `priceInput` and `costUsd` refused; `USAGE_WIRE_MAX_BASE64` is 1000 and `USAGE_ENTRY_CAP` is 20000. `runs.test.ts`: `RunDto` accepts `usage: null` and a detail with `models: []` and both dates; refuses a detail missing `models`; refuses a date `2026-11-21` (no time); `RunListItem.usage` accepts a summary, strips/refuses `models`, `priceAsOfEarliest`, `priceSource` (assert parsed output has none of them); `RunStatsDto.idleRun.usage` is the summary.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/contracts exec vitest run src/schemas/usage.test.ts src/schemas/runs.test.ts`. Expected: FAIL (module missing).
-- [ ] **Step 3: Implement** `usage.ts`, the `RunDto` / `RunListItem` change and the barrel line. Then set `usage: null` in `RunsService.toDto` and `toListItem` (`apps/api/src/runs/runs.service.ts`) and in every `RunDto` / `RunListItem` literal in the three web mock files.
-- [ ] **Step 4: Run** Step 2 again, then `pnpm --filter @agentdesk/contracts test`, `pnpm --filter @agentdesk/api typecheck`, `pnpm --filter @agentdesk/web typecheck` and `pnpm --filter @agentdesk/web exec vitest run src/mocks/msw/contract.test.ts`. Expected: PASS; `routes.test.ts` and `route-access.test.ts` unchanged and green.
-- [ ] **Step 5: Commit** (`devbox run fix` first): `feat(contracts): add run usage wire entry and usage DTOs`.
+- [x] **Step 1: Write the failing tests.** `usage.test.ts` (`it.each`): a full valid entry parses; defaults fill the three cache fields with 0; id `msg_01:req_01` and `vendor-a.x-1` ok, `a b`, `x;rm`, `x'`, 129 chars refused; model `vendor-a/model-1@2` ok, a shell string, a SQL quote, a 10 KB string, `model é` refused; counts `-1`, `1.5`, `100000001`, `"5"` refused, `0` and `100000000` ok; `reasoningTokens` 300 with output 500 ok, 501 refused; unknown key `priceInput` and `costUsd` refused; `USAGE_WIRE_MAX_BASE64` is 1000 and `USAGE_ENTRY_CAP` is 20000. `runs.test.ts`: `RunDto` accepts `usage: null` and a detail with `models: []` and both dates; refuses a detail missing `models`; refuses a date `2026-11-21` (no time); `RunListItem.usage` accepts a summary, strips/refuses `models`, `priceAsOfEarliest`, `priceSource` (assert parsed output has none of them); `RunStatsDto.idleRun.usage` is the summary.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/contracts exec vitest run src/schemas/usage.test.ts src/schemas/runs.test.ts`. Expected: FAIL (module missing).
+- [x] **Step 3: Implement** `usage.ts`, the `RunDto` / `RunListItem` change and the barrel line. Then set `usage: null` in `RunsService.toDto` and `toListItem` (`apps/api/src/runs/runs.service.ts`) and in every `RunDto` / `RunListItem` literal in the three web mock files.
+- [x] **Step 4: Run** Step 2 again, then `pnpm --filter @agentdesk/contracts test`, `pnpm --filter @agentdesk/api typecheck`, `pnpm --filter @agentdesk/web typecheck` and `pnpm --filter @agentdesk/web exec vitest run src/mocks/msw/contract.test.ts`. Expected: PASS; `routes.test.ts` and `route-access.test.ts` unchanged and green.
+- [x] **Step 5: Commit** (`devbox run fix` first): `feat(contracts): add run usage wire entry and usage DTOs`.
 
 ---
 
@@ -234,9 +234,9 @@ graph LR
 - Modify: `packages/db/src/schema/app.ts`
 - Create: `packages/db/src/schema/prices.ts`
 - Modify: `packages/db/src/schema/index.ts`
-- Create: `packages/db/migrations/0045_run_usage_and_model_prices.sql`
+- Create: `packages/db/migrations/0046_run_usage_and_model_prices.sql`
 - Modify: `packages/db/migrations/meta/_journal.json`
-- Create: `packages/db/migrations/meta/0045_snapshot.json`
+- Create: `packages/db/migrations/meta/0046_snapshot.json`
 - Test: `packages/db/test/migrate.int.test.ts`
 - Test: `packages/db/test/rls.int.test.ts`
 - Modify: `docs/conventions/database.md`
@@ -249,11 +249,11 @@ graph LR
   - `modelPrices` (`versionId` FK cascade, `provider`, `modelKey`, five rates not null with `CHECK 0..1000`), PK `(version_id, provider, model_key)`, `model_key` check `~ '^[a-z0-9._:/@-]{1,128}$'`.
   - SQL grants: `run_usage_entries` SELECT, INSERT, UPDATE, DELETE (plus `FORCE ROW LEVEL SECURITY`); `model_price_versions` SELECT, INSERT, UPDATE; `model_prices` SELECT, INSERT.
 
-- [ ] **Step 1: Write the failing tests.** `migrate.int.test.ts`: add `run_usage_entries` to `APP_TABLES`; a `describe('migration 0045 …')` that applies over a database with runs (no usage row appears, no run row changes); forced RLS on `run_usage_entries`; grants per table exactly as above (query `information_schema.role_table_grants`, `UPDATE` and `DELETE` on `model_prices` refused with `42501`); neither global table has an `org_id` column; a second `is_current = true` row refused (`23505`); rate 1000.000001 and -0.000001 refused, `3.123456` read back as the string `3.123456`; deleting a version cascades `model_prices` and sets `run_usage_entries.price_version_id` null; deleting a run cascades its usage rows; `run_usage_entries` checks: negative counter, reasoning above output, a negative rate, rates set but `price_as_of` null each refused with `23514`. `rls.int.test.ts`: add a `run_usage_entries` entry to `inserts` (priced columns filled, so the leak map covers them); org A cannot read or write org B's rows as `agentdesk_app`; add `model_price_versions` and `model_prices` to the list of intentionally org-less tables next to `role_templates` (or add a test that the app role can read and insert them), never weakening the "every org table is isolated" check.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/db exec vitest run test/migrate.int.test.ts test/rls.int.test.ts`. Expected: FAIL (tables missing).
-- [ ] **Step 3: Implement** the tables, `pnpm --filter @agentdesk/db db:generate`, rename the file to `0045_run_usage_and_model_prices.sql` with the journal entry, and hand-write the `FORCE ROW LEVEL SECURITY` and `GRANT` lines (and the partial unique index if drizzle-kit cannot emit it) under a `-- Hand-written` comment as in 0019. Add the two tables to the org-less exception list in `docs/conventions/database.md` §2 with one line of reason (public price data, worker only).
-- [ ] **Step 4: Run** Step 2 again and `pnpm --filter @agentdesk/db typecheck`. Expected: PASS.
-- [ ] **Step 5: Commit**: `feat(db): add run_usage_entries and global model price tables`. Label `review:sensitive` (RLS, migration).
+- [x] **Step 1: Write the failing tests.** `migrate.int.test.ts`: add `run_usage_entries` to `APP_TABLES`; a `describe('migration 0046 …')` that applies over a database with runs (no usage row appears, no run row changes); forced RLS on `run_usage_entries`; grants per table exactly as above (query `information_schema.role_table_grants`, `UPDATE` and `DELETE` on `model_prices` refused with `42501`); neither global table has an `org_id` column; a second `is_current = true` row refused (`23505`); rate 1000.000001 and -0.000001 refused, `3.123456` read back as the string `3.123456`; deleting a version cascades `model_prices` and sets `run_usage_entries.price_version_id` null; deleting a run cascades its usage rows; `run_usage_entries` checks: negative counter, reasoning above output, a negative rate, rates set but `price_as_of` null each refused with `23514`. `rls.int.test.ts`: add a `run_usage_entries` entry to `inserts` (priced columns filled, so the leak map covers them); org A cannot read or write org B's rows as `agentdesk_app`; add `model_price_versions` and `model_prices` to the list of intentionally org-less tables next to `role_templates` (or add a test that the app role can read and insert them), never weakening the "every org table is isolated" check.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/db exec vitest run test/migrate.int.test.ts test/rls.int.test.ts`. Expected: FAIL (tables missing).
+- [x] **Step 3: Implement** the tables, `pnpm --filter @agentdesk/db db:generate`, rename the file to `0046_run_usage_and_model_prices.sql` with the journal entry, and hand-write the `FORCE ROW LEVEL SECURITY` and `GRANT` lines (and the partial unique index if drizzle-kit cannot emit it) under a `-- Hand-written` comment as in 0019. Add the two tables to the org-less exception list in `docs/conventions/database.md` §2 with one line of reason (public price data, worker only).
+- [x] **Step 4: Run** Step 2 again and `pnpm --filter @agentdesk/db typecheck`. Expected: PASS.
+- [x] **Step 5: Commit**: `feat(db): add run_usage_entries and global model price tables`. Label `review:sensitive` (RLS, migration).
 
 ---
 
@@ -280,11 +280,11 @@ graph LR
   - `pricingProviders(): string[]` in `adapters/agents/registry.ts`: the distinct `pricing.provider` of `agentAdapterFor(k)` over `AgentKind.options`
   - `WORKFLOW.priceSync = 'PriceSyncWorkflow'`, `PRICE_SYNC_SCHEDULE_ID = 'price-sync'`, `PRICE_SYNC_WORKFLOW_ID = 'price-sync-run'`
 
-- [ ] **Step 1: Write the failing tests.** `log-parser.test.ts`: a valid `agentdesk: usage <b64>` line gives kind `usage`, the parsed entry and `text: ''`; surrounding spaces ignored; a body of 1001 chars, a body with length not a multiple of 4, invalid base64, JSON that is an array, an entry with an extra `priceInput` key, `reasoningTokens` above output, and `agentdesk: usage` followed by two tokens each stay kind `text` with the original line. `agents.test.ts`: `agentAdapterFor('claude').pricing` equals `{ provider: 'anthropic' }` (no `modelKey`, so the core default applies), the adapter object has no rate-shaped field (`JSON.stringify` has no `price`, `cost`, `PerMTok`); `pricingProviders()` equals `['anthropic']`.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/core exec vitest run test/kube/log-parser.test.ts test/adapters/agents.test.ts`. Expected: FAIL.
-- [ ] **Step 3: Implement** the parser branch (regex `^agentdesk: usage ([A-Za-z0-9+/]+={0,2})$`, same length and decode rules as `parseTranscript`), the pricing type and Claude value, `pricingProviders`, and the three Temporal constants.
-- [ ] **Step 4: Run** Step 2 again and `pnpm --filter @agentdesk/core typecheck`. Expected: PASS.
-- [ ] **Step 5: Commit**: `feat(core): parse usage log lines and name agent price providers`. Label `review:sensitive` (pod-log parsing).
+- [x] **Step 1: Write the failing tests.** `log-parser.test.ts`: a valid `agentdesk: usage <b64>` line gives kind `usage`, the parsed entry and `text: ''`; surrounding spaces ignored; a body of 1001 chars, a body with length not a multiple of 4, invalid base64, JSON that is an array, an entry with an extra `priceInput` key, `reasoningTokens` above output, and `agentdesk: usage` followed by two tokens each stay kind `text` with the original line. `agents.test.ts`: `agentAdapterFor('claude').pricing` equals `{ provider: 'anthropic' }` (no `modelKey`, so the core default applies), the adapter object has no rate-shaped field (`JSON.stringify` has no `price`, `cost`, `PerMTok`); `pricingProviders()` equals `['anthropic']`.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/core exec vitest run test/kube/log-parser.test.ts test/adapters/agents.test.ts`. Expected: FAIL.
+- [x] **Step 3: Implement** the parser branch (regex `^agentdesk: usage ([A-Za-z0-9+/]+={0,2})$`, same length and decode rules as `parseTranscript`), the pricing type and Claude value, `pricingProviders`, and the three Temporal constants.
+- [x] **Step 4: Run** Step 2 again and `pnpm --filter @agentdesk/core typecheck`. Expected: PASS.
+- [x] **Step 5: Commit**: `feat(core): parse usage log lines and name agent price providers`. Label `review:sensitive` (pod-log parsing).
 
 ---
 

@@ -7,7 +7,7 @@ export * from './adapters/types';
 export * from './adapters/registry';
 export * from './adapters/agents/types';
 export { CLAUDE_DEFAULT_BASE_URL } from './adapters/agents/claude';
-export { agentAdapterFor } from './adapters/agents/registry';
+export { agentAdapterFor, pricingProviders } from './adapters/agents/registry';
 export * from './adapters/project';
 export { FakeStore, type PostedComment, type StoredTicket } from './adapters/fake/store';
 export { fakeSignature, FAKE_SIGNATURE_HEADER } from './adapters/fake/board';

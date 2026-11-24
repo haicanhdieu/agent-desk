@@ -49,6 +49,10 @@ const inserts: Record<string, (tx: Tx, orgId: string) => Promise<unknown>> = {
   run_transcript_entries: (tx, o) =>
     tx.execute(sql`insert into run_transcript_entries (org_id, run_id, seq, source_id, at, kind, text)
       values (${o}, ${a.runId}, 99, ${`s-${Math.random()}`}, now(), 'agent', 'x')`),
+  run_usage_entries: (tx, o) =>
+    tx.execute(sql`insert into run_usage_entries (org_id, run_id, source_id, model, input_tokens, output_tokens,
+      price_input, price_output, price_cache_read, price_cache_write, price_cache_write_long, price_as_of, price_source)
+      values (${o}, ${a.runId}, ${`u-${Math.random()}`}, 'm', 1, 2, 3, 15, 0.3, 3.75, 6, now(), 'litellm')`),
   inbound_events: (tx, o) =>
     tx.execute(sql`insert into inbound_events (org_id, provider, channel, delivery_id, outcome)
       values (${o}, 'fake', 'webhook', ${`d-${Math.random()}`}, 'accepted')`),
@@ -314,6 +318,19 @@ describe('RBAC tables', () => {
         (e: unknown) => e,
       );
     expect(pgCode(err2)).toBe('42501');
+  });
+
+  it('global price tables are readable and insertable by the app role (no org column, no RLS)', async () => {
+    const v = await db.pool.query<{ id: string }>(
+      `insert into model_price_versions (source, fetched_at, checked_at, entry_count) values ('fake', now(), now(), 1) returning id`,
+    );
+    await db.pool.query(
+      `insert into model_prices (version_id, provider, model_key, price_input, price_output, price_cache_read, price_cache_write, price_cache_write_long)
+       values ($1, 'anthropic', 'm', 1, 1, 1, 1, 1)`,
+      [v.rows[0]?.id],
+    );
+    const r = await db.pool.query('select 1 from model_prices');
+    expect(r.rowCount).toBe(1);
   });
 
   it('a second identical org assignment fails with 23505', async () => {

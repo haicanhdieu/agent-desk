@@ -10,6 +10,7 @@ export const WORKFLOW = {
   outboxSweep: 'OutboxSweepWorkflow',
   reconcile: 'ReconcileWorkflow',
   setupTest: 'SetupTestWorkflow',
+  priceSync: 'PriceSyncWorkflow',
 } as const;
 
 export const SIGNAL = {
@@ -82,3 +83,5 @@ export const pollScheduleId = (projectId: string): string => `poll-${projectId}`
 export const pollResumeWorkflowId = (projectId: string): string => `poll-resume-${projectId}`;
 export const OUTBOX_SWEEP_SCHEDULE_ID = 'outbox-sweep';
 export const RECONCILE_SCHEDULE_ID = 'reconcile-daily';
+export const PRICE_SYNC_SCHEDULE_ID = 'price-sync';
+export const PRICE_SYNC_WORKFLOW_ID = 'price-sync-run';

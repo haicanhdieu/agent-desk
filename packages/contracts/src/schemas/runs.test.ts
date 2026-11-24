@@ -42,6 +42,7 @@ const run = {
   sessionEndingAt: null,
   pauseReason: null,
   reopenedAt: null,
+  usage: null,
 };
 
 const event = {
@@ -231,5 +232,71 @@ describe('RunDto owner', () => {
     const withoutOwner: Record<string, unknown> = { ...run };
     delete withoutOwner['ownerUserId'];
     expect(RunDto.safeParse(withoutOwner).success).toBe(false);
+  });
+});
+
+describe('run usage on the DTOs', () => {
+  const summary = {
+    inputTokens: 1,
+    cacheReadTokens: 2,
+    cacheWriteTokens: 3,
+    outputTokens: 4,
+    reasoningTokens: null,
+    totalInputTokens: 6,
+    totalTokens: 10,
+    modelCount: 1,
+    estimatedCostUsd: 0.5,
+    partial: false,
+  };
+  const detail = {
+    ...summary,
+    models: [],
+    priceAsOfEarliest: '2026-01-01T12:00:00Z',
+    priceAsOfLatest: '2026-06-01T12:00:00+02:00',
+    priceSource: 'litellm',
+  };
+  const { prompt: _p, finalPrompt: _f, usage: _u, ...item } = run;
+  const listItem = { ...item, ticketRunCount: 1, linkedTickets: [] };
+
+  it('RunDto accepts null usage and a detail with models and dates', () => {
+    expect(RunDto.safeParse({ ...run, usage: null }).success).toBe(true);
+    expect(RunDto.safeParse({ ...run, usage: detail }).success).toBe(true);
+  });
+
+  it('RunDto requires the usage key', () => {
+    const { usage: _x, ...rest } = run;
+    expect(RunDto.safeParse(rest).success).toBe(false);
+  });
+
+  it('RunDto refuses a detail without models', () => {
+    const { models: _m, ...noModels } = detail;
+    expect(RunDto.safeParse({ ...run, usage: noModels }).success).toBe(false);
+  });
+
+  it('RunDto refuses a date without a time', () => {
+    expect(RunDto.safeParse({ ...run, usage: { ...detail, priceAsOfEarliest: '2026-11-21' } }).success).toBe(false);
+  });
+
+  it('RunListItem carries the summary and drops the detail fields', () => {
+    const r = RunListItem.parse({ ...listItem, usage: detail });
+    expect(r.usage).toEqual(summary);
+    expect(r.usage).not.toHaveProperty('models');
+    expect(r.usage).not.toHaveProperty('priceAsOfEarliest');
+    expect(r.usage).not.toHaveProperty('priceSource');
+  });
+
+  it('RunListItem accepts null usage and refuses a bad summary', () => {
+    expect(RunListItem.safeParse({ ...listItem, usage: null }).success).toBe(true);
+    expect(RunListItem.safeParse({ ...listItem, usage: { ...summary, inputTokens: 'x' } }).success).toBe(false);
+  });
+
+  it('RunStatsDto.idleRun.usage is the summary', () => {
+    const stats = RunStatsDto.parse({
+      counts: { needs_you: 0, active: 0, queued: 0, ended: 0, all: 0, ignored: 0 },
+      today: { total: 0, failed: 0 },
+      idleRun: { ...listItem, usage: detail },
+      nextQueuedNumber: null,
+    });
+    expect(stats.idleRun?.usage).toEqual(summary);
   });
 });

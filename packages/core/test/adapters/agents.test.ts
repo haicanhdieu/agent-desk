@@ -1,6 +1,6 @@
 import { MockAgent } from 'undici';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { AgentModelsError, agentAdapterFor, type AgentAdapter } from '../../src';
+import { AgentModelsError, agentAdapterFor, pricingProviders, type AgentAdapter } from '../../src';
 import { LIST_TIMEOUT_MS } from '../../src/adapters/agents/claude';
 import { guardedGetJson } from '../../src/net/guarded-http';
 
@@ -335,5 +335,18 @@ describe('claude agent adapter', () => {
       { id: 'sonnet', label: 'sonnet' },
       { id: 'haiku', label: 'haiku' },
     ]);
+  });
+});
+
+describe('agent pricing', () => {
+  it('names the claude price provider and carries no rates', () => {
+    const adapter = agentAdapterFor('claude');
+    expect(adapter.pricing).toEqual({ provider: 'anthropic' });
+    const json = JSON.stringify(adapter);
+    for (const word of ['price', 'cost', 'PerMTok']) expect(json).not.toContain(word);
+  });
+
+  it('lists the distinct price providers', () => {
+    expect(pricingProviders()).toEqual(['anthropic']);
   });
 });

@@ -180,3 +180,37 @@ describe('parseLogLine transcript lines', () => {
     expect(parseLogLine(line)).toEqual({ kind: 'text', text: line });
   });
 });
+
+describe('parseLogLine usage lines', () => {
+  const b64 = (s: string) => Buffer.from(s, 'utf8').toString('base64');
+  const entry = {
+    id: 'm1',
+    model: 'claude-sonnet',
+    inputTokens: 10,
+    outputTokens: 5,
+    cacheReadTokens: 0,
+    cacheWriteTokens: 0,
+    cacheWriteLongTokens: 0,
+  };
+  const line = (e: unknown) => `agentdesk: usage ${b64(JSON.stringify(e))}`;
+
+  it('parses a valid line into a usage entry and keeps the encoded body out of text', () => {
+    expect(parseLogLine(line(entry))).toEqual({ kind: 'usage', text: '', usage: entry });
+  });
+
+  it('ignores surrounding whitespace', () => {
+    expect(parseLogLine(`  ${line(entry)} \r`).kind).toBe('usage');
+  });
+
+  it.each([
+    ['a body of 1001 chars', `agentdesk: usage ${'A'.repeat(1001)}`],
+    ['a body whose length is not a multiple of 4', line(entry).slice(0, -1)],
+    ['invalid base64', 'agentdesk: usage !!!!'],
+    ['JSON that is an array', line([entry])],
+    ['an entry with an extra priceInput key', line({ ...entry, priceInput: 1 })],
+    ['reasoningTokens above output', line({ ...entry, reasoningTokens: 6 })],
+    ['two tokens after the marker', `agentdesk: usage ${b64(JSON.stringify(entry))} extra`],
+  ])('treats %s as an ordinary text line', (_name, text) => {
+    expect(parseLogLine(text)).toEqual({ kind: 'text', text });
+  });
+});

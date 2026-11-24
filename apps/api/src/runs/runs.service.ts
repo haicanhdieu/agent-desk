@@ -77,7 +77,7 @@ export class RunsService {
   ) {}
 
   private toDto(row: RunRow, agent: AgentInfo | undefined): RunDto {
-    return { ...this.toBase(row, agent), prompt: row.prompt, finalPrompt: row.finalPrompt };
+    return { ...this.toBase(row, agent), prompt: row.prompt, finalPrompt: row.finalPrompt, usage: null };
   }
 
   /** The run without its prompt texts, and with the list-only ticket count and linked tickets. */
@@ -87,10 +87,13 @@ export class RunsService {
     ticketRunCount: number,
     linkedTickets: LinkedTicketDto[] = [],
   ): RunListItem {
-    return { ...this.toBase(row, agent), ticketRunCount, linkedTickets };
+    return { ...this.toBase(row, agent), usage: null, ticketRunCount, linkedTickets };
   }
 
-  private toBase(row: RunRow, agent: AgentInfo | undefined): Omit<RunListItem, 'ticketRunCount' | 'linkedTickets'> {
+  private toBase(
+    row: RunRow,
+    agent: AgentInfo | undefined,
+  ): Omit<RunListItem, 'ticketRunCount' | 'linkedTickets' | 'usage'> {
     return {
       id: row.id,
       number: row.number,

@@ -3,6 +3,7 @@ import { PauseReason, RuleKind, RunListFilter, RunStatus, TicketKind, TriggerSou
 import { AgentNote, WaitingOn } from './agent-state';
 import { Id, Timestamp } from './common';
 import { PageQuery, pageOf } from './page';
+import { RunUsageDetail, RunUsageSummary } from './usage';
 
 export const TicketDto = z.object({
   ref: z.string(),
@@ -65,6 +66,8 @@ export const RunDto = z.object({
   pauseReason: PauseReason.nullable(),
   /** While a person has the session of a succeeded run reopened; null otherwise. The result stays succeeded (ADR 0032). */
   reopenedAt: Timestamp.nullable(),
+  /** Token usage and estimated cost; null when the run recorded none. */
+  usage: RunUsageDetail.nullable(),
 });
 export type RunDto = z.infer<typeof RunDto>;
 
@@ -82,7 +85,9 @@ export const LinkedTicketDto = z.object({
 export type LinkedTicketDto = z.infer<typeof LinkedTicketDto>;
 
 /** A run in a list: the detail shape without the prompt texts (up to ~4 KB each), which only run detail needs. */
-export const RunListItem = RunDto.omit({ prompt: true, finalPrompt: true }).extend({
+export const RunListItem = RunDto.omit({ prompt: true, finalPrompt: true, usage: true }).extend({
+  /** Usage totals without the per-model split. */
+  usage: RunUsageSummary.nullable(),
   /** Runs this ticket has had in the project, all statuses. */
   ticketRunCount: z.number().int().min(1),
   /** The other tickets of this run's merged group: the lead issue first, then PRs by number; [] when none. */
