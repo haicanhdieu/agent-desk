@@ -81,6 +81,7 @@ import {
 } from './schemas/setup';
 import {
   DeleteSkillQuery,
+  DeleteSkillResponse,
   PutSkillRequest,
   PutSkillResponse,
   SkillDto,
@@ -245,7 +246,7 @@ export const routes = {
       path: '/api/projects/:projectId/skills/:name',
       params: skillParams,
       query: DeleteSkillQuery,
-      response: empty,
+      response: DeleteSkillResponse,
     },
   },
   rules: {

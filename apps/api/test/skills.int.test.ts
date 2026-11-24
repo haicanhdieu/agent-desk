@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import type { Page, SkillDto, SkillSummaryDto } from '@agentdesk/contracts';
+import type { Page, SkillChangeResponse, SkillDto, SkillSummaryDto } from '@agentdesk/contracts';
+import { FakeStore } from '@agentdesk/core';
 import { createTestApp, type TestApp } from './helpers/app';
 import { createOrg, inviteAndLogin } from './helpers/auth';
 import { expectContract } from './helpers/contract';
@@ -10,15 +11,19 @@ let alice: string;
 let bob: string;
 let projectId: string;
 let aliceOrgId: string;
+let store: FakeStore;
+let repoPath: string;
 
 beforeAll(async () => {
-  t = await createTestApp({ env: { FAKE_STATE_DIR: freshStateDir() }, wrapAdapters: wideFakeRepos });
+  const stateDir = freshStateDir();
+  store = new FakeStore(stateDir);
+  t = await createTestApp({ env: { FAKE_STATE_DIR: stateDir }, wrapAdapters: wideFakeRepos });
   const aliceOrg = (await createOrg(t, 'Alice', 'alice')).id;
   aliceOrgId = aliceOrg;
   const bobOrg = (await createOrg(t, 'Bob', 'bob')).id;
   alice = await inviteAndLogin(t, aliceOrg, 'alice', 'owner', { type: 'org' });
   bob = await inviteAndLogin(t, bobOrg, 'bob', 'owner', { type: 'org' });
-  projectId = (await makeProject(t, alice, await installFake(t, alice))).projectId;
+  ({ projectId, repoPath } = await makeProject(t, alice, await installFake(t, alice)));
 });
 afterAll(async () => {
   await t.close();
@@ -76,7 +81,8 @@ describe('skills', () => {
   it('DELETE removes with or without a message; unknown is 404', async () => {
     await put('gone', { body: 'x', message: 'm' });
     const del = await t.app.inject({ method: 'DELETE', url: url('gone'), headers: { cookie: alice } });
-    expect(del.statusCode).toBe(204);
+    expect(del.statusCode).toBe(200);
+    expect(expectContract('skills.remove', del)).toMatchObject({ kind: 'commit', targetBranch: expect.any(String) });
     expect((await get('gone')).statusCode).toBe(404);
     await put('gone2', { body: 'x', message: 'm' });
     const del2 = await t.app.inject({
@@ -84,7 +90,7 @@ describe('skills', () => {
       url: `${url('gone2')}?message=bye`,
       headers: { cookie: alice },
     });
-    expect(del2.statusCode).toBe(204);
+    expect(del2.statusCode).toBe(200);
     const del3 = await t.app.inject({ method: 'DELETE', url: url('gone2'), headers: { cookie: alice } });
     expect(del3.statusCode).toBe(404);
   });
@@ -188,5 +194,90 @@ describe('skills: permission (BR-33, BR-29)', () => {
     expect(res.statusCode).toBe(404);
     const reread = await t.app.inject({ method: 'GET', url: otherUrl, headers: { cookie: alice } });
     expect(reread.statusCode).toBe(404);
+  });
+});
+
+describe('skills: protected default branch', () => {
+  const del = (name: string, cookie = alice) => t.app.inject({ method: 'DELETE', url: url(name), headers: { cookie } });
+
+  it('a direct commit returns kind commit with the target branch', async () => {
+    const res = await put('direct', { body: 'x', message: 'm' });
+    expect(res.statusCode).toBe(200);
+    expect(expectContract('skills.put', res)).toEqual({
+      kind: 'commit',
+      commitSha: expect.any(String),
+      targetBranch: expect.any(String),
+    });
+  });
+
+  it('create, edit and delete each return a change request and leave the live skill untouched', async () => {
+    await put('live', { body: 'v1', message: 'seed' });
+    const before = (await get('live').then((r) => r.json())) as SkillDto;
+    await store.setBranchProtected(repoPath, true);
+    try {
+      const created = expectContract(
+        'skills.put',
+        await put('fresh', { body: 'new', message: 'add' }),
+      ) as SkillChangeResponse;
+      expect(created).toMatchObject({
+        kind: 'change_request',
+        url: expect.stringMatching(/^https?:\/\//),
+        id: expect.any(String),
+      });
+      expect((await get('fresh')).statusCode).toBe(404);
+
+      const edited = expectContract(
+        'skills.put',
+        await put('live', { body: 'v2', message: 'edit', sha: before.sha }),
+      ) as SkillChangeResponse;
+      expect(edited.kind).toBe('change_request');
+      expect((await get('live').then((r) => r.json())) as SkillDto).toEqual(before);
+
+      const removed = await del('live');
+      expect(removed.statusCode).toBe(200);
+      expect((expectContract('skills.remove', removed) as SkillChangeResponse).kind).toBe('change_request');
+      expect((await get('live')).statusCode).toBe(200);
+    } finally {
+      await store.setBranchProtected(repoPath, false);
+    }
+  });
+
+  it('a stale sha is still a 409 on a protected branch', async () => {
+    await put('stale-cr', { body: 'one', message: 'm' });
+    const first = (await get('stale-cr').then((r) => r.json())) as SkillDto;
+    await put('stale-cr', { body: 'two', message: 'm', sha: first.sha });
+    await store.setBranchProtected(repoPath, true);
+    try {
+      expect((await put('stale-cr', { body: 'three', message: 'm', sha: first.sha })).statusCode).toBe(409);
+    } finally {
+      await store.setBranchProtected(repoPath, false);
+    }
+  });
+
+  it('a member and another org get 403 and 404 on the delete route, whatever the branch state', async () => {
+    await store.setBranchProtected(repoPath, true);
+    try {
+      const member = await inviteAndLogin(t, aliceOrgId, 'skills-cr-member', 'member', { type: 'org' });
+      expect((await del('live', member)).statusCode).toBe(403);
+      expect((await del('live', bob)).statusCode).toBe(404);
+      expect((await put('x', { body: 'x', message: 'm' }, bob)).statusCode).toBe(404);
+    } finally {
+      await store.setBranchProtected(repoPath, false);
+    }
+  });
+
+  it('an admin on P1 gets 404 deleting a skill on P2 and no change request is made', async () => {
+    const other = await makeProject(t, alice, await installFake(t, alice));
+    const admin = await inviteAndLogin(t, aliceOrgId, 'skills-cr-admin', 'admin', {
+      type: 'project',
+      projectIds: [projectId],
+    });
+    await store.setBranchProtected(other.repoPath, true);
+    const res = await t.app.inject({
+      method: 'DELETE',
+      url: `/api/projects/${other.projectId}/skills/anything`,
+      headers: { cookie: admin },
+    });
+    expect(res.statusCode).toBe(404);
   });
 });

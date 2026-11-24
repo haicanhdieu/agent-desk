@@ -7,6 +7,7 @@ import {
   type Page,
   type PageQuery,
   type PutSkillRequest,
+  type DeleteSkillResponse,
   type PutSkillResponse,
   type SkillDto,
   type SkillSummaryDto,
@@ -79,19 +80,21 @@ export class SkillsService {
   async put(org: OrgContext, projectId: string, name: string, body: PutSkillRequest): Promise<PutSkillResponse> {
     const { host, project } = await this.codeHostFor(org, projectId);
     try {
-      const result = await host.writeSkill(project, name, body.body, body.message, body.sha);
-      // Change-request outcomes reach the API contract in a later task; adapters only return commits until then.
-      if (result.kind !== 'commit') throw new Error('unexpected change request result');
-      return { commitSha: result.commitSha };
+      return await host.writeSkill(project, name, body.body, body.message, body.sha);
     } catch (err) {
       throw mapSkillError(err);
     }
   }
 
-  async remove(org: OrgContext, projectId: string, name: string, message: string | undefined): Promise<void> {
+  async remove(
+    org: OrgContext,
+    projectId: string,
+    name: string,
+    message: string | undefined,
+  ): Promise<DeleteSkillResponse> {
     const { host, project } = await this.codeHostFor(org, projectId);
     try {
-      await host.deleteSkill(project, name, message ?? `Delete skill ${name}`);
+      return await host.deleteSkill(project, name, message ?? `Delete skill ${name}`);
     } catch (err) {
       throw mapSkillError(err);
     }
