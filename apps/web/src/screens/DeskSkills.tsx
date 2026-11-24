@@ -78,6 +78,8 @@ export interface DeskSkillsProps {
   onConfirmDelete?(message: string): void;
   /** Submit the editor's text with the message. */
   onCommit?(body: string, message: string): void;
+  /** The draft was discarded: the host may start a new draft from the skill's latest body. */
+  onDiscard?(): void;
 }
 
 const views: { value: View; label: string }[] = [
@@ -99,6 +101,7 @@ function SkillEditor({
   branch,
   onDelete,
   onCommit,
+  onDiscard,
 }: {
   skill: Skill;
   dirty: boolean;
@@ -111,6 +114,7 @@ function SkillEditor({
   branch: string | null;
   onDelete?(name: string): void;
   onCommit?(body: string, message: string): void;
+  onDiscard?(): void;
 }) {
   const [view, setView] = useState<View>(initialView);
   const [value, setValue] = useState(initialDraft ?? skill.body);
@@ -155,7 +159,10 @@ function SkillEditor({
         branch={branch}
         dirty={dirty}
         pending={committing}
-        onDiscard={() => setValue(skill.body)}
+        onDiscard={() => {
+          setValue(skill.body);
+          onDiscard?.();
+        }}
         onCommit={() => onCommit?.(value, message)}
         note="Submitted as agent-desk[bot]. If the target branch requires review, the changes are submitted for review instead of saved."
       />
@@ -230,6 +237,7 @@ export function DeskSkills({
   onCloseDelete,
   onConfirmDelete,
   onCommit,
+  onDiscard,
 }: DeskSkillsProps) {
   const active = activeSkill ?? skills.find((s) => s.name === activeName) ?? skills[0];
   const branchLabel = defaultBranch ?? 'the default branch';
@@ -266,6 +274,7 @@ export function DeskSkills({
                 branch={defaultBranch}
                 onDelete={onDelete}
                 onCommit={onCommit}
+                onDiscard={onDiscard}
               />
             ) : (
               <EmptyState

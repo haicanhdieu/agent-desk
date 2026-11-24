@@ -96,7 +96,8 @@ function DeskSkillsPage() {
 
   // No silent overwrite: a draft is bound to the sha it started from, and a commit always sends that sha. A
   // background refetch that brings a newer sha keeps the draft and its base, so committing it gets a 409 instead of
-  // overwriting. A 409 or a successful commit bumps `generation`, which starts a new draft from the fresh body.
+  // overwriting. A 409 keeps the draft and base. A successful commit or a Discard bumps `generation`, which starts a
+  // new draft from the fresh body and sha.
   const [generation, setGeneration] = useState(0);
   const editorKey = `${activeName ?? ''}:${generation}`;
   const [base, setBase] = useState<{ key: string; sha: string }>();
@@ -146,7 +147,10 @@ function DeskSkillsPage() {
           // Pending review: the editor keeps the draft and the skill on the target branch is unchanged.
           setSubmission({ action: 'save', ...res });
         },
-        onError: (e) => (isStaleSkill(e) ? restartDraft() : toast.show(toastFromError(e))),
+        // A stale 409 keeps the draft and its base sha (the hook toasts and refetches), so a resubmit 409s again.
+        onError: (e) => {
+          if (!isStaleSkill(e)) toast.show(toastFromError(e));
+        },
       },
     );
   };
@@ -194,6 +198,7 @@ function DeskSkillsPage() {
         void navigate({ search: (prev) => ({ ...prev, skill: name }) });
       }}
       onCommit={onCommit}
+      onDiscard={restartDraft}
       onDelete={setDeleting}
       deleting={deleting}
       rulesUsing={deleting === undefined ? [] : rulesUsing(deleting, rules)}

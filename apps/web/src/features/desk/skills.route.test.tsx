@@ -167,10 +167,11 @@ describe('desk skills route', () => {
     expect(puts).toHaveLength(1);
   });
 
-  it('a stale sha (409) shows a toast and restarts the draft from the other change', async () => {
+  it('a stale sha (409) shows a toast and keeps the draft on its old sha, so it never overwrites the newer version', async () => {
     const puts = capturePuts();
     const { user } = await renderRoute(`${base}/skills?skill=code-review`);
     const editor = await screen.findByLabelText('SKILL.md source');
+    const { sha: baseSha } = skillRow('code-review');
     // Someone else commits after the page loaded.
     Object.assign(skillRow('code-review'), { sha: 'changed-elsewhere', body: 'their version' });
     await user.type(editor, '\nMine.');
@@ -178,17 +179,55 @@ describe('desk skills route', () => {
     await user.click(screen.getByRole('button', { name: 'Submit changes' }));
 
     expect(await screen.findByText('Skill changed elsewhere — reload')).toBeInTheDocument();
-    expect(mockDb.requests('GET', `${skillsPath}/code-review`)).toBeGreaterThan(detailBefore);
+    await waitFor(() => expect(mockDb.requests('GET', `${skillsPath}/code-review`)).toBeGreaterThan(detailBefore));
+    // The draft is kept, still marked unsaved.
+    expect(screen.getByLabelText('SKILL.md source')).toHaveDisplayValue(/Mine\./);
+    expect(screen.getByText('Unsaved changes')).toBeInTheDocument();
+
+    // Submitting again still carries the old sha, gets 409 again and never overwrites their version.
+    await user.click(screen.getByRole('button', { name: 'Submit changes' }));
+    await waitFor(() => expect(puts).toHaveLength(2));
+    expect(puts[1]).toMatchObject({ sha: baseSha });
+    expect(screen.getByLabelText('SKILL.md source')).toHaveDisplayValue(/Mine\./);
+    expect(skillRow('code-review').body).toBe('their version');
+  });
+
+  it('Discard after a stale 409 starts a fresh draft from the newer version and its sha', async () => {
+    const puts = capturePuts();
+    const { user } = await renderRoute(`${base}/skills?skill=code-review`);
+    const editor = await screen.findByLabelText('SKILL.md source');
+    Object.assign(skillRow('code-review'), { sha: 'changed-elsewhere', body: 'their version' });
+    await user.type(editor, '\nMine.');
+    const detailBefore = mockDb.requests('GET', `${skillsPath}/code-review`);
+    await user.click(screen.getByRole('button', { name: 'Submit changes' }));
+    await screen.findByText('Skill changed elsewhere — reload');
+    await waitFor(() => expect(mockDb.requests('GET', `${skillsPath}/code-review`)).toBeGreaterThan(detailBefore));
+
+    await user.click(screen.getByRole('button', { name: 'Discard' }));
     await waitFor(() => expect(screen.getByLabelText('SKILL.md source')).toHaveValue('their version'));
     expect(screen.queryByText('Unsaved changes')).toBeNull();
-    expect(screen.getByRole('button', { name: 'Submit changes' })).toBeDisabled();
-    expect(skillRow('code-review').body).toBe('their version');
 
     // A new edit commits on top of their version, with their sha.
     await user.type(screen.getByLabelText('SKILL.md source'), '!');
     await user.click(screen.getByRole('button', { name: 'Submit changes' }));
     await waitFor(() => expect(skillRow('code-review').body).toBe('their version!'));
     expect(puts.at(-1)).toMatchObject({ body: 'their version!', sha: 'changed-elsewhere' });
+  });
+
+  it('reopening the skill after a stale 409 starts a fresh draft from the newer version', async () => {
+    const { user } = await renderRoute(`${base}/skills?skill=code-review`);
+    const editor = await screen.findByLabelText('SKILL.md source');
+    Object.assign(skillRow('code-review'), { sha: 'changed-elsewhere', body: 'their version' });
+    await user.type(editor, '\nMine.');
+    await user.click(screen.getByRole('button', { name: 'Submit changes' }));
+    await screen.findByText('Skill changed elsewhere — reload');
+
+    const nav = screen.getByRole('navigation', { name: 'Skills' });
+    await user.click(within(nav).getByRole('link', { name: /code-e2e/ }));
+    await screen.findByRole('heading', { level: 2, name: 'code-e2e' });
+    await user.click(within(nav).getByRole('link', { name: /code-review/ }));
+    await waitFor(() => expect(screen.getByLabelText('SKILL.md source')).toHaveValue('their version'));
+    expect(screen.queryByText('Unsaved changes')).toBeNull();
   });
 
   it('a background refetch with a newer sha keeps the draft on its base sha, so commit 409s', async () => {
@@ -350,7 +389,7 @@ describe('desk skills submit and review', () => {
       expect(router.state.location.search).toEqual({ skill: 'code-e2e' });
     });
 
-    it('a stale edit shows the reload message, no review notice, and restarts the draft', async () => {
+    it('a stale edit shows the reload message, no review notice, and keeps the draft', async () => {
       scenarios.skillReviewRequired();
       const { user } = await renderRoute(`${base}/skills?skill=code-review`);
       await screen.findByLabelText('SKILL.md source');
@@ -361,7 +400,7 @@ describe('desk skills submit and review', () => {
       expect(await screen.findByText('Skill changed elsewhere — reload')).toBeInTheDocument();
       expect(screen.queryByText('Changes submitted for review')).toBeNull();
       expect(screen.queryByRole('link', { name: /View change request/ })).toBeNull();
-      await waitFor(() => expect(screen.getByLabelText('SKILL.md source')).toHaveValue('their version'));
+      expect(screen.getByLabelText('SKILL.md source')).toHaveDisplayValue(/More steps/);
     });
 
     it('a failed later submit clears the earlier submitted notice', async () => {
