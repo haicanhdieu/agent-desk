@@ -37,6 +37,8 @@ const noop = () => {};
 const DEFAULT_PROJECT_ROLE = 'member';
 
 interface DraftGrant {
+  /** Identifies the row: the assignment id, or a generated id on an added row. A project can have several rows. */
+  rowId: string;
   /** The grant this row replaces or removes; absent on an added row. */
   assignmentId?: string;
   projectId: string;
@@ -45,7 +47,7 @@ interface DraftGrant {
   roleName: string;
 }
 
-const draftOf = (g: ProjectGrantView): DraftGrant => g;
+const draftOf = (g: ProjectGrantView): DraftGrant => ({ ...g, rowId: g.assignmentId });
 // A grant is its project and role, so a removed-then-re-added row with the same role is no change.
 const unchangedGrants = (draft: DraftGrant[], before: ProjectGrantView[]) =>
   draft.length === before.length &&
@@ -78,6 +80,7 @@ export function ChangeRoleDialog({
   const [addRole, setAddRole] = useState<string>(
     () => projectRoles.find((r) => r.key === DEFAULT_PROJECT_ROLE)?.roleId ?? projectRoles[0]?.roleId ?? '',
   );
+  const addedRows = useRef(0);
   const groupRef = useRef<HTMLFieldSetElement>(null);
   const noteId = useId();
   useEffect(() => {
@@ -91,16 +94,27 @@ export function ChangeRoleDialog({
   const addable = projects.filter((p) => !draft.some((d) => d.projectId === p.id));
   const roleNameOf = (roleId: string) => projectRoles.find((r) => r.roleId === roleId)?.name;
 
-  const setRole = (projectId: string, roleId: string) =>
+  const setRole = (rowId: string, roleId: string) =>
     setDraft((rows) =>
-      rows.map((r) => (r.projectId === projectId ? { ...r, roleId, roleName: roleNameOf(roleId) ?? r.roleName } : r)),
+      rows.map((r) => (r.rowId === rowId ? { ...r, roleId, roleName: roleNameOf(roleId) ?? r.roleName } : r)),
     );
+  // Only a project held twice gets a suffix, so the usual labels stay as they are.
+  const labelOf = (d: DraftGrant, base: string) => {
+    const same = draft.filter((r) => r.projectId === d.projectId);
+    return same.length > 1 ? `${base} (${same.indexOf(d) + 1} of ${same.length})` : base;
+  };
   const add = () => {
     const project = addable.find((p) => p.id === toAdd);
     if (!project || addRole === '') return;
     setDraft((rows) => [
       ...rows,
-      { projectId: project.id, projectName: project.label, roleId: addRole, roleName: roleNameOf(addRole) ?? '' },
+      {
+        rowId: `added-${addedRows.current++}`,
+        projectId: project.id,
+        projectName: project.label,
+        roleId: addRole,
+        roleName: roleNameOf(addRole) ?? '',
+      },
     ]);
     setToAdd('');
   };
@@ -173,18 +187,18 @@ export function ChangeRoleDialog({
             ) : (
               <ul className={styles.grants}>
                 {draft.map((d) => (
-                  <li key={d.projectId} className={styles.grant} aria-label={d.projectName}>
+                  <li key={d.rowId} className={styles.grant} aria-label={labelOf(d, d.projectName)}>
                     <span className={styles.project} title={d.projectName}>
                       {d.projectName}
                     </span>
                     {canEditProjects ? (
                       <>
                         <Select
-                          aria-label={`Role in ${d.projectName}`}
+                          aria-label={labelOf(d, `Role in ${d.projectName}`)}
                           className={styles.roleSelect}
                           value={d.roleId}
                           disabled={saving}
-                          onChange={(e) => setRole(d.projectId, e.target.value)}
+                          onChange={(e) => setRole(d.rowId, e.target.value)}
                         >
                           {projectRoles.some((r) => r.roleId === d.roleId) ? null : (
                             <option value={d.roleId}>{d.roleName}</option>
@@ -197,9 +211,9 @@ export function ChangeRoleDialog({
                         </Select>
                         <IconButton
                           icon="x"
-                          aria-label={`Remove access to ${d.projectName}`}
+                          aria-label={labelOf(d, `Remove access to ${d.projectName}`)}
                           disabled={saving}
-                          onClick={() => setDraft((rows) => rows.filter((r) => r.projectId !== d.projectId))}
+                          onClick={() => setDraft((rows) => rows.filter((r) => r.rowId !== d.rowId))}
                         />
                       </>
                     ) : (

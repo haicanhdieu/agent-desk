@@ -277,6 +277,51 @@ describe('ChangeRoleDialog', () => {
       });
     });
 
+    describe('a member holding two grants in one project', () => {
+      const first = grants[0];
+      const twice = first
+        ? [first, { ...first, assignmentId: 'second-grant', roleId: accessProjectRoleIds.viewer, roleName: 'Viewer' }]
+        : [];
+      const errors: unknown[] = [];
+
+      it('lists both rows without duplicate keys and changes only the row touched', async () => {
+        const spy = vi.spyOn(console, 'error').mockImplementation((...a) => void errors.push(a));
+        const h = setup({ projectAccess: access({ grants: twice }) });
+        expect(errors).toEqual([]);
+        spy.mockRestore();
+        expect(within(section()).getAllByRole('listitem')).toHaveLength(2);
+        const selects = within(section()).getAllByRole('combobox', { name: /^Role in invoicer-api/ });
+        expect(new Set(selects.map((s) => s.getAttribute('aria-label'))).size).toBe(2);
+        await userEvent.selectOptions(selects[1] as HTMLElement, accessProjectRoleIds.member);
+        await userEvent.click(screen.getByRole('button', { name: 'Save access' }));
+        expect(h.onSave).toHaveBeenCalledWith({
+          roleId: ids.member,
+          projects: [
+            { assignmentId: first?.assignmentId, projectId: first?.projectId, roleId: first?.roleId },
+            { assignmentId: 'second-grant', projectId: first?.projectId, roleId: accessProjectRoleIds.member },
+          ],
+        });
+      });
+
+      it('removes only the row whose button was clicked', async () => {
+        const h = setup({ projectAccess: access({ grants: twice }) });
+        const buttons = within(section()).getAllByRole('button', { name: /^Remove access to invoicer-api/ });
+        expect(new Set(buttons.map((b) => b.getAttribute('aria-label'))).size).toBe(2);
+        await userEvent.click(buttons[1] as HTMLElement);
+        await userEvent.click(screen.getByRole('button', { name: 'Save access' }));
+        expect(h.onSave).toHaveBeenCalledWith({
+          roleId: ids.member,
+          projects: [{ assignmentId: first?.assignmentId, projectId: first?.projectId, roleId: first?.roleId }],
+        });
+      });
+
+      it('keeps the project out of the picker', () => {
+        setup({ projectAccess: access({ grants: twice }) });
+        const picker = screen.getByRole('combobox', { name: 'Project to add' });
+        expect(within(picker).queryByRole('option', { name: 'invoicer-api' })).toBeNull();
+      });
+    });
+
     it('keeps Add project off until a project is picked', async () => {
       setup();
       expect((screen.getByRole('button', { name: 'Add project' }) as HTMLButtonElement).disabled).toBe(true);
