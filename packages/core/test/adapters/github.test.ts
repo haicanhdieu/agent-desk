@@ -738,7 +738,28 @@ describe('github code host', () => {
         },
       })
       .reply(200, '{"content":{"sha":"new"},"commit":{"sha":"abc123"}}', { headers: JSON_HEADERS });
-    expect(await host().writeSkill(project, 'fix', 'v2', 'edit', 'old')).toEqual({ commitSha: 'abc123' });
+    expect(await host().writeSkill(project, 'fix', 'v2', 'edit', 'old')).toEqual({
+      kind: 'commit',
+      commitSha: 'abc123',
+      targetBranch: 'main',
+    });
+  });
+
+  it('deletes a skill and returns a commit result', async () => {
+    mockInstallationToken();
+    const path = '/repos/acme/widgets/contents/.agent/skills/fix/SKILL.md';
+    gh().intercept({ path, method: 'GET' }).reply(200, fixture('contents.skill-file.json'), { headers: JSON_HEADERS });
+    gh()
+      .intercept({ path: (p) => p.startsWith('/repos/acme/widgets/commits'), method: 'GET' })
+      .reply(200, fixture('commits.skill.json'), { headers: JSON_HEADERS });
+    gh()
+      .intercept({ path, method: 'DELETE' })
+      .reply(200, '{"content":null,"commit":{"sha":"del456"}}', { headers: JSON_HEADERS });
+    expect(await host().deleteSkill(project, 'fix', 'rm')).toEqual({
+      kind: 'commit',
+      commitSha: 'del456',
+      targetBranch: 'main',
+    });
   });
 
   it('completeInstall requires the installation to be visible to the user linked account', async () => {

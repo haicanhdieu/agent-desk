@@ -11,6 +11,7 @@ import {
   type CodeHostAdapter,
   type InstallUser,
   type NewConnection,
+  type SkillChangeResult,
 } from '../types';
 import { FAKE_EXTERNAL_ID } from './board';
 import { FAKE_REPOS, sha1, type FakeStore } from './store';
@@ -100,16 +101,22 @@ export class FakeCodeHostAdapter implements CodeHostAdapter {
     body: string,
     _message: string,
     sha?: string,
-  ): Promise<{ commitSha: string }> {
+  ): Promise<SkillChangeResult> {
     const existing = await this.store.readSkillFile(project.repoPath, name);
     // GitHub semantics: updating needs the current sha; creating must not carry one.
     const given = sha === '' ? undefined : sha; // empty sha is treated as absent, like GitHub
     if (existing ? given !== existing.sha : given !== undefined) throw new SkillConflictError(name);
-    return { commitSha: await this.store.writeSkillFile(project.repoPath, name, body) };
+    const commitSha = await this.store.writeSkillFile(project.repoPath, name, body);
+    return { kind: 'commit', commitSha, targetBranch: project.defaultBranch ?? 'main' };
   }
 
-  async deleteSkill(project: AdapterProject, name: string, _message: string): Promise<void> {
+  async deleteSkill(project: AdapterProject, name: string, message: string): Promise<SkillChangeResult> {
     if (!(await this.store.deleteSkillFile(project.repoPath, name))) throw new SkillNotFoundError(name);
+    return {
+      kind: 'commit',
+      commitSha: sha1(`delete:${name}:${message}`),
+      targetBranch: project.defaultBranch ?? 'main',
+    };
   }
 
   private summary(name: string, f: { body: string; sha: string; mtime: string }): SkillSummaryDto {

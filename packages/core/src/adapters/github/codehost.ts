@@ -13,6 +13,7 @@ import {
   RepoFileError,
   type InstallUser,
   type NewConnection,
+  type SkillChangeResult,
 } from '../types';
 import { assertSafeRef, errorStatus, splitRepoPath, type GithubClients } from './app';
 
@@ -288,7 +289,7 @@ export class GithubCodeHostAdapter implements CodeHostAdapter {
     body: string,
     message: string,
     sha?: string,
-  ): Promise<{ commitSha: string }> {
+  ): Promise<SkillChangeResult> {
     const path = skillPath(name);
     const { owner, repo } = splitRepoPath(project.repoPath);
     try {
@@ -303,7 +304,11 @@ export class GithubCodeHostAdapter implements CodeHostAdapter {
           committer: { name: this.opts.botName, email: this.opts.botEmail },
           ...(sha ? { sha } : {}),
         });
-      return { commitSha: WriteResponse.parse(res.data).commit.sha };
+      return {
+        kind: 'commit',
+        commitSha: WriteResponse.parse(res.data).commit.sha,
+        targetBranch: project.defaultBranch ?? 'main',
+      };
     } catch (e) {
       const s = errorStatus(e);
       if (s === 409 || s === 422) throw new SkillConflictError(name);
@@ -311,12 +316,12 @@ export class GithubCodeHostAdapter implements CodeHostAdapter {
     }
   }
 
-  async deleteSkill(project: AdapterProject, name: string, message: string): Promise<void> {
+  async deleteSkill(project: AdapterProject, name: string, message: string): Promise<SkillChangeResult> {
     const path = skillPath(name);
     const { owner, repo } = splitRepoPath(project.repoPath);
     const current = await this.readSkill(project, name);
     try {
-      await this.clients
+      const res = await this.clients
         .installation(project.connectionExternalId)
         .request('DELETE /repos/{owner}/{repo}/contents/{+path}', {
           owner,
@@ -326,6 +331,11 @@ export class GithubCodeHostAdapter implements CodeHostAdapter {
           sha: current.sha,
           committer: { name: this.opts.botName, email: this.opts.botEmail },
         });
+      return {
+        kind: 'commit',
+        commitSha: WriteResponse.parse(res.data).commit.sha,
+        targetBranch: project.defaultBranch ?? 'main',
+      };
     } catch (e) {
       const s = errorStatus(e);
       if (s === 409 || s === 422) throw new SkillConflictError(name);

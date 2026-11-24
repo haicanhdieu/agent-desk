@@ -174,14 +174,23 @@ describe('fake code host', () => {
     const w1 = await host.writeSkill(project, 'fix', '---\ndescription: Fixes\n---\nv1', 'add');
     const r1 = await host.readSkill(project, 'fix');
     expect(r1.body).toContain('v1');
-    expect(r1.sha).toBe(w1.commitSha);
+    expect(r1.sha).toBe(w1.kind === 'commit' ? w1.commitSha : '');
     expect(r1.description).toBe('Fixes');
     const w2 = await host.writeSkill(project, 'fix', 'v2', 'edit', r1.sha);
-    expect(w2.commitSha).not.toBe(w1.commitSha);
+    expect(w2).not.toEqual(w1);
     await expect(host.writeSkill(project, 'fix', 'v3', 'edit', r1.sha)).rejects.toBeInstanceOf(SkillConflictError);
     expect((await host.listSkills(project)).map((s) => s.name)).toEqual(['fix']);
-    await host.deleteSkill(project, 'fix', 'rm');
+    const del = await host.deleteSkill(project, 'fix', 'rm');
+    expect(del).toEqual({ kind: 'commit', commitSha: expect.any(String), targetBranch: 'main' });
     expect(await host.listSkills(project)).toEqual([]);
+  });
+
+  it('writeSkill returns a commit result targeting the default branch', async () => {
+    const host = new FakeCodeHostAdapter(new FakeStore(dir, clock), clock, 'http://localhost:3000');
+    const w = await host.writeSkill(project, 'fix', 'v1', 'add');
+    expect(w).toEqual({ kind: 'commit', commitSha: expect.any(String), targetBranch: 'main' });
+    const other = await host.writeSkill({ ...project, defaultBranch: 'trunk' }, 'two', 'v1', 'add');
+    expect(other).toMatchObject({ kind: 'commit', targetBranch: 'trunk' });
   });
 
   it('mirrors GitHub write semantics: sha required to update, stale sha conflicts, create needs no sha', async () => {
@@ -189,13 +198,19 @@ describe('fake code host', () => {
     const created = await host.writeSkill(project, 'fix', 'v1', 'add');
     await expect(host.writeSkill(project, 'fix', 'v2', 'edit')).rejects.toBeInstanceOf(SkillConflictError);
     await expect(host.writeSkill(project, 'fix', 'v2', 'edit', 'stale')).rejects.toBeInstanceOf(SkillConflictError);
-    await expect(host.writeSkill(project, 'other', 'v2', 'edit', created.commitSha)).rejects.toBeInstanceOf(
-      SkillConflictError,
-    );
+    await expect(
+      host.writeSkill(project, 'other', 'v2', 'edit', created.kind === 'commit' ? created.commitSha : ''),
+    ).rejects.toBeInstanceOf(SkillConflictError);
     await expect(host.writeSkill(project, 'fix', 'v2', 'edit', '')).rejects.toBeInstanceOf(SkillConflictError);
-    expect((await host.writeSkill(project, 'fresh', 'v1', 'add', '')).commitSha).toBeTruthy();
-    const updated = await host.writeSkill(project, 'fix', 'v2', 'edit', created.commitSha);
-    expect(updated.commitSha).not.toBe(created.commitSha);
+    expect((await host.writeSkill(project, 'fresh', 'v1', 'add', '')).kind).toBe('commit');
+    const updated = await host.writeSkill(
+      project,
+      'fix',
+      'v2',
+      'edit',
+      created.kind === 'commit' ? created.commitSha : '',
+    );
+    expect(updated).not.toEqual(created);
     expect((await host.readSkill(project, 'fix')).body).toBe('v2');
   });
 

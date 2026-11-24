@@ -100,6 +100,11 @@ export interface BoardAdapter {
   prStates(project: AdapterProject, refs: string[]): Promise<PrStatesResult>;
 }
 
+/** Outcome of a skill create/update/delete: a direct commit, or a pending change request for review. Provider-neutral. */
+export type SkillChangeResult =
+  | { kind: 'commit'; commitSha: string; targetBranch: string }
+  | { kind: 'change_request'; sourceBranch: string; targetBranch: string; url: string; id: string };
+
 export interface CodeHostAdapter {
   installUrl(orgId: string, state: string): string;
   completeInstall(params: Record<string, string>, user: InstallUser): Promise<NewConnection>;
@@ -124,8 +129,8 @@ export interface CodeHostAdapter {
     body: string,
     message: string,
     sha?: string,
-  ): Promise<{ commitSha: string }>;
-  deleteSkill(project: AdapterProject, name: string, message: string): Promise<void>;
+  ): Promise<SkillChangeResult>;
+  deleteSkill(project: AdapterProject, name: string, message: string): Promise<SkillChangeResult>;
   /**
    * Text of a file at the project's default branch, or null when it does not exist. Throws `RepoFileError` when the
    * path is not a readable text file (a directory, too large, unexpected encoding). The text is untrusted repo content.

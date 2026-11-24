@@ -79,7 +79,10 @@ export class SkillsService {
   async put(org: OrgContext, projectId: string, name: string, body: PutSkillRequest): Promise<PutSkillResponse> {
     const { host, project } = await this.codeHostFor(org, projectId);
     try {
-      return await host.writeSkill(project, name, body.body, body.message, body.sha);
+      const result = await host.writeSkill(project, name, body.body, body.message, body.sha);
+      // Change-request outcomes reach the API contract in a later task; adapters only return commits until then.
+      if (result.kind !== 'commit') throw new Error('unexpected change request result');
+      return { commitSha: result.commitSha };
     } catch (err) {
       throw mapSkillError(err);
     }
