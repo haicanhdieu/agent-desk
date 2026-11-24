@@ -55,6 +55,7 @@ function build(warnings?: string[], rec: Recorded = { gate: [], schedules: [] })
     secrets: { get: async () => null, put: async () => undefined, delete: async () => undefined },
     signaller: { signalRun: async () => undefined },
     clock,
+    priceSources: { source: () => undefined },
     config,
     starter: { start: unused },
     gate: {
@@ -78,7 +79,7 @@ function build(warnings?: string[], rec: Recorded = { gate: [], schedules: [] })
       remove: async () => undefined,
       startResume: async (input) => void rec.schedules.push(`resume:${input.projectId}:${input.until}`),
     },
-    ...(warnings ? { log: { warn: (msg: string) => void warnings.push(msg) } } : {}),
+    ...(warnings ? { log: { warn: (msg: string) => void warnings.push(msg), error: () => undefined } } : {}),
   });
 }
 
@@ -93,6 +94,7 @@ describe('createActivities', () => {
       'resumePollSchedule',
       'sweepOutbox',
       'reconcile',
+      'syncModelPrices',
       'loadRun',
       'followPodLogs',
       'parkRun',

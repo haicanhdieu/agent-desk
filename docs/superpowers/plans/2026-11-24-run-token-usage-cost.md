@@ -528,7 +528,7 @@ graph LR
   - `createUsageSink(deps: { db: Db; orgId: string; runId: string; clock: Clock; warn(msg: string, fields: Record<string, unknown>): void; adapterFor?: (kind: AgentKind) => AgentAdapter }): { store(entry: UsageWireEntry): Promise<void> }`: reads `agents.provider` for the run once per attempt (none when the agent is gone), caches `loadCurrentPriceVersion` for 5 minutes on `clock`, prices by `rateKey(pricing.provider, (pricing.modelKey ?? normalizeModelKey)(entry.model))`, counts rows once per attempt, at the cap drops unknown ids and still upserts known ids, retries 3 times, logs counts only (`usage entry not stored` with `{ failed }`, `usage cap reached` with `{ dropped }` once)
   - `followPodLogs`: `parsed.kind === 'usage' && parsed.usage` calls `usageSink.store(parsed.usage)`; nothing goes to `run_events`
 
-- [ ] **Step 1: Write the failing tests** in `usage-store.int.test.ts` (fresh org per test, global price tables truncated in `beforeEach`, `stub-agent.ts` exports adapters with `pricing: { provider: 'vendor-a' }`, one with a custom `modelKey`, one without `pricing`; versions seeded with `writePriceVersion`; fixed `Clock`):
+- [x] **Step 1: Write the failing tests** in `usage-store.int.test.ts` (fresh org per test, global price tables truncated in `beforeEach`, `stub-agent.ts` exports adapters with `pricing: { provider: 'vendor-a' }`, one with a custom `modelKey`, one without `pricing`; versions seeded with `writePriceVersion`; fixed `Clock`):
   - snapshot: the first insert writes the five rates (strings), `price_as_of` equal to the version's `checked_at`, `price_source`, `price_version_id`, all from one version;
   - GREATEST: the same entry twice changes nothing; placeholder (output 1) then final (500) gives 500 at the first rates; final then placeholder stays 500; a replayed lower row never lowers;
   - P3: placeholder at v1, `writePriceVersion` v2 with changed rates, final row of the same id: counters final, rates v1 (same for the reverse order);
@@ -542,10 +542,10 @@ graph LR
   - Review Focus 5: two sinks storing the same new id with `Promise.all` give one row;
   - P8: a registry built with an `http` that counts calls and throws is created in the test; storing 50 entries leaves the count 0 (the sink takes no registry or transport).
   - `run.activities.int.test.ts`: a fake pod run whose log carries usage lines stores rows in `run_usage_entries` and none in `run_events`.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/worker exec vitest run test/usage-store.int.test.ts test/run.activities.int.test.ts`. Expected: FAIL.
-- [ ] **Step 3: Implement** `usage-store.ts` (mirroring `createTranscriptSink`) and the branch plus `createUsageSink` construction next to `createTranscriptSink` in `followPodLogs`.
-- [ ] **Step 4: Run** Step 2 again, `pnpm --filter @agentdesk/worker typecheck`, and `pnpm --filter @agentdesk/worker exec vitest run test/workflows-in-process.test.ts test/run.workflow.test.ts`. Expected: PASS (run workflow untouched).
-- [ ] **Step 5: Commit**: `feat(worker): store run usage with rates fixed at first record`. Label `review:sensitive` (RLS/`withOrg`, pod-log parsing).
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/worker exec vitest run test/usage-store.int.test.ts test/run.activities.int.test.ts`. Expected: FAIL.
+- [x] **Step 3: Implement** `usage-store.ts` (mirroring `createTranscriptSink`) and the branch plus `createUsageSink` construction next to `createTranscriptSink` in `followPodLogs`.
+- [x] **Step 4: Run** Step 2 again, `pnpm --filter @agentdesk/worker typecheck`, and `pnpm --filter @agentdesk/worker exec vitest run test/workflows-in-process.test.ts test/run.workflow.test.ts`. Expected: PASS (run workflow untouched).
+- [x] **Step 5: Commit**: `feat(worker): store run usage with rates fixed at first record`. Label `review:sensitive` (RLS/`withOrg`, pod-log parsing).
 
 ---
 
@@ -574,11 +574,11 @@ graph LR
   - `ActivityDeps.priceSources: PriceSourceRegistry`; `PRICE_SOURCES` token in `WorkerModule` (`createPriceSourceRegistry(config)`); `ReconcileLogger`-style `log` gains `error`
   - Test helpers: `scriptedPriceSource(steps: Array<SourceRateRecord[] | PriceSourceErrorKind>, kind?: string): PriceSource & { calls: number }`; `seedPriceVersion(db: Db, input: { source: string; checkedAt: Date; rates: SourceRateRecord[] }): Promise<string>` (through `validateSourceRecords` and `writePriceVersion`)
 
-- [ ] **Step 1: Write the failing tests** in `price-sync.int.test.ts` (real Postgres, global tables truncated in `beforeEach`, fixed clock): `off` returns `{ outcome: 'off' }` and writes nothing; first sync `created`; same rates `confirmed` and only `checked_at` moves; changed rates within guards `created`; each `PriceSourceError` kind and a guard rejection (6 of 100 moved 6x) throw `PriceSyncFailed` with that kind, write nothing, keep the current version and its `checked_at`; a source change creates a new current version despite big moves and logs one `warn`; a retry of the same input is idempotent; nothing is ever deleted; the source receives `providers: ['anthropic']`; log meta never contains a model id or record text. `activities-wiring.test.ts`: `syncModelPrices` is registered.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/worker exec vitest run test/price-sync.int.test.ts test/activities-wiring.test.ts`. Expected: FAIL.
-- [ ] **Step 3: Implement** the activity, the wiring in `createActivities`, the `Activities` type, the `PRICE_SOURCES` provider and `main.ts` (pass the registry and an activity logger with `error`).
-- [ ] **Step 4: Run** Step 2 again and `pnpm --filter @agentdesk/worker typecheck`. Expected: PASS.
-- [ ] **Step 5: Commit**: `feat(worker): sync model prices from the configured price source`. Label `review:sensitive` (outbound fetch, global tables).
+- [x] **Step 1: Write the failing tests** in `price-sync.int.test.ts` (real Postgres, global tables truncated in `beforeEach`, fixed clock): `off` returns `{ outcome: 'off' }` and writes nothing; first sync `created`; same rates `confirmed` and only `checked_at` moves; changed rates within guards `created`; each `PriceSourceError` kind and a guard rejection (6 of 100 moved 6x) throw `PriceSyncFailed` with that kind, write nothing, keep the current version and its `checked_at`; a source change creates a new current version despite big moves and logs one `warn`; a retry of the same input is idempotent; nothing is ever deleted; the source receives `providers: ['anthropic']`; log meta never contains a model id or record text. `activities-wiring.test.ts`: `syncModelPrices` is registered.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/worker exec vitest run test/price-sync.int.test.ts test/activities-wiring.test.ts`. Expected: FAIL.
+- [x] **Step 3: Implement** the activity, the wiring in `createActivities`, the `Activities` type, the `PRICE_SOURCES` provider and `main.ts` (pass the registry and an activity logger with `error`).
+- [x] **Step 4: Run** Step 2 again and `pnpm --filter @agentdesk/worker typecheck`. Expected: PASS.
+- [x] **Step 5: Commit**: `feat(worker): sync model prices from the configured price source`. Label `review:sensitive` (outbound fetch, global tables).
 
 ---
 

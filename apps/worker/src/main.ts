@@ -12,6 +12,7 @@ import {
   type AdapterRegistry,
   type Config,
   type KubeGateway,
+  type PriceSourceRegistry,
   type SecretStore,
 } from '@agentdesk/core';
 import type { Db } from '@agentdesk/db';
@@ -19,7 +20,7 @@ import { createActivities } from './activities';
 import { pollScheduleOps } from './activities/poll-ops';
 import { temporalOps } from './activities/temporal-ops';
 import { ensureSchedules } from './schedules';
-import { ADAPTERS, CONFIG, DB, KUBE, SECRET_STORE, WorkerModule } from './worker.module';
+import { ADAPTERS, CONFIG, DB, KUBE, PRICE_SOURCES, SECRET_STORE, WorkerModule } from './worker.module';
 
 async function main(): Promise<void> {
   const app = await NestFactory.createApplicationContext(WorkerModule);
@@ -48,10 +49,14 @@ async function main(): Promise<void> {
         signaller: ops,
         temporal: ops,
         pollSchedules: pollScheduleOps(client),
+        priceSources: app.get<PriceSourceRegistry>(PRICE_SOURCES),
         clock: systemClock,
         config,
         // Activity-context logger (carries workflow/activity ids); messages never include error text.
-        log: { warn: (msg, meta) => activityLog.warn(msg, meta) },
+        log: {
+          warn: (msg, meta) => activityLog.warn(msg, meta),
+          error: (msg, meta) => activityLog.error(msg, meta),
+        },
       }),
     });
     // The Temporal worker owns SIGINT/SIGTERM and drains in-flight activities; teardown happens only after it resolves.
