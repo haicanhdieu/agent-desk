@@ -1,4 +1,5 @@
 import type {
+  InvitationDto,
   AssignmentDto,
   PlatformAuditEntryDto,
   PlatformMemberDto,
@@ -219,5 +220,33 @@ export const platformMemberFixtures: PlatformMemberDto[] = [
     name: '',
     email: 'noname@example.com',
     assignments: [grant(4, 'user-detail-noname', 'viewer', null, '2026-10-06T10:30:00.000Z')],
+  },
+];
+
+// Acme's invitations on the platform Invitations tab, as seen at the mock clock (SESSION_MOCK_NOW): one pending that
+// expires in five hours and one revoked.
+const inviter = { name: 'Alice Acme', handle: 'alice' };
+export const platformInvitationFixtures: InvitationDto[] = [
+  {
+    id: detailId('b8300000', 1),
+    email: 'pending@example.test',
+    role: roleRef('member'),
+    scope: { type: 'org' },
+    status: 'pending',
+    expiresAt: '2026-11-19T19:20:00.000Z',
+    invitedBy: inviter,
+    createdAt: '2026-11-19T10:00:00.000Z',
+    acceptedAt: null,
+  },
+  {
+    id: detailId('b8300000', 2),
+    email: 'revoked@example.test',
+    role: roleRef('viewer'),
+    scope: { type: 'org' },
+    status: 'revoked',
+    expiresAt: '2026-11-21T10:00:00.000Z',
+    invitedBy: inviter,
+    createdAt: '2026-11-19T09:00:00.000Z',
+    acceptedAt: null,
   },
 ];

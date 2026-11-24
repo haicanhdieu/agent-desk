@@ -68,6 +68,7 @@ import {
   addPlatformOrg,
   createPlatformAssignment,
   getPlatformOrg,
+  isPlatformOrg,
   listPlatformMembers,
   listPlatformOrgs,
   listPlatformProjects,
@@ -295,9 +296,10 @@ const notPending = () => conflict('Invitation is no longer pending');
 const notPendingStatus = (status: InvitationDto['status']) =>
   conflict('Conflict', undefined, `Invitation is ${status}`);
 
-// The platform routes name the org in the path; as the API, an org that does not exist is a 404.
+// The platform routes name the org in the path; as the API, an org that does not exist is a 404. An org the platform
+// directory lists exists even when the mock store holds no seat for it.
 const requireOrg = (orgId: string): string => {
-  if (!db().orgs.some((o) => o.id === orgId)) throw notFound('Organization');
+  if (!db().orgs.some((o) => o.id === orgId) && !isPlatformOrg(orgId)) throw notFound('Organization');
   return orgId;
 };
 const actorOf = (u: MockUser) => ({ userId: u.id, name: u.name, handle: u.handle ?? null });

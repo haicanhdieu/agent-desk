@@ -251,6 +251,16 @@ describe('mockListHandlers', () => {
     expect(Date.now() - t2).toBeGreaterThanOrEqual(290);
   });
 
+  it('a hold on a write route (resend) delays that POST and lets the route answer after', async () => {
+    const lists: MockLists = { hold: [{ route: 'platform.resendInvitation', ms: 300 }] };
+    server.use(...mockListHandlers(lists));
+    const id = '00000000-0000-4000-8000-000000000001';
+    const t1 = Date.now();
+    const res = await fetch(api(`/api/platform/orgs/${id}/invitations/${id}/resend`), { method: 'POST' });
+    expect(Date.now() - t1).toBeGreaterThanOrEqual(290);
+    expect(res.status).toBeGreaterThanOrEqual(400);
+  });
+
   it('fail with times 3 answers 500 three times, then lets the handler answer', async () => {
     const lists: MockLists = { runs: { total: 5 }, fail: [{ route: 'runs.list', times: 3 }] };
     applyMockLists(lists);

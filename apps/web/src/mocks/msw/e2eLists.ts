@@ -347,14 +347,16 @@ const queryNumber = (url: URL, name: string, fallback: number) => {
   return raw === null ? fallback : Number(raw);
 };
 
+const holdMethod = { GET: 'get', POST: 'post', PUT: 'put', PATCH: 'patch', DELETE: 'delete' } as const;
+
 /** Handlers placed before the route handlers: hold = await ms, then fall through; fail = problem response. */
 export function mockListHandlers(lists: MockLists): RequestHandler[] {
   const handlers: RequestHandler[] = [];
   for (const h of lists.hold ?? []) {
     const def = flatRoutes[h.route];
-    if (def?.method !== 'GET') continue;
+    if (def === undefined) continue;
     handlers.push(
-      http.get(def.path, async ({ request }) => {
+      http[holdMethod[def.method]](def.path, async ({ request }) => {
         const url = new URL(request.url);
         if (h.page !== undefined && queryNumber(url, 'page', 1) !== h.page) return undefined;
         if (h.pageSize !== undefined && queryNumber(url, 'pageSize', 20) !== h.pageSize) return undefined;

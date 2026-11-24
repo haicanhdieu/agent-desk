@@ -1948,11 +1948,11 @@ export function toPlatformMemberRow(dto: PlatformMemberDto, projectNames: Readon
 - Consumes: existing `platform.listInvitations`, `createInvitation`, `resendInvitation`, `removeInvitation`; `useInviteForm` and the invitation mappers of `features/orgInvitations`; `PlatformOrgInvitations` (Task 52).
 - Produces: `platformOrgInvitationsQuery(orgId, q: InvitationListQuery)`, `useCreatePlatformInvitation`, `useResendPlatformInvitation`, `useRevokePlatformInvitation` (invalidate that org's invitations key; invitation links never cached).
 
-- [ ] **Step 1: Write the failing tests** in `invitations.route.test.tsx` (BR-29 to BR-31): pending by default with `status` in the URL, Revoked and All filters; "Invite people" with Role Owner and "Whole organization" creates a pending row and shows "Invitation link" with "Done"; resend shows the row busy then a fresh expiry; revoke with confirm leaves the pending list; empty, not-an-email and 255-character emails show an error at Email and send nothing, a 254-character email is accepted; copy failure shows the copy message; loading, empty (with "Invite people") and error with Retry.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/features/platform/invitations.route.test.tsx`. Expected: FAIL.
-- [ ] **Step 3: Implement** the route over the platform routes; regenerate `routeTree.gen.ts`.
+- [x] **Step 1: Write the failing tests** in `invitations.route.test.tsx` (BR-29 to BR-31): pending by default with `status` in the URL, Revoked and All filters; "Invite people" with Role Owner and "Whole organization" creates a pending row and shows "Invitation link" with "Done"; resend shows the row busy then a fresh expiry; revoke with confirm leaves the pending list; empty, not-an-email and 255-character emails show an error at Email and send nothing, a 254-character email is accepted; copy failure shows the copy message; loading, empty (with "Invite people") and error with Retry.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/features/platform/invitations.route.test.tsx`. Expected: FAIL.
+- [x] **Step 3: Implement** the route over the platform routes; regenerate `routeTree.gen.ts`.
 - [ ] **Step 4: Run** `pnpm --filter @agentdesk/web exec vitest run src/features/platform src/features/orgInvitations` and `pnpm --filter @agentdesk/web typecheck`. Expected: PASS.
-- [ ] **Step 5: Commit**: `feat(web): platform org invitations page`.
+- [x] **Step 5: Commit**: `feat(web): platform org invitations page`.
 
 ---
 
@@ -1968,9 +1968,9 @@ export function toPlatformMemberRow(dto: PlatformMemberDto, projectNames: Readon
 
 Covers: BR-4 (TC-4.10), BR-24 (TC-24.1, TC-24.2), BR-25 (TC-25.1, TC-25.3), BR-26 (TC-26.1), BR-27 (TC-27.1, TC-27.2, TC-27.3), BR-28 (TC-28.1, TC-28.2), BR-29 (TC-29.1, TC-29.2), BR-30 (TC-30.1, TC-30.2, TC-30.3), BR-31 (TC-31.1 to TC-31.4).
 
-- [ ] **Step 1: Write the spec**; TC-30.2 and TC-30.3 find the row actions by purpose (spec open question Q6); TC-31.x assert an error at Email (Q1).
-- [ ] **Step 2: Run** the mock build, then `pnpm --filter @agentdesk/web exec playwright test e2e/mock/platform-org-detail.spec.ts`. Expected: PASS.
-- [ ] **Step 3: Commit**: `test(web): mock e2e for the platform org detail tabs`.
+- [x] **Step 1: Write the spec**; TC-30.2 and TC-30.3 find the row actions by purpose (spec open question Q6); TC-31.x assert an error at Email (Q1).
+- [x] **Step 2: Run** the mock build, then `pnpm --filter @agentdesk/web exec playwright test e2e/mock/platform-org-detail.spec.ts`. Expected: PASS.
+- [x] **Step 3: Commit**: `test(web): mock e2e for the platform org detail tabs`.
 
 ---
 

@@ -6,6 +6,12 @@ import {
   type PlatformOrgDto,
 } from '@agentdesk/contracts';
 import { platformAdminFixtures } from '../dto/access';
+import {
+  platformInvitationFixtures,
+  platformMemberFixtures,
+  platformOrgDtoFixtures,
+  platformProjectFixtures,
+} from '../dto/platform';
 import { ids } from '../dto/ids';
 import { mockDb } from './db';
 import { problemResponse, routeHandler } from './http';
@@ -37,6 +43,8 @@ export const PLATFORM_SCENARIOS = [
   'platformOrgEdit',
   'platformOrgEditSuspended',
   'manyAudit',
+  'platformOrgTabsEmpty',
+  'platformOrgFewProjects',
 ] as const;
 
 export type PlatformScenario = (typeof PLATFORM_SCENARIOS)[number];
@@ -144,7 +152,15 @@ function suspendMockOrg(orgId: string, reason: string): void {
 }
 
 const seeders: Record<PlatformScenario, () => void> = {
-  platformAdminOrgs: () => applyOnboardingScenario('platformAdminOneOrg'),
+  // The directory's Acme holds a pending and a revoked invitation.
+  platformAdminOrgs() {
+    applyOnboardingScenario('platformAdminOneOrg');
+    const acme = platformOrgDtoFixtures.find((o) => o.slug === 'acme');
+    if (!acme) throw new Error('no acme fixture');
+    mockDb.state.invitations.push(
+      ...platformInvitationFixtures.map((i) => ({ ...structuredClone(i), orgId: acme.id })),
+    );
+  },
   platformAdminNoOrg: () => applyOnboardingScenario('platformAdminNoOrg'),
   ownerNoPlatform: () => applyOnboardingScenario('singleOrg'),
   lastAdmin() {
@@ -211,6 +227,16 @@ const seeders: Record<PlatformScenario, () => void> = {
     const acme = entries.find((o) => o.slug === 'acme');
     if (!acme) throw new Error('seed has no acme org');
     setPlatformOrgStatus(acme.id, 'suspended', 'Billing hold');
+  },
+  // The directory fixtures, but every org's Projects, Members and Invitations are empty.
+  platformOrgTabsEmpty() {
+    applyOnboardingScenario('platformAdminOneOrg');
+    seedPlatformOrgTabs({ projects: [], members: [] });
+  },
+  // The directory fixtures with two projects ("Alpha" first) and the usual members.
+  platformOrgFewProjects() {
+    applyOnboardingScenario('platformAdminOneOrg');
+    seedPlatformOrgTabs({ projects: platformProjectFixtures.slice(0, 2), members: platformMemberFixtures });
   },
   manyAudit() {
     applyOnboardingScenario('platformAdminOneOrg');

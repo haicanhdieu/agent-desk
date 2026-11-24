@@ -1,10 +1,12 @@
 import { keepPreviousData, queryOptions } from '@tanstack/react-query';
 import type {
   Page,
+  InvitationListQuery,
   PageQuery,
   PlatformAdminDto,
   PlatformAuditEntryDto,
   PlatformAuditListQuery,
+  PlatformInvitationDto,
   PlatformMemberDto,
   PlatformOrgDetailDto,
   PlatformOrgDto,
@@ -92,5 +94,21 @@ export const platformOrgAllProjectsQuery = (orgId: string) =>
         if (res.items.length === 0 || items.length >= res.total) break;
       }
       return items;
+    },
+  });
+
+/**
+ * One page of an org's invitations (`GET /api/platform/orgs/:orgId/invitations`). Another page of the same filter keeps
+ * the old rows while it loads; another filter does not. Only DTOs are cached: a link is built from the id when shown.
+ */
+export const platformOrgInvitationsQuery = (orgId: string, q: InvitationListQuery) =>
+  queryOptions({
+    queryKey: platformKeys.orgList(orgId, 'invitations', q),
+    queryFn: (): Promise<Page<PlatformInvitationDto>> => api.platform.listInvitations({ params: { orgId }, query: q }),
+    placeholderData: (previous, previousQuery) => {
+      const was = previousQuery?.queryKey[4];
+      return typeof was === 'object' && was !== null && 'status' in was && was.status === q.status
+        ? keepPreviousData(previous)
+        : undefined;
     },
   });

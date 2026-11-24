@@ -41,7 +41,7 @@ import {
 // The contracts package's own default instance is what these tests exercise, so the restriction does not apply.
 // eslint-disable-next-line no-restricted-imports
 import { ApiError, api as defaultApi, createApi } from '@agentdesk/contracts/client';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
 import {
   accessFixture,
@@ -1728,5 +1728,58 @@ describe('platform org projects, members and assignments (BR-24 to BR-28)', () =
     for (const tab of ['projects', 'members']) {
       expect(Items.parse(await (await fetch(`${root}/${seat.id}/${tab}`)).json()).items).toEqual([]);
     }
+  });
+});
+
+describe('platform org invitations of a directory org (BR-29 to BR-31)', () => {
+  const root = 'http://localhost:3000/api/platform/orgs';
+  const acme = () => {
+    const found = platformOrgDtoFixtures.find((o) => o.slug === 'acme');
+    if (!found) throw new Error('no acme fixture');
+    return found;
+  };
+  const call = (path: string, method = 'GET', body?: unknown) =>
+    fetch(`${root}/${acme().id}/invitations${path}`, {
+      method,
+      headers: { 'content-type': 'application/json' },
+      body: body === undefined ? undefined : JSON.stringify(body),
+    });
+  const Items = z.object({ items: z.array(InvitationDto) });
+  const list = async (status?: string) =>
+    Items.parse(await (await call(status ? `?status=${status}` : '')).json()).items;
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  const seed = () => {
+    vi.useFakeTimers({ toFake: ['Date'], now: new Date('2026-11-19T14:20:00.000Z') });
+    scenarios.platform('platformAdminOrgs');
+  };
+
+  it('lists one pending and one revoked invitation of Acme, which only the platform directory holds', async () => {
+    seed();
+    expect(mockDb.state.orgs.some((o) => o.id === acme().id)).toBe(false);
+    expect((await list()).map((i) => i.status)).toEqual(['pending']);
+    expect((await list('revoked')).map((i) => i.status)).toEqual(['revoked']);
+    expect(await list('all')).toHaveLength(2);
+  });
+
+  it('creates, resends and revokes an invitation of Acme', async () => {
+    seed();
+    const owner = roleFixtures.find((r) => r.key === 'owner');
+    if (!owner) throw new Error('no owner role');
+    const created = await call('', 'POST', { email: 'new@example.test', roleId: owner.id, scope: { type: 'org' } });
+    expect(created.status).toBe(201);
+    const row = InvitationDto.parse(await created.json());
+    expect(row).toMatchObject({ email: 'new@example.test', status: 'pending' });
+    expect((await call(`/${row.id}/resend`, 'POST')).status).toBe(200);
+    expect((await call(`/${row.id}`, 'DELETE')).status).toBe(204);
+    expect((await list('revoked')).map((i) => i.email)).toContain('new@example.test');
+  });
+
+  it('still answers 404 for an org that is neither in the directory nor in the store', async () => {
+    seed();
+    expect((await fetch(`${root}/${crypto.randomUUID()}/invitations`)).status).toBe(404);
   });
 });

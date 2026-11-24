@@ -225,3 +225,8 @@ export function removePlatformAssignment(orgId: string, assignmentId: string): n
   }
   throw notFound('Assignment');
 }
+
+/** Whether the platform directory lists the org (an org the mock store does not hold can still be one). */
+export function isPlatformOrg(orgId: string): boolean {
+  return orgs.some((o) => o.id === orgId);
+}

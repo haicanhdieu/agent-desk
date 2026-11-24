@@ -1,9 +1,11 @@
 import type {
   CreateAssignmentRequest,
+  CreateInvitationRequest,
   GrantPlatformAdminRequest,
   OrgStatus,
   PlatformAdminDto,
   PlatformAssignmentDto,
+  PlatformInvitationDto,
   PlatformOrgDetailDto,
   UpdateOrgRequest,
 } from '@agentdesk/contracts';
@@ -138,5 +140,47 @@ export function useRemovePlatformAssignment(
     onError: async (e) => {
       if (e instanceof ApiError && e.status === 404) await refreshAfterAssignment(queryClient);
     },
+  });
+}
+
+/**
+ * The three invitation changes end the same way: this org's invitation pages and the platform audit log are fetched
+ * again. A resend or revoke refetches on failure too: a 409 means the row changed elsewhere, so the list shows its new
+ * status. The mutation stays pending until that is done.
+ */
+const refreshInvitations = (queryClient: QueryClient, orgId: string) =>
+  Promise.all([
+    queryClient.invalidateQueries({ queryKey: [...platformKeys.org(orgId), 'invitations'] }),
+    queryClient.invalidateQueries({ queryKey: ['platform', 'audit'] }),
+  ]);
+
+/** `POST /api/platform/orgs/:orgId/invitations`. The answer is not cached: the link is built from its id when shown. */
+export function useCreatePlatformInvitation(
+  orgId: string,
+): UseMutationResult<PlatformInvitationDto, ApiError, CreateInvitationRequest> {
+  const queryClient = useQueryClient();
+  return useMutation<PlatformInvitationDto, ApiError, CreateInvitationRequest>({
+    mutationFn: (body) => api.platform.createInvitation({ params: { orgId }, body }),
+    onSuccess: () => refreshInvitations(queryClient, orgId),
+  });
+}
+
+/** `POST /api/platform/orgs/:orgId/invitations/:invitationId/resend`: the variable is the invitation id. */
+export function useResendPlatformInvitation(orgId: string): UseMutationResult<PlatformInvitationDto, ApiError, string> {
+  const queryClient = useQueryClient();
+  return useMutation<PlatformInvitationDto, ApiError, string>({
+    mutationFn: (invitationId) => api.platform.resendInvitation({ params: { orgId, invitationId } }),
+    onSettled: () => refreshInvitations(queryClient, orgId),
+  });
+}
+
+/** `DELETE /api/platform/orgs/:orgId/invitations/:invitationId`: the variable is the invitation id. */
+export function useRevokePlatformInvitation(orgId: string): UseMutationResult<void, ApiError, string> {
+  const queryClient = useQueryClient();
+  return useMutation<void, ApiError, string>({
+    mutationFn: async (invitationId) => {
+      await api.platform.removeInvitation({ params: { orgId, invitationId } });
+    },
+    onSettled: () => refreshInvitations(queryClient, orgId),
   });
 }
