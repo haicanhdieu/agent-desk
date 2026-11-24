@@ -490,6 +490,16 @@ function RulesStep({ org, projectId }: { org: string; projectId: string }) {
     }
   };
 
+  // Skipping creates no rule; it only marks setup ready.
+  const onSkip = async () => {
+    setErrors(noErrors);
+    try {
+      await goTo('ready', await save.mutateAsync({ project, rules: [] }));
+    } catch (e) {
+      setErrors(stepErrors(e, {}));
+    }
+  };
+
   return (
     <Setup4
       user={bar.user}
@@ -505,6 +515,7 @@ function RulesStep({ org, projectId }: { org: string; projectId: string }) {
       credentialDetail={credentialDetail(agent)}
       backHref={stepHref(org, 'skills', projectId)}
       onContinue={(d) => void onContinue(d)}
+      onSkip={() => void onSkip()}
       saving={save.isPending}
       errors={errors.fields}
       formError={errors.form}
@@ -522,6 +533,7 @@ function ReadyStep({ org, projectId }: { org: string; projectId: string }) {
   const rules = rulesPage.items;
   const { data: connection } = useSuspenseQuery(projectsQueries.connection(org, projectId));
   const warning = useSetupWarning(org, projectId, useCan(org, 'setup:read', { projectId }));
+  const canAddRule = useCan(org, 'rule:create', { projectId });
   const first = rules[0];
   const label = first?.labelFilter[0];
   const skillList = skills.items.map((s) => s.name).join(', ');
@@ -553,12 +565,14 @@ function ReadyStep({ org, projectId }: { org: string; projectId: string }) {
       projectName={project.name}
       repo={project.repoPath}
       label={label ? { name: label } : undefined}
-      command={`/${first?.command ?? 'code-build'}`}
+      command={first ? `/${first.command}` : undefined}
       summary={summary}
       lastEvent={lastEvent(connection, now)}
       skills={skillList}
       credentialDetail={credentialDetail(agent)}
       runsHref={`/o/${encodeURIComponent(org)}/p/${encodeURIComponent(projectId)}/runs`}
+      rulesHref={projectPaths(org, projectId).rules}
+      canAddRule={canAddRule}
       {...(warning && {
         warning: { title: warning.title, detail: warning.detail, href: projectPaths(org, projectId).setup },
       })}

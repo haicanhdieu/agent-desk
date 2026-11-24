@@ -367,9 +367,57 @@ describe('Setup4', () => {
     expect(screen.getByRole('region', { name: 'Guards on every rule' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Save rules and finish' })).toBeInTheDocument();
   });
+  it('marks the step optional and Skip calls onSkip', async () => {
+    const onSkip = vi.fn();
+    render(
+      <Setup4
+        user={user}
+        projectName="invoicer-api"
+        repo={repo}
+        rule={rules[0]}
+        skills={[]}
+        followUp={{ command: 'code-review', target: 'pr', skill: 'code-review', enabled: true }}
+        maxRunsPerTicket={agentSettings.maxRunsPerTicket}
+        onSkip={onSkip}
+      />,
+    );
+    expect(screen.getByText('Step 5 of 5, optional')).toBeInTheDocument();
+    expect(screen.getAllByText('optional')).toHaveLength(3);
+    await userEvent.click(screen.getByRole('button', { name: 'Skip' }));
+    expect(onSkip).toHaveBeenCalledTimes(1);
+  });
+  it('without onSkip, Skip is a link', () => {
+    render(s4);
+    expect(screen.getByRole('link', { name: 'Skip' })).toBeInTheDocument();
+  });
 });
 
 describe('SetupReady', () => {
+  it('without a rule, shows an empty state with a link to add one instead of a command', () => {
+    render(
+      <SetupReady
+        user={user}
+        projectName="invoicer-api"
+        repo={repo}
+        summary={[]}
+        lastEvent={{ mode: 'webhook', at: 'ping, 14:01:37' }}
+        rulesHref="/o/alice/p/p1/desk/rules"
+      />,
+    );
+    expect(screen.getByText('No rule yet')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Add a rule' })).toHaveAttribute('href', '/o/alice/p/p1/desk/rules');
+    expect(screen.queryByRole('button', { name: 'Copy' })).toBeNull();
+    expect(screen.getByRole('link', { name: 'Go to runs' })).toBeInTheDocument();
+  });
+
+  it('Copy writes the command to the clipboard', async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
+    render(ready);
+    await userEvent.click(screen.getByRole('button', { name: 'Copy' }));
+    expect(writeText).toHaveBeenCalledWith('/code-build');
+  });
+
   it('shows the command, a Copy button and the summary', () => {
     render(ready);
     const code = screen.getByText('/code-build', { selector: 'pre' });
@@ -485,5 +533,24 @@ describe('setup screens pass the org to the top bar', () => {
     expect(within(nav).getByRole('link', { name: /Projects/ })).toHaveAttribute('aria-current', 'page');
     expect(within(nav).getByRole('link', { name: /Settings/ })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Harbor Labs/ })).toBeInTheDocument();
+  });
+});
+
+describe('SetupReady without rule:create', () => {
+  it('hides the Add a rule action but keeps the empty state', () => {
+    render(
+      <SetupReady
+        user={user}
+        projectName="invoicer-api"
+        repo={repo}
+        summary={[]}
+        lastEvent={{ mode: 'webhook', at: 'ping, 14:01:37' }}
+        rulesHref="/o/alice/p/p1/desk/rules"
+        canAddRule={false}
+      />,
+    );
+    expect(screen.getByText('No rule yet')).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Add a rule' })).toBeNull();
+    expect(screen.getByRole('link', { name: 'Go to runs' })).toBeInTheDocument();
   });
 });

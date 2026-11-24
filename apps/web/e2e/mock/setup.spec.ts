@@ -83,3 +83,28 @@ test('a failing setup test warns on the Ready step and does not block going to r
   await page.getByRole('link', { name: 'Go to runs' }).click();
   await expect(page).toHaveURL(new RegExp(`/o/${ORG}/p/[0-9a-f-]+/runs$`));
 });
+
+test('skipping the workspace, skills and first rule steps still finishes setup', async ({ page }) => {
+  await page.goto(`/o/${ORG}/projects/new/repo`);
+  await page.getByRole('radio', { name: 'dev/demo' }).check();
+  await page.getByRole('button', { name: 'Continue' }).click();
+  await page.getByRole('textbox', { name: 'Token' }).fill('sk-ant-oat01-e2e-not-a-real-token');
+  await page.getByRole('button', { name: 'Continue' }).click();
+
+  await expect(page.getByText('Step 3 of 5, optional')).toBeVisible();
+  await page.getByRole('button', { name: 'Skip' }).click();
+  await expect(page.getByText('Step 4 of 5, optional')).toBeVisible();
+  await page.getByRole('button', { name: 'Skip' }).click();
+  await expect(page.getByText('Step 5 of 5, optional')).toBeVisible();
+  await expect(page.getByRole('listitem').filter({ hasText: 'Add first rule' }).getByText('optional')).toBeVisible();
+  await page.getByRole('button', { name: 'Skip' }).click();
+
+  // Ready, with no rule: an empty state that points to adding one.
+  await expect(page).toHaveURL(/\/new\/ready\?project=/);
+  await expect(page.getByRole('heading', { name: 'Add a rule to trigger runs', level: 1 })).toBeVisible();
+  await expect(page.getByText('Project ready')).toBeVisible();
+  await expect(page.getByText('No rule yet')).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Add a rule' })).toBeVisible();
+  await page.getByRole('link', { name: 'Go to runs' }).click();
+  await expect(page).toHaveURL(new RegExp(`/o/${ORG}/p/[0-9a-f-]+/runs$`));
+});

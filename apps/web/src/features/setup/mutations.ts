@@ -248,6 +248,8 @@ export function useSaveRulesStep(org: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async ({ project, rules }: { project: ProjectDto; rules: CreateRuleRequest[] }) => {
+      // Skip (no rules) needs only the project update: it creates nothing, so it does not read the rules.
+      if (rules.length === 0) return finishStep(qc, org, project, 'ready');
       const existing = new Set(
         (await api.rules.list({ params: { projectId: project.id }, query: WHOLE_SET })).items.map((r) => r.command),
       );
