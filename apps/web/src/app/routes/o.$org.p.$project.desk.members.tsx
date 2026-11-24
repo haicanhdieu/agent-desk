@@ -276,7 +276,17 @@ interface ChangeRolePanelProps {
 }
 
 /** Mounted while the Change role dialog is wanted: loads the role cards (Admin, Member, Viewer), then shows the dialog. */
-function ChangeRolePanel({ org, orgId, orgName, row, current, error, onLoadFailed, ...rest }: ChangeRolePanelProps) {
+function ChangeRolePanel({
+  org,
+  orgId,
+  orgName,
+  row,
+  current,
+  error,
+  onSave,
+  onLoadFailed,
+  ...rest
+}: ChangeRolePanelProps) {
   // Kept across a refetch (an org resync drops the roles query): the dialog must not be rebuilt, losing the picked card.
   const roles = useQuery({ ...inviteRolesQuery(org, orgId), placeholderData: keepPreviousData });
   const failure = roles.data === undefined ? roles.error : null;
@@ -294,6 +304,7 @@ function ChangeRolePanel({ org, orgId, orgName, row, current, error, onLoadFaile
       currentIsOwner={false}
       {...(error && { error })}
       {...rest}
+      onSave={(change) => onSave(change.roleId)}
     />
   );
 }

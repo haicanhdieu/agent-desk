@@ -47,7 +47,7 @@ describe('OrgMembers', () => {
     expect(screen.queryByRole('table')).not.toBeInTheDocument();
   });
 
-  it('BR-1: ready lists every row under the four columns, and pagination reads Showing 21–25 of 25', () => {
+  it('BR-1: ready lists every row under the three columns, and pagination reads Showing 21–25 of 25', () => {
     const rows = memberRows.paged.slice(20);
     render(
       <OrgMembers
@@ -61,29 +61,28 @@ describe('OrgMembers', () => {
         })}
       />,
     );
-    expect(screen.getAllByRole('columnheader').map((h) => h.textContent)).toEqual([
-      'Name',
-      'Role',
-      'Project roles',
-      'Actions',
-    ]);
+    expect(screen.getAllByRole('columnheader').map((h) => h.textContent)).toEqual(['Name', 'Access', 'Actions']);
     expect(screen.getAllByRole('row')).toHaveLength(rows.length + 1);
     expect(screen.getByRole('navigation', { name: 'Pagination' })).toHaveTextContent('Showing 21–25 of 25');
   });
 
-  it('BR-1: each row shows name and handle, the role or No role, project roles, and the You tag on the caller', () => {
+  it('BR-1: each row shows name and handle, every grant as scope and role (or No role), and the You tag on the caller', () => {
     render(<OrgMembers {...props()} />);
     const rowOf = (name: string) => within(rowElement(name));
     const alice = rowOf('Alice Doe');
     expect(alice.getByText('alice')).toBeInTheDocument();
     expect(alice.getByText('You')).toBeInTheDocument();
-    expect(alice.getByText('Owner')).toBeInTheDocument();
+    expect(alice.getByText('Organization · Owner')).toBeInTheDocument();
     expect(screen.getAllByText('You')).toHaveLength(1);
     const cleo = rowOf('Cleo Martin');
-    expect(cleo.getByText('invoicer-api (Admin), invoicer-web (Member)')).toBeInTheDocument();
+    expect(cleo.getAllByRole('listitem').map((i) => i.textContent)).toEqual([
+      'Organization · Member',
+      'invoicer-api · Admin',
+      'invoicer-web · Member',
+    ]);
     const eli = rowOf('Eli Ford');
     expect(eli.getByText('No role')).toBeInTheDocument();
-    expect(eli.getByText('docs-site (Viewer)')).toBeInTheDocument();
+    expect(eli.getByText('docs-site · Viewer')).toBeInTheDocument();
   });
 
   it('an owner row on the admin view has no menu; other rows have one', () => {
@@ -96,7 +95,7 @@ describe('OrgMembers', () => {
     const p = props();
     render(<OrgMembers {...p} />);
     await userEvent.click(screen.getByRole('button', { name: 'Actions for Cleo Martin' }));
-    await userEvent.click(screen.getByRole('button', { name: 'Change role' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Change access' }));
     expect(p.onChangeRole).toHaveBeenCalledWith(expect.objectContaining({ handle: 'cleo' }));
     await userEvent.click(screen.getByRole('button', { name: 'Actions for Cleo Martin' }));
     await userEvent.click(screen.getByRole('button', { name: 'Remove from organization' }));
@@ -113,7 +112,7 @@ describe('OrgMembers', () => {
   it('openMenuUserId opens that row menu', async () => {
     const other = memberRows.owner[3];
     render(<OrgMembers {...props({ openMenuUserId: other.userId })} />);
-    expect(await screen.findByRole('button', { name: 'Change role' })).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: 'Change access' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Remove from organization' })).toBeInTheDocument();
   });
 
@@ -231,6 +230,7 @@ describe('OrgMembers remove confirm', () => {
               orgName="Harbor Labs"
               options={roleCards.ownerCaller}
               current={roleCards.ownerCaller[2]?.roleId ?? null}
+              projectAccess={{ grants: [], projects: [], roles: [], canEdit: false }}
               self={false}
               currentIsOwner={false}
               saving={false}
@@ -241,6 +241,6 @@ describe('OrgMembers remove confirm', () => {
         })}
       />,
     );
-    expect(screen.getByRole('dialog', { name: 'Change role for Cleo Martin' })).toBeInTheDocument();
+    expect(screen.getByRole('dialog', { name: 'Change access for Cleo Martin' })).toBeInTheDocument();
   });
 });

@@ -374,7 +374,7 @@ describe('tenant-admin fixtures', () => {
     expect(memberRows.admin.find((m) => m.you)?.handle).toBe('ben');
   });
 
-  it('agrees with the DTO members on role and project roles', () => {
+  it('agrees with the DTO members on role and grants', () => {
     const projectName: Record<string, string> = {
       [ids.project.invoicerApi]: 'invoicer-api',
       [ids.project.invoicerWeb]: 'invoicer-web',
@@ -386,9 +386,10 @@ describe('tenant-admin fixtures', () => {
       const org = dto.assignments.find((a) => a.scope.type === 'org');
       expect(view?.role?.key ?? null).toBe(org?.role.key ?? null);
       const projects = dto.assignments.flatMap((a) =>
-        a.scope.type === 'project' ? [`${projectName[a.scope.projectId]} (${a.role.name})`] : [],
+        a.scope.type === 'project' ? [`${projectName[a.scope.projectId]} · ${a.role.name}`] : [],
       );
-      expect(view?.projectRoles).toBe(projects.length ? projects.join(', ') : '—');
+      const grants = [...(org ? [`Organization · ${org.role.name}`] : []), ...projects];
+      expect(view?.grants.map((g) => `${g.scopeName} · ${g.roleName}`)).toEqual(grants);
     }
   });
 

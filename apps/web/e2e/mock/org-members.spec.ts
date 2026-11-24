@@ -25,7 +25,7 @@ async function open(page: Page, scenario: TenantAdminScenario): Promise<void> {
 const heading = (page: Page): Locator => page.getByRole('heading', { name: 'Members', level: 1 });
 const rowOf = (page: Page, name: string): Locator => page.getByRole('row').filter({ hasText: name });
 const menuButton = (page: Page, name: string): Locator => page.getByRole('button', { name: `Actions for ${name}` });
-const dialog = (page: Page, name: string): Locator => page.getByRole('dialog', { name: `Change role for ${name}` });
+const dialog = (page: Page, name: string): Locator => page.getByRole('dialog', { name: `Change access for ${name}` });
 const card = (scope: Locator, role: string): Locator => scope.getByRole('radio', { name: new RegExp(`^${role}`) });
 const nav = (page: Page): Locator => page.getByRole('navigation', { name: 'Pagination' });
 
@@ -40,7 +40,7 @@ async function openMenu(page: Page, name: string): Promise<void> {
   await menuButton(page, name).click();
 }
 
-const changeRole = (page: Page): Locator => page.getByRole('button', { name: 'Change role', exact: true });
+const changeRole = (page: Page): Locator => page.getByRole('button', { name: 'Change access', exact: true });
 const removeItem = (page: Page): Locator => page.getByRole('button', { name: 'Remove from organization' });
 
 test('TC-1.4: 25 members page by 20 and the rest, with the full pagination control', async ({ page }) => {
@@ -134,7 +134,7 @@ test('TC-8.1: changing the role of a member removed meanwhile closes the dialog 
   await changeRole(page).click();
   const d = dialog(page, 'Cleo Martin');
   await card(d, 'Viewer').check();
-  await d.getByRole('button', { name: 'Save role' }).click();
+  await d.getByRole('button', { name: 'Save access' }).click();
   await expect(d).toHaveCount(0);
   await expect(page.getByRole('alert').filter({ hasText: 'Member is no longer in the organization' })).toBeVisible();
   await expect(rowOf(page, 'Cleo Martin')).toHaveCount(0);
@@ -160,17 +160,17 @@ test('TC-8.3: a role changed meanwhile does not block the change: Role changed a
 }) => {
   await open(page, 'roleChangedMeanwhile');
   await loaded(page);
-  // the Role cell only: the Project roles cell of this row already reads "(Admin)" and "(Member)"
-  const roleCell = rowOf(page, 'Cleo Martin').getByRole('cell').nth(1);
-  await expect(roleCell).toHaveText('Member');
+  // the org grant chip only: the project chips of this row already read "Admin" and "Member"
+  const roleCell = rowOf(page, 'Cleo Martin').getByRole('listitem').first();
+  await expect(roleCell).toHaveText('Organization · Member');
   await openMenu(page, 'Cleo Martin');
   await changeRole(page).click();
   const d = dialog(page, 'Cleo Martin');
   await card(d, 'Admin').check();
-  await d.getByRole('button', { name: 'Save role' }).click();
+  await d.getByRole('button', { name: 'Save access' }).click();
   await expect(page.getByRole('status').filter({ hasText: 'Role changed' })).toBeVisible();
   await expect(d).toHaveCount(0);
-  await expect(roleCell).toHaveText('Admin');
+  await expect(roleCell).toHaveText('Organization · Admin');
   await expect(page.getByText('Member is no longer in the organization')).toHaveCount(0);
 });
 

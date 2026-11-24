@@ -10,7 +10,7 @@ const base: MemberRowView = {
   handle: 'cleo',
   you: false,
   role: { key: 'member', name: 'Member' },
-  projectRoles: '—',
+  grants: [{ id: 'g0', scopeName: 'Organization', roleName: 'Member' }],
   canChangeRole: true,
   canRemove: true,
 };
@@ -55,27 +55,47 @@ describe('MemberRow', () => {
     expect(screen.queryByText('You')).toBeNull();
   });
 
-  it('shows the role name, or No role', () => {
-    const { unmount } = renderRow({ role: { key: 'admin', name: 'Admin' } });
-    expect(screen.getByText('Admin')).toBeInTheDocument();
-    unmount();
-    renderRow({ role: null });
-    expect(screen.getByText('No role')).toBeInTheDocument();
+  it('shows each grant as scope and role, the org grant first', () => {
+    renderRow({
+      grants: [
+        { id: 'g0', scopeName: 'Organization', roleName: 'Admin' },
+        { id: 'g1', scopeName: 'Alpha', roleName: 'Member' },
+        { id: 'g2', scopeName: 'Beta', roleName: 'Viewer' },
+      ],
+    });
+    expect(screen.getAllByRole('listitem').map((i) => i.textContent)).toEqual([
+      'Organization · Admin',
+      'Alpha · Member',
+      'Beta · Viewer',
+    ]);
   });
 
-  it('shows project roles with a title, or a dash', () => {
-    const { unmount } = renderRow({ projectRoles: 'Alpha (Admin), Beta (Member)' });
-    expect(screen.getByText('Alpha (Admin), Beta (Member)')).toHaveAttribute('title', 'Alpha (Admin), Beta (Member)');
-    unmount();
-    renderRow();
-    expect(screen.getByText('—')).toBeInTheDocument();
+  it('shows No role before the project grants when there is no org grant', () => {
+    renderRow({ role: null, grants: [{ id: 'g1', scopeName: 'Alpha', roleName: 'Viewer' }] });
+    expect(screen.getAllByRole('listitem').map((i) => i.textContent)).toEqual(['No role', 'Alpha · Viewer']);
   });
 
-  it('lists Change role and Remove from organization and calls the handlers with the row', async () => {
+  it('shows No role alone for a member with no grant at all', () => {
+    renderRow({ role: null, grants: [] });
+    expect(screen.getAllByRole('listitem').map((i) => i.textContent)).toEqual(['No role']);
+  });
+
+  it('shows every grant of a long list, wrapped, never cut off by an ellipsis', () => {
+    const grants = Array.from({ length: 12 }, (_, i) => ({
+      id: `g${i}`,
+      scopeName: `Project number ${i}`,
+      roleName: 'Member',
+    }));
+    renderRow({ grants });
+    expect(screen.getAllByRole('listitem')).toHaveLength(12);
+    expect(screen.getByRole('list', { name: 'Access of Cleo Martin' })).toBeInTheDocument();
+  });
+
+  it('lists Change access and Remove from organization and calls the handlers with the row', async () => {
     const { row, onChangeRole, onRemove } = renderRow();
     await userEvent.click(menuButton(row.name));
     const menu = screen.getByRole('dialog', { name: `Actions for ${row.name}` });
-    await userEvent.click(within(menu).getByRole('button', { name: 'Change role' }));
+    await userEvent.click(within(menu).getByRole('button', { name: 'Change access' }));
     expect(onChangeRole).toHaveBeenCalledWith(row);
     await userEvent.click(menuButton(row.name));
     await userEvent.click(screen.getByRole('button', { name: 'Remove from organization' }));
@@ -85,7 +105,7 @@ describe('MemberRow', () => {
   it('offers no Remove on the own row (BR-9)', async () => {
     renderRow({ you: true, canRemove: false });
     await userEvent.click(menuButton('Cleo Martin'));
-    expect(screen.getByRole('button', { name: 'Change role' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Change access' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Remove from organization' })).toBeNull();
   });
 
@@ -115,8 +135,8 @@ describe('MemberRow', () => {
     expect(container.querySelector('img')).toBeNull();
   });
 
-  it('declares the four columns with Actions for screen readers only', () => {
-    expect(memberColumns).toHaveLength(4);
+  it('declares the three columns with Actions for screen readers only', () => {
+    expect(memberColumns).toHaveLength(3);
     render(
       <table>
         <thead>
@@ -129,7 +149,7 @@ describe('MemberRow', () => {
       </table>,
     );
     expect(screen.getByText('Name')).toBeInTheDocument();
-    expect(screen.getByText('Project roles')).toBeInTheDocument();
+    expect(screen.getByText('Access')).toBeInTheDocument();
     expect(screen.getByText('Actions')).toHaveClass('sr-only');
   });
 });

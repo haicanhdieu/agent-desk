@@ -312,6 +312,27 @@
       AD.addAudit(slug, { k: 'role', who: t.name || t.handle, from, to: AD.roleLabel(t.role) });
       return { ok: true };
     },
+    // Saves the project grants of one person (name + role per project). The real app does this with one call per added,
+    // changed or removed grant (assignments create / remove); each change is one audit entry. Owner is never a project role.
+    setProjectGrants(slug, targetUid, wanted) {
+      const f = AD.takeFail();
+      if (f) return fail(f);
+      const me = AD.perm(AD.state.uid, slug);
+      const t = AD.memberOf(slug, targetUid);
+      if (!me.orgAdmin || targetUid === AD.state.uid) return fail('403');
+      if (!t) return fail('404');
+      const who = t.name || t.handle;
+      for (const g of t.projects) {
+        const w = wanted.find((x) => x.name === g.name);
+        if (!w || w.role !== g.role) AD.addAudit(slug, { k: 'ungrant', who, project: g.name, role: g.role });
+      }
+      for (const w of wanted) {
+        const g = t.projects.find((x) => x.name === w.name);
+        if (!g || g.role !== w.role) AD.addAudit(slug, { k: 'grant', who, project: w.name, role: w.role });
+      }
+      t.projects = wanted.map((w) => ({ name: w.name, role: w.role }));
+      return { ok: true };
+    },
     removeMember(slug, targetUid) {
       const f = AD.takeFail();
       if (f) return fail(f);
@@ -384,6 +405,8 @@
     let html;
     switch (ev.k) {
       case 'role': html = `${b(who)} changed ${b(ev.who)}'s role from ${AD.esc(ev.from)} to ${AD.esc(ev.to)}`; break;
+      case 'grant': html = `${b(who)} gave ${b(ev.who)} the ${AD.esc(ev.role)} role on ${b(ev.project)}`; break;
+      case 'ungrant': html = `${b(who)} removed the ${AD.esc(ev.role)} role of ${b(ev.who)} on ${b(ev.project)}`; break;
       case 'url': html = `${b(who)} changed the organization URL from ${AD.esc(ev.from)} to ${AD.esc(ev.to)}`; break;
       case 'name': html = `${b(who)} changed the organization name from ${AD.esc(ev.from)} to ${AD.esc(ev.to)}`; break;
       case 'removed': html = `${b(who)} removed ${b(ev.who)} from the organization (was ${AD.esc(ev.role)})`; break;

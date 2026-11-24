@@ -136,17 +136,22 @@ async function openMembers(page: Page, slug: string): Promise<void> {
 }
 
 const menuButton = (page: Page, name: string): Locator => page.getByRole('button', { name: `Actions for ${name}` });
-const roleDialog = (page: Page, name: string): Locator => page.getByRole('dialog', { name: `Change role for ${name}` });
+const roleDialog = (page: Page, name: string): Locator =>
+  page.getByRole('dialog', { name: `Change access for ${name}` });
 const card = (scope: Locator, role: string): Locator => scope.getByRole('radio', { name: new RegExp(`^${role}`) });
 
-async function pickMenuItem(page: Page, name: string, item: 'Change role' | 'Remove from organization'): Promise<void> {
+async function pickMenuItem(
+  page: Page,
+  name: string,
+  item: 'Change access' | 'Remove from organization',
+): Promise<void> {
   await menuButton(page, name).click();
   await page.getByRole('button', { name: item, exact: true }).click();
 }
 
-/** Opens the role dialog of `name` and picks `role`; ends with the dialog open, before "Save role". */
+/** Opens the role dialog of `name` and picks `role`; ends with the dialog open, before "Save access". */
 async function chooseRole(page: Page, name: string, role: string): Promise<Locator> {
-  await pickMenuItem(page, name, 'Change role');
+  await pickMenuItem(page, name, 'Change access');
   const dialog = roleDialog(page, name);
   await expect(dialog).toBeVisible();
   await card(dialog, role).check();
@@ -155,7 +160,7 @@ async function chooseRole(page: Page, name: string, role: string): Promise<Locat
 
 async function changeRoleThroughUi(page: Page, name: string, role: string): Promise<void> {
   const dialog = await chooseRole(page, name, role);
-  await dialog.getByRole('button', { name: 'Save role' }).click();
+  await dialog.getByRole('button', { name: 'Save access' }).click();
   await expect(toastOf(page, 'Role changed')).toBeVisible();
   await expect(dialog).toHaveCount(0);
 }

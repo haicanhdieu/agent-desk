@@ -96,7 +96,8 @@ const cellOf = (row: Locator, index: number): Locator => row.getByRole('cell').n
 const ROLE = 1;
 const PROJECT_ROLES = 2;
 const menuButton = (page: Page, name: string): Locator => page.getByRole('button', { name: `Actions for ${name}` });
-const roleDialog = (page: Page, name: string): Locator => page.getByRole('dialog', { name: `Change role for ${name}` });
+const roleDialog = (page: Page, name: string): Locator =>
+  page.getByRole('dialog', { name: `Change access for ${name}` });
 const card = (scope: Locator, role: string): Locator => scope.getByRole('radio', { name: new RegExp(`^${role}`) });
 const toastOf = (page: Page, title: string): Locator =>
   page.getByRole('status').or(page.getByRole('alert')).filter({ hasText: title });
@@ -117,18 +118,22 @@ async function reloadMembers(page: Page): Promise<void> {
 }
 
 /** Opens "Actions for <name>" on the page's Members list, then the menu item. */
-async function pickMenuItem(page: Page, name: string, item: 'Change role' | 'Remove from organization'): Promise<void> {
+async function pickMenuItem(
+  page: Page,
+  name: string,
+  item: 'Change access' | 'Remove from organization',
+): Promise<void> {
   await menuButton(page, name).click();
   await page.getByRole('button', { name: item, exact: true }).click();
 }
 
-/** Changes `name`'s role through the menu, the dialog and "Save role"; ends after the "Role changed" toast. */
+/** Changes `name`'s role through the menu, the dialog and "Save access"; ends after the "Role changed" toast. */
 async function changeRoleThroughUi(page: Page, name: string, role: string): Promise<void> {
-  await pickMenuItem(page, name, 'Change role');
+  await pickMenuItem(page, name, 'Change access');
   const dialog = roleDialog(page, name);
   await expect(dialog).toBeVisible();
   await card(dialog, role).check();
-  await dialog.getByRole('button', { name: 'Save role' }).click();
+  await dialog.getByRole('button', { name: 'Save access' }).click();
   await expect(toastOf(page, 'Role changed')).toBeVisible();
   await expect(dialog).toHaveCount(0);
 }
@@ -189,7 +194,7 @@ test('TC-8.4: B removes C while O has C’s dialog open; O saves and sees "Membe
 
     const o = w.o.page;
     await openMembers(o, w);
-    await pickMenuItem(o, nameC, 'Change role');
+    await pickMenuItem(o, nameC, 'Change access');
     const dialog = roleDialog(o, nameC);
     await expect(dialog).toBeVisible();
     await expect(rowOf(o, c.handle)).toHaveCount(1);
@@ -198,9 +203,9 @@ test('TC-8.4: B removes C while O has C’s dialog open; O saves and sees "Membe
     await openMembers(b.page, w);
     await removeThroughUi(b.page, nameC, w.org.name, c.handle);
 
-    // 2. O picks a role and presses "Save role".
+    // 2. O picks a role and presses "Save access".
     await card(dialog, 'Viewer').check();
-    await dialog.getByRole('button', { name: 'Save role' }).click();
+    await dialog.getByRole('button', { name: 'Save access' }).click();
     await expect(toastOf(o, 'Member is no longer in the organization')).toBeVisible();
     await expect(toastOf(o, 'Role changed')).toHaveCount(0);
     await expect(rowOf(o, c.handle)).toHaveCount(0);
@@ -233,12 +238,12 @@ test('TC-36.1: O demotes admin A to Member; A’s next change is refused with a 
       'demote A',
     );
 
-    // 1. A opens Change role on a Member and presses "Save role".
-    await pickMenuItem(page, nameM, 'Change role');
+    // 1. A opens Change role on a Member and presses "Save access".
+    await pickMenuItem(page, nameM, 'Change access');
     const dialog = roleDialog(page, nameM);
     await expect(dialog).toBeVisible();
     await card(dialog, 'Viewer').check();
-    await dialog.getByRole('button', { name: 'Save role' }).click();
+    await dialog.getByRole('button', { name: 'Save access' }).click();
     await expect(dialog.getByText("You don't have access")).toBeVisible();
     await expect(dialog.getByText(/^Request ID: \S+/)).toBeVisible();
     await expect(toastOf(page, 'Role changed')).toHaveCount(0);
@@ -266,13 +271,13 @@ test('TC-40.1: O makes admin B an Owner: the Owner card shows its note, B is Own
     const page = w.o.page;
     await openMembers(page, w);
     await expect(cellOf(rowOf(page, b.handle), ROLE)).toHaveText('Admin');
-    await pickMenuItem(page, name, 'Change role');
+    await pickMenuItem(page, name, 'Change access');
     const dialog = roleDialog(page, name);
     await expect(dialog).toBeVisible();
     await expect(dialog.getByText(OWNER_NOTE)).toHaveCount(0);
     await card(dialog, 'Owner').check();
     await expect(dialog.getByText(OWNER_NOTE)).toBeVisible();
-    await dialog.getByRole('button', { name: 'Save role' }).click();
+    await dialog.getByRole('button', { name: 'Save access' }).click();
     await expect(toastOf(page, 'Role changed')).toBeVisible();
 
     await reloadMembers(page);
@@ -300,7 +305,7 @@ test('TC-40.2: after B’s reload B sees the Owner card and Change role and Remo
 
     // Control: as an Admin, B has no Owner card and no actions on O's row.
     await openMembers(page, w);
-    await pickMenuItem(page, nameC, 'Change role');
+    await pickMenuItem(page, nameC, 'Change access');
     const before = roleDialog(page, nameC);
     await expect(before).toBeVisible();
     await expect(card(before, 'Admin')).toBeVisible();
@@ -314,7 +319,7 @@ test('TC-40.2: after B’s reload B sees the Owner card and Change role and Remo
     // 1. In B's context reload.
     await reloadMembers(page);
     // 2. Open Members, B opens Change role on another member.
-    await pickMenuItem(page, nameC, 'Change role');
+    await pickMenuItem(page, nameC, 'Change access');
     const dialog = roleDialog(page, nameC);
     await expect(dialog).toBeVisible();
     await expect(card(dialog, 'Owner')).toBeVisible();
@@ -324,7 +329,7 @@ test('TC-40.2: after B’s reload B sees the Owner card and Change role and Remo
     // 3. Look at O's row.
     const nameO = await nameOf(w, w.o.userId);
     await menuButton(page, nameO).click();
-    await expect(page.getByRole('button', { name: 'Change role', exact: true })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Change access', exact: true })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Remove from organization', exact: true })).toBeVisible();
   });
 });
@@ -406,7 +411,7 @@ test('TC-42.1: B steps O down to Admin: after the reload O has no Owner card and
     await expect(menuButton(page, nameC)).toBeVisible();
     await expect(menuButton(page, nameO)).toHaveCount(0);
     await expect(menuButton(page, await nameOf(w, b.userId))).toHaveCount(0);
-    await pickMenuItem(page, nameC, 'Change role');
+    await pickMenuItem(page, nameC, 'Change access');
     const dialog = roleDialog(page, nameC);
     await expect(dialog).toBeVisible();
     await expect(card(dialog, 'Member')).toBeChecked();

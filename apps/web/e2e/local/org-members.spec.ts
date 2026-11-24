@@ -174,10 +174,12 @@ const runsUrl = (w: World): string => `/o/${w.org.slug}/p/${w.projectId}/runs`;
 
 const rowOf = (page: Page, text: string): Locator => page.locator('tbody tr').filter({ hasText: text });
 const cellOf = (row: Locator, index: number): Locator => row.getByRole('cell').nth(index);
-const ROLE = 1;
-const PROJECT_ROLES = 2;
+/** One chip per grant, as scope and role: `Organization · Admin`, `<project> · Member`, or `No role` without an org grant. */
+const accessOf = (row: Locator): Locator => row.getByRole('listitem');
+const orgChip = (role: string): string => (role === 'No role' ? role : `Organization · ${role}`);
 const menuButton = (page: Page, name: string): Locator => page.getByRole('button', { name: `Actions for ${name}` });
-const roleDialog = (page: Page, name: string): Locator => page.getByRole('dialog', { name: `Change role for ${name}` });
+const roleDialog = (page: Page, name: string): Locator =>
+  page.getByRole('dialog', { name: `Change access for ${name}` });
 const card = (scope: Locator, role: string): Locator => scope.getByRole('radio', { name: new RegExp(`^${role}`) });
 const okToast = (page: Page, title: string): Locator => page.getByRole('status').filter({ hasText: title });
 const settingsTab = (page: Page): Locator =>
@@ -190,7 +192,11 @@ async function openMembers(page: Page, w: World): Promise<void> {
 }
 
 /** O's page: the Members list, "Actions for <name>" open on `name`'s row, then the menu item. */
-async function pickMenuItem(page: Page, name: string, item: 'Change role' | 'Remove from organization'): Promise<void> {
+async function pickMenuItem(
+  page: Page,
+  name: string,
+  item: 'Change access' | 'Remove from organization',
+): Promise<void> {
   await menuButton(page, name).click();
   await page.getByRole('button', { name: item, exact: true }).click();
 }
@@ -244,7 +250,7 @@ async function givenCast(w: World): Promise<Cast> {
 /** TC-1.1 and TC-1.2 read the same table; `you` is the signed-in person whose row carries the "You" tag. */
 async function expectCastTable(page: Page, w: World, cast: Cast, you: Actor): Promise<void> {
   await openMembers(page, w);
-  await expect(page.getByRole('columnheader')).toHaveText(['Name', 'Role', 'Project roles', 'Actions']);
+  await expect(page.getByRole('columnheader')).toHaveText(['Name', 'Access', 'Actions']);
   await expect(page.locator('tbody tr')).toHaveCount(5);
   const roles: [Actor, string][] = [
     [cast.o, 'Owner'],
@@ -259,14 +265,15 @@ async function expectCastTable(page: Page, w: World, cast: Cast, you: Actor): Pr
     const name = await nameOf(w, who.userId);
     await expect(cellOf(row, 0)).toContainText(name);
     await expect(cellOf(row, 0)).toContainText(who.handle);
-    await expect(cellOf(row, ROLE), `${who.handle} has the role ${role}`).toHaveText(role);
+    await expect(accessOf(row).first(), `${who.handle} has the role ${role}`).toHaveText(orgChip(role));
     // exactly one person carries the tag: the signed-in one
     await expect(row.getByText('You', { exact: true })).toHaveCount(who === you ? 1 : 0);
   }
-  await expect(cellOf(rowOf(page, cast.b.handle), PROJECT_ROLES)).toHaveText(`${w.projectName} (Admin)`);
-  for (const who of [cast.o, cast.a, cast.v, cast.n]) {
-    await expect(cellOf(rowOf(page, who.handle), PROJECT_ROLES)).not.toContainText(w.projectName);
+  await expect(accessOf(rowOf(page, cast.b.handle))).toHaveText(['Organization · Member', `${w.projectName} · Admin`]);
+  for (const who of [cast.o, cast.a, cast.v]) {
+    await expect(accessOf(rowOf(page, who.handle))).toHaveCount(1);
   }
+  await expect(accessOf(rowOf(page, cast.n.handle))).toHaveText(['No role']);
   await expect(page.getByText('@dev.local')).toHaveCount(0);
 }
 
@@ -292,8 +299,8 @@ test('TC-1.3: with B made Owner the list shows both O and B as Owner', async ({ 
     await setRole(w, b.userId, w.roleIds.owner);
     await openMembers(w.o.page, w);
     await expect(w.o.page.locator('tbody tr')).toHaveCount(2);
-    await expect(cellOf(rowOf(w.o.page, w.o.handle), ROLE)).toHaveText('Owner');
-    await expect(cellOf(rowOf(w.o.page, b.handle), ROLE)).toHaveText('Owner');
+    await expect(accessOf(rowOf(w.o.page, w.o.handle)).first()).toHaveText('Organization · Owner');
+    await expect(accessOf(rowOf(w.o.page, b.handle)).first()).toHaveText('Organization · Owner');
   });
 });
 
@@ -314,18 +321,18 @@ test('TC-3.1: O changes B from Member to Admin; B reloads and gets the Settings 
 
     const page = w.o.page;
     await openMembers(page, w);
-    await pickMenuItem(page, name, 'Change role');
+    await pickMenuItem(page, name, 'Change access');
     const dialog = roleDialog(page, name);
     await expect(dialog).toBeVisible();
     await expect(card(dialog, 'Member')).toBeChecked();
     await card(dialog, 'Admin').check();
-    await dialog.getByRole('button', { name: 'Save role' }).click();
+    await dialog.getByRole('button', { name: 'Save access' }).click();
     await expect(okToast(page, 'Role changed')).toBeVisible();
     await expect(dialog).toHaveCount(0);
 
     await page.reload();
     await expect(page.getByRole('heading', { level: 1, name: 'Members' })).toBeVisible();
-    await expect(cellOf(rowOf(page, b.handle), ROLE)).toHaveText('Admin');
+    await expect(accessOf(rowOf(page, b.handle)).first()).toHaveText('Organization · Admin');
 
     await b.page.reload();
     await expect(b.page.getByRole('heading', { level: 1, name: 'Projects' })).toBeVisible();
@@ -366,14 +373,14 @@ test('TC-3.2: O changes B from Member to Viewer; B reloads the project page and 
 
     const page = w.o.page;
     await openMembers(page, w);
-    await pickMenuItem(page, name, 'Change role');
+    await pickMenuItem(page, name, 'Change access');
     const dialog = roleDialog(page, name);
     await card(dialog, 'Viewer').check();
-    await dialog.getByRole('button', { name: 'Save role' }).click();
+    await dialog.getByRole('button', { name: 'Save access' }).click();
     await expect(okToast(page, 'Role changed')).toBeVisible();
     await page.reload();
     await expect(page.getByRole('heading', { level: 1, name: 'Members' })).toBeVisible();
-    await expect(cellOf(rowOf(page, b.handle), ROLE)).toHaveText('Viewer');
+    await expect(accessOf(rowOf(page, b.handle)).first()).toHaveText('Organization · Viewer');
 
     await b.page.goto(runsUrl(w));
     await expect(runLink.first(), 'B still sees the run').toBeVisible();
@@ -396,24 +403,23 @@ test('TC-3.3: O changes B to No role; B stays listed as "No role" with the P1 pr
 
     const page = w.o.page;
     await openMembers(page, w);
-    await expect(cellOf(rowOf(page, b.handle), ROLE)).toHaveText('Member');
-    await pickMenuItem(page, name, 'Change role');
+    await expect(accessOf(rowOf(page, b.handle)).first()).toHaveText('Organization · Member');
+    await pickMenuItem(page, name, 'Change access');
     const dialog = roleDialog(page, name);
     await expect(dialog).toBeVisible();
     await expect(dialog.getByText('Stays a member with no organization role. Project roles stay.')).toBeVisible();
     await card(dialog, 'No role').check();
-    await dialog.getByRole('button', { name: 'Save role' }).click();
+    await dialog.getByRole('button', { name: 'Save access' }).click();
     await expect(okToast(page, 'Role changed')).toBeVisible();
 
     await page.reload();
     await expect(page.getByRole('heading', { level: 1, name: 'Members' })).toBeVisible();
     const row = rowOf(page, b.handle);
-    await expect(cellOf(row, ROLE)).toHaveText('No role');
-    await expect(cellOf(row, PROJECT_ROLES)).toHaveText(`${w.projectName} (Admin)`);
+    await expect(accessOf(row)).toHaveText(['No role', `${w.projectName} · Admin`]);
   });
 });
 
-test('TC-3.4: "Save role" is disabled while the choice is the current role and enabled once it differs', async ({
+test('TC-3.4: "Save access" is disabled while the choice is the current role and enabled once it differs', async ({
   browser,
 }) => {
   await withWorld(browser, async (w) => {
@@ -421,9 +427,9 @@ test('TC-3.4: "Save role" is disabled while the choice is the current role and e
     const name = await nameOf(w, b.userId);
     const page = w.o.page;
     await openMembers(page, w);
-    await pickMenuItem(page, name, 'Change role');
+    await pickMenuItem(page, name, 'Change access');
     const dialog = roleDialog(page, name);
-    const save = dialog.getByRole('button', { name: 'Save role' });
+    const save = dialog.getByRole('button', { name: 'Save access' });
     await expect(dialog).toBeVisible();
     await expect(card(dialog, 'Member')).toBeChecked();
     await expect(save).toBeDisabled();
@@ -617,8 +623,8 @@ test('TC-10.1: O invites B again as Viewer; B accepts and is listed with Viewer,
     await openMembers(page, w);
     const row = rowOf(page, b.handle);
     await expect(row).toHaveCount(1);
-    await expect(cellOf(row, ROLE)).toHaveText('Viewer');
-    await expect(cellOf(row, PROJECT_ROLES)).not.toContainText(w.projectName);
+    await expect(accessOf(row).first()).toHaveText('Organization · Viewer');
+    await expect(accessOf(row)).toHaveCount(1); // the org grant only: no project grant
     const mine = (await membersOf(w)).find((m) => m.userId === b.userId);
     expect(
       mine?.assignments.map((a) => [a.role.key, a.scope.type]),

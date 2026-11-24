@@ -2,14 +2,17 @@ import type { Meta, StoryObj } from '@storybook/react-vite';
 import { userEvent, within } from 'storybook/test';
 import { AppShell, ChangeRoleDialog, type ChangeRoleDialogProps } from '@/components';
 import {
+  accessProjectRoleIds,
+  accessProjects,
   auditRows,
   memberRows,
   orgSettingsFixtures,
   pagedAuditLastPage,
   platformSuspendAuditRows,
+  projectRoleCards,
   roleCards,
 } from '@/mocks';
-import type { MemberRowView } from '@/mocks/types';
+import type { MemberRowView, ProjectGrantView } from '@/mocks/types';
 import { OrgAudit as OrgAuditScreen, type OrgAuditProps } from './OrgAudit';
 import { OrgGeneral as OrgGeneralScreen, type OrgGeneralProps } from './OrgGeneral';
 import { OrgMembers as OrgMembersScreen, type OrgMembersProps } from './OrgMembers';
@@ -54,8 +57,12 @@ const other = ownerRows.find((r) => r.handle === 'cleo');
 if (!caller || !other) throw new Error('member fixtures lost the caller or Cleo');
 
 export const OrgMembers: Story = {
-  name: 'Members, owner: several owners, No role, project roles',
+  name: 'Members, owner: several owners, No role, grants by scope',
   render: () => members(ready(ownerRows)),
+};
+export const OrgMembersManyGrants: Story = {
+  name: 'Members, many grants: the chips wrap, none is cut off',
+  render: () => members(ready(memberRows.manyGrants)),
 };
 export const OrgMembersAdmin: Story = {
   name: 'Members, org admin: owner rows have no actions',
@@ -111,7 +118,25 @@ const find = (rows: MemberRowView[], handle: string): MemberRowView => {
 };
 const cardId = (key: string) => roleCards.ownerCaller.find((c) => c.key === key)?.roleId ?? null;
 
-/** The change-role dialog over the list, for the member `target`. */
+/** The project grants of `target` as the dialog edits them (the row's project chips, with the ids the fixtures use). */
+const projectGrantsOf = (target: MemberRowView): ProjectGrantView[] =>
+  target.grants.flatMap((g, i): ProjectGrantView[] => {
+    const project = accessProjects.find((p) => p.label === g.scopeName);
+    const roleId = accessProjectRoleIds[g.roleName.toLowerCase() as keyof typeof accessProjectRoleIds];
+    return project && roleId
+      ? [
+          {
+            assignmentId: `d1000000-0000-4000-8000-${String(i + 1).padStart(12, '0')}`,
+            projectId: project.id,
+            projectName: g.scopeName,
+            roleId,
+            roleName: g.roleName,
+          },
+        ]
+      : [];
+  });
+
+/** The change-access dialog over the list, for the member `target`. */
 const changeRole = (
   target: MemberRowView,
   over: Partial<ChangeRoleDialogProps> = {},
@@ -129,6 +154,12 @@ const changeRole = (
           current={target.role ? cardId(target.role.key) : null}
           self={target.you}
           currentIsOwner={target.role?.key === 'owner'}
+          projectAccess={{
+            grants: projectGrantsOf(target),
+            projects: accessProjects,
+            roles: projectRoleCards,
+            canEdit: true,
+          }}
           saving={false}
           onSave={noop}
           onCancel={noop}
@@ -151,37 +182,46 @@ const eli = find(ownerRows, 'eli');
 const priya = find(ownerRows, 'priya');
 
 export const OrgMembersChangeRole: Story = {
-  name: 'Change role, owner caller: Owner card offered, current role preselected',
+  name: 'Change access, owner caller: Owner card offered, current role preselected, project grants',
   render: () => changeRole(cleo),
 };
 export const OrgMembersChangeRoleAdmin: Story = {
-  name: 'Change role, org admin caller: no Owner card',
+  name: 'Change access, org admin caller: no Owner card',
   render: () =>
     changeRole(find(memberRows.admin, 'dana'), { options: roleCards.adminCaller }, memberRows.admin, { role: 'admin' }),
 };
+const fatima = find(memberRows.manyGrants, 'fatima');
+export const OrgMembersChangeAccessMany: Story = {
+  name: 'Change access, long list: many project grants',
+  render: () => changeRole(fatima, {}, memberRows.manyGrants),
+};
+export const OrgMembersChangeAccessEmpty: Story = {
+  name: 'Change access, empty project section: no project access yet',
+  render: () => changeRole(find(ownerRows, 'dana')),
+};
 export const OrgMembersMakeOwner: Story = {
-  name: 'Change role, owner picks Owner: inline note',
+  name: 'Change access, owner picks Owner: inline note',
   render: () => changeRole(ben),
   play: pick('Owner'),
 };
 export const OrgMembersStepDown: Story = {
-  name: 'Change role, owner on own row picks Admin: step-down warning',
+  name: 'Change access, owner on own row picks Admin: step-down warning',
   render: () => changeRole(caller),
   play: pick('Admin'),
 };
 export const OrgMembersChangeRoleSaving: Story = {
-  name: 'Change role, saving',
+  name: 'Change access, saving',
   render: () => changeRole(eli, { saving: true }),
 };
 export const OrgMembersChangeRoleError: Story = {
-  name: 'Change role, refused (403): Banner in the dialog',
+  name: 'Change access, refused (403): Banner in the dialog',
   render: () => changeRole(dana, { error: { kind: 'forbidden', requestId: 'req_01JD7Q3M8V2K' } }),
 };
 const soleOwnerRows = ownerRows.map((r) =>
   r.userId === priya.userId ? { ...r, role: { key: 'admin' as const, name: 'Admin' } } : r,
 );
 export const OrgMembersLastOwner: Story = {
-  name: 'Change role, sole owner steps down: 409, dialog stays open',
+  name: 'Change access, sole owner steps down: 409, dialog stays open',
   render: () => changeRole(caller, { error: { kind: 'lastOwner' } }, soleOwnerRows),
   play: pick('Member'),
 };

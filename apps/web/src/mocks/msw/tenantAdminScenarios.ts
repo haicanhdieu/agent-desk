@@ -1,4 +1,11 @@
-import { slicePage, type AssignmentDto, type MemberDto, type Page, type PageQuery } from '@agentdesk/contracts';
+import {
+  slicePage,
+  type AssignmentDto,
+  type CreateAssignmentRequest,
+  type MemberDto,
+  type Page,
+  type PageQuery,
+} from '@agentdesk/contracts';
 import { roleFixtures, tenantMemberFixtures } from '../dto/access';
 import { pagedAuditFixtures, platformSuspendAuditFixtures } from '../dto/audit';
 import { ids } from '../dto/ids';
@@ -300,6 +307,62 @@ export function changeMemberRole(
   ];
   syncSeat(db, orgId, userId, next ?? null);
   return structuredClone(target);
+}
+
+const unprocessable = (pointer: string, detail: string) =>
+  new Problem({ status: 422, title: 'Validation failed', type: 'validation', errors: [{ pointer, detail }] });
+
+/**
+ * `assignments.create`: the role must exist and be giveable at that scope (Owner is org-only, 422), a project scope
+ * names a project of the org (422), the person is a member (422), and only an owner gives `owner` (403). The same
+ * grant again is the existing one.
+ */
+export function createAssignment(
+  db: MockDb,
+  caller: { userId: string; orgId: string },
+  body: CreateAssignmentRequest,
+  projectExists: (projectId: string) => boolean,
+): AssignmentDto {
+  const { orgId } = caller;
+  const role = roleFixtures.find((r) => r.id === body.roleId);
+  if (!role || !role.assignableScopes.includes(body.scope.type)) {
+    throw unprocessable('/roleId', 'this role does not exist in the organization or cannot be given at this scope');
+  }
+  if (body.scope.type === 'project' && !projectExists(body.scope.projectId)) {
+    throw unprocessable('/scope/projectId', 'this project does not exist in the organization');
+  }
+  const target = (state(db).members[orgId] ?? []).find((m) => m.userId === body.userId);
+  if (!target) throw unprocessable('/userId', 'this person is not a member of the organization');
+  if (role.key === ORG_OWNER && !callerIsOwner(db, orgId, caller.userId)) throw forbidden();
+  const sameScope = (a: AssignmentDto) =>
+    body.scope.type === 'project'
+      ? a.scope.type === 'project' && a.scope.projectId === body.scope.projectId
+      : a.scope.type === 'org';
+  const existing = target.assignments.find((a) => a.role.id === role.id && sameScope(a));
+  if (existing) return structuredClone(existing);
+  const created: AssignmentDto = {
+    id: db.nextId(),
+    userId: body.userId,
+    role: { id: role.id, key: role.key, name: role.name },
+    scope: body.scope,
+    grantedBy: caller.userId,
+    grantedAt: new Date().toISOString(),
+  };
+  target.assignments = [...target.assignments, created];
+  if (body.scope.type === 'org') syncSeat(db, orgId, body.userId, role.key);
+  return structuredClone(created);
+}
+
+/** `assignments.remove`: an unknown assignment is a 404; an owner grant only goes by an owner's hand (403). */
+export function deleteAssignment(db: MockDb, caller: { userId: string; orgId: string }, assignmentId: string): null {
+  const { orgId } = caller;
+  const holder = (state(db).members[orgId] ?? []).find((m) => m.assignments.some((a) => a.id === assignmentId));
+  const assignment = holder?.assignments.find((a) => a.id === assignmentId);
+  if (!holder || !assignment) throw notFound('Assignment');
+  if (assignment.role.key === ORG_OWNER && !callerIsOwner(db, orgId, caller.userId)) throw forbidden();
+  holder.assignments = holder.assignments.filter((a) => a.id !== assignmentId);
+  if (assignment.scope.type === 'org') syncSeat(db, orgId, holder.userId, null);
+  return null;
 }
 
 /** `members.remove`: nobody removes themselves (403, before any lookup); only an owner removes an owner; never the last one. */

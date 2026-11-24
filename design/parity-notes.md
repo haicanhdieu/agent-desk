@@ -437,3 +437,28 @@ OrgAuditInvitationNoEmail (`Screens/OrgSettings`). Their `canvas.json` entries s
 - OrgAudit*: intentional: invitation sentences name projects (at most 3, then "and N more"; the title keeps the full list).
 - Storybook and `parity.mjs` were not run in the runner pod (no Chromium, low RAM). The 9 pixel pairs are unchecked: none is
   claimed to match.
+
+## Org Members: access by scope and Change access (#259)
+
+Ticket: haicanhdieu/agent-desk#259. Three boards added, so `parity.mjs` finds 285 boards in `canvas.json`:
+OrgMembersManyGrants, OrgMembersChangeAccessMany, OrgMembersChangeAccessEmpty (`Screens/OrgSettings`). The Members table has
+three columns now (Name, Access, Actions): the Role and Project roles columns became one Access column of chips, one per grant
+(`Organization · Admin`, `<project> · Member`, `No role` first when there is no org grant). Every `OrgMembers*` board was redrawn
+for the new cell, the Change role boards became Change access (title, Save access, a Project access section), and the row menu
+item reads "Change access".
+
+- Chips wrap onto more lines (no ellipsis, no "+N more"), so no grant is hidden. The boards draw them as `.lbl` pills in a flex-wrap list.
+- Change access: the org Role cards, then a Project access group: one row per project grant (name, role select Admin / Member /
+  Viewer, remove button) or "No project access.", and an Add project row (project select, role select, Add project). The shared
+  `ChangeRoleDialog` shows the section only when it gets `projectAccess`; the project Members page passes none and keeps
+  "Change role" / "Save role".
+- Intentional: the story fixtures name their people as in the earlier Members stories (Alice, Cleo, Dana); the boards keep the
+  prototype's own cast (Kim Hale, Mira Chen). The new boards use Fatima Zahra (eight project grants) and ari-k (no grants).
+- Intentional: the dialog body of the story scrolls inside the dialog (`max-height: calc(100vh - 220px)`) when the Project
+  access rows outgrow a short window; the static boards do not scroll.
+- Table widths: the boards draw 34% / rest / 56px; the shared `DataTable` lays the columns out itself (as in the other Members boards).
+- The interactive prototype (`design/prototype/interactive/`) was regenerated with `_tools/build-boards.mjs` (322 boards) and its live
+  Members screen now has the Access column and a working Change access dialog (add, change, remove, audit entries). `_checks/nav-check.mjs`
+  was not run: it needs a macOS headless Chromium and the check screenshots are not regenerated.
+- Storybook and `parity.mjs` were not run (no Chromium within the memory headroom). The redrawn and the 3 new pixel pairs are unchecked:
+  none is claimed to match.
