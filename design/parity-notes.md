@@ -470,7 +470,11 @@ item reads "Change access".
     row. They now have 8 rows, the open menu (Change access and Remove from organization; own row: Change access only) and matching labels.
   - Compared and matching in layout: the Access column with chips, the Change access title and Save access, the Project access rows, the Add
     project row, and "No project access." on the empty board.
-  - Remaining differences, none claimed to match pixel for pixel: the story cast (Alice, Cleo, Dana, Fatima) against the board cast (Kim Hale,
-    Mira Chen, ari-k); the board dialog body overflows the 900px window while the story scrolls it; the story page content and dialog body sit
-    2px to 8px further in than the board; the story has no sidebar icons and no menu on the caller's own row (the `RowMenuSelf` board draws
-    one). The last two come from `OrgSettingsLayout` and the own-row rule, which this PR does not change.
+  - Remaining differences, none claimed to match pixel for pixel. Each has a reason (frontend.md §8):
+    - Story cast (Alice, Cleo, Dana, Fatima) against board cast (Kim Hale, Mira Chen, ari-k): intentional state difference.
+    - The board dialog body overflows the 900px window while the story scrolls it inside the dialog: intentional state difference (see above).
+    - The story page content and dialog body sit 2px to 8px further in than the board: not fixed; it comes from the shared
+      `OrgSettingsLayout` and `Dialog`, which this PR does not change (the same kind of 1 to 8px layout drift is recorded for other boards above).
+    - The story has no sidebar icons: not fixed; shared `OrgSettingsLayout`, not changed here.
+    - The story shows no menu on the caller's own row, while the `RowMenuSelf` board draws one: not fixed; the board already drew an
+      own-row menu on `main` ("Change role" on Kim Hale's row), and the own-row rule is not changed here.
