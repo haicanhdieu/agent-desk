@@ -119,4 +119,27 @@ describe('AuditRow', () => {
     renderRow(rowAt(0));
     expect(screen.queryByText(/^Reason: /)).not.toBeInTheDocument();
   });
+
+  it('renders a mono part in the mono face, not bold, and others as plain text', () => {
+    renderRow({
+      id: 'x',
+      when: { label: 'now', exact: 'now', iso: '2026-11-23T11:00:00.000Z' },
+      who: { label: 'Dev Admin', tag: null },
+      what: {
+        kind: 'sentence',
+        parts: [
+          { text: 'from ', strong: false },
+          { text: '/o/a', strong: false, mono: true },
+          { text: ' by ', strong: false },
+          { text: 'Acme', strong: true },
+        ],
+        title: 'from /o/a by Acme',
+      },
+    });
+    const mono = screen.getByText('/o/a');
+    expect(mono).toHaveClass('mono');
+    expect(mono.tagName).toBe('SPAN');
+    expect(screen.getByText('Acme').tagName).toBe('B');
+    expect(screen.getByText('Acme')).not.toHaveClass('mono');
+  });
 });

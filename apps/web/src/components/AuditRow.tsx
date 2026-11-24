@@ -25,7 +25,17 @@ export function AuditRow({ row }: { row: AuditRowView }) {
       <td className={styles.whatCell}>
         {what.kind === 'sentence' ? (
           <span className={styles.what} title={what.title}>
-            {what.parts.map((part, i) => (part.strong ? <b key={i}>{part.text}</b> : part.text))}
+            {what.parts.map((part, i) =>
+              part.strong ? (
+                <b key={i}>{part.text}</b>
+              ) : part.mono ? (
+                <span key={i} className="mono">
+                  {part.text}
+                </span>
+              ) : (
+                part.text
+              ),
+            )}
           </span>
         ) : (
           <span className={styles.what} title={what.target ? `${what.key} ${what.target}` : what.key}>
