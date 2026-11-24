@@ -167,6 +167,20 @@ describe('setup flow', () => {
     expect(mockDb.state.rules.filter((r) => r.projectId === id)).toHaveLength(0);
   });
 
+  it('a failed Skip on the first rule step shows the error and stays on the step', async () => {
+    const id = seedAt('rules');
+    server.use(
+      routeHandler('projects.update', async () =>
+        problemResponse({ status: 500, title: 'Internal server error', type: 'internal' }),
+      ),
+    );
+    const { router, user } = await renderRoute(`${base}/rules?project=${id}`);
+    await user.click(await screen.findByRole('button', { name: 'Skip' }));
+    expect(await screen.findByRole('alert')).toBeInTheDocument();
+    expect(router.state.location.pathname).toBe(`${base}/rules`);
+    expect(projectRow(id).setupStep).toBe('rules');
+  });
+
   it('skipping steps 3, 4 and 5 in a row reaches Ready with no script, skills or rule', async () => {
     const id = seedAt('setup');
     mockDb.state.rules = mockDb.state.rules.filter((r) => r.projectId !== id);

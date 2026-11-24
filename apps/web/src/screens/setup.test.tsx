@@ -410,6 +410,14 @@ describe('SetupReady', () => {
     expect(screen.getByRole('link', { name: 'Go to runs' })).toBeInTheDocument();
   });
 
+  it('Copy writes the command to the clipboard', async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
+    render(ready);
+    await userEvent.click(screen.getByRole('button', { name: 'Copy' }));
+    expect(writeText).toHaveBeenCalledWith('/code-build');
+  });
+
   it('shows the command, a Copy button and the summary', () => {
     render(ready);
     const code = screen.getByText('/code-build', { selector: 'pre' });
