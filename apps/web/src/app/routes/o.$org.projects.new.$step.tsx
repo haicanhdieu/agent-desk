@@ -1,5 +1,5 @@
 import type { ConnectionDto, CreateRuleRequest, ProjectDto } from '@agentdesk/contracts';
-import { useQuery, useSuspenseQueries, useSuspenseQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient, useSuspenseQueries, useSuspenseQuery } from '@tanstack/react-query';
 import { createFileRoute, notFound, redirect, useNavigate } from '@tanstack/react-router';
 import { useState } from 'react';
 import { toastFromError } from '@/app/boundaries';
@@ -159,9 +159,26 @@ function RepoStep({ org, projectId, connectionId }: { org: string; projectId?: s
   });
   const { data: connections } = useSuspenseQuery(setupQueries.connections(org));
   const usable = usableConnections(connections, connectionId);
-  const repoLists = useSuspenseQueries({ queries: usable.map((c) => setupQueries.repos(org, c.id)) });
+  // Overrides the global no-refetch-on-focus default: the list is GitHub's and changes in another tab. The stale time
+  // still applies, and it is only wanted while the list is shown (no project yet).
+  const repoLists = useSuspenseQueries({
+    queries: usable.map((c) => ({ ...setupQueries.repos(org, c.id), refetchOnWindowFocus: !projectId })),
+  });
   const save = useSaveRepoStep(org);
   const install = useInstallConnection(org);
+  const qc = useQueryClient();
+  // The repository list is GitHub's: it changes in another tab, so it is read again on return and on request.
+  const [refreshing, setRefreshing] = useState(false);
+  const refreshRepos = async () => {
+    setRefreshing(true);
+    try {
+      await qc.refetchQueries({ queryKey: setupQueries.connections(org).queryKey }, { throwOnError: true });
+    } catch (e) {
+      toast.show(toastFromError(e));
+    } finally {
+      setRefreshing(false);
+    }
+  };
   const [errors, setErrors] = useState<StepErrors<'name' | 'repo' | 'mode'>>(noErrors);
 
   // The first connection that lists a repo owns it.
@@ -217,9 +234,12 @@ function RepoStep({ org, projectId, connectionId }: { org: string; projectId?: s
   };
 
   const onConnect = async () => {
+    // Opened now, in the click, and pointed at GitHub once the API has answered: a tab opened after the wait is blocked.
+    const tab = browserLocation.openPendingTab();
     try {
       const outcome = await install.mutateAsync('github');
       if (outcome.kind === 'linked') {
+        tab.close();
         await navigate({
           to: '/o/$org/projects/new/$step',
           params: { org, step: 'repo' },
@@ -230,14 +250,16 @@ function RepoStep({ org, projectId, connectionId }: { org: string; projectId?: s
       }
       const target = safeInstallUrl(outcome.url);
       if (!target) {
+        tab.close();
         setErrors({
           fields: {},
           form: 'The install link from the server is not a valid https address. Try again later.',
         });
         return;
       }
-      browserLocation.assign(target);
+      tab.go(target);
     } catch (e) {
+      tab.close();
       toast.show(toastFromError(e));
     }
   };
@@ -257,6 +279,8 @@ function RepoStep({ org, projectId, connectionId }: { org: string; projectId?: s
       polling={heard.polling}
       onCheckAgain={projectId ? () => void refetchProgress() : undefined}
       onConnect={() => void onConnect()}
+      onRefresh={project ? undefined : () => void refreshRepos()}
+      refreshing={refreshing}
       onContinue={(d) => void onContinue(d)}
       saving={save.isPending}
       errors={errors.fields}
