@@ -273,3 +273,146 @@ export async function roleIdsOf(
   };
   return { owner: find('owner'), admin: find('admin'), member: find('member'), viewer: find('viewer') };
 }
+
+type Inject = ReturnType<TestApp['app']['inject']>;
+const pageQs = (q?: { page?: number; pageSize?: number }): string => {
+  const params = new URLSearchParams();
+  if (q?.page !== undefined) params.set('page', String(q.page));
+  if (q?.pageSize !== undefined) params.set('pageSize', String(q.pageSize));
+  const s = params.toString();
+  return s === '' ? '' : `?${s}`;
+};
+
+/** `GET /api/projects/:projectId/members` as the cookie's user; returns the raw response. */
+export function projectMembersList(
+  t: TestApp,
+  cookie: string,
+  orgId: string,
+  projectId: string,
+  query?: { page?: number; pageSize?: number },
+): Inject {
+  return t.app.inject({
+    method: 'GET',
+    url: `/api/projects/${projectId}/members${pageQs(query)}`,
+    headers: orgHeaders(cookie, orgId),
+  });
+}
+
+/** `POST /api/projects/:projectId/members` as the cookie's user; returns the raw response. */
+export function addProjectMember(
+  t: TestApp,
+  cookie: string,
+  orgId: string,
+  projectId: string,
+  body: Record<string, unknown>,
+): Inject {
+  return t.app.inject({
+    method: 'POST',
+    url: `/api/projects/${projectId}/members`,
+    headers: orgHeaders(cookie, orgId),
+    payload: body,
+  });
+}
+
+/** `PUT /api/projects/:projectId/members/:userId/role` as the cookie's user; returns the raw response. */
+export function setProjectRole(
+  t: TestApp,
+  cookie: string,
+  orgId: string,
+  projectId: string,
+  userId: string,
+  roleId: string,
+): Inject {
+  return t.app.inject({
+    method: 'PUT',
+    url: `/api/projects/${projectId}/members/${encodeURIComponent(userId)}/role`,
+    headers: orgHeaders(cookie, orgId),
+    payload: { roleId },
+  });
+}
+
+/** `DELETE /api/projects/:projectId/members/:userId` as the cookie's user; returns the raw response. */
+export function removeProjectMember(
+  t: TestApp,
+  cookie: string,
+  orgId: string,
+  projectId: string,
+  userId: string,
+): Inject {
+  return t.app.inject({
+    method: 'DELETE',
+    url: `/api/projects/${projectId}/members/${encodeURIComponent(userId)}`,
+    headers: orgHeaders(cookie, orgId),
+  });
+}
+
+/** `GET /api/projects/:projectId/audit` as the cookie's user; returns the raw response. */
+export function projectAudit(
+  t: TestApp,
+  cookie: string,
+  orgId: string,
+  projectId: string,
+  query?: { page?: number; pageSize?: number },
+): Inject {
+  return t.app.inject({
+    method: 'GET',
+    url: `/api/projects/${projectId}/audit${pageQs(query)}`,
+    headers: orgHeaders(cookie, orgId),
+  });
+}
+
+/** `GET /api/orgs/:orgId/members` with the search and exclude-project filters; returns the raw response. */
+export function memberSearch(
+  t: TestApp,
+  cookie: string,
+  orgId: string,
+  query: { q?: string; excludeProject?: string; page?: number; pageSize?: number },
+): Inject {
+  const params = new URLSearchParams();
+  if (query.q !== undefined) params.set('q', query.q);
+  if (query.excludeProject !== undefined) params.set('excludeProject', query.excludeProject);
+  if (query.page !== undefined) params.set('page', String(query.page));
+  if (query.pageSize !== undefined) params.set('pageSize', String(query.pageSize));
+  const s = params.toString();
+  return t.app.inject({
+    method: 'GET',
+    url: `/api/orgs/${orgId}/members${s === '' ? '' : `?${s}`}`,
+    headers: orgHeaders(cookie, orgId),
+  });
+}
+
+/** `POST /api/platform/orgs/:orgId/suspend` as the cookie's user (no x-org-id: a platform route); returns the raw response. */
+export function suspendOrgRoute(
+  t: TestApp,
+  cookie: string,
+  orgId: string,
+  body: Record<string, unknown>,
+): ReturnType<TestApp['app']['inject']> {
+  return t.app.inject({
+    method: 'POST',
+    url: `/api/platform/orgs/${orgId}/suspend`,
+    headers: { cookie },
+    payload: body,
+  });
+}
+
+/** `POST /api/platform/orgs/:orgId/reactivate` as the cookie's user; returns the raw response. */
+export function reactivateOrgRoute(
+  t: TestApp,
+  cookie: string,
+  orgId: string,
+  body: Record<string, unknown>,
+): ReturnType<TestApp['app']['inject']> {
+  return t.app.inject({
+    method: 'POST',
+    url: `/api/platform/orgs/${orgId}/reactivate`,
+    headers: { cookie },
+    payload: body,
+  });
+}
+
+/** Suspends the org through the real route as admin@dev.local; throws unless 200. */
+export async function suspendedOrgApp(t: TestApp, orgId: string, reason = 'Suspended for a test'): Promise<void> {
+  const res = await suspendOrgRoute(t, await asPlatformAdmin(t), orgId, { reason });
+  if (res.statusCode !== 200) throw new Error(`suspendedOrgApp ${orgId} answered ${res.statusCode}: ${res.body}`);
+}

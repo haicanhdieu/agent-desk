@@ -82,6 +82,17 @@ export const TextInputs: Story = {
   ),
 };
 
+export const PasswordHideLabel: Story = {
+  name: 'Password input, named Hide value',
+  render: () => (
+    <Field label="Value">
+      {({ id }) => (
+        <PasswordInput id={id} revealLabel="Show value" hideLabel="Hide value" defaultValue="hunter2-not-real" />
+      )}
+    </Field>
+  ),
+};
+
 export const TextAreas: Story = {
   name: 'Text area',
   render: () => (

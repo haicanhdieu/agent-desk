@@ -8,3 +8,7 @@ export const ORG_MISMATCH_PROBLEM_TYPE = 'org-mismatch';
 export const TERMINAL_CLOSE_ORG_CHANGED = 4412;
 /** Code of the sign-in error for an account with no invitation. */
 export const NO_INVITATION_CODE = 'no_invitation';
+/** Problem `type` of the 403 answered when the caller's org is suspended. */
+export const ORG_SUSPENDED_PROBLEM_TYPE = 'org-suspended';
+/** Longest reason a platform admin may give when suspending or reactivating an org. */
+export const ORG_STATUS_REASON_MAX = 500;

@@ -283,7 +283,9 @@ export class FakeKubeGateway implements KubeGateway {
     // Like the cluster: env comes from literal values and explicit secretKeyRefs only, so the workspace token key (a
     // mounted file) never becomes an env var.
     for (const e of container?.env ?? []) {
-      if (e.value !== undefined) env[e.name] = e.value;
+      // Mirrors the kubelet: `$$` in a plain value is an escaped `$`. Pairs with `literalEnv` in job-spec.ts, which
+      // doubles every `$`, so the pod sees the original value. No `$(VAR)` expansion here.
+      if (e.value !== undefined) env[e.name] = e.value.replaceAll('$$', () => '$');
       const ref = e.valueFrom?.secretKeyRef;
       if (ref?.name && ref.key) {
         const value = (await this.readSecret(ref.name))?.[ref.key];

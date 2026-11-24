@@ -8,7 +8,9 @@ import {
 } from '@agentdesk/contracts';
 import { ApiError } from '@agentdesk/contracts/client';
 import { revalidateLogic, useField, useForm, useStore, type ValidationErrorMap } from '@tanstack/react-form';
+import { useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
+import { projectAuditListKey } from '../projectAudit/queries';
 import { isOrgMismatch } from '@/features/auth/orgResync';
 import type { InviteDialogValues } from '@/components/InviteDialog';
 import type { InviteOption } from '@/mocks/types';
@@ -38,6 +40,14 @@ export function roleOptions(roles: RoleDto[], access: Access): InviteOption[] {
       ? roles
       : roles.filter((r) => r.key !== 'owner');
   return offered.map((r) => ({ id: r.id, label: r.name }));
+}
+
+/** BR-13: the Invite people dialog on a project's Members page offers Admin, Member and Viewer, never Owner. */
+export function projectRoleOptions(roles: RoleDto[]): InviteOption[] {
+  return (['admin', 'member', 'viewer'] as const).flatMap((key): InviteOption[] => {
+    const r = roles.find((x) => x.key === key && x.assignableScopes.includes('project'));
+    return r ? [{ id: r.id, label: r.name }] : [];
+  });
 }
 
 /** BR-29: a project admin sees only the projects where they hold assignment:create. */
@@ -119,17 +129,20 @@ export interface InviteFormOptions {
   projectsOnly: boolean;
   /** An org-switch failure: the route shows the Toast. */
   onOrgSwitched(): void;
+  /** BR-13: the dialog opens on "Some projects" with this project the only one chosen. */
+  fixedProjectId?: string;
 }
 
-export function useInviteForm({ org, projectsOnly: onlyProjects, onOrgSwitched }: InviteFormOptions) {
+export function useInviteForm({ org, projectsOnly: onlyProjects, onOrgSwitched, fixedProjectId }: InviteFormOptions) {
+  const queryClient = useQueryClient();
   const create = useCreateInvitation(org);
   const [formError, setFormError] = useState<string>();
   const [created, setCreated] = useState<InvitationDto>();
   const defaultValues: InviteDialogValues = {
     email: '',
     roleId: '',
-    scope: onlyProjects ? 'projects' : 'org',
-    projectIds: [],
+    scope: onlyProjects || fixedProjectId !== undefined ? 'projects' : 'org',
+    projectIds: fixedProjectId === undefined ? [] : [fixedProjectId],
   };
   const form = useForm({
     defaultValues,
@@ -139,6 +152,9 @@ export function useInviteForm({ org, projectsOnly: onlyProjects, onOrgSwitched }
       try {
         const body = CreateInvitationRequest.parse(toRequest(value));
         setCreated(await create.mutateAsync(body));
+        // The invitation's audit entry names this project: its log reads again.
+        if (fixedProjectId !== undefined)
+          void queryClient.invalidateQueries({ queryKey: projectAuditListKey(org, fixedProjectId) });
       } catch (e) {
         // The values stay as typed; only the messages change.
         const problem = inviteProblem(e);

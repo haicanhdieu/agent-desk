@@ -9,7 +9,6 @@ import {
   type PermissionLineDto,
   type PlatformAdminDto,
   type PlatformMemberDto,
-  type PlatformOrgDto,
   type PlatformProjectDto,
   type RoleDto,
 } from '@agentdesk/contracts';
@@ -24,6 +23,7 @@ const roleId = {
   admin: uuid('b1000000', 2),
   member: uuid('b1000000', 3),
   viewer: uuid('b1000000', 4),
+  setupReader: uuid('b1000000', 5),
 };
 
 const TENANT_PERMISSIONS = Permission.options.filter((p) => !isPlatformPermission(p));
@@ -70,6 +70,16 @@ export const roleFixtures: RoleDto[] = [
     builtIn: true,
     assignableScopes: ['org', 'project'],
     permissions: readOnly.map(any),
+  },
+  // A test fixture, not a built-in role: it can read a project's setup but change none of it (no built-in role reaches
+  // that state), for the read-only Environment tab and the 403 the API gives its writes.
+  {
+    id: roleId.setupReader,
+    key: 'setup-reader',
+    name: 'Setup reader',
+    builtIn: false,
+    assignableScopes: ['org', 'project'],
+    permissions: (['project:read', 'setup:read'] as const).map(any),
   },
 ];
 
@@ -132,11 +142,6 @@ export const accessFixture: AccessDto = {
   assignments: [{ roleKey: 'owner', scope: { type: 'org' }, permissions: TENANT_PERMISSIONS.map(any) }],
 };
 
-export const platformOrgFixtures: PlatformOrgDto[] = [
-  { id: uuid('b4000000', 1), name: 'Harbor Labs', slug: 'harbor-labs', memberCount: 2, createdAt: MOCK_NOW },
-  { id: uuid('b4000000', 2), name: 'Acme', slug: 'acme', memberCount: 1, createdAt: MOCK_NOW },
-];
-
 export const platformProjectFixtures: PlatformProjectDto[] = [
   { id: ids.project.invoicerApi, name: 'invoicer-api' },
   { id: ids.project.invoicerWeb, name: 'invoicer-web' },
@@ -159,6 +164,7 @@ export const platformAdminFixtures: PlatformAdminDto[] = [
     handle: 'dev-admin',
     grantedAt: MOCK_NOW,
     grantedBy: null,
+    lastWorkingAdmin: false,
   },
   {
     id: platformAdminId(2),
@@ -168,6 +174,7 @@ export const platformAdminFixtures: PlatformAdminDto[] = [
     handle: 'pat',
     grantedAt: MOCK_NOW,
     grantedBy: { name: 'Dev Admin', handle: 'dev-admin' },
+    lastWorkingAdmin: false,
   },
   {
     id: platformAdminId(3),
@@ -177,6 +184,7 @@ export const platformAdminFixtures: PlatformAdminDto[] = [
     handle: null,
     grantedAt: MOCK_NOW,
     grantedBy: null,
+    lastWorkingAdmin: false,
   },
 ];
 

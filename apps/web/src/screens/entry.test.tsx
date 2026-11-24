@@ -6,6 +6,7 @@ import { checklistSteps, orgSwitchFixtures, projects, user } from '@/mocks';
 import { SignIn, SignInNoInvitationError } from './SignIn';
 import { ProjectsEmpty } from './ProjectsEmpty';
 import { Projects } from './Projects';
+import { OrgSuspended } from './OrgSuspended';
 
 describe('SignIn', () => {
   it('links "Sign in with GitHub" to signInHref', () => {
@@ -193,6 +194,28 @@ describe('Projects onboarding', () => {
     expect(screen.queryByRole('link', { name: 'Settings' })).not.toBeInTheDocument();
   });
 
+  it('has no Delete project item without onDeleteProject (fail closed)', async () => {
+    render(<Projects user={user} projects={projects} newHref="/new" />);
+    await userEvent.click(screen.getByRole('button', { name: 'More for docs-site' }));
+    expect(screen.queryByRole('button', { name: /Delete/ })).not.toBeInTheDocument();
+  });
+
+  it('Delete project confirms first, then hands the project to onDeleteProject', async () => {
+    const onDeleteProject = vi.fn();
+    render(<Projects user={user} projects={projects} newHref="/new" onDeleteProject={onDeleteProject} />);
+    await userEvent.click(screen.getByRole('button', { name: 'More for docs-site' }));
+    const item = screen.getByRole('button', { name: 'Delete project' });
+    expect(item).toHaveClass('danger');
+    await userEvent.click(item);
+    const dialog = screen.getByRole('dialog', { name: 'Delete project' });
+    expect(dialog).toHaveTextContent('docs-site');
+    expect(onDeleteProject).not.toHaveBeenCalled();
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Delete project' }));
+    expect(onDeleteProject).toHaveBeenCalledTimes(1);
+    expect(onDeleteProject.mock.calls[0]?.[0]).toMatchObject({ name: 'docs-site' });
+    expect(screen.queryByRole('dialog', { name: 'Delete project' })).not.toBeInTheDocument();
+  });
+
   it('shows Settings in the row menu when the row has a settings href', async () => {
     render(<Projects user={user} projects={projects} newHref="/new" settingsHref={() => '/settings'} />);
     await userEvent.click(screen.getByRole('button', { name: 'More for docs-site' }));
@@ -313,5 +336,18 @@ describe('org bar on Projects and ProjectsEmpty', () => {
     const nav = screen.getByRole('navigation', { name: 'Main' });
     expect(within(nav).getByRole('link', { name: /Projects/ })).toHaveAttribute('aria-current', 'page');
     expect(within(nav).queryByRole('link', { name: /Settings/ })).not.toBeInTheDocument();
+  });
+});
+
+describe('OrgSuspended', () => {
+  it('shows the fixed title and body with the org name, and no reason', () => {
+    render(<OrgSuspended orgName="Harbor Labs" />);
+    expect(screen.getAllByRole('main')).toHaveLength(1);
+    expect(screen.getByRole('heading', { level: 1, name: 'This organization is suspended' })).toBeInTheDocument();
+    expect(
+      screen.getByText("You can't open Harbor Labs right now. Contact your Agent Desk administrator."),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/reason/i)).not.toBeInTheDocument();
+    expect(screen.queryByRole('link')).not.toBeInTheDocument();
   });
 });

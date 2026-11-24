@@ -1,7 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 import { ids } from '../../src/mocks/dto/ids';
 import type { OnboardingScenario } from '../../src/mocks/msw/onboardingScenarios';
-import { seedOnboarding } from './mock';
+import { INVOICER_API, ORG, seedOnboarding, seedProjectSpace } from './mock';
 
 /*
  * Issue 216: a member or viewer cannot open the Desk configuration pages or the new-project wizard. Each Desk route
@@ -75,6 +75,13 @@ for (const role of ['member', 'viewer'] as const) {
       await expect(rowMenu(page).getByRole('link', { name: 'Runs' })).toBeVisible();
       await expect(rowMenu(page).getByRole('link', { name: 'Settings' })).toHaveCount(0);
     });
+
+    test('has no Delete project entry in the project list row menu', async ({ page }) => {
+      await open(page, role, '/o/acme/projects');
+      await page.getByRole('button', { name: /^More for invoicer-api/ }).click();
+      await expect(rowMenu(page).getByRole('link', { name: 'Runs' })).toBeVisible();
+      await expect(rowMenu(page).getByRole('button', { name: /Delete/ })).toHaveCount(0);
+    });
   });
 }
 
@@ -100,4 +107,38 @@ test.describe('an admin', () => {
     await page.getByRole('button', { name: /^More for invoicer-api/ }).click();
     await expect(rowMenu(page).getByRole('link', { name: 'Settings' })).toBeVisible();
   });
+});
+
+// BR-21: Delete project is an org-level permission, so an admin of this project only never sees it.
+test.describe('the Danger zone on Agent & settings', () => {
+  const agentPage = `/o/${ORG}/p/${INVOICER_API}/desk/agent`;
+  const deleteProject = (page: Page) => page.getByRole('button', { name: 'Delete project' });
+
+  test('TC-21.1: a project admin sees no Danger zone and no Delete project control', async ({ page }) => {
+    await seedProjectSpace(page, { role: 'projectAdmin' });
+    await page.goto(agentPage);
+    await expect(page.getByRole('heading', { level: 1, name: 'Agent & settings' })).toBeVisible();
+    await expect(page.getByText('Danger zone')).toHaveCount(0);
+    await expect(deleteProject(page)).toHaveCount(0);
+  });
+
+  test('a project admin has no Delete project entry in the project list row menu', async ({ page }) => {
+    await seedProjectSpace(page, { role: 'projectAdmin' });
+    await page.goto(`/o/${ORG}/projects`);
+    await page.getByRole('button', { name: /^More for invoicer-api/ }).click();
+    await expect(rowMenu(page).getByRole('link', { name: 'Runs' })).toBeVisible();
+    await expect(rowMenu(page).getByRole('button', { name: /Delete/ })).toHaveCount(0);
+  });
+
+  for (const [tc, role] of [
+    ['TC-21.2', 'owner'],
+    ['TC-21.3', 'admin'],
+  ] as const) {
+    test(`${tc}: an org ${role} sees the Danger zone with Delete project`, async ({ page }) => {
+      await seedProjectSpace(page, { role });
+      await page.goto(agentPage);
+      await expect(page.getByText('Danger zone')).toBeVisible();
+      await expect(deleteProject(page)).toBeVisible();
+    });
+  }
 });

@@ -1,6 +1,7 @@
 import { useQuery, useQueryClient, useSuspenseQueries, useSuspenseQuery } from '@tanstack/react-query';
 import { can } from '@agentdesk/contracts';
 import { ApiError } from '@agentdesk/contracts/client';
+import { useRef } from 'react';
 import { createFileRoute, useNavigate, type ErrorComponentProps } from '@tanstack/react-router';
 import {
   PageSearch,
@@ -14,8 +15,10 @@ import {
   readPageSize,
 } from '@/app/pagination';
 import { useNow } from '@/app/useNow';
-import { Forbidden, RouteError } from '@/app/boundaries';
+import { Forbidden, RouteError, toastFromError } from '@/app/boundaries';
 import { TopBar, type OnboardingChecklistState } from '@/components';
+import { useToast } from '@/ds';
+import { forgetProject, useDeleteProject } from '@/features/desk/mutations';
 import { orgAccessQuery, toAccess } from '@/features/access/queries';
 import { useAppBar } from '@/features/chrome/appBar';
 import { myInvitationsQuery } from '@/features/invitations/queries';
@@ -82,6 +85,26 @@ function ProjectsPage() {
   const bar = useAppBar(org);
   const { data: accessDto } = useSuspenseQuery(orgAccessQuery(org));
   const access = toAccess(accessDto);
+  const qc = useQueryClient();
+  const toast = useToast();
+  const remove = useDeleteProject(org);
+  // Delete project is org-level (project:delete): a project-scoped admin, member or viewer gets no menu item, and the API refuses it anyway.
+  const mayDelete = can(access, 'project:delete');
+  // One request per project while its delete is in flight (a second confirm on the still-listed row is ignored).
+  const deleting = useRef(new Set<string>());
+  const onDeleteProject = async (p: { id: string }) => {
+    if (deleting.current.has(p.id)) return;
+    deleting.current.add(p.id);
+    try {
+      // mutateAsync, not per-call mutate callbacks: the shared observer drops those when a second delete starts.
+      await remove.mutateAsync(p.id);
+      forgetProject(qc, org, p.id);
+    } catch (e) {
+      toast.show(toastFromError(e));
+    } finally {
+      deleting.current.delete(p.id);
+    }
+  };
   const checklist = useChecklistState(org, bar.org.current?.id, can(access, 'project:create'));
   // A failed invitations list hides the banner; it never breaks the page.
   const { data: invitations } = useQuery(myInvitationsQuery);
@@ -118,6 +141,8 @@ function ProjectsPage() {
       org={bar.org}
       {...(pending > 0 && { invitationsBanner: { count: pending, href: '/invitations' } })}
       canCreate={can(access, 'project:create')}
+      // Errors are handled inside onDeleteProject (toast), so the returned promise never rejects.
+      {...(mayDelete && { onDeleteProject: (p) => void onDeleteProject(p) })}
       {...(checklist && { checklist })}
     />
   );

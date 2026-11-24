@@ -18,6 +18,7 @@ import {
   agentAdapterFor,
   END_COMMAND,
   END_REASONS,
+  ProjectEnvClashError,
   EXEC_NOT_FOUND,
   IDLE_END_SECONDS,
   REPO_URL_KEY,
@@ -65,6 +66,7 @@ import {
   type Tx,
 } from '@agentdesk/db';
 import { alias } from 'drizzle-orm/pg-core';
+import { loadProjectEnv } from './project-env';
 import {
   ERROR_MESSAGE_MAX,
   MIN_SECRET_LENGTH,
@@ -285,6 +287,8 @@ interface RunDetails {
   /** Login and provider user id of the person who triggered the run; null on runs created before they were recorded. */
   triggeredBy: string | null;
   triggeredByExternalId: string | null;
+  /** The organization's status now: a suspended organization's run is not started (a resume still is). */
+  orgStatus: 'active' | 'suspended';
 }
 
 export function createRunActivities(deps: RunActivityDeps): RunActivityImpls {
@@ -341,7 +345,10 @@ export function createRunActivities(deps: RunActivityDeps): RunActivityImpls {
       if (!kind.success) throw ApplicationFailure.nonRetryable('unknown agent kind');
       agentKind = kind.data;
     }
-    const [o] = await tx.select({ slug: organization.slug }).from(organization).where(eq(organization.id, orgId));
+    const [o] = await tx
+      .select({ slug: organization.slug, status: organization.status })
+      .from(organization)
+      .where(eq(organization.id, orgId));
     const ticketNumber = r.ticketNumber ?? Number.parseInt(r.ticketRef.replace(/^#/, ''), 10);
     return {
       number: r.number,
@@ -360,6 +367,7 @@ export function createRunActivities(deps: RunActivityDeps): RunActivityImpls {
       repoPath: r.repoPath,
       defaultBranch: r.defaultBranch,
       orgSlug: o?.slug ?? null,
+      orgStatus: o?.status === 'suspended' ? 'suspended' : 'active',
       code: { provider: r.codeProvider, externalId: r.codeExternalId },
       board: { provider: r.boardProvider, externalId: r.boardExternalId },
       maxTurns: r.maxTurns,
@@ -530,6 +538,10 @@ export function createRunActivities(deps: RunActivityDeps): RunActivityImpls {
     const resume = opts.resume === true;
     const d = await mustDetails(ctx.orgId, ctx.runId);
     if (isFinal(d.status)) return undefined;
+    // Only the first start is refused: a resume belongs to a run already in progress, and a paused run stays paused.
+    if (!resume && d.orgStatus === 'suspended') {
+      throw ApplicationFailure.nonRetryable('the organization is suspended', 'OrgSuspended');
+    }
     // A resume happens long after `ctx` was loaded: the agent and its credential are read fresh (the agent may be gone).
     const stored = await storedCredential(resume ? { ...ctx, agentId: d.agentId } : ctx, d.baseUrl);
     // An agent with a credential always has a kind; a run without an agent has no credential.
@@ -576,13 +588,32 @@ export function createRunActivities(deps: RunActivityDeps): RunActivityImpls {
       const { token, expiresAt } = await codeHost.mintWorkspaceToken(project);
       known = [...known, token];
       plan = { nextRefreshSeconds: nextRefreshDelaySeconds(expiresAt, clock.now()) };
+      // Read fresh on every attempt and on resume. A value saved between attempts is picked up only for keys the
+      // surviving Secret lacks; keys it already has keep their first value, so the Secret always matches what a live pod
+      // already read (and what redaction knows). The values stay in this activity: secrets go into the run Secret,
+      // plain values into the Job env.
+      const projectEnv = await loadProjectEnv(db, deps.secrets, { orgId: ctx.orgId, projectId: ctx.projectId });
+      known = [...known, ...secretValues(projectEnv.secrets)];
+      const secretData: Record<string, string> = {
+        [REPO_URL_KEY]: codeHost.repoUrl(project),
+        [WORKSPACE_TOKEN_KEY]: token,
+        ...cred,
+      };
+      // A project secret must not overwrite a platform key of the run Secret (it would swap the agent credential).
+      for (const key of Object.keys(projectEnv.secrets)) {
+        if (Object.hasOwn(secretData, key)) throw new ProjectEnvClashError(key);
+      }
       // The repo URL carries no credential. The token is its own key, mounted as a file so a refresh reaches the
       // running pod (ADR 0021); only the repo URL and the agent credential become env vars.
-      await kube.ensureSecret(
-        name,
-        { [REPO_URL_KEY]: codeHost.repoUrl(project), [WORKSPACE_TOKEN_KEY]: token, ...cred },
-        runLabels(ctx),
+      await kube.ensureSecret(name, { ...projectEnv.secrets, ...secretData }, runLabels(ctx));
+      // A Secret left by a failed attempt keeps its old keys (create is a no-op on 409): add only the project secret
+      // keys it lacks, so every secretKeyRef of the Job below finds its key. An existing value is never overwritten (a
+      // surviving pod holds it and the redaction list is built from the Secret); platform keys are not touched.
+      const existing = (await kube.readSecret(name)) ?? {};
+      const missing = Object.fromEntries(
+        Object.entries(projectEnv.secrets).filter(([key]) => !Object.hasOwn(existing, key)),
       );
+      if (Object.keys(missing).length > 0) await kube.replaceSecretData(name, missing);
       const prompt = buildPrompt({
         ...promptSourceOf(d),
         ticketKind: d.ticketKind,
@@ -621,6 +652,7 @@ export function createRunActivities(deps: RunActivityDeps): RunActivityImpls {
         setupTimeoutSeconds: deps.config.RUN_SETUP_TIMEOUT_SECONDS,
         setupScript,
         pod: runPodConfigFrom(deps.config),
+        projectEnv: { plain: projectEnv.plain, secretNames: Object.keys(projectEnv.secrets) },
       });
       // The per-run volume holds the workspace and the agent's home; it outlives the pod.
       await kube.ensureVolumeClaim(
@@ -639,6 +671,14 @@ export function createRunActivities(deps: RunActivityDeps): RunActivityImpls {
         throw err;
       }
     } catch (err) {
+      if (err instanceof ProjectEnvClashError) {
+        // A name clash never clears by retrying. Only the variable name is in the message.
+        await kube.deleteSecret(name).catch(() => undefined);
+        throw ApplicationFailure.nonRetryable(
+          `project env variable ${err.envName} clashes with a platform variable or another entry; rename it`,
+          'ProjectEnvClash',
+        );
+      }
       throw safeError(err, known, 'create run Job');
     }
     await withOrg(db, ctx.orgId, (tx) => tx.update(runs).set({ jobName: name }).where(eq(runs.id, ctx.runId)));

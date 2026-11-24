@@ -103,6 +103,13 @@ export {
 export { TriggerModeSetting, type TriggerModeSettingProps } from './TriggerModeSetting';
 export { PluginList, type PluginListProps, type PluginState } from './PluginList';
 export { SetupPhases, type SetupPhase, type SetupPhaseState } from './SetupPhases';
+export {
+  EnvEntryList,
+  type EnvEntryListProps,
+  type EnvEntryRow,
+  type EnvSaveError,
+  type EnvSaveResult,
+} from './EnvEntryList';
 export { VersionHistory, type VersionHistoryProps, type ScriptVersion } from './VersionHistory';
 export { SkillDiff, type SkillDiffProps } from './SkillDiff';
 export { SkillPreviewPane, type SkillPreviewPaneProps, type SkillPreviewModule } from './SkillPreviewPane';
@@ -122,6 +129,16 @@ export { InviteLink, type InviteLinkProps } from './InviteLink';
 export { InvitationRow, type InvitationRowProps } from './InvitationRow';
 export { ChangeRoleDialog, type ChangeRoleDialogProps } from './ChangeRoleDialog';
 export { MemberRow, memberColumns, type MemberRowProps } from './MemberRow';
+export { ProjectMemberRow, projectMemberColumns, type ProjectMemberRowProps } from './ProjectMemberRow';
+export { MemberPicker, type MemberPickerProps } from './MemberPicker';
+export { AddProjectMemberDialog, type AddProjectMemberDialogProps } from './AddProjectMemberDialog';
 export { AuditRow, auditColumns } from './AuditRow';
 export { OrgSettingsLayout, type OrgSettingsLayoutProps } from './OrgSettingsLayout';
 export { InvitationCard, type InvitationCardProps } from './InvitationCard';
+export { PlatformLayout, type PlatformLayoutProps } from './PlatformLayout';
+export { PlatformAdminRow, platformAdminColumns, type PlatformAdminRowProps } from './PlatformAdminRow';
+export { PlatformOrgRow, platformOrgColumns } from './PlatformOrgRow';
+export { OrgStatus } from './OrgStatus';
+export { AddPlatformAdminDialog, type AddPlatformAdminDialogProps } from './AddPlatformAdminDialog';
+export { PlatformOrgHeader, type PlatformOrgHeaderProps } from './PlatformOrgHeader';
+export { SuspendOrgDialog, type SuspendOrgDialogProps } from './SuspendOrgDialog';

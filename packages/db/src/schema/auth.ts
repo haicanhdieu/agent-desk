@@ -1,5 +1,5 @@
 import { relations, sql } from 'drizzle-orm';
-import { pgTable, text, timestamp, boolean, index, uniqueIndex } from 'drizzle-orm/pg-core';
+import { pgTable, text, timestamp, boolean, index, uniqueIndex, check } from 'drizzle-orm/pg-core';
 
 export const user = pgTable(
   'user',
@@ -93,8 +93,14 @@ export const organization = pgTable(
     logo: text('logo'),
     createdAt: timestamp('created_at').notNull(),
     metadata: text('metadata'),
+    status: text('status').notNull().default('active'),
+    suspendedAt: timestamp('suspended_at', { withTimezone: true }),
   },
-  (table) => [uniqueIndex('organization_slug_uidx').on(table.slug)],
+  (table) => [
+    uniqueIndex('organization_slug_uidx').on(table.slug),
+    check('organization_status_check', sql`${table.status} in ('active','suspended')`),
+    check('organization_suspended_at_check', sql`(${table.status} = 'suspended') = (${table.suspendedAt} is not null)`),
+  ],
 );
 
 export const member = pgTable(

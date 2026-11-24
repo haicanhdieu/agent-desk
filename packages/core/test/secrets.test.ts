@@ -7,6 +7,8 @@ import {
   KubeSecretStore,
   MemorySecretStore,
   credentialSecretName,
+  projectEnvSecretName,
+  assertSecretName,
   createSecretStore,
   parseConfig,
   type SecretsApi,
@@ -15,6 +17,16 @@ import {
 describe('credentialSecretName', () => {
   it('joins org and agent ids', () => {
     expect(credentialSecretName('o1', 'a1')).toBe('org-o1-agent-a1');
+  });
+});
+
+describe('projectEnvSecretName', () => {
+  it('is org-<org>-env-<id>, a valid secret name, apart from the credential names', () => {
+    const name = projectEnvSecretName('o1', 'e1');
+    expect(name).toBe('org-o1-env-e1');
+    expect(() => assertSecretName(name)).not.toThrow();
+    expect(name).not.toBe(credentialSecretName('o1', 'e1'));
+    expect(name).not.toContain('-agent-');
   });
 });
 
@@ -38,6 +50,22 @@ describe.each([
     await expect(s.put(name, { value: 'x' })).rejects.toThrow('invalid secret name');
     await expect(s.get(name)).rejects.toThrow('invalid secret name');
     await expect(s.delete(name)).rejects.toThrow('invalid secret name');
+  });
+});
+
+describe.each([
+  ['memory', async () => new MemorySecretStore()],
+  ['file', async () => new FileSecretStore(join(await mkdtemp(join(tmpdir(), 'sec-')), 'secrets'))],
+])('%s store, project env entry', (_n, make) => {
+  it('put, replace, get and delete a { value } secret', async () => {
+    const s = await make();
+    const name = projectEnvSecretName('o1', 'e1');
+    await s.put(name, { value: 'one' });
+    expect(await s.get(name)).toEqual({ value: 'one' });
+    await s.put(name, { value: 'two' });
+    expect(await s.get(name)).toEqual({ value: 'two' });
+    await s.delete(name);
+    expect(await s.get(name)).toBeNull();
   });
 });
 
@@ -84,6 +112,25 @@ const asApi = (m: ReturnType<typeof mockApi>) => m as unknown as SecretsApi;
 const apiError = (code: number) => Object.assign(new Error('api'), { code });
 
 describe('KubeSecretStore', () => {
+  it('puts, replaces, gets and deletes a project env { value } secret', async () => {
+    const api = mockApi();
+    const s = new KubeSecretStore(asApi(api), 'ns');
+    const name = projectEnvSecretName('o1', 'e1');
+    await s.put(name, { value: 'one' });
+    expect(api.createNamespacedSecret).toHaveBeenCalledWith(
+      expect.objectContaining({ body: expect.objectContaining({ stringData: { value: 'one' } }) }),
+    );
+    api.createNamespacedSecret.mockRejectedValueOnce(apiError(409));
+    await s.put(name, { value: 'two' });
+    expect(api.replaceNamespacedSecret).toHaveBeenCalledWith(
+      expect.objectContaining({ name, body: expect.objectContaining({ stringData: { value: 'two' } }) }),
+    );
+    api.readNamespacedSecret.mockResolvedValueOnce({ data: { value: Buffer.from('two').toString('base64') } });
+    expect(await s.get(name)).toEqual({ value: 'two' });
+    await s.delete(name);
+    expect(api.deleteNamespacedSecret).toHaveBeenCalledWith({ name, namespace: 'ns' });
+  });
+
   it('creates a labelled Opaque secret in the namespace', async () => {
     const api = mockApi();
     await new KubeSecretStore(asApi(api), 'agentdesk').put('org-1-agent-2', { type: 'api_key', value: 'v' });

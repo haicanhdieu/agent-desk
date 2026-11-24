@@ -199,11 +199,11 @@ export function useCheckNow(org: string, projectId: string) {
  * Deletes the project. On success the projects list is refetched (also while no page shows it), so the list the
  * caller navigates to no longer has the project; the caller drops the project's own queries after leaving.
  */
-export function useDeleteProject(org: string, projectId: string) {
+export function useDeleteProject(org: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: () => api.projects.remove({ params: { projectId } }),
-    onSuccess: async () => {
+    mutationFn: (projectId: string) => api.projects.remove({ params: { projectId } }),
+    onSuccess: async (_, projectId) => {
       await qc.cancelQueries({ queryKey: projectsQueries.detail(org, projectId).queryKey });
       await qc.invalidateQueries({ queryKey: projectsListKey(org), refetchType: 'all' });
     },

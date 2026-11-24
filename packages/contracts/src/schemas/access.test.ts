@@ -11,6 +11,10 @@ import {
   AcceptInvitationResponse,
   MemberDto,
   MemberUserId,
+  MembersListQuery,
+  ProjectMemberDto,
+  AddProjectMemberRequest,
+  SetProjectRoleRequest,
   UpdateMemberRoleRequest,
   MyInvitationDto,
   OrgChecklistDto,
@@ -201,5 +205,38 @@ describe('UpdateMemberRoleRequest and MemberUserId', () => {
     expect(MemberUserId.safeParse('a'.repeat(255)).success).toBe(true);
     expect(MemberUserId.safeParse('').success).toBe(false);
     expect(MemberUserId.safeParse('a'.repeat(256)).success).toBe(false);
+  });
+});
+
+describe('MembersListQuery', () => {
+  it.each([{}, { q: 'a' }, { q: 'a'.repeat(100) }, { pageSize: '20' }])('accepts %j', (v) => {
+    expect(MembersListQuery.safeParse(v).success).toBe(true);
+  });
+  it('trims q', () => {
+    expect(MembersListQuery.parse({ q: '  al  ' }).q).toBe('al');
+  });
+  it.each([{ q: '' }, { q: '   ' }, { q: 'a'.repeat(101) }, { excludeProject: 'nope' }])('rejects %j', (v) => {
+    expect(MembersListQuery.safeParse(v).success).toBe(false);
+  });
+});
+
+describe('project member schemas', () => {
+  it('ProjectMemberDto accepts a null handle', () => {
+    const r = ProjectMemberDto.safeParse({
+      userId: 'u1',
+      name: 'Ada',
+      handle: null,
+      projectRoles: [{ assignmentId: P1, role: { id: ROLE, key: 'member', name: 'Member' } }],
+    });
+    expect(r.success).toBe(true);
+  });
+  it('AddProjectMemberRequest rejects a missing roleId and an empty userId', () => {
+    expect(AddProjectMemberRequest.safeParse({ userId: 'u1' }).success).toBe(false);
+    expect(AddProjectMemberRequest.safeParse({ userId: '', roleId: ROLE }).success).toBe(false);
+    expect(AddProjectMemberRequest.safeParse({ userId: 'u1', roleId: ROLE }).success).toBe(true);
+  });
+  it('SetProjectRoleRequest rejects a non-uuid', () => {
+    expect(SetProjectRoleRequest.safeParse({ roleId: 'x' }).success).toBe(false);
+    expect(SetProjectRoleRequest.safeParse({ roleId: ROLE }).success).toBe(true);
   });
 });

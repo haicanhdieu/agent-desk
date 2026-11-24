@@ -1,6 +1,6 @@
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { auditRows, pagedAuditLastPage } from '@/mocks';
+import { auditRows, pagedAuditLastPage, platformSuspendAuditRows } from '@/mocks';
 import { OrgAudit, type OrgAuditProps } from './OrgAudit';
 
 const ready = (over: Partial<Extract<OrgAuditProps['state'], { kind: 'ready' }>> = {}): OrgAuditProps => ({
@@ -22,7 +22,7 @@ describe('OrgAudit', () => {
     expect(body).toHaveLength(auditRows.length);
     body.forEach((tr, i) => {
       const what = auditRows[i]!.what;
-      expect(tr).toHaveTextContent(what.kind === 'raw' ? what.key : what.title);
+      expect(tr).toHaveTextContent(what.kind === 'raw' ? what.key : what.parts.map((x) => x.text).join(''));
       expect(tr.querySelector('time')).toHaveTextContent(auditRows[i]!.when.label);
     });
   });
@@ -80,5 +80,16 @@ describe('OrgAudit', () => {
     expect(screen.getByRole('heading', { level: 1, name: "You don't have access" })).toBeInTheDocument();
     expect(screen.getByText('Ask an owner of this organization to give you access.')).toBeInTheDocument();
     expect(screen.queryByRole('table')).not.toBeInTheDocument();
+  });
+});
+
+describe('OrgAudit platform suspend rows', () => {
+  it('BR-43: suspend and reactivate rows tag the actor "Platform admin" and show no reason', () => {
+    render(<OrgAudit state={{ kind: 'ready', rows: platformSuspendAuditRows }} />);
+    const reactivated = rowOf('Morgan Avery reactivated the organization');
+    const suspended = rowOf('Morgan Avery suspended the organization');
+    expect(within(reactivated).getByText('Platform admin')).toBeInTheDocument();
+    expect(within(suspended).getByText('Platform admin')).toBeInTheDocument();
+    expect(screen.queryByText(/reason/i)).not.toBeInTheDocument();
   });
 });

@@ -182,9 +182,22 @@ describe('PERMISSION_LEVEL', () => {
       ].sort(),
     );
   });
-  it('has 34 tenant and 15 platform permissions', () => {
-    expect(TENANT).toHaveLength(34);
-    expect(Permission.options).toHaveLength(49);
+  it('has 35 tenant and 16 platform permissions', () => {
+    expect(TENANT).toHaveLength(35);
+    expect(Permission.options).toHaveLength(51);
+  });
+  it('marks project-audit:read as project level, counted from a project grant only on that project', () => {
+    expect(PERMISSION_LEVEL['project-audit:read']).toBe('project');
+    const a = access(proj('custom', P1, [line('project-audit:read')]));
+    expect(can(a, 'project-audit:read', { projectId: P1 })).toBe(true);
+    expect(can(a, 'project-audit:read', { projectId: P2 })).toBe(false);
+  });
+  it('BR-26: an org viewer plus an admin on P1 can read the audit and manage members on P1 only', () => {
+    const a = access(org('viewer', VIEWER), proj('admin', P1, ADMIN));
+    expect(can(a, 'project-audit:read', { projectId: P1 })).toBe(true);
+    expect(can(a, 'assignment:create', { projectId: P1 })).toBe(true);
+    expect(can(a, 'rule:create', { projectId: P2 })).toBe(false);
+    expect(can(a, 'project:read', { projectId: P2 })).toBe(true);
   });
   it.each(['platform-admin:read', 'platform-admin:create', 'platform-admin:delete'] as const)(
     '%s is a platform permission the owner never holds',
@@ -195,6 +208,10 @@ describe('PERMISSION_LEVEL', () => {
       expect(holdsAnywhere(access(org('owner', OWNER)), p)).toBe(false);
     },
   );
+  it('platform-org:update is a platform-level permission the owner never holds', () => {
+    expect(PERMISSION_LEVEL['platform-org:update']).toBe('platform');
+    expect(holdsAnywhere(access(org('owner', OWNER)), 'platform-org:update')).toBe(false);
+  });
   it('treats platform-invitation:update as a platform permission', () => {
     expect(Permission.options).toContain('platform-invitation:update');
     expect(isPlatformPermission('platform-invitation:update')).toBe(true);

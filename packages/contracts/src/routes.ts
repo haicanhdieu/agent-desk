@@ -14,6 +14,10 @@ import {
   OrgChecklistDto,
   MemberDto,
   MemberUserId,
+  MembersListQuery,
+  ProjectMemberDto,
+  AddProjectMemberRequest,
+  SetProjectRoleRequest,
   RoleDto,
   UpdateMemberRoleRequest,
 } from './schemas/access';
@@ -27,9 +31,13 @@ import {
   PlatformAssignmentDto,
   PlatformInvitationDto,
   PlatformMemberDto,
+  OrgStatusChangeRequest,
+  PlatformOrgDetailDto,
   PlatformOrgDto,
+  PlatformOrgListQuery,
   PlatformProjectDto,
   PlatformRoleDto,
+  PlatformSessionDto,
 } from './schemas/platform';
 import {
   AgentDto,
@@ -49,6 +57,15 @@ import {
 import { CreateRuleRequest, PromptPreviewDto, RuleDto, UpdateRuleRequest } from './schemas/rules';
 import { PrStatesQuery, PrStatesResponse } from './schemas/tickets';
 import { PageQuery, pageOf } from './schemas/page';
+import {
+  CreateEnvSecretRequest,
+  CreateEnvVarRequest,
+  EnvEntryDto,
+  EnvListQuery,
+  EnvName,
+  UpdateEnvSecretRequest,
+  UpdateEnvVarRequest,
+} from './schemas/env';
 import { RunStatusEvent, ProjectRunEvent } from './schemas/events';
 import { RunTranscriptQuery, RunTranscriptResponse } from './schemas/transcript';
 import { RunDto, RunListQuery, RunListResponse, RunLogResponse, RunStatsDto, RunStatsQuery } from './schemas/runs';
@@ -81,9 +98,11 @@ export interface RouteDef {
 }
 
 const projectParams = z.object({ projectId: z.uuid() });
+const projectMemberParams = z.object({ projectId: z.uuid(), userId: MemberUserId });
 const runParams = z.object({ runId: z.uuid() });
 const ruleParams = z.object({ ruleId: z.uuid() });
 const skillParams = z.object({ projectId: z.uuid(), name: SkillName });
+const envEntryParams = z.object({ projectId: z.uuid(), name: EnvName });
 const setupTestParams = z.object({ setupTestId: z.uuid() });
 const setupVersionParams = z.object({ projectId: z.uuid(), version: z.coerce.number().int().min(1).max(2147483647) });
 const orgParams = z.object({ orgId: z.uuid() });
@@ -132,6 +151,13 @@ export const routes = {
       response: ProjectDto,
     },
     remove: { method: 'DELETE', path: '/api/projects/:projectId', params: projectParams, response: empty },
+    audit: {
+      method: 'GET',
+      path: '/api/projects/:projectId/audit',
+      params: projectParams,
+      query: PageQuery,
+      response: pageOf(AuditEntryDto),
+    },
     connection: {
       method: 'GET',
       path: '/api/projects/:projectId/connection',
@@ -278,6 +304,55 @@ export const routes = {
       response: SetupScriptDto,
     },
   },
+  projectEnv: {
+    list: {
+      method: 'GET',
+      path: '/api/projects/:projectId/env',
+      params: projectParams,
+      query: EnvListQuery,
+      response: pageOf(EnvEntryDto),
+    },
+    createVar: {
+      method: 'POST',
+      path: '/api/projects/:projectId/env-vars',
+      params: projectParams,
+      body: CreateEnvVarRequest,
+      response: EnvEntryDto,
+    },
+    updateVar: {
+      method: 'PUT',
+      path: '/api/projects/:projectId/env-vars/:name',
+      params: envEntryParams,
+      body: UpdateEnvVarRequest,
+      response: EnvEntryDto,
+    },
+    removeVar: {
+      method: 'DELETE',
+      path: '/api/projects/:projectId/env-vars/:name',
+      params: envEntryParams,
+      response: empty,
+    },
+    createSecret: {
+      method: 'POST',
+      path: '/api/projects/:projectId/env-secrets',
+      params: projectParams,
+      body: CreateEnvSecretRequest,
+      response: EnvEntryDto,
+    },
+    updateSecret: {
+      method: 'PUT',
+      path: '/api/projects/:projectId/env-secrets/:name',
+      params: envEntryParams,
+      body: UpdateEnvSecretRequest,
+      response: EnvEntryDto,
+    },
+    removeSecret: {
+      method: 'DELETE',
+      path: '/api/projects/:projectId/env-secrets/:name',
+      params: envEntryParams,
+      response: empty,
+    },
+  },
   setup: {
     /** The plugins panel: what the runner will install from the repo's settings, read at the default branch. */
     plugins: {
@@ -374,6 +449,7 @@ export const routes = {
   },
   me: {
     access: { method: 'GET', path: '/api/me/access', response: AccessDto },
+    platform: { method: 'GET', path: '/api/me/platform', response: PlatformSessionDto },
     listInvitations: {
       method: 'GET',
       path: '/api/me/invitations',
@@ -411,7 +487,7 @@ export const routes = {
       method: 'GET',
       path: '/api/orgs/:orgId/members',
       params: orgParams,
-      query: PageQuery,
+      query: MembersListQuery,
       response: pageOf(MemberDto),
     },
     updateRole: {
@@ -425,6 +501,35 @@ export const routes = {
       method: 'DELETE',
       path: '/api/orgs/:orgId/members/:userId',
       params: orgMemberParams,
+      response: empty,
+    },
+  },
+  projectMembers: {
+    list: {
+      method: 'GET',
+      path: '/api/projects/:projectId/members',
+      params: projectParams,
+      query: PageQuery,
+      response: pageOf(ProjectMemberDto),
+    },
+    add: {
+      method: 'POST',
+      path: '/api/projects/:projectId/members',
+      params: projectParams,
+      body: AddProjectMemberRequest,
+      response: ProjectMemberDto,
+    },
+    setRole: {
+      method: 'PUT',
+      path: '/api/projects/:projectId/members/:userId/role',
+      params: projectMemberParams,
+      body: SetProjectRoleRequest,
+      response: ProjectMemberDto,
+    },
+    remove: {
+      method: 'DELETE',
+      path: '/api/projects/:projectId/members/:userId',
+      params: projectMemberParams,
       response: empty,
     },
   },
@@ -489,7 +594,27 @@ export const routes = {
   },
   platform: {
     createOrg: { method: 'POST', path: '/api/platform/orgs', body: CreateOrgRequest, response: CreateOrgResponse },
-    listOrgs: { method: 'GET', path: '/api/platform/orgs', query: PageQuery, response: pageOf(PlatformOrgDto) },
+    listOrgs: {
+      method: 'GET',
+      path: '/api/platform/orgs',
+      query: PlatformOrgListQuery,
+      response: pageOf(PlatformOrgDto),
+    },
+    getOrg: { method: 'GET', path: '/api/platform/orgs/:orgId', params: orgParams, response: PlatformOrgDetailDto },
+    suspendOrg: {
+      method: 'POST',
+      path: '/api/platform/orgs/:orgId/suspend',
+      params: orgParams,
+      body: OrgStatusChangeRequest,
+      response: PlatformOrgDetailDto,
+    },
+    reactivateOrg: {
+      method: 'POST',
+      path: '/api/platform/orgs/:orgId/reactivate',
+      params: orgParams,
+      body: OrgStatusChangeRequest,
+      response: PlatformOrgDetailDto,
+    },
     listProjects: {
       method: 'GET',
       path: '/api/platform/orgs/:orgId/projects',

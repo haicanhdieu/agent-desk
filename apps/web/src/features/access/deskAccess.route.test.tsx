@@ -1,7 +1,10 @@
-import { screen, waitFor } from '@testing-library/react';
+import { screen, waitFor, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it } from 'vitest';
 import { ids } from '@/mocks/dto/ids';
+import { mockDb } from '@/mocks/msw/db';
 import { server } from '@/mocks/msw/node';
+import { applyProjectSpace, type ProjectSpaceRole } from '@/mocks/msw/projectSpaceScenarios';
 import { scenarios } from '@/mocks/msw/scenarios';
 import { renderRoute } from '@/test/renderRoute';
 
@@ -94,14 +97,14 @@ describe.each(['owner', 'orgAdmin'] as const)('an %s', (role) => {
 });
 
 describe('an admin of one project', () => {
-  it('opens the Desk of that project and sees Forbidden on another project', async () => {
+  it('opens the Desk of that project', async () => {
     await open(desk(P1, 'agent'), 'projectAdmin');
     expect(await screen.findByRole('heading', { level: 1, name: 'Agent & settings' })).toBeInTheDocument();
   });
 
-  it('sees Forbidden on the Desk of a project they do not administer and requests none of its data', async () => {
+  it('sees Page not found on the Desk of a project they do not administer and requests none of its data', async () => {
     await open(desk(P2, 'rules'), 'projectAdmin');
-    expect(await screen.findByRole('heading', FORBIDDEN)).toBeInTheDocument();
+    expect(await screen.findByText('Page not found')).toBeInTheDocument();
     expect(deskCalls()).toEqual([]);
   });
 
@@ -123,5 +126,45 @@ describe('while access cannot be loaded', () => {
     expect(await screen.findByRole('button', { name: 'Retry' })).toBeInTheDocument();
     expect(screen.queryByRole('heading', { level: 1, name: 'Agent & settings' })).not.toBeInTheDocument();
     expect(deskCalls()).toEqual([]);
+  });
+});
+
+describe('Delete project in the project list row menu (project:delete is an org-level permission)', () => {
+  const openList = (role: ProjectSpaceRole) =>
+    renderRoute('/o/alice/projects', { scenario: () => applyProjectSpace(mockDb, { role }) });
+  const openMenu = async () => {
+    const user = userEvent.setup();
+    await user.click((await screen.findAllByRole('button', { name: /^More for / }))[0]!);
+    return screen.findByRole('dialog', { name: /^Actions for / });
+  };
+
+  it.each(['owner', 'admin'] as const)('offers an org %s the item', async (role) => {
+    await openList(role);
+    expect(within(await openMenu()).getByRole('button', { name: 'Delete project' })).toBeEnabled();
+  });
+
+  it.each(['projectAdmin', 'member', 'viewer'] as const)('does not offer a %s the item', async (role) => {
+    await openList(role);
+    const menu = await openMenu();
+    expect(within(menu).getByRole('link', { name: 'Runs' })).toBeInTheDocument();
+    expect(within(menu).queryByRole('button', { name: /Delete/ })).not.toBeInTheDocument();
+  });
+});
+
+describe('the Access group of the Desk side menu (BR-1)', () => {
+  const openAs = (role: ProjectSpaceRole) =>
+    renderRoute(`/o/alice/p/${P1}/desk/agent`, { scenario: () => applyProjectSpace(mockDb, { role }) });
+
+  it.each(['owner', 'admin', 'projectAdmin'] as const)('shows Members and Audit log to the %s', async (role) => {
+    await openAs(role);
+    const nav = await screen.findByRole('navigation', { name: 'Desk' });
+    expect(within(nav).getByRole('link', { name: 'Members' })).toBeInTheDocument();
+    expect(within(nav).getByRole('link', { name: 'Audit log' })).toBeInTheDocument();
+  });
+
+  it.each(['member', 'viewer'] as const)('gives a %s no Settings tab', async (role) => {
+    await renderRoute(`/o/alice/p/${P1}/runs`, { scenario: () => applyProjectSpace(mockDb, { role }) });
+    expect(await screen.findByRole('link', { name: /^Runs/ })).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Settings' })).not.toBeInTheDocument();
   });
 });

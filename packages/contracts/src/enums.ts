@@ -72,3 +72,6 @@ export type CredentialType = z.infer<typeof CredentialType>;
 
 export const PrState = z.enum(['open', 'draft', 'merged', 'closed']);
 export type PrState = z.infer<typeof PrState>;
+
+export const OrgStatus = z.enum(['active', 'suspended']);
+export type OrgStatus = z.infer<typeof OrgStatus>;

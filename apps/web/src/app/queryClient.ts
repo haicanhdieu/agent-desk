@@ -1,5 +1,6 @@
 import { ApiError } from '@agentdesk/contracts/client';
-import { QueryClient, type DefaultOptions } from '@tanstack/react-query';
+import { MutationCache, QueryCache, QueryClient, type DefaultOptions } from '@tanstack/react-query';
+import { handleOrgSuspended, noteOrgAnswered } from '@/features/auth/orgSuspended';
 
 export const MAX_RETRIES = 2;
 
@@ -13,7 +14,13 @@ export function isRetryable(error: unknown): boolean {
  * (runs, connection and project detail queries turn it on in their own options; the detail carries the run counts). `overrides` is for tests (e.g. `retryDelay: 0`).
  */
 export function createAppQueryClient(overrides: DefaultOptions['queries'] = {}): QueryClient {
-  return new QueryClient({
+  // One global handler: any query or mutation answered `org-suspended` drops the org's data and reloads the route.
+  const client: QueryClient = new QueryClient({
+    queryCache: new QueryCache({
+      onError: (error, query) => handleOrgSuspended(client, error, query.queryKey),
+      onSuccess: (_data, query) => noteOrgAnswered(query.queryKey),
+    }),
+    mutationCache: new MutationCache({ onError: (error) => handleOrgSuspended(client, error) }),
     defaultOptions: {
       queries: {
         staleTime: 30_000,
@@ -24,4 +31,5 @@ export function createAppQueryClient(overrides: DefaultOptions['queries'] = {}):
       mutations: { retry: false },
     },
   });
+  return client;
 }

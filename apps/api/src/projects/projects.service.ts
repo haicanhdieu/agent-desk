@@ -6,6 +6,7 @@ import {
   connections,
   inboundEvents,
   pollCursors,
+  projectEnvVars,
   projects,
   runs,
   withOrg,
@@ -30,7 +31,14 @@ import {
 } from '@agentdesk/contracts';
 import type { OrgContext } from '../auth/org-context';
 import { isUniqueViolation } from '../common/pg-errors';
-import { SIGNAL, credentialSecretName, runWorkflowId, type AdapterRegistry, type SecretStore } from '@agentdesk/core';
+import {
+  SIGNAL,
+  credentialSecretName,
+  projectEnvSecretName,
+  runWorkflowId,
+  type AdapterRegistry,
+  type SecretStore,
+} from '@agentdesk/core';
 import { ADAPTER_REGISTRY } from '../adapters/adapter-registry.module';
 import { ValidationProblemException } from '../common/zod-validation';
 import { DB } from '../db/db.module';
@@ -334,7 +342,7 @@ export class ProjectsService {
    * schedule and the agents' credential Secrets.
    */
   async remove(org: OrgContext, projectId: string): Promise<void> {
-    const { agentIds, keptRunIds } = await withOrg(this.db, org.orgId, async (tx) => {
+    const { agentIds, keptRunIds, envSecretIds } = await withOrg(this.db, org.orgId, async (tx) => {
       // FOR UPDATE: a run insert (FK share lock on this row) waits, so no run can appear between the check and delete.
       await this.load(tx, projectId, true);
       const [live] = await tx
@@ -356,8 +364,17 @@ export class ProjectsService {
           ),
         );
       const rows = await tx.select({ id: agents.id }).from(agents).where(eq(agents.projectId, projectId));
+      // Secret entries own one Kubernetes Secret each; the rows cascade with the project, so read the ids first.
+      const envRows = await tx
+        .select({ id: projectEnvVars.id })
+        .from(projectEnvVars)
+        .where(and(eq(projectEnvVars.projectId, projectId), eq(projectEnvVars.kind, 'secret')));
       await tx.delete(projects).where(eq(projects.id, projectId));
-      return { agentIds: rows.map((r) => r.id), keptRunIds: kept.map((r) => r.id) };
+      return {
+        agentIds: rows.map((r) => r.id),
+        keptRunIds: kept.map((r) => r.id),
+        envSecretIds: envRows.map((r) => r.id),
+      };
     });
     // After the commit (database.md §6: no Temporal call inside a transaction): a succeeded run that keeps its session
     // still has a workflow and a volume, so tell it to let go. A failed signal is logged; the daily reconcile sweep
@@ -382,6 +399,13 @@ export class ProjectsService {
       await this.bestEffort(
         'delete credential secret',
         () => this.secrets.delete(credentialSecretName(org.orgId, agentId)),
+        projectId,
+      );
+    }
+    for (const entryId of envSecretIds) {
+      await this.bestEffort(
+        'delete env secret',
+        () => this.secrets.delete(projectEnvSecretName(org.orgId, entryId)),
         projectId,
       );
     }

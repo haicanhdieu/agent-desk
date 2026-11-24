@@ -15,8 +15,8 @@ Built-in roles, copied into every org from the templates. `any` unless noted.
 
 | Role | Permissions |
 | ---- | ----------- |
-| owner | all 33 tenant permissions |
-| admin | all tenant permissions but `org:delete` (32) |
+| owner | all 35 tenant permissions |
+| admin | all tenant permissions but `org:delete` (34) |
 | member | `project:read`, `run:read`, `run:create`; `run:update`, `run:cancel`, `terminal:attach` with `own` (6) |
 | viewer | `project:read`, `run:read` (2) |
 
@@ -50,6 +50,11 @@ Org administration:
 | GET `/api/orgs/:orgId/roles` | `assignment:read` (project-level, held anywhere) | yes | yes | no | no |
 | GET `/api/orgs/:orgId/members` | `member:read` or `assignment:create` | yes | yes | no | no |
 | GET / POST / DELETE `/api/orgs/:orgId/assignments[/:id]` | `assignment:*` | yes | yes (no escalation) | no | no |
+| GET `/api/projects/:projectId/members` | `assignment:read` (project) | yes | yes | no | no |
+| POST `/api/projects/:projectId/members` | `assignment:create` (project) | yes | yes (no escalation) | no | no |
+| PUT `/api/projects/:projectId/members/:userId/role` | `assignment:create` (project), `assignment:delete` per replaced role | yes | yes (no escalation) | no | no |
+| DELETE `/api/projects/:projectId/members/:userId` | `assignment:delete` (project); never yourself | yes | yes | no | no |
+| GET `/api/projects/:projectId/audit` | `project-audit:read` (project) | yes | yes | no | no |
 | GET / POST / DELETE / resend `/api/orgs/:orgId/invitations[/:id]` | `member:*` or `assignment:*` | yes | yes (no escalation) | no | no |
 | GET `/api/orgs/:orgId/checklist` | `project:create` (org) | yes | yes | no | no |
 | GET `/api/connections`, `/connections/:id/repos` | `connection:read` (org) | yes | yes | no | no |
@@ -89,9 +94,12 @@ Tenant data touched by the Desk routes: the project's agent, skills, rules, setu
 | `/o/$org/invitations` | yes | yes | no | no |
 | `/o/$org/p/$project/runs`, `/runs/$run`, `/needs-you` | yes | yes | yes (run actions on own runs only) | yes, read-only |
 | `/o/$org/p/$project/desk/agent`, `/desk/setup`, `/desk/skills`, `/desk/rules` | yes | yes | no | no |
+| `/o/$org/p/$project/desk/members` | yes | yes | no | no |
+| `/o/$org/p/$project/desk/audit` | yes | yes | no | no |
+| Delete project (Agent & settings Danger zone) | shown | shown | hidden | hidden |
 | Desk tab, project row Settings, connection warning and run panel links to the Desk | shown | shown | hidden | hidden |
 
-Not allowed on a route means the Forbidden page, no loader fetch of the protected data and no nav entry. The routes check in `beforeLoad` (`apps/web/src/features/access/guards.ts`: `requirePermission`, `requireInvite`) with `can(access, permission, { projectId })`. The guards and the hooks (`useAccess`, `useCan`) deny while the grants load or when they failed to load. The web app uses the grants only to show and hide; the API is the authority.
+Not allowed on a route means the Forbidden page (or Page not found, see below), no loader fetch of the protected data and no nav entry. The routes check in `beforeLoad` (`apps/web/src/features/access/guards.ts`). Project routes (the Desk Settings, Members and Audit pages) use `requireProjectPermission`, which follows the ADR-0036 order: Forbidden when the caller holds the permission nowhere in the org, Page not found when the project is outside every scope of the caller (so an admin of P1 opening P2's URL learns nothing of P2), Forbidden when the project is in scope but the permission is missing on it. Org routes use `requirePermission` and `requireInvite`, which answer Forbidden with `can(access, permission, target)`. The guards and the hooks (`useAccess`, `useCan`) deny while the grants load or when they failed to load. The web app uses the grants only to show and hide; the API is the authority.
 
 Run actions (Cancel, Finish, Stop session, Close session, Resume, and the Finish and Resume buttons in the notices, the needs-you list and the runs banner) show only where the viewer holds the permission on that run: `run:update` or `run:cancel`, with `own` meaning `run.ownerUserId` is the signed-in user. A viewer sees none.
 

@@ -8,9 +8,10 @@ import {
 } from '@nestjs/common';
 import type { FastifyRequest } from 'fastify';
 import { mergeMap, type Observable } from 'rxjs';
-import { flattenRoutes, routes } from '@agentdesk/contracts';
+import { flattenRoutes, routeAccess, routes, type RouteKey } from '@agentdesk/contracts';
 import { auditLog, withOrg, type Db } from '@agentdesk/db';
 import { describeError } from '../common/pg-errors';
+import type { RequestAuthz } from '../access/current-access';
 import { DB } from '../db/db.module';
 import { redactBody } from './redact-body';
 
@@ -37,6 +38,33 @@ const compiled: CompiledRoute[] = Object.entries(flattenRoutes(routes)).map(([ke
     .join('/');
   return { key, method: def.method, pattern: new RegExp(`^${source}/?$`), params };
 });
+
+/**
+ * Audit actions of the project env routes, mapped to the entry kind. The interceptor merges `{ kind, name }` into the
+ * payload: the name comes from the path param for PUT and DELETE and from the body for POST. The value is never audited.
+ */
+export const AUDIT_ENV_BY_ACTION: Record<string, 'plain' | 'secret'> = {
+  'POST projectEnv.createVar': 'plain',
+  'PUT projectEnv.updateVar': 'plain',
+  'DELETE projectEnv.removeVar': 'plain',
+  'POST projectEnv.createSecret': 'secret',
+  'PUT projectEnv.updateSecret': 'secret',
+  'DELETE projectEnv.removeSecret': 'secret',
+};
+
+/** The redacted body plus `{ kind, name }` for an env action; any other action's payload is returned as is. */
+function withEnvEntry(
+  payload: Record<string, unknown>,
+  action: string,
+  body: unknown,
+  params: Record<string, unknown>,
+): Record<string, unknown> {
+  const kind = AUDIT_ENV_BY_ACTION[action];
+  if (kind === undefined) return payload;
+  const fromBody = typeof body === 'object' && body !== null && 'name' in body ? body.name : undefined;
+  const name = action.startsWith('POST ') ? fromBody : params['name'];
+  return typeof name === 'string' ? { ...payload, kind, name } : { ...payload, kind };
+}
 
 export interface AuditTarget {
   action: string;
@@ -69,6 +97,13 @@ function paramsOf(params: unknown): Record<string, unknown> {
   return typeof params === 'object' && params !== null ? Object.fromEntries(Object.entries(params)) : {};
 }
 
+/** [authz.projectId] when the matched route is project-kind and the guard resolved a project, else []. */
+export function auditProjectIds(authz: Pick<RequestAuthz, 'routeKey' | 'projectId'> | undefined): string[] {
+  if (authz === undefined || authz.projectId === undefined) return [];
+  const key: RouteKey = authz.routeKey;
+  return routeAccess[key].scope === 'project' ? [authz.projectId] : [];
+}
+
 @Injectable()
 export class AuditInterceptor implements NestInterceptor {
   private readonly logger = new Logger(AuditInterceptor.name);
@@ -84,7 +119,8 @@ export class AuditInterceptor implements NestInterceptor {
     if (!MUTATING.has(req.method) || !(route === '/api' || route.startsWith('/api/')) || !ctx) return next.handle();
     return next.handle().pipe(
       mergeMap(async (value: unknown) => {
-        const target = describeRequest(req.method, route, paramsOf(req.params));
+        const params = paramsOf(req.params);
+        const target = describeRequest(req.method, route, params);
         try {
           await withOrg(this.db, ctx.orgId, (tx) =>
             tx.insert(auditLog).values({
@@ -93,7 +129,8 @@ export class AuditInterceptor implements NestInterceptor {
               action: target.action,
               targetType: target.targetType,
               targetId: target.targetId,
-              payload: redactBody(req.body, target.action),
+              payload: withEnvEntry(redactBody(req.body, target.action), target.action, req.body, params),
+              projectIds: auditProjectIds(req.authz),
             }),
           );
         } catch (err) {

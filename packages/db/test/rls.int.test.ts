@@ -62,7 +62,13 @@ const inserts: Record<string, (tx: Tx, orgId: string) => Promise<unknown>> = {
     tx.execute(sql`insert into setup_test_events (org_id, setup_test_id, seq, type)
       values (${o}, ${a.setupTestId}, 99, 'status')`),
   poll_cursors: (tx, o) => tx.execute(sql`insert into poll_cursors (org_id, project_id) values (${o}, ${b.projectId})`),
-  audit_log: (tx, o) => tx.execute(sql`insert into audit_log (org_id, action) values (${o}, 'x')`),
+  project_env_vars: (tx, o) =>
+    tx.execute(sql`insert into project_env_vars (org_id, project_id, name, kind, value, size_bytes, updated_by)
+      values (${o}, ${a.projectId}, ${`V_${Math.floor(Math.random() * 1e9)}`}, 'plain', 'v', 10, 'u1')`),
+  audit_log: (tx, o) =>
+    tx.execute(
+      sql`insert into audit_log (org_id, action, project_ids) values (${o}, 'x', array[${a.projectId}]::uuid[])`,
+    ),
   roles: (tx, o) =>
     tx.execute(sql`insert into roles (org_id, key, name, assignable_scopes)
       values (${o}, ${`k-${Math.random()}`}, 'R', '{org}')`),
@@ -108,6 +114,16 @@ describe.each(Object.keys(inserts))('RLS on %s', (table) => {
   it('a raw query without withOrg returns 0 rows', async () => {
     const r = await db.pool.query(`select 1 from ${table}`);
     expect(r.rowCount).toBe(0);
+  });
+});
+
+describe('audit_log.project_ids', () => {
+  it('an insert without project_ids reads back an empty array', async () => {
+    const rows = await withOrg(db, ORG_A, async (tx) => {
+      await tx.execute(sql`insert into audit_log (org_id, action) values (${ORG_A}, 'no-tags')`);
+      return tx.execute<{ project_ids: string[] }>(sql`select project_ids from audit_log where action = 'no-tags'`);
+    });
+    expect(rows.rows[0]?.project_ids).toEqual([]);
   });
 });
 
@@ -357,5 +373,120 @@ describe('withOrg', () => {
 
   it('rejects a non-uuid org id before querying', async () => {
     await expect(withOrg(db, `x'; drop table runs; --`, async () => 1)).rejects.toThrow(/org id/i);
+  });
+});
+
+describe('project_env_vars constraints', () => {
+  type Row = { name?: string; kind?: string; value?: string | null; size?: number; project?: string };
+  const insertRow = (r: Row = {}) =>
+    withOrg(db, ORG_A, (tx) =>
+      tx.execute(sql`insert into project_env_vars (org_id, project_id, name, kind, value, size_bytes, updated_by)
+        values (${ORG_A}, ${r.project ?? a.projectId}, ${r.name ?? `N_${Math.floor(Math.random() * 1e9)}`},
+          ${r.kind ?? 'plain'}, ${r.value === undefined ? 'v' : r.value}, ${r.size ?? 10}, 'u1')`),
+    );
+  const codeOf = (p: Promise<unknown>) =>
+    p.then(
+      () => undefined,
+      (e: unknown) => pgCode(e),
+    );
+
+  it('an insert without id, created_at and updated_at gets a uuid and now() timestamps', async () => {
+    await insertRow({ name: 'DEFAULTS' });
+    const r = await withOrg(db, ORG_A, (tx) =>
+      tx.execute<{ id: string; fresh: boolean }>(
+        sql`select id, (created_at = updated_at and created_at <= now()) as fresh from project_env_vars where name = 'DEFAULTS'`,
+      ),
+    );
+    expect(r.rows[0]?.id).toMatch(/^[0-9a-f-]{36}$/);
+    expect(r.rows[0]?.fresh).toBe(true);
+  });
+
+  it.each(['id', 'created_at', 'updated_at'])('an explicit NULL %s is refused (23502)', async (col) => {
+    const code = await codeOf(
+      withOrg(db, ORG_A, (tx) =>
+        tx.execute(
+          sql`insert into project_env_vars (org_id, project_id, name, kind, value, size_bytes, updated_by, ${sql.identifier(col)})
+            values (${ORG_A}, ${a.projectId}, 'NULLCOL', 'plain', 'v', 10, 'u1', null)`,
+        ),
+      ),
+    );
+    expect(code).toBe('23502');
+  });
+
+  it('a duplicate (project_id, name) is refused (23505), even across kinds', async () => {
+    await insertRow({ name: 'DUP' });
+    expect(await codeOf(insertRow({ name: 'DUP' }))).toBe('23505');
+    expect(await codeOf(insertRow({ name: 'DUP', kind: 'secret', value: null }))).toBe('23505');
+  });
+
+  it('the same name is allowed in another project', async () => {
+    await insertRow({ name: 'SHARED' });
+    await insertRow({ name: 'SHARED', project: a.secondProjectId });
+  });
+
+  it('kind other is refused (23514)', async () => {
+    expect(await codeOf(insertRow({ kind: 'other' }))).toBe('23514');
+  });
+
+  it('a secret row with a value is refused, and one without is accepted', async () => {
+    expect(await codeOf(insertRow({ kind: 'secret', value: 'leak' }))).toBe('23514');
+    await insertRow({ kind: 'secret', value: null });
+  });
+
+  it('a plain row without a value is refused', async () => {
+    expect(await codeOf(insertRow({ value: null }))).toBe('23514');
+  });
+
+  it('a plain value of 8192 bytes is accepted and 8193 bytes is refused', async () => {
+    await insertRow({ value: 'x'.repeat(8192), size: 8200 });
+    expect(await codeOf(insertRow({ value: 'x'.repeat(8193) }))).toBe('23514');
+  });
+
+  it.each([
+    ['LF', 'a\nb'],
+    ['CR', 'a\rb'],
+  ])('a plain value with %s is refused', async (_n, value) => {
+    expect(await codeOf(insertRow({ value }))).toBe('23514');
+  });
+
+  it('a plain value with NUL is refused (Postgres text cannot hold it)', async () => {
+    expect(await codeOf(insertRow({ value: 'a\u0000b' }))).toBeDefined();
+  });
+
+  it.each([0, 8321])('size_bytes %i is refused', async (size) => {
+    expect(await codeOf(insertRow({ size }))).toBe('23514');
+  });
+
+  it.each([1, 8320])('size_bytes %i is accepted', async (size) => {
+    await insertRow({ size });
+  });
+
+  it('name 1BAD is refused and _GOOD_1 is accepted', async () => {
+    expect(await codeOf(insertRow({ name: '1BAD' }))).toBe('23514');
+    await insertRow({ name: '_GOOD_1' });
+  });
+
+  it('deleting a project cascades its rows', async () => {
+    const pid = await withOrg(db, ORG_A, async (tx) => {
+      const r = await tx.execute<{ id: string }>(
+        sql`insert into projects (org_id, name, repo_path, code_connection_id, board_connection_id)
+          values (${ORG_A}, 'casc', ${`casc/${Math.random()}`}, ${a.connectionId}, ${a.connectionId}) returning id`,
+      );
+      return r.rows[0]?.id;
+    });
+    if (!pid) throw new Error('no project');
+    await insertRow({ name: 'CASC', project: pid });
+    await withOrg(db, ORG_A, (tx) => tx.execute(sql`delete from projects where id = ${pid}`));
+    const left = await withOrg(db, ORG_A, (tx) =>
+      tx.execute(sql`select 1 from project_env_vars where project_id = ${pid}`),
+    );
+    expect(left.rows).toHaveLength(0);
+  });
+
+  it('the list index is on (project_id, kind, name COLLATE "C")', async () => {
+    const r = await db.pool.query<{ indexdef: string }>(
+      `select indexdef from pg_indexes where indexname = 'project_env_vars_project_kind_name_idx'`,
+    );
+    expect(r.rows[0]?.indexdef).toMatch(/\(project_id, kind, \(?\(?name\)?(::text)? COLLATE "C"\)?\)/);
   });
 });

@@ -90,6 +90,11 @@ export async function seedOrg(
       [orgId, setupTestId],
     );
     await client.query(`insert into poll_cursors (org_id, project_id) values ($1, $2)`, [orgId, projectId]);
+    await client.query(
+      `insert into project_env_vars (org_id, project_id, name, kind, value, size_bytes, updated_by)
+       values ($1, $2, 'SEED_VAR', 'plain', 'v', 9, 'u1')`,
+      [orgId, projectId],
+    );
     await client.query(`insert into audit_log (org_id, action) values ($1, 'seed')`, [orgId]);
     const secondProjectId = await one(
       `insert into projects (org_id, name, repo_path, code_connection_id, board_connection_id)

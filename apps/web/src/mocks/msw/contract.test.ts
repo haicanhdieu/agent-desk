@@ -2,6 +2,7 @@ import {
   AccessDto,
   AgentDto,
   AgentModelsDto,
+  EnvEntryDto,
   AssignmentDto,
   AuditEntryDto,
   ConnectionDto,
@@ -9,10 +10,13 @@ import {
   MemberDto,
   MyInvitationDto,
   OrgChecklistDto,
+  PAGE_SIZE_DEFAULT,
   PlatformAdminDto,
   PlatformMemberDto,
+  PlatformOrgDetailDto,
   PlatformOrgDto,
   PlatformProjectDto,
+  ProjectMemberDto,
   RoleDto,
   IgnoredEventDto,
   PluginsDto,
@@ -43,13 +47,22 @@ import {
   memberFixtures,
   platformAdminFixtures,
   platformMemberFixtures,
-  platformOrgFixtures,
   platformProjectFixtures,
   roleFixtures,
   tenantAccessFixtures,
   tenantMemberFixtures,
 } from '../dto/access';
-import { auditEntryFixtures, pagedAuditFixtures } from '../dto/audit';
+import { platformOrgDtoFixtures } from '../dto/platform';
+import { addPlatformOrg, getPlatformOrg, listPlatformOrgs } from './platformOrgs';
+import { Problem } from './http';
+import {
+  auditEntryFixtures,
+  pagedAuditFixtures,
+  pagedProjectAuditFixtures,
+  otherProjectAuditFixtures,
+  projectAuditFixtures,
+} from '../dto/audit';
+import { pickerCandidateFixtures, projectMemberFixtures } from '../dto/projectMembers';
 import { checklistFixtures, myInvitationFixtures, orgInvitationFixtures } from '../dto/invitations';
 import { agentFixtures } from '../dto/agents';
 import { agentModelsFixtures } from '../dto/agentModels';
@@ -60,11 +73,13 @@ import { ignoredFixtures, projectConnectionFixtures, projectFixtures } from '../
 import { ruleFixtures } from '../dto/rules';
 import { runFixtures, type MockRun } from '../dto/runs';
 import { prStateFixtures } from '../dto/prStates';
-import { pluginFixtures, setupScriptFixtures } from '../dto/setup';
+import { environmentFixtures, pluginFixtures, setupScriptFixtures } from '../dto/setup';
 import { skillFixtures } from '../dto/skills';
 import { mockDb } from './db';
+import { applyMockLists } from './e2eLists';
 import { routeHandlers } from './handlers';
 import { linkedTicketsFor } from './linkedTickets';
+import { seedPlatformAdmins, withLastWorkingAdmin } from './platformAdmins';
 import { scenarios } from './scenarios';
 
 const api = createApi({ baseUrl: 'http://localhost:3000', parse: true });
@@ -100,12 +115,13 @@ describe('MSW handlers cover the contract', () => {
       [RunEventDto, Object.values(runEventFixtures).flat()],
       [SetupScriptDto, Object.values(setupScriptFixtures).flat()],
       [PluginsDto, Object.values(pluginFixtures)],
+      [EnvEntryDto, Object.values(environmentFixtures).flat()],
       [RoleDto, roleFixtures],
       [AssignmentDto, assignmentFixtures],
       [InvitationDto, invitationFixtures],
       [MemberDto, memberFixtures],
       [AccessDto, [accessFixture]],
-      [PlatformOrgDto, platformOrgFixtures],
+      [PlatformOrgDto, platformOrgDtoFixtures],
       [PlatformProjectDto, platformProjectFixtures],
       [PlatformMemberDto, platformMemberFixtures],
       [PlatformAdminDto, platformAdminFixtures],
@@ -121,6 +137,11 @@ describe('MSW handlers cover the contract', () => {
       [MemberDto, Object.values(tenantMemberFixtures).flat()],
       [AuditEntryDto, auditEntryFixtures],
       [AuditEntryDto, pagedAuditFixtures(25)],
+      [AuditEntryDto, projectAuditFixtures],
+      [AuditEntryDto, pagedProjectAuditFixtures],
+      [AuditEntryDto, otherProjectAuditFixtures],
+      [ProjectMemberDto, Object.values(projectMemberFixtures).flat()],
+      [MemberDto, pickerCandidateFixtures],
       [AccessDto, Object.values(tenantAccessFixtures)],
     ];
     for (const [schema, items] of lists) {
@@ -235,6 +256,69 @@ describe('MSW handlers cover the contract', () => {
     const none = await api.runs.stats({ params: { projectId: P }, query: { since: '2999-01-01T00:00:00.000Z' } });
     expect(none.today).toEqual({ total: 0, failed: 0 });
     await expect(api.runs.byNumber({ params: { projectId: P, number: 62 } })).resolves.toMatchObject({ number: 62 });
+  });
+});
+
+describe('project space fixtures', () => {
+  it('gives the owner and admin roles project-audit:read and nobody else', () => {
+    const holders = roleFixtures
+      .filter((r) => r.permissions.some((l) => l.permission === 'project-audit:read'))
+      .map((r) => r.key);
+    expect(holders).toEqual(['owner', 'admin']);
+  });
+
+  it("keeps another project's id out of P's audit except in the projects of a fully visible invitation", () => {
+    const other = ids.project.invoicerWeb;
+    for (const e of projectAuditFixtures) {
+      const rest = JSON.stringify({ ...e, projects: [] });
+      expect(rest).not.toContain(other);
+      expect(rest).not.toContain('invoicer-web');
+      if (e.projects.some((p) => p.id === other)) {
+        expect(e.action.startsWith('invitation.')).toBe(true);
+        expect(e.target.label).not.toBeNull();
+      }
+      if (e.action.startsWith('invitation.') && e.target.label === null) {
+        expect(e.projects.every((p) => p.id === P)).toBe(true);
+      }
+    }
+    expect(otherProjectAuditFixtures.length).toBeGreaterThan(0);
+  });
+
+  it('covers a full, a redacted and an expired invitation, and more than three projects', () => {
+    const inv = projectAuditFixtures.filter((e) => e.action.startsWith('invitation.'));
+    expect(inv.some((e) => e.target.label !== null && e.projects.length > 3)).toBe(true);
+    expect(inv.some((e) => e.target.label === null)).toBe(true);
+    expect(inv.some((e) => e.action === 'invitation.expired')).toBe(true);
+    for (const e of projectAuditFixtures.filter((x) => !x.action.startsWith('invitation.'))) {
+      expect(e.projects).toEqual([]);
+    }
+  });
+
+  it('lists the projects of every audit entry sorted by name, then id, as the API sends them', () => {
+    for (const e of [...auditEntryFixtures, ...projectAuditFixtures, ...otherProjectAuditFixtures]) {
+      const sorted = [...e.projects].sort((a, b) => a.name.localeCompare(b.name) || a.id.localeCompare(b.id));
+      expect(e.projects).toEqual(sorted);
+    }
+  });
+
+  it('uses fixed seed times, newest first', () => {
+    const times = projectAuditFixtures.map((e) => Date.parse(e.at));
+    expect(times).toEqual([...times].sort((a, b) => b - a));
+    expect(pagedProjectAuditFixtures).toHaveLength(25);
+  });
+
+  it('lists 45 eligible people, with a null handle and LIKE wildcards in names', () => {
+    expect(pickerCandidateFixtures).toHaveLength(45);
+    expect(pickerCandidateFixtures.some((m) => m.handle === null)).toBe(true);
+    expect(pickerCandidateFixtures.some((m) => m.name.includes('%'))).toBe(true);
+    expect(pickerCandidateFixtures.some((m) => m.name.includes('_'))).toBe(true);
+  });
+
+  it('holds P and another project apart in the project member fixtures', () => {
+    expect(Object.keys(projectMemberFixtures).sort()).toEqual(
+      [ids.project.invoicerApi, ids.project.invoicerWeb].sort(),
+    );
+    expect(projectMemberFixtures[P]?.some((m) => m.projectRoles.length > 1)).toBe(true);
   });
 });
 
@@ -502,6 +586,42 @@ describe('MSW handler semantics', () => {
     });
   });
 
+  it('withLastWorkingAdmin flags only the sole verified entry, none when two are verified', () => {
+    const [first, second, third] = platformAdminFixtures;
+    if (!first || !second || !third) throw new Error('fixtures');
+    const flagged = (verified: string[]) =>
+      withLastWorkingAdmin([first, second, third], new Set(verified)).map((a) => a.lastWorkingAdmin);
+    expect(flagged([first.email])).toEqual([true, false, false]);
+    expect(flagged([first.email, second.email])).toEqual([false, false, false]);
+    expect(flagged([])).toEqual([false, false, false]);
+    expect(flagged([third.email])).toEqual([false, false, true]);
+  });
+
+  it('serves me.platform from the session user flag', async () => {
+    const me = mockDb.state.users[0];
+    if (!me) throw new Error('no user');
+    me.platformAdmin = false;
+    const read = async () => (await fetch('http://localhost:3000/api/me/platform')).json();
+    expect(await read()).toEqual({ platformAdmin: false });
+    me.platformAdmin = true;
+    expect(await read()).toEqual({ platformAdmin: true });
+  });
+
+  it('flags the sole working admin in the served list once the others are revoked', async () => {
+    const me = mockDb.state.users[0];
+    if (me) me.platformAdmin = true;
+    const base = 'http://localhost:3000/api/platform/admins';
+    const read = async () =>
+      PlatformAdminDto.array().parse(((await (await fetch(base)).json()) as { items: unknown[] }).items);
+    const before = await read();
+    expect(before.every((a) => !a.lastWorkingAdmin)).toBe(true);
+    const second = before.filter((a) => a.userId !== null)[1];
+    if (!second) throw new Error('no second working entry');
+    expect((await fetch(`${base}/${second.id}`, { method: 'DELETE' })).status).toBe(204);
+    const after = await read();
+    expect(after.filter((a) => a.lastWorkingAdmin).map((a) => a.userId !== null)).toEqual([true]);
+  });
+
   it('answers 201 with the new org when a platform admin creates one', async () => {
     const admin = mockDb.state.users[0];
     if (admin) admin.platformAdmin = true;
@@ -541,6 +661,8 @@ describe('MSW handler semantics', () => {
     while (remaining.filter((a) => a.userId !== null).length > 1) {
       const target = remaining.find((a) => a.userId === null) ?? remaining.find((a) => a.userId !== null);
       if (!target) throw new Error('empty');
+      // Revoking the signed-in user's own row clears their flag (as the API does); sign them back in as admin.
+      if (me) me.platformAdmin = true;
       expect((await fetch(`${base}/${target.id}`, { method: 'DELETE' })).status).toBe(204);
       remaining = remaining.filter((a) => a.id !== target.id);
     }
@@ -567,6 +689,55 @@ describe('MSW handler semantics', () => {
     const listed = PlatformAdminDto.array().parse(((await (await fetch(base)).json()) as { items: unknown[] }).items);
     expect(listed.find((a) => a.id === seeded.id)).toMatchObject({ userId: null, email: seeded.email });
     expect(listed).toHaveLength(platformAdminFixtures.length);
+  });
+
+  it('answers 422 on /email for an unverified account, after the 404 check, and adds nothing', async () => {
+    const me = mockDb.state.users[0];
+    if (!me) throw new Error('no user');
+    me.platformAdmin = true;
+    mockDb.state.users.push({
+      ...me,
+      id: 'user-unverified',
+      name: 'Unverified',
+      email: 'unverified@example.test',
+      emailVerified: false,
+      handle: 'unverified',
+      platformAdmin: false,
+    });
+    const base = 'http://localhost:3000/api/platform/admins';
+    const post = (email: string) =>
+      fetch(base, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ email }) });
+    const res = await post('unverified@example.test');
+    expect(res.status).toBe(422);
+    expect(await res.json()).toMatchObject({ errors: [{ pointer: '/email' }] });
+    const listed = PlatformAdminDto.array().parse(((await (await fetch(base)).json()) as { items: unknown[] }).items);
+    expect(listed).toHaveLength(platformAdminFixtures.length);
+    expect((await post('nobody@example.org')).status).toBe(404);
+  });
+
+  it('revoking an admin row clears the platform flag of the user with that email', async () => {
+    const me = mockDb.state.users[0];
+    if (!me) throw new Error('no user');
+    me.platformAdmin = true;
+    const base = 'http://localhost:3000/api/platform/admins';
+    seedPlatformAdmins([
+      {
+        id: crypto.randomUUID(),
+        email: me.email.toLowerCase(),
+        userId: me.id,
+        name: me.name,
+        handle: me.handle,
+        grantedAt: me.createdAt,
+        grantedBy: null,
+        lastWorkingAdmin: false,
+      },
+      ...platformAdminFixtures.filter((a) => a.userId !== null),
+    ]);
+    const listed = PlatformAdminDto.array().parse(((await (await fetch(base)).json()) as { items: unknown[] }).items);
+    const mine = listed.find((a) => a.userId === me.id);
+    if (!mine) throw new Error('own row missing');
+    expect((await fetch(`${base}/${mine.id}`, { method: 'DELETE' })).status).toBe(204);
+    expect(me.platformAdmin).toBe(false);
   });
 
   it('finishes a done run, and answers 409 for a run that is only running', async () => {
@@ -814,6 +985,178 @@ describe('MSW handler semantics', () => {
     });
   });
 
+  describe('project environment', () => {
+    const EMPTY = ids.project.docsSite;
+    const SECRET_VALUE = 'test-token-not-real-123456';
+    const list = (projectId: string, kind: 'plain' | 'secret', page = 1, pageSize = 20) =>
+      api.projectEnv.list({ params: { projectId }, query: { kind, page, pageSize } });
+    const addVar = (name: string, value = 'v', projectId = EMPTY) =>
+      api.projectEnv.createVar({ params: { projectId }, body: { name, value } });
+    const addSecret = (name: string, value = SECRET_VALUE, projectId = EMPTY) =>
+      api.projectEnv.createSecret({ params: { projectId }, body: { name, value } });
+    const EXISTS = (name: string) => `${name} already exists. A name can be used once, as a variable or a secret.`;
+
+    it('serves the fixtures per kind, secrets without a value; other projects are empty', async () => {
+      const vars = await list(P, 'plain');
+      expect(vars).toMatchObject({ total: 3, page: 1, pageSize: 20 });
+      expect(vars.items.map((e) => e.name)).toContain('DB_HOST');
+      expect(vars.items.every((e) => e.kind === 'plain' && e.value !== null)).toBe(true);
+      const secrets = await list(P, 'secret');
+      expect(secrets.items.map((e) => e.name)).toContain('NPM_TOKEN');
+      expect(secrets).toMatchObject({ total: 2 });
+      expect(secrets.items.every((e) => e.kind === 'secret' && e.value === null)).toBe(true);
+      await expect(list(EMPTY, 'plain')).resolves.toMatchObject({ items: [], total: 0 });
+      await expect(list(EMPTY, 'secret')).resolves.toMatchObject({ items: [], total: 0 });
+    });
+
+    it('lists in byte order of the name and pages with the real total', async () => {
+      for (const name of ['abc', '_x', 'Zed', 'ABC', 'db_host']) await addVar(name);
+      expect((await list(EMPTY, 'plain')).items.map((e) => e.name)).toEqual(['ABC', 'Zed', '_x', 'abc', 'db_host']);
+      const second = await list(EMPTY, 'plain', 2, 2);
+      expect(second).toMatchObject({ total: 5, page: 2, pageSize: 2 });
+      expect(second.items.map((e) => e.name)).toEqual(['_x', 'abc']);
+      await expect(list(EMPTY, 'plain', 4, 2)).resolves.toMatchObject({ items: [], total: 5 });
+    });
+
+    it('creates a variable (201) with who and when, and lists it; names are case-sensitive', async () => {
+      const res = await fetch(`http://localhost:3000/api/projects/${EMPTY}/env-vars`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ name: 'DB_HOST', value: 'localhost' }),
+      });
+      expect(res.status).toBe(201);
+      const lower = await addVar('db_host', 'lower');
+      expect(lower).toMatchObject({ name: 'db_host', kind: 'plain', value: 'lower', updatedBy: expect.any(String) });
+      expect((await list(EMPTY, 'plain')).items.map((e) => e.name)).toEqual(['DB_HOST', 'db_host']);
+    });
+
+    it('answers 409 with the name error when the name exists in either kind, and changes nothing', async () => {
+      await addVar('DB_HOST', 'first');
+      await addSecret('NPM_TOKEN');
+      const cases = [
+        () => addVar('DB_HOST', 'other'),
+        () => addVar('NPM_TOKEN', 'x'),
+        () => addSecret('DB_HOST', 'test-token-not-real-5'),
+        () => addSecret('NPM_TOKEN', 'test-token-not-real-6'),
+      ];
+      for (const call of cases) {
+        const e = await rejection(call());
+        expect(e.status).toBe(409);
+        expect(e.errors).toHaveLength(1);
+        expect(e.errors?.[0]).toMatchObject({ pointer: '/name' });
+      }
+      expect((await rejection(addVar('NPM_TOKEN'))).errors?.[0]?.detail).toBe(EXISTS('NPM_TOKEN'));
+      expect((await rejection(addSecret('DB_HOST'))).errors?.[0]?.detail).toBe(EXISTS('DB_HOST'));
+      expect((await list(EMPTY, 'plain')).items).toMatchObject([{ name: 'DB_HOST', value: 'first' }]);
+      expect((await list(EMPTY, 'secret')).items.map((e) => e.name)).toEqual(['NPM_TOKEN']);
+    });
+
+    it('answers 400 with the schema pointer for an invalid or reserved name and a short or empty secret', async () => {
+      const name = await rejection(addVar('1BAD'));
+      expect(name.status).toBe(400);
+      expect(name.errors?.[0]?.pointer).toBe('/name');
+      expect((await rejection(addVar('PATH'))).errors?.[0]).toMatchObject({
+        pointer: '/name',
+        detail: 'PATH is reserved: Agent Desk sets it for every run.',
+      });
+      expect((await rejection(addSecret('OK_NAME', '12345'))).errors?.[0]).toMatchObject({
+        pointer: '/value',
+        detail: 'Too short to hide in logs.',
+      });
+      expect((await rejection(addSecret('OK_NAME', ''))).errors?.[0]?.detail).toBe('Enter a value.');
+      await expect(addSecret('OK_NAME', '123456')).resolves.toMatchObject({ name: 'OK_NAME', value: null });
+    });
+
+    it('updates a variable value; an update never creates (404 for a missing name or the other kind)', async () => {
+      await addVar('DB_HOST', 'old');
+      await addSecret('NPM_TOKEN');
+      const put = (kind: 'Var' | 'Secret', name: string, value: string) =>
+        kind === 'Var'
+          ? api.projectEnv.updateVar({ params: { projectId: EMPTY, name }, body: { value } })
+          : api.projectEnv.updateSecret({ params: { projectId: EMPTY, name }, body: { value } });
+      await expect(put('Var', 'DB_HOST', 'new')).resolves.toMatchObject({ name: 'DB_HOST', value: 'new' });
+      expect((await list(EMPTY, 'plain')).items).toMatchObject([{ name: 'DB_HOST', value: 'new' }]);
+      expect((await rejection(put('Var', 'MISSING', 'x'))).status).toBe(404);
+      expect((await rejection(put('Var', 'NPM_TOKEN', 'x'))).status).toBe(404);
+      expect((await rejection(put('Secret', 'DB_HOST', SECRET_VALUE))).status).toBe(404);
+      expect((await rejection(put('Secret', 'MISSING', SECRET_VALUE))).status).toBe(404);
+      expect((await list(EMPTY, 'plain')).total).toBe(1);
+      expect((await list(EMPTY, 'secret')).total).toBe(1);
+    });
+
+    it('removes by kind; a missing name or the other kind is 404', async () => {
+      await addVar('DB_HOST');
+      await addSecret('NPM_TOKEN');
+      const p = (name: string) => ({ projectId: EMPTY, name });
+      expect((await rejection(api.projectEnv.removeVar({ params: p('NPM_TOKEN') }))).status).toBe(404);
+      expect((await rejection(api.projectEnv.removeSecret({ params: p('DB_HOST') }))).status).toBe(404);
+      expect((await rejection(api.projectEnv.removeVar({ params: p('MISSING') }))).status).toBe(404);
+      await api.projectEnv.removeVar({ params: p('DB_HOST') });
+      await api.projectEnv.removeSecret({ params: p('NPM_TOKEN') });
+      expect((await list(EMPTY, 'plain')).total).toBe(0);
+      expect((await list(EMPTY, 'secret')).total).toBe(0);
+    });
+
+    it('never echoes or keeps a secret value: not in a response, an error, the store or its snapshot', async () => {
+      const created = await addSecret('NPM_TOKEN');
+      expect(created.value).toBeNull();
+      const replaced = await api.projectEnv.updateSecret({
+        params: { projectId: EMPTY, name: 'NPM_TOKEN' },
+        body: { value: 'test-token-not-real-replaced' },
+      });
+      expect(replaced.value).toBeNull();
+      const dup = await rejection(addSecret('NPM_TOKEN', 'test-token-not-real-dup'));
+      const wire = JSON.stringify([
+        created,
+        replaced,
+        dup.title,
+        dup.detail,
+        dup.errors,
+        dup.message,
+        await list(EMPTY, 'secret'),
+      ]);
+      const store = JSON.stringify(mockDb.snapshot()) + JSON.stringify(mockDb.state);
+      for (const v of [SECRET_VALUE, 'test-token-not-real-replaced', 'test-token-not-real-dup']) {
+        expect(wire).not.toContain(v);
+        expect(store).not.toContain(v);
+      }
+    });
+
+    it("answers 404 for another org's project and for an unknown one", async () => {
+      expect((await rejection(list(ids.project.storefront, 'plain'))).status).toBe(404);
+      expect((await rejection(addVar('X_ONE', 'v', ids.project.storefront))).status).toBe(404);
+    });
+
+    it('refuses an add at the entry cap (409) while edit and remove still work', async () => {
+      applyMockLists({ env: { variables: 500, secrets: 0 } });
+      const e = await rejection(addVar('ONE_MORE', 'v', P));
+      expect(e.status).toBe(409);
+      expect(e.title).toBe('Conflict');
+      expect(e.detail).toContain('500');
+      expect((await list(P, 'plain')).total).toBe(500);
+      await expect(
+        api.projectEnv.updateVar({ params: { projectId: P, name: 'VAR_001' }, body: { value: 'edited' } }),
+      ).resolves.toMatchObject({ value: 'edited' });
+      await api.projectEnv.removeVar({ params: { projectId: P, name: 'VAR_001' } });
+      await expect(addVar('ONE_MORE', 'v', P)).resolves.toMatchObject({ name: 'ONE_MORE' });
+    });
+
+    it('refuses a write that would pass 256 KiB of names and values together (409 Too large)', async () => {
+      const big = 'x'.repeat(8192);
+      for (let i = 1; i <= 31; i += 1) await addVar(`E2E_FILL_${String(i).padStart(2, '0')}`, big);
+      const e = await rejection(addVar('NEWVAR', big));
+      expect(e.status).toBe(409);
+      expect(e.title).toBe('Conflict');
+      await addVar('SMALL', 'x');
+      await addVar('GROW', 'short');
+      const grow = await rejection(
+        api.projectEnv.updateVar({ params: { projectId: EMPTY, name: 'GROW' }, body: { value: big } }),
+      );
+      expect(grow.status).toBe(409);
+      expect((await list(EMPTY, 'plain', 1, 100)).items.find((x) => x.name === 'GROW')?.value).toBe('short');
+    });
+  });
+
   it('records requests for assertions', async () => {
     await api.projects.list();
     expect(mockDb.requests('GET', '/api/projects')).toBe(1);
@@ -990,5 +1333,132 @@ describe('runs.list linkedTickets follow the API rules', () => {
     expect(items.some((r) => 'linkedIssueRefs' in r)).toBe(false);
     const stats = await api.runs.stats({ params: { projectId: P }, query: { since: '2000-01-01T00:00:00.000Z' } });
     expect(stats.idleRun === null || RunListItem.safeParse(stats.idleRun).success).toBe(true);
+  });
+});
+
+describe('platform org directory store', () => {
+  const names = (q: Parameters<typeof listPlatformOrgs>[0]) => listPlatformOrgs(q).items.map((o) => o.name);
+  const base = { page: 1, pageSize: PAGE_SIZE_DEFAULT };
+
+  it('covers the directory cases in its fixtures', () => {
+    const f = platformOrgDtoFixtures;
+    expect(f.some((o) => o.status === 'suspended')).toBe(true);
+    expect(f.some((o) => o.owner === null)).toBe(true);
+    expect(f.some((o) => o.lastActivityAt === null)).toBe(true);
+    expect(f.some((o) => o.name.length > 40)).toBe(true);
+    expect(f.some((o) => o.name === 'Acme' && o.slug === 'acme')).toBe(true);
+    expect(f.some((o) => o.name === 'Beta' && o.slug === 'beta-labs')).toBe(true);
+  });
+  it('searches the name, case-insensitively', () => {
+    expect(names({ ...base, q: 'ACME' })).toEqual(['Acme']);
+  });
+  it('searches the slug', () => {
+    expect(names({ ...base, q: 'labs' })).toEqual(['Beta']);
+  });
+  it('filters by status', () => {
+    const rows = listPlatformOrgs({ ...base, status: 'suspended' }).items;
+    expect(rows.length).toBeGreaterThan(0);
+    expect(rows.every((o) => o.status === 'suspended')).toBe(true);
+  });
+  it('treats a percent sign as a literal, so it matches nothing', () => {
+    expect(names({ ...base, q: '%' })).toEqual([]);
+  });
+  it('matches %, _ and a backslash as literal characters', () => {
+    const add = (name: string, slug: string) =>
+      addPlatformOrg({ id: crypto.randomUUID(), name, slug, createdAt: '2026-11-01T00:00:00.000Z' });
+    add('Lit_Under', 'lit-under');
+    add('Lit%Percent', 'lit-percent');
+    add('Lit\\Back', 'lit-back');
+    expect(names({ ...base, q: '_' })).toEqual(['Lit_Under']);
+    expect(names({ ...base, q: '%' })).toEqual(['Lit%Percent']);
+    expect(names({ ...base, q: '\\' })).toEqual(['Lit\\Back']);
+  });
+  it('lists newest first, breaking a tie by id', () => {
+    const at = '2026-12-01T00:00:00.000Z';
+    addPlatformOrg({ id: 'b8000000-0000-4000-8000-0000000000f2', name: 'Tie B', slug: 'tie-b', createdAt: at });
+    addPlatformOrg({ id: 'b8000000-0000-4000-8000-0000000000f1', name: 'Tie A', slug: 'tie-a', createdAt: at });
+    const rows = listPlatformOrgs({ ...base }).items;
+    expect(rows.slice(0, 2).map((o) => o.name)).toEqual(['Tie A', 'Tie B']);
+    const times = rows.map((o) => o.createdAt);
+    expect(times).toEqual([...times].sort().reverse());
+  });
+  it('reads one org as a detail with no suspension yet', () => {
+    const first = platformOrgDtoFixtures[0];
+    if (!first) throw new Error('no fixture');
+    expect(getPlatformOrg(first.id)).toMatchObject({ id: first.id, suspension: null });
+  });
+  it('answers 404 for an unknown org', () => {
+    expect(() => getPlatformOrg('unknown')).toThrow(Problem);
+    try {
+      getPlatformOrg('unknown');
+    } catch (e) {
+      expect(e instanceof Problem && e.init.status).toBe(404);
+    }
+  });
+  it('serves the list and the detail over HTTP', async () => {
+    const me = mockDb.state.users[0];
+    if (me) me.platformAdmin = true;
+    const res = await fetch('http://localhost:3000/api/platform/orgs?q=acme');
+    expect(((await res.json()) as { items: unknown[] }).items).toHaveLength(1);
+    const first = platformOrgDtoFixtures[0];
+    if (!first) throw new Error('no fixture');
+    expect((await fetch(`http://localhost:3000/api/platform/orgs/${first.id}`)).status).toBe(200);
+    expect((await fetch(`http://localhost:3000/api/platform/orgs/${crypto.randomUUID()}`)).status).toBe(404);
+  });
+  it('suspends and reactivates an org over HTTP, a repeat changes nothing, bad input is a 400 at /reason', async () => {
+    const me = mockDb.state.users[0];
+    if (me) me.platformAdmin = true;
+    const target = platformOrgDtoFixtures.find((o) => o.status === 'active');
+    if (!target) throw new Error('no active fixture');
+    const url = `http://localhost:3000/api/platform/orgs/${target.id}`;
+    const post = (path: string, body: unknown) =>
+      fetch(`${url}/${path}`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+
+    const bad = await post('suspend', { reason: '   ' });
+    expect(bad.status).toBe(400);
+    expect(await bad.json()).toMatchObject({ errors: [{ pointer: '/reason' }] });
+    expect(
+      (
+        await fetch(`http://localhost:3000/api/platform/orgs/${crypto.randomUUID()}/suspend`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ reason: 'x' }),
+        })
+      ).status,
+    ).toBe(404);
+
+    const suspended = await post('suspend', { reason: ' abuse ' });
+    expect(suspended.status).toBe(200);
+    const detail = PlatformOrgDetailDto.parse(await suspended.json());
+    expect(detail).toMatchObject({ status: 'suspended', suspension: { reason: 'abuse' } });
+    expect(detail.suspendedAt).not.toBeNull();
+    expect(detail.suspension?.by).toEqual({ userId: me?.id, name: me?.name, handle: me?.handle ?? null });
+
+    const repeat = PlatformOrgDetailDto.parse(await (await post('suspend', { reason: 'second' })).json());
+    expect(repeat).toEqual(detail);
+
+    const reactivated = PlatformOrgDetailDto.parse(await (await post('reactivate', { reason: 'resolved' })).json());
+    expect(reactivated).toMatchObject({ status: 'active', suspendedAt: null, suspension: null });
+    expect(getPlatformOrg(target.id)).toMatchObject({ status: 'active', suspension: null });
+
+    const reactivatedAgain = await post('reactivate', { reason: 'again' });
+    expect(reactivatedAgain.status).toBe(200);
+    expect(PlatformOrgDetailDto.parse(await reactivatedAgain.json())).toEqual(reactivated);
+  });
+  it('adds a created org to the directory with no owner', async () => {
+    const me = mockDb.state.users[0];
+    if (me) me.platformAdmin = true;
+    const res = await fetch('http://localhost:3000/api/platform/orgs', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ name: 'Gamma', slug: 'gamma' }),
+    });
+    expect(res.status).toBe(201);
+    const row = listPlatformOrgs({ ...base, q: 'gamma' }).items[0];
+    expect(row).toMatchObject({ name: 'Gamma', owner: null, status: 'active', memberCount: 0, projectCount: 0 });
   });
 });

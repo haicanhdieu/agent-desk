@@ -88,11 +88,13 @@ export function DurationInput({
   );
 }
 
+/** `hideLabel` renames the button while the value is shown (and drops aria-pressed, the name carries the state). */
 export function PasswordInput({
   revealLabel,
+  hideLabel,
   className,
   ...rest
-}: { revealLabel: string } & InputHTMLAttributes<HTMLInputElement>) {
+}: { revealLabel: string; hideLabel?: string } & InputHTMLAttributes<HTMLInputElement>) {
   const [shown, setShown] = useState(false);
   return (
     <div className={cx(styles.wrap, styles.pw, className)} aria-invalid={rest['aria-invalid']}>
@@ -107,8 +109,8 @@ export function PasswordInput({
       <IconButton
         icon="eye"
         size="sm"
-        aria-label={revealLabel}
-        aria-pressed={shown}
+        aria-label={shown && hideLabel ? hideLabel : revealLabel}
+        aria-pressed={hideLabel ? undefined : shown}
         onClick={() => setShown((s) => !s)}
       />
     </div>

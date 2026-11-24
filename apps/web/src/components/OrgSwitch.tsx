@@ -11,13 +11,15 @@ export interface OrgSwitchProps extends OrgSwitchData {
   projectsHref?: string;
   /** Absent means no "Settings" item. */
   settingsHref?: string;
+  /** Present for a platform admin: the "Platform admin" item above "Create organization". */
+  platformHref?: string;
 }
 
 const onMenuKeyDown = menuKeyDown('a[href]');
 
 /** The org crumb of the top bar: always a menu button (org name, Projects, Settings, switch group, Create), except plain text for no org and no platform admin. */
 export function OrgSwitch(props: OrgSwitchProps) {
-  if (props.orgs.length === 0 && !props.current && !props.platformAdmin) {
+  if (props.orgs.length === 0 && !props.current && !props.platformAdmin && props.platformHref === undefined) {
     return (
       <span className={styles.plain}>
         <span className={styles.name}>No organization</span>
@@ -35,6 +37,7 @@ function OrgSwitchMenu({
   createHref,
   projectsHref,
   settingsHref,
+  platformHref,
 }: OrgSwitchProps) {
   const shown = current ?? (orgs.length === 1 ? orgs[0] : undefined);
   const canSwitch = orgs.length > 1 || platformAdmin;
@@ -129,6 +132,7 @@ function OrgSwitchMenu({
                       <span className={styles.itemName} title={org.name}>
                         {org.name}
                       </span>
+                      {org.suspended && <span className={styles.suspended}>Suspended</span>}
                       {isCurrent && (
                         <span className={styles.check}>
                           <Icon name="check" size={14} />
@@ -140,12 +144,19 @@ function OrgSwitchMenu({
               </div>
             </>
           )}
-          {platformAdmin && (
+          {(platformAdmin || platformHref !== undefined) && (
             <>
               {(shown || orgs.length > 0) && <div className={styles.divider} role="separator" />}
-              <AppLink href={createHref} className={styles.item} onClick={close}>
-                <span className={styles.itemName}>Create organization</span>
-              </AppLink>
+              {platformHref !== undefined && (
+                <AppLink href={platformHref} className={styles.item} onClick={close}>
+                  <span className={styles.itemName}>Platform admin</span>
+                </AppLink>
+              )}
+              {platformAdmin && (
+                <AppLink href={createHref} className={styles.item} onClick={close}>
+                  <span className={styles.itemName}>Create organization</span>
+                </AppLink>
+              )}
             </>
           )}
         </div>

@@ -1,7 +1,14 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import { userEvent, within } from 'storybook/test';
 import { AppShell, ChangeRoleDialog, type ChangeRoleDialogProps } from '@/components';
-import { auditRows, memberRows, orgSettingsFixtures, pagedAuditLastPage, roleCards } from '@/mocks';
+import {
+  auditRows,
+  memberRows,
+  orgSettingsFixtures,
+  pagedAuditLastPage,
+  platformSuspendAuditRows,
+  roleCards,
+} from '@/mocks';
 import type { MemberRowView } from '@/mocks/types';
 import { OrgAudit as OrgAuditScreen, type OrgAuditProps } from './OrgAudit';
 import { OrgGeneral as OrgGeneralScreen, type OrgGeneralProps } from './OrgGeneral';
@@ -350,4 +357,34 @@ export const OrgAuditError: Story = {
 export const OrgAuditForbidden: Story = {
   name: 'Audit log URL opened by a project admin: no access inside the layout',
   render: () => audit({ kind: 'forbidden' }, { role: 'projectAdmin' }),
+};
+
+export const OrgAuditPlatformSuspend: Story = {
+  name: 'Audit log after reactivation: a platform admin suspended and reactivated the organization, no reason',
+  render: () => audit({ kind: 'ready', rows: platformSuspendAuditRows }),
+};
+
+const titleOf = (r: (typeof auditRows)[number]): string => (r.what.kind === 'sentence' ? r.what.title : r.what.key);
+const auditRowWith = (...parts: string[]) => {
+  const row = auditRows.find((r) => parts.every((x) => titleOf(r).includes(x)));
+  if (!row) throw new Error(`no audit row with ${parts.join(' ')}`);
+  return row;
+};
+
+export const OrgAuditInvitationProjects: Story = {
+  name: 'Audit log, invitation entries: 2 projects, more than 3 projects, org scope (no projects), expired',
+  render: () =>
+    audit({
+      kind: 'ready',
+      rows: [
+        auditRowWith('eli@contractor.io', ' to invoicer-api, invoicer-web'),
+        auditRowWith('wide.access@contractor.io', 'billing-jobs'),
+        auditRowWith('long-invitee-'),
+        auditRowWith('sam.reyes@contractor.io', 'expired'),
+      ],
+    }),
+};
+export const OrgAuditInvitationNoEmail: Story = {
+  name: 'Audit log, an expired invitation entry without the email',
+  render: () => audit({ kind: 'ready', rows: [...auditRows.slice(0, 5), auditRowWith('An invitation expired')] }),
 };

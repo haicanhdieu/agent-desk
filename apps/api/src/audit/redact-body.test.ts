@@ -83,3 +83,44 @@ describe('redactBody credential with an address', () => {
     ).toEqual({ type: 'api_key', baseUrl: 'https://gw.example.com/anthropic' });
   });
 });
+
+describe('redactBody token-shaped values', () => {
+  it('masks a GitHub token inside a string value at any depth and keeps the rest of the text', () => {
+    const token = `ghp_${'a'.repeat(36)}`;
+    const pat = `github_pat_${'B'.repeat(30)}`;
+    expect(redactBody({ reason: `see ${token} now`, nested: { list: [pat] }, n: 1 })).toEqual({
+      reason: 'see *** now',
+      nested: { list: ['***'] },
+      n: 1,
+    });
+  });
+
+  it('masks every token shape the shared redactor knows, not only GitHub classic ones', () => {
+    const out = redactBody({
+      a: 'leaked sk-ant-api03-AbCdEf0123456789xyz here',
+      b: 'clone https://x-access-token:s3cr3tvalue@github.com/a/b.git ok',
+      c: `ghs_${'z'.repeat(25)}`,
+      d: `my_ghp_${'a'.repeat(36)}`,
+    });
+    expect(out).toEqual({
+      a: 'leaked *** here',
+      b: 'clone https://***github.com/a/b.git ok',
+      c: '***',
+      d: 'my_***',
+    });
+  });
+
+  it('leaves an ordinary sentence and a short ghp_ prefix alone', () => {
+    expect(redactBody({ reason: 'ghp_short is not a token' })).toEqual({ reason: 'ghp_short is not a token' });
+    expect(redactBody({ reason: 'Unpaid invoice, contact billing at 5pm.' })).toEqual({
+      reason: 'Unpaid invoice, contact billing at 5pm.',
+    });
+  });
+});
+
+describe('redactBody env entries', () => {
+  it('drops value and keeps name', () => {
+    expect(redactBody({ name: 'FOO', value: 'v1' }, 'POST projectEnv.createVar')).toEqual({ name: 'FOO' });
+    expect(redactBody({ value: 'v1' }, 'PUT projectEnv.updateSecret')).toEqual({});
+  });
+});

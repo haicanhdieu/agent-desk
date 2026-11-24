@@ -253,6 +253,69 @@
       "when": 1795400000000,
       "tag": "0035_seed_audit_read",
       "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1795500000000,
+      "tag": "0036_seed_project_audit_read",
+      "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "7",
+      "when": 1795500100000,
+      "tag": "0037_audit_log_project_ids",
+      "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "7",
+      "when": 1795500200000,
+      "tag": "0038_audit_log_project_ids_idx",
+      "breakpoints": true
+    },
+    {
+      "idx": 39,
+      "version": "7",
+      "when": 1795500300000,
+      "tag": "0039_backfill_audit_project_ids",
+      "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "7",
+      "when": 1795500400000,
+      "tag": "0040_organization_status",
+      "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "7",
+      "when": 1795500500000,
+      "tag": "0041_runs_org_queued_idx",
+      "breakpoints": true
+    },
+    {
+      "idx": 42,
+      "version": "7",
+      "when": 1795500600000,
+      "tag": "0042_platform_org_stats",
+      "breakpoints": true
+    },
+    {
+      "idx": 43,
+      "version": "7",
+      "when": 1795500700000,
+      "tag": "0043_platform_audit_target_org",
+      "breakpoints": true
+    },
+    {
+      "idx": 44,
+      "version": "7",
+      "when": 1795500800000,
+      "tag": "0044_project_env_vars",
+      "breakpoints": true
     }
   ]
 }

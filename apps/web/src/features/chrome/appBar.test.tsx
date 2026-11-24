@@ -9,7 +9,7 @@ import { setActiveOrganization, type Session } from '../auth/session';
 import { toAccess } from '../access/queries';
 import { canOpenSettings, firstSettingsTab, orgSettingsTabs, useAppBar } from './appBar';
 
-const apiMock = vi.hoisted(() => ({ access: vi.fn(), listInvitations: vi.fn() }));
+const apiMock = vi.hoisted(() => ({ access: vi.fn(), listInvitations: vi.fn(), platform: vi.fn() }));
 vi.mock('@/features/api', () => ({ api: { me: apiMock } }));
 // Only the server call of an org switch is replaced; `authCall` and the cache handling in session.ts are real.
 const authMock = vi.hoisted(() => ({ setActive: vi.fn() }));
@@ -61,8 +61,8 @@ const session: Session = {
   activeOrganizationId: 'org-b',
 };
 const orgs = [
-  { id: 'org-a', slug: 'acme', name: 'Acme' },
-  { id: 'org-b', slug: 'beta', name: 'Beta' },
+  { id: 'org-a', slug: 'acme', name: 'Acme', status: 'active' as const },
+  { id: 'org-b', slug: 'beta', name: 'Beta', status: 'active' as const },
 ];
 
 /** Like the app's client: fresh data is not refetched for 30s. */
@@ -87,13 +87,16 @@ const never = () => new Promise<never>(() => undefined);
 describe('useAppBar', () => {
   beforeEach(() => {
     apiMock.access.mockReset();
+    apiMock.platform.mockReset();
+    apiMock.platform.mockResolvedValue({ platformAdmin: false });
     apiMock.listInvitations.mockReset();
     apiMock.listInvitations.mockResolvedValue(invitations(0));
   });
 
   it.each(WHO)('%s: settingsHref only when a tab may open', async (who) => {
     // platformAdmin is set only so the render that holds the loaded access is observable (it never opens Settings).
-    apiMock.access.mockResolvedValue({ ...tenantAccessFixtures[who], platformAdmin: true });
+    apiMock.access.mockResolvedValue(tenantAccessFixtures[who]);
+    apiMock.platform.mockResolvedValue({ platformAdmin: true });
     const client = makeClient();
     const { result } = renderHook(() => useAppBar('acme'), { wrapper: setup(client) });
     await settled(client, accessKeys.org('acme'));
@@ -119,7 +122,8 @@ describe('useAppBar', () => {
   });
 
   it('a platform admin with no org role gets no Settings item', async () => {
-    apiMock.access.mockResolvedValue({ ...tenantAccessFixtures.noRole, platformAdmin: true });
+    apiMock.access.mockResolvedValue(tenantAccessFixtures.noRole);
+    apiMock.platform.mockResolvedValue({ platformAdmin: true });
     const { result } = renderHook(() => useAppBar('acme'), { wrapper: setup() });
     await waitFor(() => expect(result.current.org.platformAdmin).toBe(true));
     expect(result.current.org.settingsHref).toBeUndefined();
@@ -154,11 +158,42 @@ describe('useAppBar', () => {
 
     // The user opens /o/beta/... where they are only a member: the active org switches to beta.
     await setActiveOrganization(client, orgs[1]);
-    apiMock.access.mockResolvedValue({ ...tenantAccessFixtures.member, platformAdmin: true });
+    apiMock.access.mockResolvedValue(tenantAccessFixtures.member);
     const second = renderHook(() => useAppBar(null), { wrapper: setup(client) });
-    await waitFor(() => expect(second.result.current.org.platformAdmin).toBe(true));
+    // The new org's grants load again; the session-wide platform flag is not org data and stays cached.
+    await settled(client, accessKeys.session());
+    await waitFor(() => expect(client.getQueryState(accessKeys.session())?.status).toBe('success'));
     expect(second.result.current.org.current?.slug).toBe('beta');
     expect(second.result.current.org.settingsHref).toBeUndefined();
     expect(apiMock.access).toHaveBeenCalledTimes(2);
+  });
+
+  it('BR-1: a platform admin gets platformHref on an org page and on a personal page', async () => {
+    apiMock.access.mockResolvedValue(tenantAccessFixtures.member);
+    apiMock.platform.mockResolvedValue({ platformAdmin: true });
+    const org = renderHook(() => useAppBar('acme'), { wrapper: setup() });
+    await waitFor(() => expect(org.result.current.org.platformHref).toBe('/platform'));
+    const personal = renderHook(() => useAppBar(null), { wrapper: setup() });
+    await waitFor(() => expect(personal.result.current.org.platformHref).toBe('/platform'));
+    expect(personal.result.current.org.platformAdmin).toBe(true);
+  });
+
+  it('BR-1: a person who is not a platform admin gets no platformHref', async () => {
+    apiMock.access.mockResolvedValue(tenantAccessFixtures.owner);
+    const client = makeClient();
+    const { result } = renderHook(() => useAppBar('acme'), { wrapper: setup(client) });
+    await settled(client, accessKeys.platform());
+    expect(result.current.org.platformHref).toBeUndefined();
+    expect(result.current.org.platformAdmin).toBe(false);
+  });
+
+  it('a failing me.platform hides the item and does not crash', async () => {
+    apiMock.access.mockResolvedValue(tenantAccessFixtures.owner);
+    apiMock.platform.mockRejectedValue(new Error('boom'));
+    const client = makeClient();
+    const { result } = renderHook(() => useAppBar('acme'), { wrapper: setup(client) });
+    await settled(client, accessKeys.platform());
+    expect(client.getQueryState(accessKeys.platform())?.status).toBe('error');
+    expect(result.current.org.platformHref).toBeUndefined();
   });
 });

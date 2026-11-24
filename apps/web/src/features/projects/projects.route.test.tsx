@@ -40,7 +40,7 @@ describe('projects route', () => {
     expect(link).toHaveAttribute('href', `/o/alice/p/${ids.project.docsSite}/desk/agent`);
   });
 
-  it('the More menu of a project offers Runs and Settings links and a disabled Delete', async () => {
+  it('the More menu of a project offers Runs and Settings links and an enabled Delete project', async () => {
     await renderRoute('/o/alice/projects');
     const more = await screen.findByRole('button', { name: 'More for invoicer-api' });
     await userEvent.click(more);
@@ -53,10 +53,132 @@ describe('projects route', () => {
       'href',
       `/o/alice/p/${ids.project.invoicerApi}/desk/agent`,
     );
-    const del = within(menu).getByRole('button', { name: 'Delete' });
-    expect(del).toBeDisabled();
-    await userEvent.click(del);
-    expect(screen.getByRole('dialog', { name: 'Actions for invoicer-api' })).toBeInTheDocument();
+    expect(within(menu).getByRole('button', { name: 'Delete project' })).toBeEnabled();
+  });
+
+  it('Delete project asks for confirmation, deletes the project through the API and drops its row', async () => {
+    await renderRoute('/o/alice/projects');
+    await userEvent.click(await screen.findByRole('button', { name: 'More for invoicer-api' }));
+    const menu = screen.getByRole('dialog', { name: 'Actions for invoicer-api' });
+    await userEvent.click(within(menu).getByRole('button', { name: 'Delete project' }));
+    const confirm = await screen.findByRole('dialog', { name: 'Delete project' });
+    // Nothing is deleted until the dialog is confirmed.
+    expect(mockDb.state.projects.some((p) => p.id === ids.project.invoicerApi)).toBe(true);
+    await userEvent.click(within(confirm).getByRole('button', { name: 'Cancel' }));
+    expect(screen.queryByRole('dialog', { name: 'Delete project' })).not.toBeInTheDocument();
+    expect(mockDb.state.projects.some((p) => p.id === ids.project.invoicerApi)).toBe(true);
+
+    await userEvent.click(screen.getByRole('button', { name: 'More for invoicer-api' }));
+    await userEvent.click(
+      within(screen.getByRole('dialog', { name: 'Actions for invoicer-api' })).getByRole('button', {
+        name: 'Delete project',
+      }),
+    );
+    await userEvent.click(
+      within(await screen.findByRole('dialog', { name: 'Delete project' })).getByRole('button', {
+        name: 'Delete project',
+      }),
+    );
+    await waitFor(() => expect(screen.queryByRole('link', { name: 'invoicer-api' })).not.toBeInTheDocument());
+    expect(mockDb.state.projects.some((p) => p.id === ids.project.invoicerApi)).toBe(false);
+    expect(screen.getByRole('link', { name: 'invoicer-web' })).toBeInTheDocument();
+  });
+
+  it('sends one delete request for a project while its delete is in flight', async () => {
+    let release: () => void = () => undefined;
+    const held = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    let calls = 0;
+    server.use(
+      http.delete('*/api/projects/*', async () => {
+        calls += 1;
+        await held;
+        return new Response(null, { status: 204 });
+      }),
+    );
+    await renderRoute('/o/alice/projects');
+    const confirmDelete = async () => {
+      await userEvent.click(await screen.findByRole('button', { name: 'More for invoicer-api' }));
+      await userEvent.click(
+        within(screen.getByRole('dialog', { name: 'Actions for invoicer-api' })).getByRole('button', {
+          name: 'Delete project',
+        }),
+      );
+      await userEvent.click(
+        within(await screen.findByRole('dialog', { name: 'Delete project' })).getByRole('button', {
+          name: 'Delete project',
+        }),
+      );
+    };
+    await confirmDelete();
+    await waitFor(() => expect(calls).toBe(1));
+    await confirmDelete();
+    release();
+    await waitFor(() => expect(screen.queryByRole('link', { name: 'invoicer-api' })).not.toBeInTheDocument());
+    expect(calls).toBe(1);
+  });
+
+  it('still reports a failed delete and allows a retry after another project delete started meanwhile', async () => {
+    let release: () => void = () => undefined;
+    const held = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const apiCalls: string[] = [];
+    server.use(
+      http.delete('*/api/projects/:projectId', async ({ params }) => {
+        const id = String(params['projectId']);
+        apiCalls.push(id);
+        if (id === ids.project.invoicerApi) {
+          await held;
+          return problemResponse({ status: 500, title: 'Internal server error', type: 'internal' });
+        }
+        return new Response(null, { status: 204 });
+      }),
+    );
+    await renderRoute('/o/alice/projects');
+    const confirmDelete = async (name: string) => {
+      await userEvent.click(await screen.findByRole('button', { name: `More for ${name}` }));
+      await userEvent.click(
+        within(screen.getByRole('dialog', { name: `Actions for ${name}` })).getByRole('button', {
+          name: 'Delete project',
+        }),
+      );
+      await userEvent.click(
+        within(await screen.findByRole('dialog', { name: 'Delete project' })).getByRole('button', {
+          name: 'Delete project',
+        }),
+      );
+    };
+    await confirmDelete('invoicer-api');
+    await waitFor(() => expect(apiCalls).toEqual([ids.project.invoicerApi]));
+    await confirmDelete('invoicer-web');
+    await waitFor(() => expect(apiCalls).toHaveLength(2));
+    release();
+    expect(await screen.findByText('Internal server error')).toBeInTheDocument();
+    await confirmDelete('invoicer-api');
+    await waitFor(() =>
+      expect(apiCalls).toEqual([ids.project.invoicerApi, ids.project.invoicerWeb, ids.project.invoicerApi]),
+    );
+  });
+
+  it('keeps the row and shows the problem when deleting a project fails', async () => {
+    scenarios.serverError('projects.remove');
+    await renderRoute('/o/alice/projects');
+    await userEvent.click(await screen.findByRole('button', { name: 'More for invoicer-api' }));
+    await userEvent.click(
+      within(screen.getByRole('dialog', { name: 'Actions for invoicer-api' })).getByRole('button', {
+        name: 'Delete project',
+      }),
+    );
+    await userEvent.click(
+      within(await screen.findByRole('dialog', { name: 'Delete project' })).getByRole('button', {
+        name: 'Delete project',
+      }),
+    );
+    expect(await screen.findByText('Internal server error')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'invoicer-api' })).toBeInTheDocument();
+    expect(mockDb.state.projects.some((p) => p.id === ids.project.invoicerApi)).toBe(true);
   });
 
   it('shows the empty state with a create link when the org has no projects', async () => {

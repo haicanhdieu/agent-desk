@@ -74,7 +74,8 @@
   }
 
   /* ---------- actions ---------- */
-  const slug = () => AD.cur.params.org;
+  // The org of the current route; the platform Invitations tab (screens/platform.js) sets params.invOrg.
+  const slug = () => AD.cur.params.org || AD.cur.params.invOrg;
   function copy(text) {
     const done = () => AD.toast('ok', 'Link copied');
     const failed = () => { AD.toast('err', 'Could not copy. Select the link and copy it.'); AD.ui.menu = null; AD.ui.dialog = { type: 'link' }; AD.render(); };
@@ -127,6 +128,27 @@
     }, 600);
   };
 
+  /* ---------- list parts (chips, table or empty state, dialogs); shared with the platform Invitations tab ---------- */
+  AD.invitationsParts = function (ctx) {
+      const status = FILTERS.some(([id]) => id === ctx.q.status) ? ctx.q.status : 'pending';
+      const vis = visibleInvites(ctx);
+      const list = status === 'all' ? vis : vis.filter((i) => i.status === status);
+      const forceEmpty = ctx.scen === 'empty';
+      const items = forceEmpty ? [] : list;
+      const pg = AD.slice(items, Number(ctx.q.page) || 1);
+      const chips = `<div class="filters" role="group" aria-label="Filter by status">${FILTERS.map(([id, label]) => `<button class="fchip${id === status ? ' on' : ''}" aria-pressed="${id === status}" data-act="inv-filter" data-status="${id}" data-live>${label}</button>`).join('')}</div>`;
+      let body;
+      if (!items.length) {
+        const label = ctx.invEmpty || (status === 'all' ? 'No invitations yet' : 'No ' + status + ' invitations');
+        body = `<table style="table-layout:fixed"><colgroup><col style="width:27%"><col style="width:9%"><col style="width:19%"><col style="width:11%"><col style="width:14%"><col style="width:13%"><col style="width:56px"></colgroup><thead><tr><th>Email</th><th>Role</th><th>Access</th><th>Status</th><th>Expires</th><th>Invited by</th><th><span style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)">Actions</span></th></tr></thead><tbody></tbody></table><div style="display:flex;flex-direction:column;align-items:center;gap:8px;text-align:center;padding:40px 16px"><h3>${label}</h3>${status === 'pending' ? `<div style="margin-top:6px"><button class="btn" data-act="inv-open">${I.plus}Invite people</button></div>` : ''}</div>`;
+      } else {
+        body = `<table style="table-layout:fixed"><colgroup><col style="width:27%"><col style="width:9%"><col style="width:19%"><col style="width:11%"><col style="width:14%"><col style="width:13%"><col style="width:56px"></colgroup><thead><tr><th>Email</th><th>Role</th><th>Access</th><th>Status</th><th>Expires</th><th>Invited by</th><th><span style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)">Actions</span></th></tr></thead><tbody>${pg.rows.map((i) => row(ctx, i)).join('')}</tbody></table>${AD.pager(pg)}`;
+      }
+      const d = AD.ui.dialog;
+      const overlay = !d ? '' : d.type === 'invite' ? inviteDialog(ctx) : d.type === 'created' ? createdDialog(ctx) : d.type === 'revoke' ? revokeDialog(ctx) : d.type === 'link' ? linkDialog() : '';
+      return { chips, body, overlay };
+  };
+
   /* ---------- screen ---------- */
   AD.screens['settings.invitations'] = {
     title: 'Settings, Invitations',
@@ -136,24 +158,9 @@
       if (!ctx.perm.invitations) return AD.settingsForbidden(ctx, 'invitations');
       const std = AD.settingsStd(ctx, 'invitations', { empty: null });
       if (std) return std;
-      const status = FILTERS.some(([id]) => id === ctx.q.status) ? ctx.q.status : 'pending';
-      const vis = visibleInvites(ctx);
-      const list = status === 'all' ? vis : vis.filter((i) => i.status === status);
-      const forceEmpty = ctx.scen === 'empty';
-      const items = forceEmpty ? [] : list;
-      const pg = AD.slice(items, Number(ctx.q.page) || 1);
-      const chips = FILTERS.map(([id, label]) => `<button class="fchip${id === status ? ' on' : ''}" aria-pressed="${id === status}" data-act="inv-filter" data-status="${id}" data-live>${label}</button>`).join('');
-      const head = `<div class="row" style="justify-content:space-between"><h1>Invitations</h1><button class="btn primary" data-act="inv-open">${I.plus}Invite people</button></div><div class="filters" role="group" aria-label="Filter by status">${chips}</div>`;
-      let body;
-      if (!items.length) {
-        const label = status === 'all' ? 'No invitations yet' : 'No ' + status + ' invitations';
-        body = `<table style="table-layout:fixed"><colgroup><col style="width:27%"><col style="width:9%"><col style="width:19%"><col style="width:11%"><col style="width:14%"><col style="width:13%"><col style="width:56px"></colgroup><thead><tr><th>Email</th><th>Role</th><th>Access</th><th>Status</th><th>Expires</th><th>Invited by</th><th><span style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)">Actions</span></th></tr></thead><tbody></tbody></table><div style="display:flex;flex-direction:column;align-items:center;gap:8px;text-align:center;padding:40px 16px"><h3>${label}</h3>${status === 'pending' ? `<div style="margin-top:6px"><button class="btn" data-act="inv-open">${I.plus}Invite people</button></div>` : ''}</div>`;
-      } else {
-        body = `<table style="table-layout:fixed"><colgroup><col style="width:27%"><col style="width:9%"><col style="width:19%"><col style="width:11%"><col style="width:14%"><col style="width:13%"><col style="width:56px"></colgroup><thead><tr><th>Email</th><th>Role</th><th>Access</th><th>Status</th><th>Expires</th><th>Invited by</th><th><span style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)">Actions</span></th></tr></thead><tbody>${pg.rows.map((i) => row(ctx, i)).join('')}</tbody></table>${AD.pager(pg)}`;
-      }
-      const d = AD.ui.dialog;
-      const overlay = !d ? '' : d.type === 'invite' ? inviteDialog(ctx) : d.type === 'created' ? createdDialog(ctx) : d.type === 'revoke' ? revokeDialog(ctx) : d.type === 'link' ? linkDialog() : '';
-      return AD.settingsOut(ctx, 'invitations', `<main style="${MAIN}">${head}${body}</main>`, overlay);
+      const parts = AD.invitationsParts(ctx);
+      const head = `<div class="row" style="justify-content:space-between"><h1>Invitations</h1><button class="btn primary" data-act="inv-open">${I.plus}Invite people</button></div>${parts.chips}`;
+      return AD.settingsOut(ctx, 'invitations', `<main style="${MAIN}">${head}${parts.body}</main>`, parts.overlay);
     },
   };
 })();

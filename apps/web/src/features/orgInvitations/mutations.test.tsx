@@ -13,7 +13,7 @@ const LIST_KEY = ['org', 'alice', 'invitations', 'list', 'pending', 1, 20] as co
 
 function setup() {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  queryClient.setQueryData(orgsQuery.queryKey, [{ id: ids.org.alice, name: 'Alice', slug: 'alice' }]);
+  queryClient.setQueryData(orgsQuery.queryKey, [{ id: ids.org.alice, name: 'Alice', slug: 'alice', status: 'active' }]);
   queryClient.setQueryData(AUDIT_KEY, { items: [], total: 0, page: 1, pageSize: 20 });
   queryClient.setQueryData(LIST_KEY, { items: [], total: 0, page: 1, pageSize: 20 });
   const wrapper = ({ children }: { children: ReactNode }) => (

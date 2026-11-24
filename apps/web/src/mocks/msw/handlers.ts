@@ -3,6 +3,7 @@ import {
   INVITATION_EXPIRY_SECONDS,
   ORG_HEADER,
   ORG_MISMATCH_PROBLEM_TYPE,
+  ORG_SUSPENDED_PROBLEM_TYPE,
   can,
   holdsAnywhere,
   routeAccess,
@@ -11,12 +12,18 @@ import {
   type InvitationDto,
   type InvitationListStatus,
   type MyInvitationDto,
+  type PermissionLineDto,
   canResume,
   FINISHABLE_RUN_STATUSES,
   STOPPABLE_RUN_STATUSES,
   type RouteDef,
   type RuleDto,
   FINAL_RUN_STATUSES,
+  ENV_CAP_DETAIL_PREFIX,
+  ENV_MAX_TOTAL_BYTES,
+  ENV_SIZE_DETAIL_PREFIX,
+  type EnvEntryDto,
+  type EnvKind,
   slicePage,
   type LinkedTicketDto,
   type ProjectConnectionDto,
@@ -33,13 +40,7 @@ import { authHandlers } from './auth-handlers';
 import { agentModelsAnswer } from './agentModels';
 import { PR_STATES_SLOW_MS, prStateItems } from './prStates';
 import type { MockRun } from '../dto/runs';
-import {
-  assignmentFixtures,
-  platformMemberFixtures,
-  platformOrgFixtures,
-  platformProjectFixtures,
-  roleFixtures,
-} from '../dto/access';
+import { assignmentFixtures, platformMemberFixtures, platformProjectFixtures, roleFixtures } from '../dto/access';
 import { checklistFixtures } from '../dto/invitations';
 import { promptPreviewFixture } from '../dto/rules';
 import { slowActionRuns, transcriptBehaviours } from '../dto/sessionRuns';
@@ -62,6 +63,7 @@ import {
   type RouteKey,
 } from './http';
 import { grantPlatformAdmin, listPlatformAdmins, revokePlatformAdmin } from './platformAdmins';
+import { addPlatformOrg, getPlatformOrg, listPlatformOrgs, setPlatformOrgStatus } from './platformOrgs';
 import { linkedTicketsFor, toDto } from './linkedTickets';
 import {
   changeMemberRole,
@@ -72,6 +74,17 @@ import {
   requireActiveOrg,
   updateOrg,
 } from './tenantAdminScenarios';
+import {
+  addProjectMember,
+  checkPickerFailure,
+  listProjectAudit,
+  applyAfterFirstPicker,
+  listProjectMembers,
+  pickerFilter,
+  removeProjectMember,
+  requireProjectScope,
+  setProjectRole,
+} from './projectSpaceScenarios';
 import { appendRunEvent, endSetupTest, rememberSetupTestScript, scriptRun, setRunStatus } from './live';
 
 // One handler per contracts route, implementing list/get/create/update/delete over the in-memory store. Every
@@ -273,6 +286,7 @@ const requireOrg = (orgId: string): string => {
   if (!db().orgs.some((o) => o.id === orgId)) throw notFound('Organization');
   return orgId;
 };
+const actorOf = (u: MockUser) => ({ userId: u.id, name: u.name, handle: u.handle ?? null });
 const revokeNotPending = () => conflict('Invitation is not pending', []);
 
 function revokeInvitation(orgId: string, id: string): null {
@@ -338,6 +352,27 @@ function projectRow(projectId: string): ProjectRow {
   const row = db().projects.find((p) => p.id === projectId && p.orgId === orgId);
   if (!row) throw notFound('Project');
   return row;
+}
+
+/** The project exists in the active org and the caller's seat reaches it; anything else is a 404. */
+function projectInScope(projectId: string): { user: MockUser; orgId: string } {
+  const { user, orgId } = session();
+  projectRow(projectId);
+  requireProjectScope(mockDb, user.id, orgId, projectId);
+  return { user, orgId };
+}
+
+const forbiddenProblem = () => new Problem({ status: 403, title: 'Forbidden', type: 'forbidden' });
+
+/** Whether the user's seat holds `permission` on `projectId` (an org seat holds it everywhere). */
+function canOnProject(user: MockUser, permission: PermissionLineDto['permission'], projectId: string): boolean {
+  const grants = accessOf(user).assignments.map((a) => ({
+    roleId: a.roleKey,
+    roleKey: a.roleKey,
+    scope: a.scope,
+    lines: a.permissions,
+  }));
+  return can({ userId: user.id, grants }, permission, { projectId });
 }
 
 function toProjectDto(row: ProjectRow): ProjectDto {
@@ -487,6 +522,78 @@ const nextSha = () => {
 const setupVersionsOf = (projectId: string): SetupScriptDto[] => db().setupScripts[projectId] ?? [];
 const findSetupTest = (id: string): SetupTestDto | undefined => db().setupTests.find((t) => t.id === id);
 
+// Project environment helpers. The caps are the API's: 500 entries by default and 256 KiB of names and values. The
+// mock keeps no secret value, so its size check counts the names of both kinds and the values of variables only.
+const ENV_MAX_ENTRIES = 500;
+const envEntriesOf = (projectId: string): EnvEntryDto[] => db().environment[projectId] ?? [];
+/** Byte order of the name (names are ASCII), as the API's `COLLATE "C"`. */
+const byName = (a: EnvEntryDto, b: EnvEntryDto): number => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0);
+const byteLength = (s: string): number => new TextEncoder().encode(s).length;
+const envBytes = (e: EnvEntryDto): number => byteLength(e.name) + byteLength(e.value ?? '');
+
+function assertEnvRoom(list: EnvEntryDto[], change: { addEntry: boolean; deltaBytes: number }): void {
+  if (change.addEntry && list.length >= ENV_MAX_ENTRIES) {
+    throw new Problem({
+      status: 409,
+      title: 'Conflict',
+      type: 'conflict',
+      detail: `${ENV_CAP_DETAIL_PREFIX}${ENV_MAX_ENTRIES} environment entries.`,
+    });
+  }
+  const used = list.reduce((sum, e) => sum + envBytes(e), 0);
+  if (change.deltaBytes > 0 && used + change.deltaBytes > ENV_MAX_TOTAL_BYTES) {
+    throw new Problem({
+      status: 409,
+      title: 'Conflict',
+      type: 'conflict',
+      detail: `${ENV_SIZE_DETAIL_PREFIX}${ENV_MAX_TOTAL_BYTES} bytes (256 KiB) per project.`,
+    });
+  }
+}
+
+function createEnvEntry(projectParam: string, kind: EnvKind, name: string, value: string): EnvEntryDto {
+  const projectId = projectRow(projectParam).id;
+  const list = envEntriesOf(projectId);
+  if (list.some((e) => e.name === name)) {
+    const detail = `${name} already exists. A name can be used once, as a variable or a secret.`;
+    throw conflict('Name already exists', [{ pointer: '/name', detail }], detail);
+  }
+  const entry: EnvEntryDto = {
+    name,
+    kind,
+    value: kind === 'plain' ? value : null,
+    updatedAt: now(),
+    updatedBy: session().user.handle,
+  };
+  assertEnvRoom(list, { addEntry: true, deltaBytes: envBytes(entry) });
+  db().environment[projectId] = [...list, entry];
+  return entry;
+}
+
+function updateEnvEntry(projectParam: string, kind: EnvKind, name: string, value: string): EnvEntryDto {
+  const projectId = projectRow(projectParam).id;
+  const list = envEntriesOf(projectId);
+  const current = list.find((e) => e.name === name && e.kind === kind);
+  if (!current) throw notFound(kind === 'plain' ? 'Variable' : 'Secret');
+  const next: EnvEntryDto = {
+    ...current,
+    value: kind === 'plain' ? value : null,
+    updatedAt: now(),
+    updatedBy: session().user.handle,
+  };
+  assertEnvRoom(list, { addEntry: false, deltaBytes: envBytes(next) - envBytes(current) });
+  db().environment[projectId] = list.map((e) => (e === current ? next : e));
+  return next;
+}
+
+function removeEnvEntry(projectParam: string, kind: EnvKind, name: string): null {
+  const projectId = projectRow(projectParam).id;
+  const list = envEntriesOf(projectId);
+  if (!list.some((e) => e.name === name && e.kind === kind)) throw notFound(kind === 'plain' ? 'Variable' : 'Secret');
+  db().environment[projectId] = list.filter((e) => !(e.name === name && e.kind === kind));
+  return null;
+}
+
 /** Lowercase hex SHA-256 of the text's UTF-8 bytes (WebCrypto: the browser and the Vitest environment have it). */
 async function sha256Hex(text: string): Promise<string> {
   const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));
@@ -616,6 +723,29 @@ const impl: Impl = {
     db().triggers[row.id] = trig;
     return toProjectDto(row);
   },
+  'projects.audit': ({ params, query }) => {
+    const { user, orgId } = projectInScope(params.projectId);
+    return listProjectAudit(mockDb, params.projectId, query, { userId: user.id, orgId });
+  },
+  'projectMembers.list': ({ params, query }) => {
+    projectInScope(params.projectId);
+    return listProjectMembers(mockDb, params.projectId, query);
+  },
+  'projectMembers.add': ({ params, body }) => {
+    const { user, orgId } = projectInScope(params.projectId);
+    return addProjectMember(mockDb, user, orgId, params.projectId, body);
+  },
+  'projectMembers.setRole': ({ params, body }) => {
+    const { user } = projectInScope(params.projectId);
+    return setProjectRole(mockDb, user, params.projectId, params.userId, body.roleId);
+  },
+  'projectMembers.remove': ({ params }) => {
+    const { user } = session();
+    // Removing yourself is refused before anything is looked up, the project included.
+    if (params.userId === user.id) removeProjectMember(mockDb, user, params.projectId, params.userId);
+    projectInScope(params.projectId);
+    return removeProjectMember(mockDb, user, params.projectId, params.userId);
+  },
   'projects.remove': ({ params }) => {
     const row = projectRow(params.projectId);
     const s = db();
@@ -630,6 +760,7 @@ const impl: Impl = {
     delete s.ignored[row.id];
     delete s.setupScripts[row.id];
     delete s.plugins[row.id];
+    delete s.environment[row.id];
     for (const t of s.setupTests.filter((x) => x.projectId === row.id)) delete s.setupTestEvents[t.id];
     s.setupTests = s.setupTests.filter((t) => t.projectId !== row.id);
     return null;
@@ -765,6 +896,23 @@ const impl: Impl = {
     return found;
   },
   'setup.plugins': ({ params }) => db().plugins[projectRow(params.projectId).id] ?? noPlugins(),
+
+  // Project environment. The mock mirrors apps/api project-env.service.ts: 404 for a missing or other-kind entry, 409
+  // when a create's name exists in either kind or a limit is hit. A secret stores its name, who and when only: the
+  // value is read by the schema and dropped, so no response and no store snapshot can carry it.
+  'projectEnv.list': ({ params, query }) =>
+    slicePage(
+      envEntriesOf(projectRow(params.projectId).id)
+        .filter((e) => e.kind === query.kind)
+        .sort(byName),
+      query,
+    ),
+  'projectEnv.createVar': ({ params, body }) => createEnvEntry(params.projectId, 'plain', body.name, body.value),
+  'projectEnv.updateVar': ({ params, body }) => updateEnvEntry(params.projectId, 'plain', params.name, body.value),
+  'projectEnv.removeVar': ({ params }) => removeEnvEntry(params.projectId, 'plain', params.name),
+  'projectEnv.createSecret': ({ params, body }) => createEnvEntry(params.projectId, 'secret', body.name, body.value),
+  'projectEnv.updateSecret': ({ params, body }) => updateEnvEntry(params.projectId, 'secret', params.name, body.value),
+  'projectEnv.removeSecret': ({ params }) => removeEnvEntry(params.projectId, 'secret', params.name),
   'setupTests.create': async ({ params, body }) => {
     const projectId = projectRow(params.projectId).id;
     const sha = await sha256Hex(body.script);
@@ -1013,12 +1161,22 @@ const impl: Impl = {
   },
 
   'me.access': () => accessOf(sessionUser()),
-  'roles.list': () => roleFixtures,
+  'me.platform': () => ({ platformAdmin: sessionUser().platformAdmin }),
+  'roles.list': () => roleFixtures.filter((r) => r.builtIn),
   'members.list': async ({ params, query }) => {
-    const { orgId } = session();
+    const { user, orgId } = session();
     requireActiveOrg(params.orgId, orgId);
+    if (query.excludeProject !== undefined) {
+      // Checked in the API's order: the project exists and the caller reaches it (404), then may read its assignments (403).
+      projectInScope(query.excludeProject);
+      if (!canOnProject(user, 'assignment:read', query.excludeProject)) throw forbiddenProblem();
+      checkPickerFailure(mockDb);
+    }
     await gate(mockDb, 'members');
-    return listMembers(mockDb, orgId, query);
+    const page = await listMembers(mockDb, orgId, query, pickerFilter(mockDb, query));
+    if (query.excludeProject !== undefined)
+      applyAfterFirstPicker(mockDb, { userId: user.id, orgId }, query.excludeProject);
+    return page;
   },
   'assignments.list': ({ query }) => slicePage(assignmentFixtures, query),
   'assignments.create': () => assignmentFixtures[0] ?? never('assignment'),
@@ -1095,11 +1253,17 @@ const impl: Impl = {
     const org = { id: mockDb.nextId(), name: body.name, slug: body.slug, logo: null, metadata: null, createdAt: now() };
     db().orgs.push(org);
     db().checklists[org.id] = checklistFixtures.none;
+    addPlatformOrg({ id: org.id, name: org.name, slug: org.slug, createdAt: org.createdAt });
     return { id: org.id, name: org.name, slug: org.slug };
   },
-  'platform.listOrgs': ({ query }) => slicePage(platformOrgFixtures, query),
+  'platform.listOrgs': ({ query }) => listPlatformOrgs(query),
+  'platform.getOrg': ({ params }) => getPlatformOrg(params.orgId),
+  'platform.suspendOrg': ({ params, body }) =>
+    setPlatformOrgStatus(params.orgId, 'suspended', body.reason, actorOf(sessionUser())),
+  'platform.reactivateOrg': ({ params, body }) =>
+    setPlatformOrgStatus(params.orgId, 'active', body.reason, actorOf(sessionUser())),
   'platform.listProjects': ({ query }) => slicePage(platformProjectFixtures, query),
-  'platform.listRoles': () => roleFixtures,
+  'platform.listRoles': () => roleFixtures.filter((r) => r.builtIn),
   'platform.listMembers': ({ query }) => slicePage(platformMemberFixtures, query),
   'platform.listAssignments': ({ query }) => slicePage(assignmentFixtures, query),
   'platform.createAssignment': () => assignmentFixtures[0] ?? never('assignment'),
@@ -1118,6 +1282,8 @@ const STATUS: Partial<Record<RouteKey, number>> = {
   'connections.install': 201,
   'connections.sync': 201,
   'projects.create': 201,
+  'projectEnv.createVar': 201,
+  'projectEnv.createSecret': 201,
   'rules.create': 201,
   'projects.pollNow': 202,
   'runs.cancel': 202,
@@ -1126,6 +1292,8 @@ const STATUS: Partial<Record<RouteKey, number>> = {
   'runs.closeSession': 202,
   'setupTests.end': 202,
   'assignments.create': 201,
+  'projectMembers.add': 201,
+  'projectMembers.remove': 204,
   'invitations.create': 201,
   'platform.createOrg': 201,
   'platform.createAssignment': 201,
@@ -1172,6 +1340,26 @@ function queryOf(sp: URLSearchParams): Record<string, string | string[]> {
   return out;
 }
 
+/**
+ * The API guard's second step (after membership, before the permission): a member of a suspended active org is refused
+ * 403 `org-suspended` whatever their role, `me.access` included. The body is fixed text: no reason, no date. A non-member
+ * keeps the plain 403.
+ */
+function refuseSuspendedOrg(user: MockUser): void {
+  const orgId = mockDb.auth.activeOrganizationId;
+  if (!orgId) return;
+  if (db().orgs.find((o) => o.id === orgId)?.status !== 'suspended') return;
+  if (!db().memberships.some((m) => m.userId === user.id && m.orgId === orgId)) {
+    throw new Problem({ status: 403, title: 'Forbidden', type: 'forbidden' });
+  }
+  throw new Problem({
+    status: 403,
+    title: 'Forbidden',
+    type: ORG_SUSPENDED_PROBLEM_TYPE,
+    detail: 'This organization is suspended.',
+  });
+}
+
 function contractHandler<K extends JsonKey>(key: K, run: Impl[K]): HttpHandler {
   const def = routeDef(key);
   return routeHandler(key, async (request, rawParams) => {
@@ -1190,6 +1378,7 @@ function contractHandler<K extends JsonKey>(key: K, run: Impl[K]): HttpHandler {
           type: ORG_MISMATCH_PROBLEM_TYPE,
         });
       }
+      if (isOrgPinned(key)) refuseSuspendedOrg(caller);
       if (isOrgPinned(key) && key !== 'me.access') requireRouteAccess(key, session().user);
       const url = new URL(request.url);
       const parts = {
@@ -1215,7 +1404,15 @@ const build = <K extends JsonKey>(key: K) => contractHandler(key, impl[key]);
 
 /** The project a stream route's path parameters point at, when the signed-in user's active org can see it (RLS). */
 function streamProblem(key: StreamKey, params: Record<string, unknown>): Response | undefined {
-  if (!mockDb.currentUser()) return problemResponse({ status: 401, title: 'Unauthorized', type: 'unauthorized' });
+  const user = mockDb.currentUser();
+  if (!user) return problemResponse({ status: 401, title: 'Unauthorized', type: 'unauthorized' });
+  // The API refuses an SSE connect and a terminal attach of a suspended org like any other route (spec BR-38).
+  try {
+    refuseSuspendedOrg(user);
+  } catch (e) {
+    if (e instanceof Problem) return problemResponse(e.init);
+    throw e;
+  }
   const orgId = mockDb.auth.activeOrganizationId;
   const projectId =
     key === 'projects.events'
@@ -1228,7 +1425,7 @@ function streamProblem(key: StreamKey, params: Record<string, unknown>): Respons
 }
 
 /**
- * A stream route's auth and scope check (401, or 404 for a record the active org cannot see). When the request may go
+ * A stream route's auth and scope check (401, 403 for a suspended org, or 404 for a record the active org cannot see). When the request may go
  * on it answers nothing, so the next handler takes it: in the browser the SSE handlers (stream-handlers.ts, listed
  * after these guards) stream; the terminal route only exists as a WebSocket, played by fakeTerminal.ts. Vitest uses
  * FakeEventSource and FakeWebSocket instead, so no request gets past a guard there.

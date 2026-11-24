@@ -32,6 +32,10 @@ export type {
   RoleCardOption,
   AuditTextPart,
   AuditRowView,
+  ProjectRoleKey,
+  ProjectMemberRowView,
+  MemberPickerOption,
+  MemberPickerState,
 } from './types';
 export { user, bot, projects, deskFrame } from './projects';
 export {
@@ -59,11 +63,26 @@ export {
   setupPhases,
   setupTestTerminal,
   setupFailedRunTerminal,
+  envVariableRows,
+  envSecretRows,
+  envBoardSecretRows,
+  envPagedVariableRows,
+  envPagedSecretRows,
 } from './setup';
 export { pagedRuns, pagedIgnored, pagedNeedsYou, pagedProjects, pagedRules, pagedSkills, pagedVersions } from './paged';
 export { orgOptions, orgSwitchFixtures } from './orgs';
 export { memberRows, roleCards } from './members';
-export { auditRows, pagedAuditLastPage, pagedAuditRows } from './audit';
+export { auditRows, pagedAuditLastPage, pagedAuditRows, platformSuspendAuditRows } from './audit';
+export {
+  projectMemberRows,
+  pagedProjectMemberRows,
+  memberPickerOptions,
+  manyPickerOptions,
+  projectRoleCards,
+  projectAuditRows,
+  projectAuditRowsNoEmail,
+  projectAuditRowsExpired,
+} from './projectMembers';
 export { orgSettingsFixtures } from './orgSettings';
 export { checklistSteps, pendingInvitationsCount } from './onboarding';
 export {
@@ -75,3 +94,6 @@ export {
   inviteProjectOptions,
   invitationLink,
 } from './invitations';
+export { platformAdminRows, pagedPlatformAdminRows, type PlatformAdminRowView } from './platform/admins';
+export { platformOrgRows, pagedPlatformOrgRows, type PlatformOrgRowView, type OrgStatusView } from './platform/orgs';
+export { activeOrgOverview, suspendedOrgOverview, type PlatformOrgOverviewView } from './platform/detail';

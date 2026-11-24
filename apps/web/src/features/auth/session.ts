@@ -1,4 +1,5 @@
 import { queryOptions, type QueryClient } from '@tanstack/react-query';
+import { OrgStatus } from '@agentdesk/contracts';
 import { z } from 'zod';
 import { accessKeys } from '../access/keys';
 import { authCall, authClient } from './client';
@@ -21,7 +22,10 @@ const GetSessionResponse = z
   })
   .nullable();
 
-const OrganizationList = z.array(z.object({ id: z.string(), slug: z.string(), name: z.string() }));
+// `status` lets the switcher mark a suspended org; an older answer without it reads as active.
+const OrganizationList = z.array(
+  z.object({ id: z.string(), slug: z.string(), name: z.string(), status: OrgStatus.default('active') }),
+);
 
 export interface Session {
   user: { id: string; name: string; email: string; handle: string; image: string | null };

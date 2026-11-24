@@ -1,5 +1,11 @@
 import { Body, Controller, Delete, Get, HttpCode, Inject, Param, Put, Query } from '@nestjs/common';
-import { routes, type MemberDto, type Page, type PageQuery, type UpdateMemberRoleRequest } from '@agentdesk/contracts';
+import {
+  routes,
+  type MemberDto,
+  type MembersListQuery,
+  type Page,
+  type UpdateMemberRoleRequest,
+} from '@agentdesk/contracts';
 import { CurrentAccess, type RequestAuthz } from '../access/current-access';
 import { routePath } from '../common/route-path';
 import { ZodPipe } from '../common/zod-validation';
@@ -20,7 +26,7 @@ export class MembersController {
   list(
     @CurrentAccess() authz: RequestAuthz,
     @Param(ListParams) p: { orgId: string },
-    @Query(ListQuery) q: PageQuery,
+    @Query(ListQuery) q: MembersListQuery,
   ): Promise<Page<MemberDto>> {
     return this.members.list(authz.access, p.orgId, q);
   }

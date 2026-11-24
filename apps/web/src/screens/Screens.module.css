@@ -105,6 +105,11 @@
   justify-content: space-between;
   gap: 8px;
 }
+.listHeadActions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
 .listIntro {
   font-size: var(--fs-13_5);
 }
@@ -443,6 +448,8 @@
 }
 .setupEditorBox {
   flex: 1;
+  /* The editor itself keeps at least 120px; the border sits outside it. */
+  box-sizing: content-box;
   min-height: 120px;
   display: flex;
   flex-direction: column;
@@ -720,4 +727,82 @@
   display: flex;
   justify-content: flex-end;
   gap: 8px;
+}
+
+/* platform admin area: the page next to the side menu */
+.platformMain {
+  flex: 1;
+  min-width: 0;
+  padding: 24px 40px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+.platformLoading {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+/* platform Organizations directory: filter row and the sideways-scrolling table */
+.platformFilters {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.platformSearch {
+  width: 320px;
+}
+.platformStatus {
+  width: 170px;
+}
+.platformTableScroll {
+  overflow-x: auto;
+  min-width: 0;
+}
+.platformTableScroll > table {
+  min-width: 960px;
+}
+
+/* desk workspace setup: Environment tab. The panel scrolls inside the main column, the page does not. */
+.setupTabs {
+  flex: 0 0 auto;
+  padding: 0 8px;
+  border-bottom: 1px solid var(--line);
+}
+.setupDeskMain > [role='tabpanel'] {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.setupEnvBody {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 16px 20px 8px;
+  display: flex;
+  flex-direction: column;
+}
+.setupEnvText {
+  margin: 0 0 8px;
+  max-width: 780px;
+  font-size: var(--fs-13);
+}
+.setupEnvGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 18px 0;
+  border-bottom: 1px solid var(--line);
+}
+.setupEnvGroup:last-child {
+  border-bottom: 0;
+}
+.setupEnvGroup .setupEnvText {
+  margin: 0;
+}
+.setupEnvTitle {
+  margin: 0;
+  font-size: var(--fs-15);
 }

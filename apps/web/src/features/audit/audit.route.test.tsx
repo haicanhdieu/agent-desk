@@ -46,7 +46,7 @@ describe('audit page: rows (BR-20)', () => {
     await renderRoute('/o/alice/settings/audit', { scenario: asRole('twoOwners') });
     await ready();
     expect(screen.getAllByRole('columnheader').map((h) => h.textContent)).toEqual(['When', 'Who', 'What']);
-    expect(rows()).toHaveLength(10);
+    expect(rows()).toHaveLength(12);
     const first = within(rows()[0] as HTMLElement).getAllByRole('cell');
     expect(first[0]).toHaveTextContent('2 min ago');
     expect(first[1]).toHaveTextContent('Alice Doe');
@@ -58,7 +58,7 @@ describe('audit page: rows (BR-20)', () => {
   it('TC-20.2 an org admin sees the same entries', async () => {
     await renderRoute('/o/alice/settings/audit', { scenario: asRole('admin') });
     await ready();
-    expect(rows()).toHaveLength(10);
+    expect(rows()).toHaveLength(12);
     expect(screen.getByText('/o/harbor-labs')).toBeInTheDocument();
   });
 
@@ -85,6 +85,14 @@ describe('audit page: rows (BR-20)', () => {
     // The only <b> elements are the strong parts, whose text is the literal string.
     for (const b of Array.from(main.querySelectorAll('b'))) expect(b.querySelector('b')).toBeNull();
     expect(Array.from(main.querySelectorAll('b')).some((b) => b.textContent === 'long-invitee-')).toBe(false);
+  });
+
+  it('BR-27 an invitation entry names its listed projects', async () => {
+    await renderRoute('/o/alice/settings/audit', { scenario: asRole('twoOwners') });
+    await ready();
+    expect(screen.getByRole('main')).toHaveTextContent(
+      'Alice Doe invited sam.reyes@contractor.io as Viewer to invoicer-api, invoicer-web',
+    );
   });
 
   it('TC-20.7 a generic request entry shows its raw key in mono and the When cell has the exact date on hover', async () => {
@@ -198,7 +206,7 @@ describe('audit page: loading, error and empty (BR-24)', () => {
     server.resetHandlers();
     await user.click(screen.getByRole('button', { name: 'Retry' }));
     await ready();
-    expect(rows()).toHaveLength(10);
+    expect(rows()).toHaveLength(12);
   });
 
   it('TC-24.5 no entries shows "No activity yet"', async () => {
@@ -228,12 +236,13 @@ describe('audit page: switching org (BR-25)', () => {
             action: 'member.role_changed',
             target: { type: 'user', id: 'x', label: 'Acme Person' },
             changes: [{ field: 'role', from: 'Member', to: 'Admin' }],
+            projects: [],
           },
         ];
       },
     });
     await ready();
-    expect(rows()).toHaveLength(10);
+    expect(rows()).toHaveLength(12);
     server.use(
       http.get('*/api/orgs/:orgId/audit', async ({ params }) => {
         if (params.orgId === ids.org.acme) await held;

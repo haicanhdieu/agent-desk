@@ -31,8 +31,13 @@ export const platformAuditLog = pgTable(
     action: text('action').notNull(),
     targetType: text('target_type').notNull(),
     targetId: text('target_id').notNull(),
+    /** The organization a row is about (suspend, reactivate); null for rows that target no org. */
+    targetOrgId: uuid('target_org_id'),
     payload: jsonb('payload').notNull().default({}),
     createdAt: ts('created_at').notNull().defaultNow(),
   },
-  (t) => [index('platform_audit_log_created_at_idx').on(t.createdAt, t.id)],
+  (t) => [
+    index('platform_audit_log_created_at_idx').on(t.createdAt, t.id),
+    index('platform_audit_log_target_org_idx').on(t.targetOrgId, t.createdAt, t.id),
+  ],
 );

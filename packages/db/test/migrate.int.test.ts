@@ -24,6 +24,7 @@ const APP_TABLES = [
   'role_permissions',
   'role_assignments',
   'invitations',
+  'project_env_vars',
 ];
 
 let env: TestPg;
@@ -170,6 +171,46 @@ describe('bootstrap and migrations', () => {
       "select indexdef from pg_indexes where indexname = 'user_email_lower_idx'",
     );
     expect(idx?.indexdef).toContain('lower(email)');
+  });
+
+  it('audit_log.project_ids is uuid[] not null with a GIN index, forced RLS and a containment query', async () => {
+    const [col] = await query<{ data_type: string; udt_name: string; is_nullable: string; column_default: string }>(
+      env.ownerUrl,
+      "select data_type, udt_name, is_nullable, column_default from information_schema.columns where table_name = 'audit_log' and column_name = 'project_ids'",
+    );
+    expect(col).toMatchObject({ data_type: 'ARRAY', udt_name: '_uuid', is_nullable: 'NO' });
+    expect(col?.column_default).toContain("'{}'");
+    const [idx] = await query<{ amname: string }>(
+      env.ownerUrl,
+      "select am.amname from pg_class c join pg_am am on am.oid = c.relam where c.relname = 'audit_log_project_ids_idx'",
+    );
+    expect(idx?.amname).toBe('gin');
+    const [rls] = await query<{ relforcerowsecurity: boolean }>(
+      env.ownerUrl,
+      "select relforcerowsecurity from pg_class where relname = 'audit_log'",
+    );
+    expect(rls?.relforcerowsecurity).toBe(true);
+    const org = randomUUID();
+    const p1 = randomUUID();
+    const p2 = randomUUID();
+    const client = new pg.Client({ connectionString: env.ownerUrl });
+    await client.connect();
+    try {
+      await client.query('begin');
+      await client.query("select set_config('app.org_id', $1, true)", [org]);
+      await client.query(
+        "insert into audit_log (org_id, action, project_ids) values ($1, 'tagged', array[$2]::uuid[]), ($1, 'other', array[$3]::uuid[]), ($1, 'untagged', default)",
+        [org, p1, p2],
+      );
+      const hit = await client.query<{ action: string }>(
+        'select action from audit_log where org_id = $1 and project_ids @> array[$2]::uuid[]',
+        [org, p1],
+      );
+      await client.query('rollback');
+      expect(hit.rows.map((r) => r.action)).toEqual(['tagged']);
+    } finally {
+      await client.end();
+    }
   });
 
   it('inbound_events has a partial (project_id, ticket_ref) index for the ignored-event ref lookup', async () => {
@@ -945,6 +986,7 @@ describe('role templates and run owner backfill on an upgraded database', () => 
           [orgId, proj.rows[0]?.id, `dev/${slug}#1`, comment, external],
         );
       }
+      await client.query(`insert into audit_log (org_id, action) values ($1, 'old.entry')`, [orgId]);
       if (slug === 'org-b') {
         // More matching runs than one backfill batch (1000), so the loop must go round again.
         await client.query(
@@ -1019,6 +1061,15 @@ describe('role templates and run owner backfill on an upgraded database', () => 
     }
   }, 180_000);
 
+  it('existing audit rows of every org read project_ids as an empty array after the column migration', async () => {
+    const rows = await query<{ org_id: string; project_ids: string[] }>(
+      adminDbUrl,
+      "select org_id, project_ids from audit_log where action = 'old.entry' order by org_id",
+    );
+    expect(rows.map((r) => r.org_id).sort()).toEqual([orgA, orgB].sort());
+    expect(rows.every((r) => r.project_ids.length === 0)).toBe(true);
+  });
+
   it('every existing org gets exactly the four built-in roles once, copied from the templates', async () => {
     for (const orgId of [orgA, orgB]) {
       const rows = await query<{ key: string; built_in: boolean; has_template: boolean; n: string }>(
@@ -1029,9 +1080,9 @@ describe('role templates and run owner backfill on an upgraded database', () => 
         [orgId],
       );
       expect(rows).toEqual([
-        { key: 'admin', built_in: true, has_template: true, n: '33' },
+        { key: 'admin', built_in: true, has_template: true, n: '34' },
         { key: 'member', built_in: true, has_template: true, n: '6' },
-        { key: 'owner', built_in: true, has_template: true, n: '34' },
+        { key: 'owner', built_in: true, has_template: true, n: '35' },
         { key: 'viewer', built_in: true, has_template: true, n: '2' },
       ]);
     }
@@ -1370,5 +1421,585 @@ describe('audit:read seed migration (0035) on an upgraded database (NO-4)', () =
     for (const statement of sql.split('--> statement-breakpoint')) await owner(statement);
     expect(await rowCounts()).toEqual(before);
     expect(await auditLines(orgA)).toEqual({ admin: ['audit:read=any'], owner: ['audit:read=any'] });
+  });
+});
+
+describe('project-audit:read seed migration (0036) on an upgraded database (N-PERM)', () => {
+  const orgA = randomUUID();
+  const orgB = randomUUID();
+  const orgC = randomUUID();
+  const MIGRATION = new URL('../migrations/0036_seed_project_audit_read.sql', import.meta.url);
+  const PERM = 'project-audit:read';
+  let old: Awaited<ReturnType<typeof startPgAt>>;
+
+  async function owner<T extends pg.QueryResultRow>(sql: string, params: unknown[] = [], orgId?: string): Promise<T[]> {
+    const client = new pg.Client({ connectionString: old.ownerUrl });
+    await client.connect();
+    try {
+      await client.query('begin');
+      if (orgId) await client.query("select set_config('app.org_id', $1, true)", [orgId]);
+      const r = await client.query<T>(sql, params);
+      await client.query('commit');
+      return r.rows;
+    } finally {
+      await client.end();
+    }
+  }
+
+  /** The way 0026 copied the templates into an org: roles, then role_permissions, in the org's own scope. */
+  async function copyTemplates(orgId: string): Promise<void> {
+    await owner(`insert into organization (id, name, slug, created_at) values ($1, $1, $1, now())`, [orgId]);
+    await owner(
+      `insert into roles (org_id, key, name, built_in, template_id, assignable_scopes)
+       select $1::uuid, t.key, t.name, true, t.id, t.assignable_scopes from role_templates t`,
+      [orgId],
+      orgId,
+    );
+    await owner(
+      `insert into role_permissions (org_id, role_id, permission, condition)
+       select $1::uuid, r.id, tp.permission, tp.condition
+       from roles r join role_template_permissions tp on tp.template_id = r.template_id where r.org_id = $1::uuid`,
+      [orgId],
+      orgId,
+    );
+  }
+
+  /** `project-audit:read` lines per built-in role key of one org. */
+  async function lines(orgId: string): Promise<Record<string, string[]>> {
+    const rows = await owner<{ key: string; line: string }>(
+      `select r.key, p.permission || '=' || p.condition as line from roles r
+       join role_permissions p on p.role_id = r.id
+       where r.org_id = $1 and p.permission = $2 order by 1, 2`,
+      [orgId, PERM],
+      orgId,
+    );
+    const out: Record<string, string[]> = {};
+    for (const r of rows) (out[r.key] ??= []).push(r.line);
+    return out;
+  }
+
+  const rowCounts = async (): Promise<string[]> => {
+    const [templates] = await owner<{ n: string }>(`select count(*)::text as n from role_template_permissions`);
+    const out = [`templates=${templates?.n}`];
+    for (const orgId of [orgA, orgB]) {
+      const [perOrg] = await owner<{ n: string }>(`select count(*)::text as n from role_permissions`, [], orgId);
+      out.push(`${orgId}=${perOrg?.n}`);
+    }
+    return out;
+  };
+
+  const HELD = { admin: [`${PERM}=any`], owner: [`${PERM}=any`] };
+
+  beforeAll(async () => {
+    old = await startPgAt('0035_seed_audit_read');
+    await copyTemplates(orgA);
+    await copyTemplates(orgB);
+  }, 180_000);
+
+  afterAll(async () => {
+    await old?.stop();
+  });
+
+  it('starts with no project-audit:read anywhere', async () => {
+    expect(await lines(orgA)).toEqual({});
+  });
+
+  it('gives owner and admin exactly one line in each org, none to member or viewer', async () => {
+    await old.migrateRest();
+    for (const orgId of [orgA, orgB]) expect(await lines(orgId), orgId).toEqual(HELD);
+  });
+
+  it('is idempotent: applying its SQL again changes no row count', async () => {
+    const before = await rowCounts();
+    const sql = await readFile(MIGRATION, 'utf8');
+    for (const statement of sql.split('--> statement-breakpoint')) await owner(statement);
+    expect(await rowCounts()).toEqual(before);
+    expect(await lines(orgA)).toEqual(HELD);
+  });
+
+  it('an org created afterwards copies it from the templates', async () => {
+    await copyTemplates(orgC);
+    expect(await lines(orgC)).toEqual(HELD);
+  });
+});
+
+describe('audit project backfill migration (0039) on an upgraded database (N-BACKFILL)', () => {
+  const orgA = randomUUID();
+  const orgB = randomUUID();
+  const MIGRATION = new URL('../migrations/0039_backfill_audit_project_ids.sql', import.meta.url);
+  const ids = {
+    p1: randomUUID(),
+    p2: randomUUID(),
+    pb: randomUUID(),
+    run1: randomUUID(),
+    deletedRun: randomUUID(),
+    rule2: randomUUID(),
+    agent1: randomUUID(),
+    setup2: randomUUID(),
+    inv: randomUUID(),
+    invOrg: randomUUID(),
+    runB: randomUUID(),
+  };
+  let old: Awaited<ReturnType<typeof startPgAt>>;
+
+  async function owner<T extends pg.QueryResultRow>(sql: string, params: unknown[] = [], orgId?: string): Promise<T[]> {
+    const client = new pg.Client({ connectionString: old.ownerUrl });
+    await client.connect();
+    try {
+      await client.query('begin');
+      if (orgId) await client.query("select set_config('app.org_id', $1, true)", [orgId]);
+      const r = await client.query<T>(sql, params);
+      await client.query('commit');
+      return r.rows;
+    } finally {
+      await client.end();
+    }
+  }
+
+  /** One org with two projects (or one), their run, rule, agent, setup test, and a role to invite with. */
+  async function seedOrg(orgId: string, projectIds: string[]): Promise<string> {
+    await owner(`insert into organization (id, name, slug, created_at) values ($1, $1, $1, now())`, [orgId]);
+    await owner(
+      `insert into roles (org_id, key, name, built_in, template_id, assignable_scopes)
+       select $1::uuid, t.key, t.name, true, t.id, t.assignable_scopes from role_templates t`,
+      [orgId],
+      orgId,
+    );
+    const [conn] = await owner<{ id: string }>(
+      `insert into connections (org_id, provider, capabilities, external_id, account_name)
+       values ($1, 'fake', '{"code":true,"board":true}', $2, 'demo') returning id`,
+      [orgId, `acct-${orgId}`],
+      orgId,
+    );
+    for (const [i, id] of projectIds.entries()) {
+      await owner(
+        `insert into projects (id, org_id, name, repo_path, code_connection_id, board_connection_id)
+         values ($1, $2, $3, $4, $5, $5)`,
+        [id, orgId, `p${i}`, `dev/${id}`, conn?.id],
+        orgId,
+      );
+    }
+    const [role] = await owner<{ id: string }>(
+      `select id from roles where org_id = $1 and key = 'viewer'`,
+      [orgId],
+      orgId,
+    );
+    return role?.id ?? '';
+  }
+
+  async function addRun(orgId: string, projectId: string, id: string): Promise<void> {
+    await owner(
+      `insert into runs (id, org_id, project_id, skill_name, ticket_ref, ticket_kind, checkout_ref, status,
+                         trigger_source, trigger_comment_id, command)
+       values ($1::uuid, $2, $3, 'fix', $4, 'issue', 'main', 'queued', 'webhook', $1::text, '/fix')`,
+      [id, orgId, projectId, `dev/x#${id}`],
+      orgId,
+    );
+  }
+
+  async function audit(
+    orgId: string,
+    key: string,
+    action: string,
+    targetType: string | null,
+    targetId: string | null,
+    payload: Record<string, unknown> = {},
+    projectIds: string[] = [],
+  ): Promise<void> {
+    await owner(
+      `insert into audit_log (org_id, action, target_type, target_id, payload, project_ids)
+       values ($1, $2, $3, $4, $5::jsonb, $6::uuid[])`,
+      [orgId, action, targetType, targetId, JSON.stringify({ ...payload, key }), projectIds],
+      orgId,
+    );
+  }
+
+  async function tags(orgId: string): Promise<Record<string, string[]>> {
+    const rows = await owner<{ key: string; project_ids: string[] }>(
+      `select payload->>'key' as key, project_ids from audit_log where org_id = $1`,
+      [orgId],
+      orgId,
+    );
+    return Object.fromEntries(rows.map((r) => [r.key, [...r.project_ids].sort()]));
+  }
+
+  beforeAll(async () => {
+    old = await startPgAt('0038_audit_log_project_ids_idx');
+    const roleA = await seedOrg(orgA, [ids.p1, ids.p2]);
+    await seedOrg(orgB, [ids.pb]);
+    await addRun(orgA, ids.p1, ids.run1);
+    await addRun(orgB, ids.pb, ids.runB);
+    await owner(
+      `insert into agents (id, org_id, project_id, name, model) values ($1, $2, $3, 'a1', 'm')`,
+      [ids.agent1, orgA, ids.p1],
+      orgA,
+    );
+    await owner(
+      `insert into rules (id, org_id, project_id, command, agent_id, skill_name) values ($1, $2, $3, '/r', $4, 'fix')`,
+      [ids.rule2, orgA, ids.p2, ids.agent1],
+      orgA,
+    );
+    await owner(
+      `insert into setup_tests (id, org_id, project_id, status, script_sha256, started_by)
+       values ($1, $2, $3, 'passed', 'sha', 'u1')`,
+      [ids.setup2, orgA, ids.p2],
+      orgA,
+    );
+    const inviteSql = `insert into invitations (id, org_id, email, role_id, scope_type, project_ids, status, expires_at, invited_by)
+       values ($1, $2, $3, $4, $5, $6::uuid[], 'pending', now() + interval '7 days', 'u1')`;
+    await owner(inviteSql, [ids.inv, orgA, 'a@example.com', roleA, 'project', [ids.p1, ids.p2]], orgA);
+    await owner(inviteSql, [ids.invOrg, orgA, 'b@example.com', roleA, 'org', []], orgA);
+
+    await audit(orgA, 'project', 'projects.update', 'projects', ids.p1);
+    await audit(orgA, 'project-bad-id', 'projects.update', 'projects', 'not-a-uuid');
+    await audit(orgA, 'run', 'runs.cancel', 'runs', ids.run1);
+    await audit(orgA, 'run-deleted', 'runs.cancel', 'runs', ids.deletedRun);
+    await audit(orgA, 'rule', 'rules.update', 'rules', ids.rule2);
+    await audit(orgA, 'agent', 'agents.update', 'agents', ids.agent1);
+    await audit(orgA, 'setup', 'setup-tests.create', 'setup-tests', ids.setup2);
+    await audit(orgA, 'grant-project', 'assignment.granted', 'user', 'u2', {
+      to: { roleKey: 'viewer', scope: { type: 'project', projectId: ids.p1 } },
+    });
+    await audit(orgA, 'revoke-project', 'assignment.revoked', 'user', 'u2', {
+      from: { roleKey: 'viewer', scope: { type: 'project', projectId: ids.p2 } },
+    });
+    await audit(orgA, 'grant-org', 'assignment.granted', 'user', 'u2', {
+      to: { roleKey: 'viewer', scope: { type: 'org' } },
+    });
+    for (const verb of ['created', 'resent', 'revoked', 'accepted', 'declined', 'expired']) {
+      await audit(orgA, `inv-${verb}`, `invitation.${verb}`, 'invitation', ids.inv);
+    }
+    await audit(orgA, 'inv-org', 'invitation.created', 'invitation', ids.invOrg);
+    await audit(orgA, 'org-route', 'PATCH members.update', 'members', 'u2');
+    await audit(orgA, 'already-tagged', 'projects.update', 'projects', ids.p1, {}, [ids.p2]);
+    await audit(orgB, 'b-project', 'projects.update', 'projects', ids.pb);
+    await audit(orgB, 'b-run', 'runs.cancel', 'runs', ids.runB);
+    await audit(orgB, 'b-foreign-run', 'runs.cancel', 'runs', ids.run1);
+    // More rows than one 1000-row batch: tied by two rules, plus rows no rule can tie.
+    await owner(
+      `insert into audit_log (org_id, action, target_type, target_id, payload)
+       select $1::uuid, 'projects.update', 'projects', $2::text, '{"key":"bulk-project"}'::jsonb from generate_series(1, 2500)
+       union all
+       select $1::uuid, 'runs.cancel', 'runs', $3::text, '{"key":"bulk-run"}'::jsonb from generate_series(1, 1500)
+       union all
+       select $1::uuid, 'runs.cancel', 'runs', 'not-a-uuid', '{"key":"bulk-untied"}'::jsonb from generate_series(1, 1200)`,
+      [orgA, ids.p1, ids.run1],
+      orgA,
+    );
+  }, 180_000);
+
+  afterAll(async () => {
+    await old?.stop();
+  });
+
+  const count = async (orgId: string): Promise<number> =>
+    Number((await owner<{ n: string }>(`select count(*)::text as n from audit_log`, [], orgId))[0]?.n);
+
+  it('starts with every row untagged except the pre-tagged one', async () => {
+    const t = await tags(orgA);
+    expect(t['project']).toEqual([]);
+    expect(t['already-tagged']).toEqual([ids.p2]);
+  });
+
+  it('tags each row from its target and leaves untied rows org-only', async () => {
+    const before = [await count(orgA), await count(orgB)];
+    await old.migrateRest();
+    const a = await tags(orgA);
+    const both = [ids.p1, ids.p2].sort();
+    expect(a).toMatchObject({
+      project: [ids.p1],
+      run: [ids.p1],
+      rule: [ids.p2],
+      agent: [ids.p1],
+      setup: [ids.p2],
+      'grant-project': [ids.p1],
+      'revoke-project': [ids.p2],
+      'inv-created': both,
+      'inv-resent': both,
+      'inv-revoked': both,
+      'inv-accepted': both,
+      'inv-declined': both,
+      'inv-expired': both,
+      'project-bad-id': [],
+      'run-deleted': [],
+      'grant-org': [],
+      'inv-org': [],
+      'org-route': [],
+      'already-tagged': [ids.p2],
+    });
+    const b = await tags(orgB);
+    expect(b).toEqual({ 'b-project': [ids.pb], 'b-run': [ids.pb], 'b-foreign-run': [] });
+    expect([await count(orgA), await count(orgB)]).toEqual(before);
+  });
+
+  /** Row counts per tag state for the bulk rows of org A. */
+  async function bulk(): Promise<Record<string, string>> {
+    const rows = await owner<{ key: string; tags: string; n: string }>(
+      `select payload->>'key' as key, coalesce(array_to_string(project_ids, ','), '') as tags, count(*)::text as n
+       from audit_log where org_id = $1 and payload->>'key' like 'bulk-%' group by 1, 2`,
+      [orgA],
+      orgA,
+    );
+    return Object.fromEntries(rows.map((r) => [`${r.key}|${r.tags}`, r.n]));
+  }
+
+  it('tags every row of a rule across several batches and leaves untied rows alone', async () => {
+    expect(await bulk()).toEqual({
+      [`bulk-project|${ids.p1}`]: '2500',
+      [`bulk-run|${ids.p1}`]: '1500',
+      'bulk-untied|': '1200',
+    });
+  });
+
+  it('is idempotent: applying its SQL again changes no tag', async () => {
+    const before = [await tags(orgA), await tags(orgB)];
+    const sql = await readFile(MIGRATION, 'utf8');
+    for (const statement of sql.split('--> statement-breakpoint')) await owner(statement);
+    expect([await tags(orgA), await tags(orgB)]).toEqual(before);
+    expect(await bulk()).toEqual({
+      [`bulk-project|${ids.p1}`]: '2500',
+      [`bulk-run|${ids.p1}`]: '1500',
+      'bulk-untied|': '1200',
+    });
+  });
+});
+
+describe('organization status and the runs index on an upgraded database (migrations 0040 and 0041)', () => {
+  let old: Awaited<ReturnType<typeof startPgAt>>;
+  const orgA = randomUUID();
+  const orgB = randomUUID();
+
+  const owner = async <T extends pg.QueryResultRow>(sql: string, params: unknown[] = []): Promise<T[]> =>
+    query<T>(old.ownerUrl, sql, params);
+
+  beforeAll(async () => {
+    old = await startPgAt('0039_backfill_audit_project_ids');
+    for (const id of [orgA, orgB]) {
+      await owner(`insert into organization (id, name, slug, created_at) values ($1, $1, $1, now())`, [id]);
+    }
+    await old.migrateRest();
+  }, 180_000);
+
+  afterAll(async () => {
+    await old?.stop();
+  });
+
+  it('reads existing organizations as active with no suspended_at', async () => {
+    const rows = await owner<{ id: string; status: string; suspended_at: Date | null }>(
+      'select id, status, suspended_at from organization where id = any($1) order by id',
+      [[orgA, orgB]],
+    );
+    expect(rows).toHaveLength(2);
+    for (const r of rows) {
+      expect(r.status).toBe('active');
+      expect(r.suspended_at).toBeNull();
+    }
+  });
+
+  it('rejects an unknown status on organization_status_check', async () => {
+    await expect(owner(`update organization set status = 'paused' where id = $1`, [orgA])).rejects.toMatchObject({
+      code: '23514',
+      constraint: 'organization_status_check',
+    });
+  });
+
+  it('rejects suspended without a time on organization_suspended_at_check', async () => {
+    await expect(owner(`update organization set status = 'suspended' where id = $1`, [orgA])).rejects.toMatchObject({
+      code: '23514',
+      constraint: 'organization_suspended_at_check',
+    });
+  });
+
+  it('rejects active with a time on organization_suspended_at_check', async () => {
+    await expect(owner(`update organization set suspended_at = now() where id = $1`, [orgA])).rejects.toMatchObject({
+      code: '23514',
+      constraint: 'organization_suspended_at_check',
+    });
+  });
+
+  it('accepts suspended with a time', async () => {
+    await owner(`update organization set status = 'suspended', suspended_at = now() where id = $1`, [orgB]);
+    const rows = await owner<{ status: string }>('select status from organization where id = $1', [orgB]);
+    expect(rows[0]?.status).toBe('suspended');
+  });
+
+  it('indexes runs by (org_id, queued_at)', async () => {
+    const rows = await owner<{ col: string }>(
+      `select a.attname as col from pg_index i
+       join pg_class c on c.oid = i.indexrelid
+       join pg_attribute a on a.attrelid = i.indrelid and a.attnum = any(i.indkey)
+       where c.relname = 'runs_org_queued_idx'
+       order by array_position(i.indkey::int2[], a.attnum)`,
+    );
+    expect(rows.map((r) => r.col)).toEqual(['org_id', 'queued_at']);
+  });
+});
+
+describe('platform_org_stats definer function (migration 0042)', () => {
+  const owner = (sql: string, params: unknown[] = []) => query<Record<string, unknown>>(env.ownerUrl, sql, params);
+
+  it('is security definer, owned by agentdesk_owner, with a pinned search_path', async () => {
+    expect(
+      await owner(
+        `select prosecdef, proconfig, pg_get_userbyid(proowner) as owner from pg_proc where proname = 'platform_org_stats'`,
+      ),
+    ).toEqual([{ prosecdef: true, proconfig: ['search_path=public, pg_temp'], owner: 'agentdesk_owner' }]);
+  });
+
+  it('is executable by the app role and not by PUBLIC', async () => {
+    expect(
+      await owner(
+        `select has_function_privilege('public', 'platform_org_stats(uuid[])', 'EXECUTE') as public_exec,
+                has_function_privilege('agentdesk_app', 'platform_org_stats(uuid[])', 'EXECUTE') as app_exec`,
+      ),
+    ).toEqual([{ public_exec: false, app_exec: true }]);
+    const grants = await owner(
+      `select grantee from information_schema.routine_privileges
+       where routine_name = 'platform_org_stats' and privilege_type = 'EXECUTE' order by 1`,
+    );
+    expect(grants.map((g) => g.grantee)).toEqual(['agentdesk_app', 'agentdesk_owner']);
+  });
+
+  it('adds two narrow read policies for agentdesk_owner', async () => {
+    const rows = await owner(
+      `select tablename, policyname, cmd, roles::text as roles, qual from pg_policies
+       where policyname = 'platform_stats_read' order by tablename`,
+    );
+    expect(rows).toEqual([
+      {
+        tablename: 'role_assignments',
+        policyname: 'platform_stats_read',
+        cmd: 'SELECT',
+        roles: '{agentdesk_owner}',
+        qual: expect.stringMatching(/scope_type = 'org'::text\)? AND \(?role_id IN .*roles.*key = 'owner'::text/s),
+      },
+      {
+        tablename: 'roles',
+        policyname: 'platform_stats_read',
+        cmd: 'SELECT',
+        roles: '{agentdesk_owner}',
+        qual: "(key = 'owner'::text)",
+      },
+    ]);
+  });
+
+  it('leaves the app role without org context seeing no role or assignment rows', async () => {
+    for (const table of ['role_assignments', 'roles']) {
+      expect(await query<{ n: number }>(env.appUrl, `select count(*)::int as n from ${table}`)).toEqual([{ n: 0 }]);
+    }
+  });
+});
+
+describe('platform_audit_log.target_org_id on an upgraded database (migration 0043)', () => {
+  let old: Awaited<ReturnType<typeof startPgAt>>;
+
+  const owner = async <T extends pg.QueryResultRow>(sql: string, params: unknown[] = []): Promise<T[]> =>
+    query<T>(old.ownerUrl, sql, params);
+  const priv = async (p: string): Promise<boolean> =>
+    (
+      await owner<{ ok: boolean }>("select has_table_privilege('agentdesk_app', 'platform_audit_log', $1) as ok", [p])
+    )[0]?.ok === true;
+
+  beforeAll(async () => {
+    old = await startPgAt('0042_platform_org_stats');
+    for (const action of ['platform_admin.granted', 'platform_admin.revoked']) {
+      await owner(
+        `insert into platform_audit_log (actor_user_id, action, target_type, target_id) values ('u-1', $1, 'platform_admin', 'x@x.io')`,
+        [action],
+      );
+    }
+    await old.migrateRest();
+  }, 180_000);
+
+  afterAll(async () => {
+    await old?.stop();
+  });
+
+  it('keeps existing audit rows with a null target_org_id', async () => {
+    const rows = await owner<{ target_org_id: string | null }>('select target_org_id from platform_audit_log');
+    expect(rows).toHaveLength(2);
+    expect(rows.every((r) => r.target_org_id === null)).toBe(true);
+  });
+
+  it('adds a nullable uuid target_org_id column', async () => {
+    expect(
+      await owner(
+        `select data_type, is_nullable from information_schema.columns
+         where table_name = 'platform_audit_log' and column_name = 'target_org_id'`,
+      ),
+    ).toEqual([{ data_type: 'uuid', is_nullable: 'YES' }]);
+  });
+
+  it('indexes platform_audit_log by (target_org_id, created_at, id)', async () => {
+    const rows = await owner<{ col: string }>(
+      `select a.attname as col from pg_index i
+       join pg_class c on c.oid = i.indexrelid
+       join pg_attribute a on a.attrelid = i.indrelid and a.attnum = any(i.indkey)
+       where c.relname = 'platform_audit_log_target_org_idx'
+       order by array_position(i.indkey::int2[], a.attnum)`,
+    );
+    expect(rows.map((r) => r.col)).toEqual(['target_org_id', 'created_at', 'id']);
+  });
+
+  it('leaves the app role with SELECT and INSERT only, and no RLS', async () => {
+    expect(await priv('SELECT')).toBe(true);
+    expect(await priv('INSERT')).toBe(true);
+    expect(await priv('UPDATE')).toBe(false);
+    expect(await priv('DELETE')).toBe(false);
+    const rls = await owner<{ relrowsecurity: boolean }>(
+      `select relrowsecurity from pg_class where relname = 'platform_audit_log'`,
+    );
+    expect(rls).toEqual([{ relrowsecurity: false }]);
+  });
+});
+
+describe('migration 0044: project_env_vars on a database that already has projects', () => {
+  let old: Awaited<ReturnType<typeof startPgAt>>;
+  const owner = async <T extends pg.QueryResultRow>(sql: string, params: unknown[] = []): Promise<T[]> =>
+    query<T>(old.ownerUrl, sql, params);
+
+  beforeAll(async () => {
+    old = await startPgAt('0043_platform_audit_target_org');
+    const orgId = randomUUID();
+    await owner(`insert into organization (id, name, slug, created_at) values ($1, $1, $1, now())`, [orgId]);
+    const client = new pg.Client({ connectionString: old.ownerUrl });
+    await client.connect();
+    try {
+      await client.query('begin');
+      await client.query("select set_config('app.org_id', $1, true)", [orgId]);
+      const c = await client.query<{ id: string }>(
+        `insert into connections (org_id, provider, capabilities, external_id, account_name)
+         values ($1, 'fake', '{"code":true,"board":true}', 'x', 'acct') returning id`,
+        [orgId],
+      );
+      await client.query(
+        `insert into projects (org_id, name, repo_path, code_connection_id, board_connection_id)
+         values ($1, 'pre', 'pre/p', $2, $2)`,
+        [orgId, c.rows[0]?.id],
+      );
+      await client.query('commit');
+    } finally {
+      await client.end();
+    }
+    await old.migrateRest();
+  }, 180_000);
+
+  afterAll(async () => {
+    await old?.stop();
+  });
+
+  it('applies, keeps the existing project and leaves it with no env rows', async () => {
+    expect(await owner('select name from projects')).toEqual([{ name: 'pre' }]);
+    expect(await owner('select * from project_env_vars')).toEqual([]);
+  });
+
+  it('gives the app role SELECT, INSERT, UPDATE and DELETE', async () => {
+    for (const p of ['SELECT', 'INSERT', 'UPDATE', 'DELETE']) {
+      const [r] = await owner<{ ok: boolean }>(
+        "select has_table_privilege('agentdesk_app', 'project_env_vars', $1) as ok",
+        [p],
+      );
+      expect(r?.ok, p).toBe(true);
+    }
   });
 });

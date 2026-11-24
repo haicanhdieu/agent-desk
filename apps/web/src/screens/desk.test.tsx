@@ -302,8 +302,16 @@ describe('DeskRules', () => {
 });
 
 describe('DeskAgent', () => {
+  it('renders no Danger zone and no Delete project without onDeleteProject', () => {
+    render(<DeskAgent frame={deskFrame} settings={agentSettings} github={github} />);
+    expect(screen.queryByRole('heading', { name: 'Danger zone' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Delete project' })).toBeNull();
+  });
+
   it('has one main, the four sections and no credential input by default', () => {
-    const { container } = render(<DeskAgent frame={deskFrame} settings={agentSettings} github={github} />);
+    const { container } = render(
+      <DeskAgent frame={deskFrame} settings={agentSettings} github={github} onDeleteProject={vi.fn()} />,
+    );
     expect(screen.getAllByRole('main')).toHaveLength(1);
     expect(screen.getByRole('heading', { level: 1, name: 'Agent & settings' })).toBeInTheDocument();
     for (const n of ['GitHub connection', 'Agent', 'Limits', 'Danger zone']) {

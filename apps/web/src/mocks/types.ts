@@ -209,6 +209,8 @@ export interface OrgOption {
   id: string;
   slug: string;
   name: string;
+  /** Platform view: the switcher menu marks the org "Suspended"; it still links. */
+  suspended?: boolean;
 }
 export interface OrgSwitchData {
   current: OrgOption | null;
@@ -292,3 +294,27 @@ export interface AuditRowView {
   what:
     { kind: 'sentence'; parts: AuditTextPart[]; title: string } | { kind: 'raw'; key: string; target: string | null };
 }
+
+// Project space (Settings → Members and Audit log of one project).
+export type ProjectRoleKey = 'admin' | 'member' | 'viewer';
+export interface ProjectMemberRowView {
+  userId: string;
+  name: string;
+  /** null shows the name only. */
+  handle: string | null;
+  you: boolean;
+  /** "Member" or "Member, Viewer". */
+  roles: string;
+}
+export interface MemberPickerOption {
+  userId: string;
+  name: string;
+  handle: string | null;
+}
+export type MemberPickerState =
+  | { kind: 'idle' }
+  | { kind: 'loading' }
+  | { kind: 'searching' }
+  | { kind: 'error'; onRetry: () => void }
+  | { kind: 'loadingMore' }
+  | { kind: 'loadMoreError'; onRetry: () => void };

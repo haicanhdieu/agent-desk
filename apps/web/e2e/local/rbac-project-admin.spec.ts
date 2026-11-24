@@ -1,4 +1,4 @@
-import { randomBytes } from 'node:crypto';
+import { randomBytes, randomUUID } from 'node:crypto';
 import { expect, test, type APIResponse } from '@playwright/test';
 import {
   ACTIVE_RUN_STATUSES,
@@ -7,6 +7,7 @@ import {
   AssignmentDto,
   ConnectionDto,
   ProjectDto,
+  ProjectMemberDto,
   RuleDto,
   RunListResponse,
   SetupScriptDto,
@@ -16,7 +17,20 @@ import {
 } from '@agentdesk/contracts';
 import { z } from 'zod';
 import { API, grant, ok, runOf, waitForStatus } from './helpers';
-import { REPO_NEW, REPO_P1, REPO_P2, buildCast, disposeCast, openTerminal, type Actor, type Cast } from './rbac-cast';
+import {
+  REPO_NEW,
+  REPO_P1,
+  REPO_P2,
+  buildCast,
+  disposeCast,
+  disposeSecondOrg,
+  openTerminal,
+  roleIdsOf,
+  secondOrg,
+  type Actor,
+  type Cast,
+} from './rbac-cast';
+import { auditUrl, freshOrgMember, membersUrl, projectAuditApi, projectMembersApi } from './project-admin';
 
 /*
  * Local end-to-end for RBAC foundation, a project admin, a member of two projects, mixed roles and a member left with
@@ -438,6 +452,434 @@ test.describe('BR-32: a member with no assignment is locked out until granted', 
       expect(list.items[0]?.repoPath, 'the list shows P2').toBe(REPO_P2);
     } finally {
       await quietly(() => o.api.delete(`/api/rules/${r2.id}`));
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------------------------------------------------
+// Project admin space (spec 2026-11-23-rbac-project-admin-space-design.md, E2E requirements: BR-2, BR-3, BR-11, BR-23,
+// BR-24, BR-26). Every extra person a case makes is closed in a `finally`.
+// ---------------------------------------------------------------------------------------------------------------------
+
+const forbidden = (page: Actor['page']) => page.getByRole('heading', { name: "You don't have access" });
+const notFound = (page: Actor['page']) => page.getByRole('heading', { name: 'Page not found' });
+
+async function projectMembersOf(who: Pick<Actor, 'api'>, projectId: string): Promise<ProjectMemberDto[]> {
+  return pageOf(ProjectMemberDto).parse(
+    await ok(await projectMembersApi(who, projectId).list(), 200, 'project members'),
+  ).items;
+}
+
+const roleKeysOf = (m: ProjectMemberDto | undefined): string[] => (m?.projectRoles ?? []).map((r) => r.role.key).sort();
+
+test.describe('BR-2: member and viewer get Forbidden on Members and Audit log', () => {
+  for (const [tc, who] of [
+    ['TC-2.5', 'b'],
+    ['TC-2.6', 'v'],
+  ] as const) {
+    test(`${tc}: ${who === 'b' ? 'B (member on P1)' : 'V (org viewer)'} typing P1's Members and Audit log URL sees Forbidden, no names, no entries`, async () => {
+      const person = cast[who];
+      const names = [cast.a.handle, cast.b.handle, cast.c.handle, cast.o.handle];
+      for (const url of [membersUrl(cast, cast.p1), auditUrl(cast, cast.p1)]) {
+        await person.page.goto(url);
+        await expect(forbidden(person.page)).toBeVisible();
+        await expect(person.page.getByText('Ask an owner of this organization to give you access.')).toBeVisible();
+        await expect(person.page.getByRole('table')).toHaveCount(0);
+        await expect(person.page.getByRole('heading', { level: 1, name: /^(Members|Audit log)$/ })).toHaveCount(0);
+        for (const name of names) await expect(person.page.locator('body')).not.toContainText(name);
+      }
+    });
+  }
+});
+
+test.describe('BR-3: an admin of P1 only gets not found on P2', () => {
+  test("TC-3.2: A typing P2's Settings URL sees not found and nothing of P2", async () => {
+    const p2 = await projectOf(cast.o, cast.p2);
+    await cast.a.page.goto(`/o/${cast.slug}/p/${cast.p2}/desk/rules`);
+    await expect(notFound(cast.a.page)).toBeVisible();
+    await expect(cast.a.page.locator('body')).not.toContainText(p2.repoPath);
+    await expect(cast.a.page.locator('body')).not.toContainText(p2.name);
+    await expect(cast.a.page.getByRole('heading', { name: 'Routing rules' })).toHaveCount(0);
+  });
+
+  test("TC-3.3: A typing P2's Members URL sees not found and none of P2's people", async () => {
+    await cast.a.page.goto(membersUrl(cast, cast.p2));
+    await expect(notFound(cast.a.page)).toBeVisible();
+    await expect(cast.a.page.getByRole('table')).toHaveCount(0);
+    await expect(cast.a.page.locator('body')).not.toContainText(cast.b.handle);
+  });
+
+  test("TC-3.4: A typing P2's Audit log URL sees not found, no P2 entries or names", async () => {
+    // Given: an entry exists in P2's audit (O adds X to P2).
+    const x = await freshOrgMember(cast, 'viewer', { type: 'org' });
+    try {
+      await expect2xx(await projectMembersApi(cast.o, cast.p2).add(x.userId, cast.roleIds.viewer), 'O adds X to P2');
+      await cast.a.page.goto(auditUrl(cast, cast.p2));
+      await expect(notFound(cast.a.page)).toBeVisible();
+      await expect(cast.a.page.getByRole('table')).toHaveCount(0);
+      await expect(cast.a.page.locator('body')).not.toContainText(x.handle);
+      await expect(cast.a.page.locator('body')).not.toContainText(cast.b.handle);
+    } finally {
+      await quietly(() => x.ctx.close());
+    }
+  });
+});
+
+test.describe('BR-11: A looks at their own row', () => {
+  test('TC-11.2: A deleting their own project membership gets 403; A still opens Members and still has Admin on P1', async () => {
+    await expect403(await projectMembersApi(cast.a, cast.p1).remove(cast.a.userId), 'A removes themselves');
+    await cast.a.page.goto(membersUrl(cast, cast.p1));
+    await expect(cast.a.page.getByRole('heading', { level: 1, name: 'Members' })).toBeVisible();
+    const held = (await accessOf(cast.a)).assignments.map((x) => `${x.roleKey}:${x.scope.type}`);
+    expect(held, 'A still holds admin on P1').toEqual(['admin:project']);
+    const rows = await projectMembersOf(cast.o, cast.p1);
+    expect(roleKeysOf(rows.find((m) => m.userId === cast.a.userId))).toEqual(['admin']);
+  });
+});
+
+test.describe('BR-23: API refusals', () => {
+  /** The three writes aimed at C on P1 as `who`, each refused 403, then C still has exactly `member` and X has no role. */
+  async function expectWritesRefused(who: Actor): Promise<void> {
+    const x = await freshOrgMember(cast, 'viewer', { type: 'org' });
+    try {
+      const api = projectMembersApi(who, cast.p1);
+      await expect403(await api.add(x.userId, cast.roleIds.viewer), 'add');
+      await expect403(await api.setRole(cast.c.userId, cast.roleIds.viewer), 'change role');
+      await expect403(await api.remove(cast.c.userId), 'remove');
+      const rows = await projectMembersOf(cast.o, cast.p1);
+      expect(roleKeysOf(rows.find((m) => m.userId === cast.c.userId)), 'C keeps the same role').toEqual(['member']);
+      expect(
+        rows.some((m) => m.userId === x.userId),
+        'X was not added',
+      ).toBe(false);
+    } finally {
+      await quietly(() => x.ctx.close());
+    }
+  }
+
+  test('TC-23.1: B (member P1) add, change role and remove each answer 403; C keeps the same role', async () => {
+    await expectWritesRefused(cast.b);
+  });
+
+  test('TC-23.2: V (org viewer) add, change role and remove each answer 403; nothing changes', async () => {
+    await expectWritesRefused(cast.v);
+  });
+
+  test('TC-23.3: B reading the members and the audit of P1 gets 403 for both', async () => {
+    await expect403(await projectMembersApi(cast.b, cast.p1).list(), 'B lists members');
+    await expect403(await projectAuditApi(cast.b, cast.p1), 'B reads audit');
+  });
+
+  test('TC-23.4: V reading the members and the audit of P1 gets 403 for both', async () => {
+    await expect403(await projectMembersApi(cast.v, cast.p1).list(), 'V lists members');
+    await expect403(await projectAuditApi(cast.v, cast.p1), 'V reads audit');
+  });
+
+  test("TC-23.5: A (admin of P1 only) sending GET, POST, PUT and DELETE for P2 gets 404 each; B's role on P2 is unchanged", async () => {
+    const api = projectMembersApi(cast.a, cast.p2);
+    const leaks = [cast.b.handle];
+    await expect404(await api.list(), 'GET', leaks);
+    await expect404(await api.add(cast.b.userId, cast.roleIds.viewer), 'POST', leaks);
+    await expect404(await api.setRole(cast.b.userId, cast.roleIds.viewer), 'PUT role', leaks);
+    await expect404(await api.remove(cast.b.userId), 'DELETE', leaks);
+    const rows = await projectMembersOf(cast.o, cast.p2);
+    expect(roleKeysOf(rows.find((m) => m.userId === cast.b.userId))).toEqual(['member']);
+  });
+
+  test("TC-23.6: A reading P2's audit gets 404", async () => {
+    await expect404(await projectAuditApi(cast.a, cast.p2), 'GET P2 audit', [cast.b.handle]);
+  });
+
+  test('TC-23.7: A adding an org member with the Owner role gets 422 on /roleId and no row is added', async () => {
+    const x = await freshOrgMember(cast, 'viewer', { type: 'org' });
+    try {
+      const res = await projectMembersApi(cast.a, cast.p1).add(x.userId, cast.roleIds.owner);
+      const text = await res.text();
+      expect(res.status(), `owner role: ${res.status()} ${text}`).toBe(422);
+      expect(text, 'the error names /roleId').toContain('/roleId');
+      const rows = await projectMembersOf(cast.o, cast.p1);
+      expect(rows.some((m) => m.userId === x.userId)).toBe(false);
+    } finally {
+      await quietly(() => x.ctx.close());
+    }
+  });
+
+  test('TC-23.8: A adding C, who already holds a role on P1, gets 409 and C keeps their role', async () => {
+    const res = await projectMembersApi(cast.a, cast.p1).add(cast.c.userId, cast.roleIds.viewer);
+    const text = await res.text();
+    expect(res.status(), `add C again: ${res.status()} ${text}`).toBe(409);
+    expect(text.toLowerCase()).toContain('already has a role on this project');
+    const rows = await projectMembersOf(cast.o, cast.p1);
+    expect(roleKeysOf(rows.find((m) => m.userId === cast.c.userId))).toEqual(['member']);
+  });
+});
+
+test.describe('BR-24: cross-org', () => {
+  test("TC-24.1: the owner of org B reading, adding to and auditing org A's P1 gets 404 naming nothing of org A", async ({
+    browser,
+  }) => {
+    const second = await secondOrg(browser, cast.pa);
+    try {
+      const leaks = [cast.slug, cast.orgId, cast.o.handle, cast.a.handle, cast.b.handle, cast.c.handle];
+      await expect404(await projectMembersApi(second.owner, cast.p1).list(), 'GET members', leaks);
+      const secondRoles = await roleIdsOf(cast.pa, second.orgId);
+      await expect404(
+        await projectMembersApi(second.owner, cast.p1).add(second.owner.userId, secondRoles.viewer),
+        'POST members',
+        leaks,
+      );
+      await expect404(await projectAuditApi(second.owner, cast.p1), 'GET audit', leaks);
+    } finally {
+      await disposeSecondOrg(second);
+    }
+  });
+
+  test('TC-24.2: org B owner listing members with excludeProject P1 and with an unknown project gets the same not found', async ({
+    browser,
+  }) => {
+    const second = await secondOrg(browser, cast.pa);
+    try {
+      const list = (project: string) =>
+        second.owner.api.get(`/api/orgs/${second.orgId}/members?excludeProject=${project}`);
+      const other = await list(cast.p1);
+      const unknown = await list(randomUUID());
+      const otherText = await other.text();
+      const unknownText = await unknown.text();
+      expect(other.status(), `P1 of org A: ${otherText}`).toBe(404);
+      expect(unknown.status(), `unknown id: ${unknownText}`).toBe(404);
+      // The same answer: title, detail and status match (the request id and instance differ per request).
+      const shape = (text: string): string => {
+        const { title, detail, status } = z
+          .object({ title: z.string(), detail: z.string(), status: z.number() })
+          .parse(JSON.parse(text));
+        return JSON.stringify({ title, detail, status });
+      };
+      expect(shape(otherText)).toBe(shape(unknownText));
+    } finally {
+      await disposeSecondOrg(second);
+    }
+  });
+
+  test("TC-24.3: O opening P1 Members, org Members, P1 Audit and org Audit sees none of org B's people or entries", async ({
+    browser,
+  }) => {
+    const second = await secondOrg(browser, cast.pa);
+    try {
+      const page = cast.o.page;
+      const noneOfB = async (): Promise<void> => {
+        await expect(page.locator('body')).not.toContainText(second.owner.handle);
+      };
+      await page.goto(membersUrl(cast, cast.p1));
+      await expect(page.getByRole('heading', { level: 1, name: 'Members' })).toBeVisible();
+      await expect(page.getByRole('row').filter({ hasText: cast.b.handle })).toBeVisible();
+      await noneOfB();
+      await page.goto(`/o/${cast.slug}/settings/members`);
+      await expect(page.getByRole('row').filter({ hasText: cast.b.handle })).toBeVisible();
+      await noneOfB();
+      await page.goto(auditUrl(cast, cast.p1));
+      await expect(page.getByRole('heading', { level: 1, name: 'Audit log' })).toBeVisible();
+      await noneOfB();
+      await page.goto(`/o/${cast.slug}/settings/audit`);
+      await expect(page.getByRole('heading', { level: 1, name: 'Audit log' })).toBeVisible();
+      await noneOfB();
+    } finally {
+      await disposeSecondOrg(second);
+    }
+  });
+});
+
+test.describe('BR-26: an org viewer who is also admin on P1', () => {
+  /** G: org viewer plus admin on P1, made in the case. */
+  async function newG(): Promise<Actor> {
+    const g = await freshOrgMember(cast, 'viewer', { type: 'org' });
+    try {
+      await grant(cast.pa, cast.orgId, g.userId, 'admin', { type: 'project', projectId: cast.p1 });
+      return g;
+    } catch (error) {
+      await g.ctx.close().catch(() => null);
+      throw error;
+    }
+  }
+
+  test('TC-26.1: G opens P1 Settings, Members and Audit log; adding a person as Viewer succeeds and shows after a reload', async () => {
+    const g = await newG();
+    let x: Actor | undefined;
+    try {
+      x = await freshOrgMember(cast, 'viewer', { type: 'org' });
+      const page = g.page;
+      await page.goto(`/o/${cast.slug}/p/${cast.p1}/runs`);
+      await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Settings' }).click();
+      const side = page.getByRole('navigation', { name: 'Desk' });
+      await side.getByRole('link', { name: 'Members' }).click();
+      await expect(page.getByRole('heading', { level: 1, name: 'Members' })).toBeVisible();
+      await page.getByRole('button', { name: 'Add member' }).first().click();
+      const dialog = page.getByRole('dialog', { name: /^Add member to/ });
+      await dialog.getByRole('combobox', { name: 'Person' }).click();
+      await page.getByRole('option').filter({ hasText: x.handle }).first().click();
+      const added = x;
+      await dialog
+        .getByRole('radiogroup', { name: 'Role' })
+        .getByRole('radio', { name: /^Viewer/ })
+        .check({ force: true });
+      await dialog.getByRole('button', { name: 'Add member' }).click();
+      await expect(page.getByText(/added as Viewer/)).toBeVisible();
+      await page.reload();
+      const row = page.getByRole('row').filter({ hasText: added.handle });
+      await expect(row).toBeVisible();
+      await expect(row).toContainText('Viewer');
+      await side.getByRole('link', { name: 'Audit log' }).click();
+      await expect(page.getByRole('heading', { level: 1, name: 'Audit log' })).toBeVisible();
+      expect(roleKeysOf((await projectMembersOf(cast.o, cast.p1)).find((m) => m.userId === added.userId))).toEqual([
+        'viewer',
+      ]);
+    } finally {
+      await quietly(async () => x?.ctx.close());
+      await quietly(() => g.ctx.close());
+    }
+  });
+
+  test("TC-26.2: G opens P2 read-only with no Settings tab; P2's Members URL shows Forbidden", async () => {
+    const g = await newG();
+    try {
+      const page = g.page;
+      const main = page.getByRole('navigation', { name: 'Main' });
+      const runsUrl = `/o/${cast.slug}/p/${cast.p2}/runs`;
+      const run = await runOf(page, cast.rp2);
+      // Control: the owner O sees the write controls on P2's active run, so their absence for G is a real difference.
+      await cast.o.page.goto(runsUrl);
+      await expect(cast.o.page.getByRole('button', { name: 'Finish run' })).toBeVisible();
+      await cast.o.page.goto(`${runsUrl}/${run.number}`);
+      await expect(cast.o.page.getByRole('button', { name: 'Cancel run' })).toBeVisible();
+      // G reads P2 (its run is listed and opens) but has no write control and no Settings tab.
+      await page.goto(runsUrl);
+      await expect(page.locator(`a[href="${runsUrl}/${run.number}"]`).first()).toBeVisible();
+      await expect(main.getByRole('link', { name: 'Settings' })).toHaveCount(0);
+      await expect(page.getByRole('button', { name: 'Finish run' })).toHaveCount(0);
+      await page.goto(`${runsUrl}/${run.number}`);
+      await expect(page.getByText('Triggered by')).toBeVisible();
+      await expect(page.getByRole('button', { name: 'Cancel run' })).toHaveCount(0);
+      await page.goto(membersUrl(cast, cast.p2));
+      await expect(forbidden(page)).toBeVisible();
+      await expect(page.getByRole('table')).toHaveCount(0);
+    } finally {
+      await quietly(() => g.ctx.close());
+    }
+  });
+});
+
+/** The 7 project env routes on `projectId`: list, then create, update and remove for variables, then for secrets. */
+function envCalls(
+  who: Actor,
+  projectId: string,
+  plain: string,
+  secret: string,
+): { what: string; call: () => Promise<APIResponse> }[] {
+  const base = `/api/projects/${projectId}`;
+  return [
+    { what: 'list', call: () => who.api.get(`${base}/env?kind=plain`) },
+    {
+      what: 'create var',
+      call: () => who.api.post(`${base}/env-vars`, { data: { name: plain, value: 'e2e-new-value' } }),
+    },
+    { what: 'update var', call: () => who.api.put(`${base}/env-vars/${plain}`, { data: { value: 'e2e-changed' } }) },
+    { what: 'remove var', call: () => who.api.delete(`${base}/env-vars/${plain}`) },
+    {
+      what: 'create secret',
+      call: () => who.api.post(`${base}/env-secrets`, { data: { name: secret, value: 'e2e-secret-new' } }),
+    },
+    {
+      what: 'update secret',
+      call: () => who.api.put(`${base}/env-secrets/${secret}`, { data: { value: 'e2e-secret-changed' } }),
+    },
+    { what: 'remove secret', call: () => who.api.delete(`${base}/env-secrets/${secret}`) },
+  ];
+}
+
+type EnvItem = { name: string; kind: string; value: string | null };
+
+async function envList(who: Actor, projectId: string, kind: 'plain' | 'secret'): Promise<EnvItem[]> {
+  const res = await who.api.get(`/api/projects/${projectId}/env?kind=${kind}`);
+  expect(res.status(), await res.text()).toBe(200);
+  return ((await res.json()) as { items: EnvItem[] }).items;
+}
+
+async function addVar(who: Actor, projectId: string, name: string, value: string): Promise<void> {
+  const res = await who.api.post(`/api/projects/${projectId}/env-vars`, { data: { name, value } });
+  expect(res.status(), await res.text()).toBeLessThan(300);
+}
+
+const envPath = (slug: string, projectId: string): string => `/o/${slug}/p/${projectId}/desk/setup?tab=environment`;
+
+test.describe('BR-4: the env of a project is scoped to the project and the org', () => {
+  const rand = randomBytes(3).toString('hex');
+  const p1Name = `E2E_P1_${rand}`;
+  const p2Name = `E2E_P2_${rand}`;
+
+  test.beforeEach(async () => {
+    await addVar(cast.o, cast.p1, p1Name, 'e2e-p1-value');
+    await addVar(cast.o, cast.p2, p2Name, 'e2e-p2-value');
+  });
+
+  test('TC-4.1: the admin of P1 only sees E2E_P1 in the Environment tab and adds E2E_NEW', async () => {
+    const page = cast.a.page;
+    const newName = `E2E_NEW_${rand}`;
+    await page.goto(envPath(cast.slug, cast.p1));
+    await expect(page.getByText(p1Name)).toBeVisible();
+    await expect(page.getByText(p2Name)).toHaveCount(0);
+
+    const vars = page.getByRole('region', { name: 'Environment variables' });
+    await vars.getByRole('button', { name: 'Add variable' }).click();
+    const form = vars.getByRole('group', { name: 'Add variable' });
+    await form.getByRole('textbox', { name: 'Name' }).fill(newName);
+    await form.getByRole('textbox', { name: 'Value' }).fill('e2e-new-value');
+    await form.getByRole('button', { name: 'Add variable' }).click();
+    await expect(vars.getByText(newName, { exact: true })).toBeVisible();
+    await expect(vars.getByText(p1Name, { exact: true })).toBeVisible();
+    expect((await envList(cast.o, cast.p1, 'plain')).map((e) => e.name)).toEqual(
+      expect.arrayContaining([p1Name, newName]),
+    );
+  });
+
+  test("TC-4.2: the admin of P1 only opening P2's Environment tab sees the not-found page, not Forbidden", async () => {
+    const page = cast.a.page;
+    await page.goto(envPath(cast.slug, cast.p2));
+    await expect(page.getByText('Page not found')).toBeVisible();
+    await expect(page.getByText("You don't have access")).toHaveCount(0);
+    await expect(page.getByText(p2Name)).toHaveCount(0);
+  });
+
+  test("TC-4.3: the admin of P1 only gets 404 on the 7 env routes of P2 and P2's list is unchanged", async () => {
+    const before = await envList(cast.o, cast.p2, 'plain');
+    expect(before.map((e) => e.name)).toContain(p2Name);
+    for (const { what, call } of envCalls(cast.a, cast.p2, p2Name, `E2E_SECRET_${rand}`)) {
+      await expect404(await call(), `${what} on P2`, [p2Name, 'e2e-p2-value']);
+    }
+    expect(await envList(cast.o, cast.p2, 'plain')).toEqual(before);
+    expect(await envList(cast.o, cast.p2, 'secret')).toEqual([]);
+  });
+
+  test("TC-4.4: an owner of another org gets the not-found page and 404 on the 7 routes of org A's project", async ({
+    browser,
+  }) => {
+    const second = await secondOrg(browser, cast.pa);
+    try {
+      const aName = `E2E_A_${rand}`;
+      await addVar(cast.o, cast.p1, aName, 'e2e-a-value');
+      const before = await envList(cast.o, cast.p1, 'plain');
+      expect(before.map((e) => e.name)).toContain(aName);
+
+      const page = second.owner.page;
+      await page.goto(envPath(cast.slug, cast.p1));
+      await expect(page.getByText('Page not found')).toBeVisible();
+      await expect(page.getByText("You don't have access")).toHaveCount(0);
+      await expect(page.getByText(aName)).toHaveCount(0);
+
+      for (const { what, call } of envCalls(second.owner, cast.p1, aName, `E2E_SECRET_${rand}`)) {
+        await expect404(await call(), `${what} on org A's project`, [aName, 'e2e-a-value']);
+      }
+      expect(await envList(cast.o, cast.p1, 'plain')).toEqual(before);
+    } finally {
+      await disposeSecondOrg(second);
     }
   });
 });

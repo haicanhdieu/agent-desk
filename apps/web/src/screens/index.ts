@@ -13,6 +13,8 @@ export { NeedsYou, type NeedsYouProps, type NeedsYouRun } from './NeedsYou';
 export { RunDetail, type RunDetailProps } from './RunDetail';
 export { DeskSkills, type DeskSkillsProps } from './DeskSkills';
 export { DeskRules, RulePane, type DeskRulesProps, type RulePaneProps } from './DeskRules';
+export { DeskAudit, type DeskAuditProps } from './DeskAudit';
+export { DeskMembers, type DeskMembersProps } from './DeskMembers';
 export { DeskAgent, type AgentLimits, type DeskAgentProps, type LimitField } from './DeskAgent';
 export type { DeskFrameData, DeskLinks } from './DeskFrame';
 export { Overview } from './Overview';
@@ -20,10 +22,12 @@ export {
   DeskSetup,
   SETUP_SCRIPT_STARTER,
   type DeskSetupProps,
+  type DeskSetupTab,
   type LastSetupTest,
   type SavedSetupScript,
   type SetupTestView,
 } from './DeskSetup';
+export { DeskSetupEnvironment, type DeskSetupEnvironmentProps, type EnvListGroup } from './DeskSetupEnvironment';
 export { SetupWorkspace, type SetupStepTest, type SetupWorkspaceProps } from './SetupWorkspace';
 export { MyInvitations, type MyInvitationsProps, type MyInvitationsState } from './MyInvitations';
 export { InvitationAccept, type InvitationAcceptProps, type InvitationAcceptState } from './InvitationAccept';
@@ -32,3 +36,12 @@ export { OrgGeneral, type OrgGeneralProps } from './OrgGeneral';
 export { OrgAudit, type OrgAuditProps } from './OrgAudit';
 export { OrgMembers, type OrgMembersProps } from './OrgMembers';
 export { CreateOrg, type CreateOrgProps, type CreateOrgState, type CreateOrgValues } from './CreateOrg';
+export { PlatformAdmins, type PlatformAdminsProps, type PlatformAdminsView } from './PlatformAdmins';
+export { PlatformOrgs, type PlatformOrgsProps, type PlatformOrgsView } from './PlatformOrgs';
+export {
+  PlatformOrgDetail,
+  PlatformOrgOverview,
+  type PlatformOrgDetailProps,
+  type PlatformOrgDetailView,
+} from './PlatformOrgDetail';
+export { OrgSuspended, type OrgSuspendedProps } from './OrgSuspended';

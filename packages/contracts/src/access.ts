@@ -35,11 +35,13 @@ const TENANT_PERMISSIONS = [
   'org:update',
   'org:delete',
   'audit:read',
+  'project-audit:read',
 ] as const;
 
 const PLATFORM_PERMISSIONS = [
   'platform-org:create',
   'platform-org:read',
+  'platform-org:update',
   'platform-project:read',
   'platform-role:read',
   'platform-member:read',

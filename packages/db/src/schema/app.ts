@@ -288,6 +288,7 @@ export const runs = pgTable(
     unique('runs_project_trigger_comment_key').on(t.projectId, t.triggerCommentId),
     unique('runs_project_number_key').on(t.projectId, t.number),
     index('runs_org_idx').on(t.orgId),
+    index('runs_org_queued_idx').on(t.orgId, t.queuedAt),
     index('runs_project_status_idx').on(t.projectId, t.status),
     index('runs_project_ticket_idx').on(t.projectId, t.ticketRef),
     // Reverse lookup (issue -> PR runs linked to it): `linked_issue_refs && $refs` over PR runs only.
@@ -447,8 +448,17 @@ export const auditLog = pgTable(
     targetId: text('target_id'),
     payload: jsonb('payload').$type<Record<string, unknown>>().notNull().default({}),
     at: ts('at').notNull().defaultNow(),
+    /** Projects the entry concerns, for the per-project audit log; no foreign key (a deleted project keeps its rows). */
+    projectIds: uuid('project_ids')
+      .array()
+      .notNull()
+      .default(sql`'{}'::uuid[]`),
   },
-  (t) => [index('audit_log_org_at_idx').on(t.orgId, t.at), orgPolicy()],
+  (t) => [
+    index('audit_log_org_at_idx').on(t.orgId, t.at),
+    index('audit_log_project_ids_idx').using('gin', t.projectIds),
+    orgPolicy(),
+  ],
 );
 
 /** Append-only history of a project's setup script; the highest version is current. No UPDATE/DELETE grant. */
@@ -471,6 +481,38 @@ export const setupScriptVersions = pgTable(
     index('setup_script_versions_org_idx').on(t.orgId),
     check('setup_script_versions_body_check', sql`octet_length(${t.body}) <= 65536`),
     check('setup_script_versions_note_check', sql`${t.note} is null or char_length(${t.note}) <= 200`),
+    orgPolicy(),
+  ],
+);
+
+export const projectEnvVars = pgTable(
+  'project_env_vars',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    orgId: uuid('org_id').notNull(),
+    projectId: uuid('project_id')
+      .notNull()
+      .references(() => projects.id, { onDelete: 'cascade' }),
+    name: text('name').notNull(),
+    kind: text('kind').notNull(),
+    /** Plain values only. A secret row keeps null: its value lives in a per-entry Kubernetes Secret. */
+    value: text('value'),
+    sizeBytes: integer('size_bytes').notNull(),
+    updatedBy: text('updated_by').notNull(),
+    createdAt: ts('created_at').notNull().defaultNow(),
+    updatedAt: ts('updated_at').notNull().defaultNow(),
+  },
+  (t) => [
+    unique('project_env_vars_project_name_key').on(t.projectId, t.name),
+    index('project_env_vars_org_idx').on(t.orgId),
+    index('project_env_vars_project_kind_name_idx').on(t.projectId, t.kind, sql`${t.name} COLLATE "C"`),
+    check('project_env_vars_name_check', sql`${t.name} ~ '^[A-Za-z_][A-Za-z0-9_]*$'`),
+    check('project_env_vars_kind_check', sql`${t.kind} in ('plain','secret')`),
+    check(
+      'project_env_vars_value_check',
+      sql`(${t.kind} = 'plain' and ${t.value} is not null and octet_length(${t.value}) <= 8192 and ${t.value} !~ '[\\r\\n]') or (${t.kind} = 'secret' and ${t.value} is null)`,
+    ),
+    check('project_env_vars_size_check', sql`${t.sizeBytes} between 1 and 8320`),
     orgPolicy(),
   ],
 );

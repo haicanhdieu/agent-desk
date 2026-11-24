@@ -1,15 +1,46 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
-import { AppShell, type PaginationProps } from '@/components';
+import type { ReactElement } from 'react';
+import { fn, userEvent, within } from 'storybook/test';
+import {
+  AddProjectMemberDialog,
+  AppShell,
+  ChangeRoleDialog,
+  InviteDialog,
+  TopBar,
+  type AddProjectMemberDialogProps,
+  type ChangeRoleDialogProps,
+  type InviteDialogStep,
+  type InviteDialogValues,
+  type EnvSaveError,
+  type PaginationProps,
+} from '@/components';
+import type { Actor, ProjectMemberRowView } from '@/mocks/types';
 import type { DeskFrameData } from './DeskFrame';
 import {
   agentSettings,
   connectionCopy,
   connections,
   deskFrame as plainDeskFrame,
+  inviteProjectOptions,
+  inviteRoleOptions,
+  invitationLink,
+  envBoardSecretRows,
+  envPagedSecretRows,
+  envPagedVariableRows,
+  envVariableRows,
   orgSwitchFixtures,
   pagedRules,
   pagedSkills,
   pagedVersions,
+  pagedAuditLastPage,
+  projectAuditRows,
+  projectAuditRowsExpired,
+  projectAuditRowsNoEmail,
+  manyPickerOptions,
+  memberPickerOptions,
+  pagedProjectMemberRows,
+  projectMemberRows,
+  projectRoleCards,
   promptSystemLines,
   rules,
   TRIAGE_PROMPT,
@@ -24,12 +55,16 @@ import {
   skills,
 } from '@/mocks';
 import { DeskSetup as DeskSetupScreen, type DeskSetupProps } from './DeskSetup';
-import { DeskAgent as DeskAgentScreen } from './DeskAgent';
+import { DeskAudit as DeskAuditScreen } from './DeskAudit';
+import { DeskMembers as DeskMembersScreen, type DeskMembersProps } from './DeskMembers';
+import screenStyles from './Screens.module.css';
+import { DeskAgent as DeskAgentBase, type DeskAgentProps } from './DeskAgent';
+import type { DeskSetupEnvironmentProps, EnvListGroup } from './DeskSetupEnvironment';
 import { DeskRules as DeskRulesScreen, RulePane } from './DeskRules';
 import { DeskSkills as DeskSkillsScreen, type DeskSkillsProps } from './DeskSkills';
 import { toModelList } from '@/components';
 import { agentModelsFixtures } from '@/mocks/dto/agentModels';
-import { StatusIcon } from '@/ds';
+import { StatusIcon, Toast, ToastRegion } from '@/ds';
 import { viewport } from './viewports';
 
 // Artboards come from canvas.json: DeskSkills, DeskSkillDelete, DeskRules, DeskSetup, DeskSetupTest 1440x900; DeskAgent 1440x1320;
@@ -62,8 +97,13 @@ const deskFrame: DeskFrameData = {
     skills: '#skills',
     rules: '#rules',
     agent: '#agent',
+    members: '#members',
+    audit: '#audit',
   },
 };
+
+// The Danger zone shows only when the caller can delete the project, so the owner boards pass a handler.
+const DeskAgentScreen = (props: DeskAgentProps) => <DeskAgentBase onDeleteProject={() => undefined} {...props} />;
 
 const skillsProps: DeskSkillsProps = {
   frame: deskFrame,
@@ -368,6 +408,21 @@ export const DeskAgent: Story = {
       settings={agentSettings}
       modelList={liveModels}
       replacingCredential
+      github={agentGithub}
+    />
+  ),
+};
+
+/** Lee Park, an admin of this project only: no onDeleteProject, so no Danger zone. */
+export const DeskAgentProjectAdmin: Story = {
+  name: 'Agent & settings, project admin (no Delete project)',
+  decorators: artboard(1320),
+  globals: viewport(1440, 1320),
+  render: () => (
+    <DeskAgentBase
+      frame={{ ...deskFrame, user: { login: 'lee-park', initials: 'LP' } }}
+      settings={agentSettings}
+      modelList={liveModels}
       github={agentGithub}
     />
   ),
@@ -715,4 +770,567 @@ export const DeskSetupVersionsEmpty: Story = {
   render: () => (
     <DeskSetupScreen {...setupProps} versions={[]} versionsTotal={0} versionsPagination={pagination(1, 0)} />
   ),
+};
+
+// The project Audit log (Settings > Access > Audit log), 1440x900 boards.
+const audit = (state: Parameters<typeof DeskAuditScreen>[0]['state']): Story => ({
+  decorators: artboard(900),
+  globals: viewport(1440, 900),
+  render: () => <DeskAuditScreen frame={deskFrame} state={state} />,
+});
+const retry = () => undefined;
+
+export const DeskAudit: Story = {
+  name: 'Audit log, newest first: members, invitations with projects, many projects, generic, deleted user',
+  ...audit({ kind: 'ready', rows: projectAuditRows }),
+};
+export const DeskAuditLoading: Story = { name: 'Audit log, loading', ...audit({ kind: 'loading' }) };
+export const DeskAuditEmpty: Story = { name: 'Audit log, empty', ...audit({ kind: 'ready', rows: [] }) };
+export const DeskAuditError: Story = {
+  name: 'Audit log, failed to load',
+  ...audit({ kind: 'error', requestId: 'req_01JD7Q3M8V2K', onRetry: retry }),
+};
+export const DeskAuditPaged: Story = {
+  name: 'Audit log, page 2 of 2',
+  ...audit({ kind: 'ready', rows: pagedAuditLastPage, pagination: pagination(2, 25) }),
+};
+export const DeskAuditInvitationNoEmail: Story = {
+  name: 'Audit log, invitation entries without the email (viewer does not administer every listed project)',
+  ...audit({ kind: 'ready', rows: projectAuditRowsNoEmail }),
+};
+export const DeskAuditInvitationExpired: Story = {
+  name: 'Audit log, expired invitation entries, with and without the email',
+  ...audit({ kind: 'ready', rows: projectAuditRowsExpired }),
+};
+
+// The project Members page (Settings > Access > Members), 1440x900 boards. Lee Park (project admin) is signed in
+// unless a board says otherwise.
+const LEE: Actor = { login: 'lee-park', initials: 'LP' };
+const MIRA: Actor = { login: 'mira-chen', initials: 'MC' };
+const leeFrame: DeskFrameData = { ...deskFrame, user: LEE };
+const members = (
+  state: DeskMembersProps['state'],
+  props: Partial<Omit<DeskMembersProps, 'state'>> = {},
+  frame: DeskFrameData = leeFrame,
+): Story => ({
+  decorators: artboard(900),
+  globals: viewport(1440, 900),
+  render: () => (
+    <DeskMembersScreen
+      frame={frame}
+      orgName="Harbor Labs"
+      projectName="invoicer-api"
+      state={state}
+      onAdd={noop}
+      onInvite={noop}
+      onChangeRole={noop}
+      onRemove={noop}
+      {...props}
+    />
+  ),
+});
+const membersReady = (
+  rows: ProjectMemberRowView[],
+  more: Partial<Extract<DeskMembersProps['state'], { kind: 'ready' }>> = {},
+): DeskMembersProps['state'] => ({ kind: 'ready', rows, busyUserId: null, ...more });
+
+export const DeskMembers: Story = {
+  name: 'Members: you, several roles, a long name and a person without a handle',
+  ...members(membersReady(projectMemberRows)),
+};
+export const DeskMembersLoading: Story = { name: 'Members, loading', ...members({ kind: 'loading' }) };
+export const DeskMembersEmpty: Story = {
+  name: 'Members, empty (org owner)',
+  ...members(membersReady([]), {}, deskFrame),
+};
+export const DeskMembersError: Story = {
+  name: 'Members, failed to load',
+  ...members({ kind: 'error', requestId: 'req_01JD7Q3M8V2K', onRetry: noop }),
+};
+export const DeskMembersPaged: Story = {
+  name: 'Members, page 2 of 2',
+  ...members(membersReady(pagedProjectMemberRows.slice(0, 5), { pagination: pagination(2, 25) })),
+};
+export const DeskMembersForbidden: Story = {
+  name: 'Members URL opened by a member or viewer: no access under the project bar, no Settings tab, no side menu',
+  decorators: artboard(900),
+  globals: viewport(1440, 900),
+  render: () => (
+    <>
+      <TopBar
+        variant="project"
+        active="runs"
+        user={MIRA}
+        org={deskFrame.org}
+        needsYou={deskFrame.project.needsYou}
+        project={{ name: deskFrame.project.name, repoUrl: `https://github.com/${deskFrame.project.repo}` }}
+        links={{ projects: '#projects', runs: '#runs' }}
+      />
+      <main className={screenStyles.emptyNotice}>
+        <div className={screenStyles.emptyNoticeCol}>
+          <h1>You don&apos;t have access</h1>
+          <p className="muted">Ask an owner of this organization to give you access.</p>
+        </div>
+      </main>
+    </>
+  ),
+};
+export const DeskMembersRowMenu: Story = {
+  name: 'Members, row menu on another person',
+  ...members(membersReady(projectMemberRows), { openMenuUserId: 'user-tenant-4' }),
+};
+export const DeskMembersBusy: Story = {
+  name: 'Members, a row action in flight: that menu is disabled',
+  ...members(membersReady(projectMemberRows, { busyUserId: 'user-tenant-4' })),
+};
+
+// The Add member dialog over the Members page (Lee Park, project admin). Dialogs are always open boards, controlled.
+const noPickerOption = memberPickerOptions[0] ?? null;
+const memberRole = projectRoleCards[1]?.roleId ?? null;
+const addDialog = (
+  over: Partial<AddProjectMemberDialogProps> = {},
+  picker: Partial<AddProjectMemberDialogProps['picker']> = {},
+) => (
+  <AddProjectMemberDialog
+    projectName="invoicer-api"
+    orgName="Harbor Labs"
+    picker={{
+      query: '',
+      onQueryChange: noop,
+      options: memberPickerOptions,
+      total: memberPickerOptions.length,
+      hasMore: false,
+      state: { kind: 'idle' },
+      picked: null,
+      onPick: noop,
+      onLoadMore: noop,
+      ...picker,
+    }}
+    roles={projectRoleCards}
+    roleId={null}
+    onRoleChange={noop}
+    errors={{}}
+    saving={false}
+    onSubmit={noop}
+    onCancel={noop}
+    {...over}
+  />
+);
+const membersAdd = (dialog: ReturnType<typeof addDialog>): Story =>
+  members(membersReady(projectMemberRows), { children: dialog });
+
+export const DeskMembersAdd: Story = {
+  name: 'Members, add dialog: Person and Role empty, no role preselected',
+  ...membersAdd(addDialog()),
+};
+export const DeskMembersAddSearch: Story = {
+  name: 'Members, add dialog: server search open, 20 of 23 loaded, more load on scroll',
+  ...membersAdd(addDialog({}, { query: 'a', options: manyPickerOptions.slice(0, 20), total: 23, hasMore: true })),
+};
+export const DeskMembersAddNoMatch: Story = {
+  name: 'Members, add dialog: no member matches the search',
+  ...membersAdd(addDialog({}, { query: 'zz', options: [], total: 0 })),
+};
+export const DeskMembersAddAllAdded: Story = {
+  name: 'Members, add dialog: everyone in the organization already has a role here',
+  ...membersAdd(addDialog({}, { options: [], total: 0 })),
+};
+export const DeskMembersAddFieldErrors: Story = {
+  name: 'Members, add dialog: submitted with no person and no role',
+  ...membersAdd(addDialog({ errors: { userId: 'Choose a person.', roleId: 'Choose a role.' } })),
+};
+export const DeskMembersAddSaving: Story = {
+  name: 'Members, add dialog: saving',
+  ...membersAdd(addDialog({ roleId: memberRole, saving: true }, { picked: noPickerOption })),
+};
+export const DeskMembersAddFormError: Story = {
+  name: 'Members, add dialog: server error, input kept',
+  ...membersAdd(
+    addDialog(
+      {
+        roleId: memberRole,
+        formError: { title: 'Internal server error', requestId: 'req_01JD7Q3M8V2K' },
+      },
+      { picked: noPickerOption },
+    ),
+  ),
+};
+export const DeskMembersAddAlreadyOnProject: Story = {
+  name: 'Members, add dialog: 409, the person got a role meanwhile; Person cleared, role kept',
+  ...membersAdd(
+    addDialog({
+      roleId: memberRole,
+      formError: {
+        title: 'This person already has a role on this project.',
+        detail: 'Use Change role to change it.',
+      },
+    }),
+  ),
+};
+export const DeskMembersAdded: Story = {
+  name: 'Members, added: list refetched, toast',
+  ...members(
+    membersReady([
+      ...projectMemberRows,
+      { userId: 'user-candidate-1', name: 'Mira Chen', handle: 'mira', you: false, roles: 'Member' },
+    ]),
+    { notice: { tone: 'ok', title: 'Mira Chen added as Member', onDismiss: noop } },
+  ),
+};
+
+// Invite, change role and remove over the Members page (Lee Park, project admin). Dialogs are always open boards.
+const invitePersonValues: InviteDialogValues = {
+  email: '',
+  roleId: '',
+  scope: 'projects',
+  projectIds: inviteProjectOptions.slice(0, 1).map((p) => p.id),
+};
+const inviteDialog = (step: InviteDialogStep) => (
+  <InviteDialog
+    open
+    step={step}
+    roles={inviteRoleOptions.projectAdmin}
+    projects={inviteProjectOptions.slice(0, 1).map((p) => ({ ...p, label: 'invoicer-api' }))}
+    projectsOnly
+    onChange={noop}
+    onSubmit={noop}
+    onCancel={noop}
+    onCopy={noop}
+    onDone={noop}
+  />
+);
+const changeRoleDialog = (over: Partial<ChangeRoleDialogProps> = {}) => (
+  <ChangeRoleDialog
+    memberName="Cleo Martin"
+    orgName="Harbor Labs"
+    options={projectRoleCards}
+    current={memberRole}
+    self={false}
+    currentIsOwner={false}
+    saving={false}
+    onSave={noop}
+    onCancel={noop}
+    {...over}
+  />
+);
+const removeConfirm = (busy = false): NonNullable<DeskMembersProps['removeConfirm']> => ({
+  memberName: 'Cleo Martin',
+  projectName: 'invoicer-api',
+  orgName: 'Harbor Labs',
+  busy,
+  onConfirm: noop,
+  onCancel: noop,
+});
+const membersWithout = (userId: string) => projectMemberRows.filter((r) => r.userId !== userId);
+
+export const DeskMembersInvite: Story = {
+  name: 'Members, invite dialog: this project fixed, project roles only',
+  ...members(membersReady(projectMemberRows), {
+    children: inviteDialog({
+      kind: 'form',
+      values: invitePersonValues,
+      errors: {},
+      saving: false,
+    }),
+  }),
+};
+export const DeskMembersInviteCreated: Story = {
+  name: 'Members, invite dialog: invitation created',
+  ...members(membersReady(projectMemberRows), {
+    children: inviteDialog({
+      kind: 'created',
+      email: 'new.person@example.com',
+      expiresOn: '23 Nov, 14:05',
+      link: invitationLink,
+    }),
+  }),
+};
+export const DeskMembersChangeRole: Story = {
+  name: 'Members, change role dialog: Admin, Member, Viewer, current preselected',
+  ...members(membersReady(projectMemberRows), { children: changeRoleDialog() }),
+};
+export const DeskMembersChangeRoleSaving: Story = {
+  name: 'Members, change role dialog: saving',
+  ...members(membersReady(projectMemberRows), {
+    children: changeRoleDialog({ current: projectRoleCards[2]?.roleId ?? null, saving: true }),
+  }),
+};
+export const DeskMembersChangeRoleError: Story = {
+  name: 'Members, change role dialog: refused (403), Banner in the dialog',
+  ...members(membersReady(projectMemberRows), {
+    children: changeRoleDialog({ error: { kind: 'forbidden', requestId: 'req_01JD7Q3M8V2K' } }),
+  }),
+};
+export const DeskMembersRoleChanged: Story = {
+  name: 'Members, role changed: list refetched, toast',
+  ...members(membersReady(projectMemberRows), {
+    notice: { tone: 'ok', title: 'Role changed', onDismiss: noop },
+  }),
+};
+export const DeskMembersRemoveConfirm: Story = {
+  name: 'Members, remove from project confirmation',
+  ...members(membersReady(projectMemberRows), { removeConfirm: removeConfirm() }),
+};
+export const DeskMembersRemoving: Story = {
+  name: 'Members, removing',
+  ...members(membersReady(projectMemberRows), { removeConfirm: removeConfirm(true) }),
+};
+export const DeskMembersRemoved: Story = {
+  name: 'Members, removed: list refetched, toast, focus on the heading',
+  ...members(membersReady(membersWithout('user-tenant-4')), {
+    notice: { tone: 'ok', title: 'Cleo Martin removed from invoicer-api', onDismiss: noop },
+  }),
+};
+export const DeskMembersGone: Story = {
+  name: 'Members, member removed meanwhile: dialog closed, list refetched, error toast',
+  ...members(membersReady(membersWithout('user-tenant-4')), {
+    notice: { tone: 'error', title: 'Member is no longer on this project', onDismiss: noop },
+  }),
+};
+
+// The Environment tab boards (DeskSetupEnvironment*): the tab body inside the setup page, Environment selected.
+const done = () => Promise.resolve(null);
+const writable = (entries: EnvListGroup['entries'], more: Partial<EnvListGroup> = {}): EnvListGroup => ({
+  entries,
+  canWrite: true,
+  onCreate: fn(done),
+  onUpdate: fn(done),
+  onRemove: fn(done),
+  onRetry: fn(),
+  ...more,
+});
+const envSecrets = () => writable(envBoardSecretRows);
+const envVariables = () => writable(envVariableRows);
+
+const environmentScreen = (
+  environment: DeskSetupEnvironmentProps,
+  more: Partial<DeskSetupProps> = {},
+): ReactElement => (
+  <DeskSetupScreen {...setupProps} tab="environment" onTabChange={noop} environment={environment} {...more} />
+);
+
+const envStory = (name: string, environment: () => DeskSetupEnvironmentProps, play?: Story['play']): Story => ({
+  name: `Workspace setup, environment${name}`,
+  decorators: artboard(900),
+  globals: viewport(1440, 900),
+  render: () => environmentScreen(environment()),
+  ...(play ? { play } : {}),
+});
+
+const envPageSize = 20;
+const envPagination = (page: number, total: number, label: string): PaginationProps => ({
+  ...pagination(page, total),
+  pageSize: envPageSize,
+  label,
+});
+const pagedVariables = (total: number) =>
+  writable(envPagedVariableRows(total).slice(envPageSize), {
+    total,
+    pagination: envPagination(2, total, 'Variables pagination'),
+  });
+
+const groupOf = (canvasElement: HTMLElement, name: string) =>
+  within(within(canvasElement).getByRole('group', { name }));
+
+export const DeskSetupEnvironment: Story = envStory('', () => ({ variables: envVariables(), secrets: envSecrets() }));
+
+export const DeskSetupEnvironmentEmpty: Story = envStory(', no entries yet', () => ({
+  variables: writable([]),
+  secrets: writable([]),
+}));
+
+export const DeskSetupEnvironmentLoading: Story = envStory(', loading', () => ({
+  variables: writable([], { loading: true }),
+  secrets: writable([], { loading: true }),
+}));
+
+export const DeskSetupEnvironmentError: Story = envStory(', variables failed to load', () => ({
+  variables: writable([], {
+    loadError: { message: 'Could not load the environment. Reload to try again.', requestId: 'req_01JDE7Q3M9KT' },
+  }),
+  secrets: envSecrets(),
+}));
+
+export const DeskSetupEnvironmentAdding: Story = envStory(', adding a variable', () => ({
+  variables: writable(envVariableRows, { initial: { adding: true } }),
+  secrets: envSecrets(),
+}));
+
+export const DeskSetupEnvironmentAddSecret: Story = envStory(', adding a secret', () => ({
+  variables: envVariables(),
+  secrets: writable(envBoardSecretRows, { initial: { adding: true } }),
+}));
+
+export const DeskSetupEnvironmentEditing: Story = envStory(', editing a variable', () => ({
+  variables: writable(envVariableRows, { initial: { editing: 'DB_HOST' } }),
+  secrets: envSecrets(),
+}));
+
+export const DeskSetupEnvironmentSaving: Story = envStory(', saving a variable', () => ({
+  variables: writable(envVariableRows, { initial: { editing: 'DB_HOST', saving: true } }),
+  secrets: envSecrets(),
+}));
+
+export const DeskSetupEnvironmentSecretReplace: Story = envStory(', replacing a secret', () => ({
+  variables: envVariables(),
+  secrets: writable(envBoardSecretRows, { initial: { editing: 'NPM_TOKEN' } }),
+}));
+
+export const DeskSetupEnvironmentRemove: Story = envStory(', remove a variable', () => ({
+  variables: writable(envVariableRows, { initial: { removing: 'DB_HOST' } }),
+  secrets: envSecrets(),
+}));
+
+/** A reserved name and a value under 6 characters: both field errors come from the contracts schema. */
+export const DeskSetupEnvironmentFieldErrors: Story = envStory(
+  ', reserved name and short secret',
+  () => ({ variables: envVariables(), secrets: writable(envBoardSecretRows, { initial: { adding: true } }) }),
+  async ({ canvasElement }) => {
+    const form = groupOf(canvasElement, 'Add secret');
+    await userEvent.type(form.getByLabelText('Name'), 'GITHUB_TOKEN');
+    await userEvent.type(form.getByLabelText('Value'), 'abc');
+    await userEvent.click(form.getByRole('button', { name: 'Add secret' }));
+  },
+);
+
+export const DeskSetupEnvironmentNameTaken: Story = envStory(
+  ', name already exists',
+  () => ({
+    variables: writable(envVariableRows, {
+      initial: { adding: true },
+      onCreate: fn(() =>
+        Promise.resolve<EnvSaveError>({
+          field: { name: 'DB_HOST already exists. A name can be used once, as a variable or a secret.' },
+        }),
+      ),
+    }),
+    secrets: envSecrets(),
+  }),
+  async ({ canvasElement }) => {
+    const form = groupOf(canvasElement, 'Add variable');
+    await userEvent.type(form.getByLabelText('Name'), 'DB_HOST');
+    await userEvent.type(form.getByLabelText('Value'), 'db.other');
+    await userEvent.click(form.getByRole('button', { name: 'Add variable' }));
+  },
+);
+
+export const DeskSetupEnvironmentLimit: Story = envStory(
+  ', limit reached',
+  () => ({
+    variables: writable(envVariableRows, {
+      initial: { adding: true },
+      onCreate: fn(() =>
+        Promise.resolve<EnvSaveError>({
+          banner: {
+            title: 'Too many entries',
+            detail: 'This project has 500 entries, the most this deployment allows. Remove one to add another.',
+          },
+        }),
+      ),
+    }),
+    secrets: envSecrets(),
+  }),
+  async ({ canvasElement }) => {
+    const form = groupOf(canvasElement, 'Add variable');
+    await userEvent.type(form.getByLabelText('Name'), 'AWS_REGION');
+    await userEvent.type(form.getByLabelText('Value'), 'eu-central-1');
+    await userEvent.click(form.getByRole('button', { name: 'Add variable' }));
+  },
+);
+
+export const DeskSetupEnvironmentSaveError: Story = envStory(
+  ', save failed',
+  () => ({
+    variables: envVariables(),
+    secrets: writable(envBoardSecretRows, {
+      initial: { adding: true },
+      onCreate: fn(() =>
+        Promise.resolve<EnvSaveError>({
+          banner: { title: 'Internal server error', requestId: 'req_01JDE8A4T2WX' },
+        }),
+      ),
+    }),
+  }),
+  async ({ canvasElement }) => {
+    const form = groupOf(canvasElement, 'Add secret');
+    await userEvent.type(form.getByLabelText('Name'), 'SMTP_PASSWORD');
+    await userEvent.type(form.getByLabelText('Value'), 'hunter2hunter2');
+    await userEvent.click(form.getByRole('button', { name: 'Add secret' }));
+  },
+);
+
+/** The entry was removed by someone else while this row was open. */
+export const DeskSetupEnvironmentGone: Story = envStory(
+  ', entry no longer exists',
+  () => ({
+    variables: writable(envVariableRows, {
+      initial: { editing: 'DB_HOST' },
+      onUpdate: fn(() => Promise.resolve<EnvSaveError>({ gone: true })),
+    }),
+    secrets: envSecrets(),
+  }),
+  async ({ canvasElement }) => {
+    await userEvent.click(groupOf(canvasElement, 'Edit DB_HOST').getByRole('button', { name: 'Save' }));
+  },
+);
+
+export const DeskSetupEnvironmentPaged: Story = envStory(', both lists on page 2', () => ({
+  variables: pagedVariables(23),
+  secrets: writable(envPagedSecretRows(22).slice(envPageSize), {
+    total: 22,
+    pagination: envPagination(2, 22, 'Secrets pagination'),
+  }),
+}));
+
+/** After an add the variables list stays on its page (24 variables, page 2) and the Toast shows. */
+export const DeskSetupEnvironmentAdded: Story = {
+  name: 'Workspace setup, environment, added to another page',
+  decorators: artboard(900),
+  globals: viewport(1440, 900),
+  render: () => (
+    <>
+      {environmentScreen({
+        variables: pagedVariables(24),
+        secrets: writable(envPagedSecretRows(22).slice(envPageSize), {
+          total: 22,
+          pagination: envPagination(2, 22, 'Secrets pagination'),
+        }),
+      })}
+      <ToastRegion>
+        <Toast tone="ok" role="status" title="Added AWS_REGION" onDismiss={noop} />
+      </ToastRegion>
+    </>
+  ),
+};
+
+export const DeskSetupEnvironmentReadOnly: Story = envStory(', read-only', () => ({
+  variables: writable(envVariableRows, { canWrite: false }),
+  secrets: writable(envBoardSecretRows, { canWrite: false }),
+}));
+
+export const DeskSetupEnvironmentSecretsReadOnly: Story = envStory(', secrets read-only', () => ({
+  variables: envVariables(),
+  secrets: writable(envBoardSecretRows, { canWrite: false }),
+}));
+
+/** A setup test is running: the tab strip stays and the running test keeps the values it started with. */
+export const DeskSetupEnvironmentTesting: Story = {
+  name: 'Workspace setup, environment, while a test runs',
+  decorators: artboard(900),
+  globals: viewport(1440, 900),
+  render: () =>
+    environmentScreen(
+      { variables: envVariables(), secrets: envSecrets(), testRunning: true },
+      {
+        test: {
+          status: 'running',
+          phases: setupPhases.running,
+          plugins: setupPlugins.planned,
+          lines: setupTestTerminal.slice(0, 5),
+          scriptLabel: 'Version 4',
+          checkout: 'main a91c3e2',
+          started: '14:31:05 by kim-hale',
+        },
+      },
+    ),
 };

@@ -98,6 +98,8 @@ export interface Script {
   resumeFollowStarted: Deferred<void>;
   /** When set, a resumed pod's followPodLogs returns this at once. */
   resumeResult?: FollowPodLogsResult;
+  /** When set, the first start's createRunSecretAndJob throws a non-retryable failure with this message and type. */
+  firstCreateFailure?: { message: string; type: string };
   /** When set, a resumed pod's createRunSecretAndJob throws a non-retryable failure of this type. */
   resumeCreateFailure?: string;
   /** The first N followPodLogs attempts throw a retryable cluster error (`fetch failed`). */
@@ -207,6 +209,9 @@ export function activities(): RunActivities {
       const s = script(ctx.runId);
       s.calls.push('createRunSecretAndJob');
       s.createOpts.push(opts);
+      if (!opts?.resume && s.firstCreateFailure) {
+        throw ApplicationFailure.nonRetryable(s.firstCreateFailure.message, s.firstCreateFailure.type);
+      }
       if (opts?.resume && s.resumeCreateFailsRetryable) throw new Error('fetch failed');
       if (opts?.resume && s.resumeCreateFailFirst !== undefined) {
         const resumed = s.createOpts.filter((o) => o?.resume).length;

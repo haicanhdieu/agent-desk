@@ -25,6 +25,7 @@ import { connectionCopy as c, DEFAULT_POLL_INTERVAL } from '@/mocks/connection';
 import type { AgentSettings, ConnectionStatus, PollInterval, TriggerMode } from '@/mocks/types';
 import styles from './Screens.module.css';
 import { DeskFrame, type DeskFrameData } from './DeskFrame';
+import { deleteProjectBody } from './deleteProjectCopy';
 
 export type LimitField =
   | 'timeoutMinutes'
@@ -64,7 +65,7 @@ export interface DeskAgentProps {
   limitsError?: string;
   /** A limits save is in flight: Save limits stays disabled. */
   savingLimits?: boolean;
-  /** Called after the delete is confirmed in a dialog. */
+  /** Called after the delete is confirmed in a dialog. Without it the Danger zone is not rendered (project admins). */
   onDeleteProject?(): void;
   /**
    * Receives the typed replacement token. It is never rendered after submit. Resolving `true` closes the replace
@@ -96,8 +97,6 @@ const addressHelp = (
 );
 
 const narrow = { width: 90 };
-const deleteBody =
-  'Removes rules, run history and the stored credential. Skills stay in the repo. The GitHub App stays installed until you remove it on GitHub.';
 
 export function DeskAgent({
   frame,
@@ -446,38 +445,40 @@ export function DeskAgent({
             </Button>
           </div>
         </SettingsSection>
-        <SettingsSection title="Danger zone">
-          <DangerZone
-            title="Delete project"
-            body={deleteBody}
-            actionLabel="Delete project"
-            onAction={() => setConfirmingDelete(true)}
-          />
-          <Dialog
-            open={confirmingDelete}
-            title="Delete project"
-            onClose={() => setConfirmingDelete(false)}
-            footer={
-              <>
-                <Button variant="ghost" onClick={() => setConfirmingDelete(false)}>
-                  Cancel
-                </Button>
-                <Button
-                  variant="solid-danger"
-                  icon="trash"
-                  onClick={() => {
-                    setConfirmingDelete(false);
-                    onDeleteProject?.();
-                  }}
-                >
-                  Delete project
-                </Button>
-              </>
-            }
-          >
-            <p>{deleteBody}</p>
-          </Dialog>
-        </SettingsSection>
+        {onDeleteProject && (
+          <SettingsSection title="Danger zone">
+            <DangerZone
+              title="Delete project"
+              body={deleteProjectBody}
+              actionLabel="Delete project"
+              onAction={() => setConfirmingDelete(true)}
+            />
+            <Dialog
+              open={confirmingDelete}
+              title="Delete project"
+              onClose={() => setConfirmingDelete(false)}
+              footer={
+                <>
+                  <Button variant="ghost" onClick={() => setConfirmingDelete(false)}>
+                    Cancel
+                  </Button>
+                  <Button
+                    variant="solid-danger"
+                    icon="trash"
+                    onClick={() => {
+                      setConfirmingDelete(false);
+                      onDeleteProject();
+                    }}
+                  >
+                    Delete project
+                  </Button>
+                </>
+              }
+            >
+              <p>{deleteProjectBody}</p>
+            </Dialog>
+          </SettingsSection>
+        )}
       </main>
     </DeskFrame>
   );

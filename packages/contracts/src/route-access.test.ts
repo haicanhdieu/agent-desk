@@ -51,6 +51,13 @@ const expected: Record<RouteKey, RouteAccess> = {
   'setupScript.versions': project('setup:read'),
   'setupScript.version': project('setup:read'),
   'setup.plugins': project('setup:read'),
+  'projectEnv.list': project('setup:read'),
+  'projectEnv.createVar': project('setup:update'),
+  'projectEnv.updateVar': project('setup:update'),
+  'projectEnv.removeVar': project('setup:update'),
+  'projectEnv.createSecret': project('secret:update'),
+  'projectEnv.updateSecret': project('secret:update'),
+  'projectEnv.removeSecret': project('secret:update'),
   'setupTests.create': project('setup:test'),
   'setupTests.latest': project('setup:read'),
   'setupTests.end': project('setup:test', 'setupTestId'),
@@ -71,11 +78,17 @@ const expected: Record<RouteKey, RouteAccess> = {
   'runs.events': project('run:read', 'runId'),
   'runs.terminal': project('terminal:attach', 'runId'),
   'me.access': { scope: 'self' },
+  'me.platform': { scope: 'user' },
   'me.listInvitations': { scope: 'user' },
   'me.getInvitation': { scope: 'user' },
   'me.acceptInvitation': { scope: 'user' },
   'me.declineInvitation': { scope: 'user' },
   'roles.list': admin('assignment:read'),
+  'projectMembers.list': project('assignment:read'),
+  'projectMembers.add': project('assignment:create'),
+  'projectMembers.setRole': project('assignment:create'),
+  'projectMembers.remove': project('assignment:delete'),
+  'projects.audit': project('project-audit:read'),
   'members.list': admin('member:read', 'assignment:create'),
   'assignments.list': admin('assignment:read'),
   'assignments.create': admin('assignment:create'),
@@ -91,6 +104,7 @@ const expected: Record<RouteKey, RouteAccess> = {
   'orgs.checklist': org('project:create'),
   'platform.createOrg': platform('platform-org:create'),
   'platform.listOrgs': platform('platform-org:read'),
+  'platform.getOrg': platform('platform-org:read'),
   'platform.listProjects': platform('platform-project:read'),
   'platform.listRoles': platform('platform-role:read'),
   'platform.listMembers': platform('platform-member:read'),
@@ -104,13 +118,15 @@ const expected: Record<RouteKey, RouteAccess> = {
   'platform.listAdmins': platform('platform-admin:read'),
   'platform.grantAdmin': platform('platform-admin:create'),
   'platform.revokeAdmin': platform('platform-admin:delete'),
+  'platform.suspendOrg': platform('platform-org:update'),
+  'platform.reactivateOrg': platform('platform-org:update'),
 };
 
 const flat = flattenRoutes(routes);
 
 describe('routeAccess', () => {
-  it('matches the approved permission map for all 84 keys', () => {
-    expect(Object.keys(expected)).toHaveLength(84);
+  it('matches the approved permission map for all 100 keys', () => {
+    expect(Object.keys(expected)).toHaveLength(100);
     expect(routeAccess).toEqual(expected);
   });
 

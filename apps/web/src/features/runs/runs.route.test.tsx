@@ -158,6 +158,88 @@ describe('runs route', () => {
     expect(await screen.findByRole('button', { name: 'Grouped by ticket' })).toHaveAttribute('aria-pressed', 'true');
   });
 
+  describe('remembered filter and search', () => {
+    const searchBox = () => screen.getByRole('searchbox', { name: 'Search runs' });
+    const viewKey = `agentdesk.runs.view:alice:${projectId}`;
+
+    it('restores the chosen chip and search when the person comes back from another page', async () => {
+      const { user, router } = await renderRoute(`${base}/runs`);
+      await screen.findByRole('heading', { level: 1, name: 'Runs' });
+      await user.click(within(chips()).getByRole('link', { name: /^Needs you/ }));
+      await waitFor(() => expect(router.state.location.search).toEqual({ filter: 'needs_you' }));
+      await user.type(searchBox(), '62');
+      await waitFor(() => expect(router.state.location.search).toEqual({ filter: 'needs_you', q: '62' }));
+
+      await router.navigate({ to: `${base}/runs/62` });
+      await waitFor(() => expect(router.state.location.pathname).toBe(`${base}/runs/62`));
+      await router.navigate({ to: `${base}/runs` });
+
+      await waitFor(() => expect(router.state.location.search).toEqual({ filter: 'needs_you', q: '62' }));
+      await waitFor(() => expect(runNumbers()).toEqual([62]));
+      expect(searchBox()).toHaveValue('62');
+      expect(within(chips()).getByRole('link', { name: /^Needs you/ })).toHaveAttribute('aria-current', 'page');
+    });
+
+    it('restores them after the page is reloaded on the bare runs URL', async () => {
+      const first = await renderRoute(`${base}/runs`);
+      await screen.findByRole('heading', { level: 1, name: 'Runs' });
+      await first.user.click(within(chips()).getByRole('link', { name: /^Ended/ }));
+      await waitFor(() => expect(first.router.state.location.search).toEqual({ filter: 'ended' }));
+
+      cleanup();
+      const again = await renderRoute(`${base}/runs`);
+      await screen.findByRole('heading', { level: 1, name: 'Runs' });
+      expect(again.router.state.location.search).toEqual({ filter: 'ended' });
+      expect(within(chips()).getByRole('link', { name: /^Ended/ })).toHaveAttribute('aria-current', 'page');
+    });
+
+    it('forgets them once the person clears the search and picks All', async () => {
+      const first = await renderRoute(`${base}/runs?filter=ended&q=12`);
+      await screen.findByRole('heading', { level: 1, name: 'Runs' });
+      await first.user.click(screen.getAllByRole('button', { name: 'Clear search' })[0] as HTMLElement);
+      await waitFor(() => expect(first.router.state.location.search).toEqual({ filter: 'ended' }));
+      await first.user.click(within(chips()).getByRole('link', { name: /^All/ }));
+      await waitFor(() => expect(first.router.state.location.search).toEqual({}));
+
+      cleanup();
+      const again = await renderRoute(`${base}/runs`);
+      await screen.findByRole('heading', { level: 1, name: 'Runs' });
+      expect(again.router.state.location.search).toEqual({});
+      expect(runNumbers()).toHaveLength(12);
+    });
+
+    it('keeps another project out of the remembered view', async () => {
+      const first = await renderRoute(`${base}/runs?filter=ended`);
+      await screen.findByRole('heading', { level: 1, name: 'Runs' });
+      expect(first.router.state.location.search).toEqual({ filter: 'ended' });
+      cleanup();
+      const other = await renderRoute(`/o/alice/p/${ids.project.invoicerWeb}/runs`);
+      await screen.findByRole('heading', { level: 1, name: 'Runs' });
+      expect(other.router.state.location.search).toEqual({});
+    });
+
+    it('leaves a link that carries its own filter alone', async () => {
+      localStorage.setItem(viewKey, JSON.stringify({ filter: 'ended', q: '12' }));
+      const { router } = await renderRoute(`${base}/runs?filter=queued`);
+      await screen.findByRole('heading', { level: 1, name: 'Runs' });
+      expect(router.state.location.search).toEqual({ filter: 'queued' });
+    });
+
+    it('keeps the saved view when a link opens a bare page of the list', async () => {
+      localStorage.setItem(viewKey, JSON.stringify({ filter: 'ended', q: '12' }));
+      await renderRoute(`${base}/runs?page=2`);
+      await screen.findByRole('heading', { level: 1, name: 'Runs' });
+      expect(JSON.parse(localStorage.getItem(viewKey) ?? 'null')).toEqual({ filter: 'ended', q: '12' });
+    });
+
+    it('ignores a stored value it cannot read', async () => {
+      localStorage.setItem(viewKey, '{not json');
+      const { router } = await renderRoute(`${base}/runs`);
+      await screen.findByRole('heading', { level: 1, name: 'Runs' });
+      expect(router.state.location.search).toEqual({});
+    });
+  });
+
   it('?filter=needs_you requests filter=needs_you and shows the idle and paused runs', async () => {
     const queries = captureRunListQueries();
     await renderRoute(`${base}/runs?filter=needs_you`);

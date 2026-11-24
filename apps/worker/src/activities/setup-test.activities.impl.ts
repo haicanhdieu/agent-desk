@@ -3,6 +3,7 @@ import { and, eq, inArray, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import { Provider } from '@agentdesk/contracts';
 import {
+  ProjectEnvClashError,
   REPO_URL_KEY,
   SetupLogTracker,
   WORKSPACE_TOKEN_KEY,
@@ -15,9 +16,11 @@ import {
   type Clock,
   type Config,
   type KubeGateway,
+  type SecretStore,
 } from '@agentdesk/core';
 import { connections, projects, setupTestEvents, setupTests, withOrg, type Db } from '@agentdesk/db';
 import { MIN_SECRET_LENGTH, guarded, oneLine, safeError, secretValues, sleep } from './activity-utils';
+import { loadProjectEnv } from './project-env';
 import { followPodLog, outputBudget } from './follow-core';
 import { appendSetupTestEvent, storeSetupLineEvent } from './setup-test-events';
 import type { SetupTestActivities, SetupTestRef, SetupTestResult } from './setup-test.activities';
@@ -54,6 +57,7 @@ export interface SetupTestActivityTiming {
 export interface SetupTestActivityDeps {
   db: Db;
   kube: KubeGateway;
+  secrets: SecretStore;
   adapters: AdapterRegistry;
   clock: Clock;
   config: SetupTestActivityConfig;
@@ -140,13 +144,28 @@ export function createSetupTestActivities(deps: SetupTestActivityDeps): SetupTes
         orgId: ref.orgId,
         projectId: row.projectId,
       });
-      // Repo URL and workspace token only: a setup test never gets the agent credential. It is not refreshed; the test
-      // lives well under the token's hour.
-      await kube.ensureSecret(
-        name,
-        { [REPO_URL_KEY]: codeHost.repoUrl(project), [WORKSPACE_TOKEN_KEY]: token },
-        labels,
+      // Plain values go into the Job env, secrets into the test Secret; none leaves this activity.
+      const projectEnv = await loadProjectEnv(db, deps.secrets, { orgId: ref.orgId, projectId: row.projectId });
+      known = [...known, ...secretValues(projectEnv.secrets)];
+      const secretData: Record<string, string> = {
+        [REPO_URL_KEY]: codeHost.repoUrl(project),
+        [WORKSPACE_TOKEN_KEY]: token,
+      };
+      // A project secret must not overwrite a platform key of the test Secret.
+      for (const key of Object.keys(projectEnv.secrets)) {
+        if (Object.hasOwn(secretData, key)) throw new ProjectEnvClashError(key);
+      }
+      // Repo URL and workspace token only (plus project env): a setup test never gets the agent credential. It is not
+      // refreshed; the test lives well under the token's hour.
+      await kube.ensureSecret(name, { ...projectEnv.secrets, ...secretData }, labels);
+      // A Secret left by a failed attempt keeps its old keys (create is a no-op on 409): add only the project secret
+      // keys it lacks, so every secretKeyRef of the Job below finds its key. An existing value is never overwritten (a
+      // surviving pod holds it and the redaction list is built from the Secret); platform keys are not touched.
+      const existing = (await kube.readSecret(name)) ?? {};
+      const missing = Object.fromEntries(
+        Object.entries(projectEnv.secrets).filter(([key]) => !Object.hasOwn(existing, key)),
       );
+      if (Object.keys(missing).length > 0) await kube.replaceSecretData(name, missing);
       const job = buildSetupTestJob({
         setupTestId: ref.setupTestId,
         orgId: ref.orgId,
@@ -162,6 +181,7 @@ export function createSetupTestActivities(deps: SetupTestActivityDeps): SetupTes
         gitHost: new URL(codeHost.repoUrl(project)).host,
         cliTokenEnvName: codeHost.cliTokenEnvName(),
         pod: runPodConfigFrom(deps.config),
+        projectEnv: { plain: projectEnv.plain, secretNames: Object.keys(projectEnv.secrets) },
       });
       try {
         await kube.ensureJob(job);
@@ -171,6 +191,14 @@ export function createSetupTestActivities(deps: SetupTestActivityDeps): SetupTes
         throw err;
       }
     } catch (err) {
+      if (err instanceof ProjectEnvClashError) {
+        // A name clash never clears by retrying. Only the variable name is in the message.
+        await kube.deleteSecret(name).catch(() => undefined);
+        throw ApplicationFailure.nonRetryable(
+          `project env variable ${err.envName} clashes with a platform variable or another entry; rename it`,
+          'ProjectEnvClash',
+        );
+      }
       throw safeError(err, known, 'create setup test Job');
     }
     await withOrg(db, ref.orgId, async (tx) => {

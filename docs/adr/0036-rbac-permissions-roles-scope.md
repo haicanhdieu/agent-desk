@@ -33,7 +33,7 @@ user ──assignment──► role ──holds──► permissions (resource:v
 
 Two rules from the code make the examples exact:
 
-- **Each permission has a level** (`PERMISSION_LEVEL`). Project-level permissions (project data: runs, agents, skills, rules, setup, `project:read|update`, assignments) count from an org-scope grant (all projects) or a project grant (that project). Org-level permissions (`project:create`, `project:delete`, `connection:*`, `member:*`, `org:update`, `org:delete`, `audit:read`) count only from an org-scope grant. So `admin` on P1 cannot delete P1, create projects, read connections or manage org members.
+- **Each permission has a level** (`PERMISSION_LEVEL`). Project-level permissions (project data: runs, agents, skills, rules, setup, `project:read|update`, assignments, `project-audit:read`) count from an org-scope grant (all projects) or a project grant (that project). Org-level permissions (`project:create`, `project:delete`, `connection:*`, `member:*`, `org:update`, `org:delete`, `audit:read`) count only from an org-scope grant. So `admin` on P1 cannot delete P1, create projects, read connections or manage org members.
 - **`own`** means the target's owner is the caller: the run's owner, or the setup test's starter. An ownerless run matches only `any`.
 
 ### How a request is checked
@@ -41,6 +41,7 @@ Two rules from the code make the examples exact:
 The route table (`routeAccess` in `packages/contracts/src/route-access.ts`) names the permission and, for project routes, the path param that leads to the project. The guard (`apps/api/src/auth/session.guard.ts` calling `checkTenantAccess` in `apps/api/src/access/check-access.ts`) then decides in this order:
 
 1. Not a member of the active org: 403. A path `:orgId` that is not the active org: 404.
+   - Org active ([ADR-0038](0038-suspended-orgs-refused-at-guard-intake-and-first-start.md)): a member of a suspended org, whatever their role, gets 403 with problem type `org-suspended`, before any permission is read. A non-member never reaches this step, so the status is not told to them.
 2. Load the caller's grants under `withOrg` (`loadAccess`).
 3. The permission is not held anywhere in the org (`holdsAnywhere`, any condition): 403, before any id is looked up. A missing, foreign or malformed id gets the same answer as a real one.
 4. Project routes: resolve the target's project and owner in one lookup (`resolveTarget`). Missing, in another org, or outside every scope of the caller (`inScope`): 404.

@@ -65,7 +65,16 @@ describe('GET /api/platform/admins', () => {
     expectContract('platform.listAdmins', res);
     const raw = res.json<{ items: Record<string, unknown>[] }>().items;
     for (const item of raw)
-      expect(Object.keys(item).sort()).toEqual(['email', 'grantedAt', 'grantedBy', 'handle', 'id', 'name', 'userId']);
+      expect(Object.keys(item).sort()).toEqual([
+        'email',
+        'grantedAt',
+        'grantedBy',
+        'handle',
+        'id',
+        'lastWorkingAdmin',
+        'name',
+        'userId',
+      ]);
     const byEmail = (email: string) => raw.find((i) => i['email'] === email);
 
     const self = byEmail('admin@dev.local');
@@ -672,6 +681,90 @@ describe('DELETE /api/platform/admins/:adminId on a fresh database', () => {
       expect(await revokePlatformAdmin(f, cookie, adminEntry)).toBe(409);
       expect(await entryId(f, 'admin@dev.local')).toBe(adminEntry);
       expect((await audit(f)).filter((a) => a === 'platform_admin.revoked')).toEqual([]);
+    });
+  });
+});
+
+describe('lastWorkingAdmin on a fresh database', () => {
+  const listAdmins = async (f: TestApp, cookie: string, query = '?pageSize=100'): Promise<PlatformAdminDto[]> => {
+    const res = await f.app.inject({ method: 'GET', url: `/api/platform/admins${query}`, headers: { cookie } });
+    expect(res.statusCode).toBe(200);
+    return res.json<Page<PlatformAdminDto>>().items;
+  };
+  const flags = (items: PlatformAdminDto[]): Record<string, boolean> =>
+    Object.fromEntries(items.map((i) => [i.email, i.lastWorkingAdmin]));
+  const verifiedUser = async (f: TestApp, handle: string): Promise<string> => {
+    const org = (await createOrg(f, `Flag ${handle}`, `flag-${handle}`)).id;
+    return inviteAndLogin(f, org, handle, 'viewer', { type: 'org' });
+  };
+
+  it('BR-16: is true only on the sole working admin, and false on both when two work', async () => {
+    await withFreshApp(async (f, cookie) => {
+      expect(flags(await listAdmins(f, cookie))).toEqual({ 'admin@dev.local': true });
+      await verifiedUser(f, 'flag-two');
+      const granted = await grantPlatformAdmin(f, cookie, 'flag-two@dev.local');
+      expect(granted.statusCode).toBe(201);
+      expect(granted.entry.lastWorkingAdmin).toBe(false);
+      expect(flags(await listAdmins(f, cookie))).toEqual({ 'admin@dev.local': false, 'flag-two@dev.local': false });
+      const repeat = await grantPlatformAdmin(f, cookie, 'flag-two@dev.local');
+      expect(repeat.statusCode).toBe(200);
+      expect(repeat.entry.lastWorkingAdmin).toBe(false);
+    });
+  });
+
+  it('BR-16: a seeded entry with no account is never flagged and does not count', async () => {
+    await withFreshApp(async (f, cookie) => {
+      // a seeded entry with no account does not count, so a repeat grant cannot happen; the list still flags the sole admin
+      await f.db.pool.query('insert into platform_admins (email) values ($1)', ['flag-noacct@dev.local']);
+      expect(flags(await listAdmins(f, cookie))).toEqual({ 'admin@dev.local': true, 'flag-noacct@dev.local': false });
+    });
+  });
+
+  it('BR-16: an unverified or deleted account is never flagged and does not count', async () => {
+    await withFreshApp(async (f, cookie) => {
+      await verifiedUser(f, 'flag-unv');
+      await verifiedUser(f, 'flag-del');
+      await grantPlatformAdmin(f, cookie, 'flag-unv@dev.local');
+      await grantPlatformAdmin(f, cookie, 'flag-del@dev.local');
+      const owner = new pg.Pool({ connectionString: f.pg.ownerUrl, max: 1 });
+      try {
+        await owner.query('update "user" set email_verified = false where email = $1', ['flag-unv@dev.local']);
+        await owner.query('delete from "user" where email = $1', ['flag-del@dev.local']);
+      } finally {
+        await owner.end();
+      }
+      expect(flags(await listAdmins(f, cookie))).toEqual({
+        'admin@dev.local': true,
+        'flag-unv@dev.local': false,
+        'flag-del@dev.local': false,
+      });
+    });
+  });
+
+  it('BR-16: page 1 and page 2 of a paged list carry the same value', async () => {
+    await withFreshApp(async (f, cookie) => {
+      await f.db.pool.query("insert into platform_admins (email, granted_at) values ($1, now() + interval '1 day')", [
+        'flag-page@dev.local',
+      ]);
+      const first = await listAdmins(f, cookie, '?page=1&pageSize=1');
+      const second = await listAdmins(f, cookie, '?page=2&pageSize=1');
+      expect(first.map((i) => [i.email, i.lastWorkingAdmin])).toEqual([['flag-page@dev.local', false]]);
+      expect(second.map((i) => [i.email, i.lastWorkingAdmin])).toEqual([['admin@dev.local', true]]);
+    });
+  });
+
+  it('BR-16: revoking the flagged entry is 409, any other entry is 204', async () => {
+    await withFreshApp(async (f, cookie) => {
+      await verifiedUser(f, 'flag-rv');
+      const items = await listAdmins(f, cookie);
+      expect(items).toHaveLength(1);
+      const sole = items[0];
+      expect(sole?.lastWorkingAdmin).toBe(true);
+      expect(await revokePlatformAdmin(f, cookie, sole?.id ?? '')).toBe(409);
+      await f.db.pool.query('insert into platform_admins (email) values ($1)', ['flag-other@dev.local']);
+      const other = (await listAdmins(f, cookie)).find((i) => i.email === 'flag-other@dev.local');
+      expect(other?.lastWorkingAdmin).toBe(false);
+      expect(await revokePlatformAdmin(f, cookie, other?.id ?? '')).toBe(204);
     });
   });
 });

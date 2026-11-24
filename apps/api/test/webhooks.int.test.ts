@@ -1,8 +1,9 @@
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import pg from 'pg';
 import { and, eq } from 'drizzle-orm';
 import { runs, withOrg } from '@agentdesk/db';
 import { FAKE_SIGNATURE_HEADER, FakeStore, fakeSignature } from '@agentdesk/core';
+import { IntakeService } from '../src/intake/intake.service';
 import { createTestApp, type TestApp } from './helpers/app';
 import { createOrg, inviteAndLogin, userIdOf } from './helpers/auth';
 import { DEVELOP_REPO, freshStateDir, installFake, makeProject, wideFakeRepos } from './helpers/fixtures';
@@ -264,6 +265,60 @@ describe('POST /webhooks/:provider', () => {
       payload: { command: 'other', labelFilter: [], target: 'any', kind: 'skill', skillName: 'fix', enabled: true },
     });
     expect(res.statusCode).toBe(201);
+  });
+});
+
+describe('POST /webhooks/:provider for a suspended organization', () => {
+  const setStatus = (status: 'active' | 'suspended') =>
+    admin.query(
+      `update organization set status = $1, suspended_at = case when $1 = 'suspended' then now() end where id = $2`,
+      [status, orgId],
+    );
+
+  it('a bad signature is refused first: no intake and no database access at all (so no org-status read)', async () => {
+    await setStatus('suspended');
+    const spy = vi.spyOn(t.app.get(IntakeService), 'process');
+    const connect = vi.spyOn(t.db.pool, 'connect');
+    const query = vi.spyOn(t.db.pool, 'query');
+    try {
+      const before = await inboundCount();
+      const res = await webhook({ ticketRef: '61' }, 'wrong-secret').send();
+      expect(res.statusCode).toBe(401);
+      expect(spy).toHaveBeenCalledTimes(0);
+      expect(connect).toHaveBeenCalledTimes(0);
+      expect(query).toHaveBeenCalledTimes(0);
+      expect(await inboundCount()).toBe(before);
+    } finally {
+      spy.mockRestore();
+      connect.mockRestore();
+      query.mockRestore();
+      await setStatus('active');
+    }
+  });
+
+  it('a verified delivery is 200 with the plain { outcome: ignored } body (a null-parse body), and starts nothing', async () => {
+    t.temporal.reset();
+    await setStatus('suspended');
+    try {
+      const res = await webhook({ ticketRef: '62' }).send();
+      expect(res.statusCode).toBe(200);
+      expect(res.json()).toEqual({ outcome: 'ignored' });
+      expect(t.temporal.callsOfKind('start')).toHaveLength(0);
+      const rows = await admin.query(`select outcome from inbound_events where ticket_ref = '62' and org_id = $1`, [
+        orgId,
+      ]);
+      expect(rows.rows).toEqual([{ outcome: 'ignored_org_suspended' }]);
+      const made = await withOrg(t.db, orgId, (tx) => tx.select().from(runs).where(eq(runs.ticketRef, '62')));
+      expect(made).toHaveLength(0);
+    } finally {
+      await setStatus('active');
+    }
+  });
+
+  it('after reactivation a new delivery starts a run again', async () => {
+    t.temporal.reset();
+    const res = await webhook({ ticketRef: '63' }).send();
+    expect(res.statusCode).toBe(202);
   });
 });
 

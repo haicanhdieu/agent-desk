@@ -12,6 +12,8 @@ export interface AuditEntry {
   targetType: 'user' | 'invitation' | 'org';
   targetId: string;
   payload: Record<string, unknown>;
+  /** The projects the event belongs to (audit_log.project_ids); absent = none. */
+  projectIds?: readonly string[];
 }
 
 /** The audit_log row; payload = redactBody({ ...payload, actorKind }) (actorKind left out when undefined). */
@@ -24,6 +26,7 @@ export function buildAuditRow(entry: AuditEntry): typeof auditLog.$inferInsert {
     targetType: entry.targetType,
     targetId: entry.targetId,
     payload: redactBody(payload),
+    projectIds: [...(entry.projectIds ?? [])],
   };
 }
 

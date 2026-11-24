@@ -163,6 +163,7 @@ export class AssignmentsService {
           targetType: 'user',
           targetId: req.userId,
           payload: { to: { roleId: role.id, roleKey: role.key, scope: auditScope(req.scope) } },
+          projectIds: projectId === null ? [] : [projectId],
         });
       }
       const [row] = await tx
@@ -258,6 +259,7 @@ export class AssignmentsService {
         targetType: 'user',
         targetId: row.userId,
         payload: { from: { roleId: role.id, roleKey: role.key, scope: auditScope(dto.scope) } },
+        projectIds: dto.scope.type === 'project' ? [dto.scope.projectId] : [],
       });
     });
   }

@@ -1,8 +1,21 @@
 import type { Access, ProjectDto } from '@agentdesk/contracts';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { renderHook } from '@testing-library/react';
+import { createElement, type ReactNode } from 'react';
 import { describe, expect, it } from 'vitest';
 import { roleFixtures } from '@/mocks/dto/access';
 import { ids } from '@/mocks/dto/ids';
-import { INVITE_FIELD_POINTERS, projectOptions, projectsOnly, roleOptions } from './inviteForm';
+import {
+  INVITE_FIELD_POINTERS,
+  projectOptions,
+  projectRoleOptions,
+  projectsOnly,
+  roleOptions,
+  useInviteForm,
+} from './inviteForm';
+
+// What the roles list answers: the setup-reader test fixture is not a built-in role and is not offered.
+const builtInRoles = roleFixtures.filter((r) => r.builtIn);
 
 const P1 = ids.project.invoicerApi;
 const P2 = ids.project.invoicerWeb;
@@ -30,19 +43,19 @@ const projects = [project(P1, 'invoicer-api'), project(P2, 'invoicer-web')];
 
 describe('BR-29 roleOptions', () => {
   it('offers owner, admin, member and viewer to an owner', () => {
-    expect(roleOptions(roleFixtures, owner).map((o) => o.label)).toEqual(['Owner', 'Admin', 'Member', 'Viewer']);
+    expect(roleOptions(builtInRoles, owner).map((o) => o.label)).toEqual(['Owner', 'Admin', 'Member', 'Viewer']);
   });
 
   it('never offers owner to an org admin', () => {
-    expect(roleOptions(roleFixtures, orgAdmin).map((o) => o.label)).toEqual(['Admin', 'Member', 'Viewer']);
+    expect(roleOptions(builtInRoles, orgAdmin).map((o) => o.label)).toEqual(['Admin', 'Member', 'Viewer']);
   });
 
   it('offers admin, member and viewer to a project admin', () => {
-    expect(roleOptions(roleFixtures, projectAdmin).map((o) => o.label)).toEqual(['Admin', 'Member', 'Viewer']);
+    expect(roleOptions(builtInRoles, projectAdmin).map((o) => o.label)).toEqual(['Admin', 'Member', 'Viewer']);
   });
 
   it('uses the role id as the option id', () => {
-    expect(roleOptions(roleFixtures, owner)[0]).toEqual({ id: role('owner').id, label: 'Owner' });
+    expect(roleOptions(builtInRoles, owner)[0]).toEqual({ id: role('owner').id, label: 'Owner' });
   });
 });
 
@@ -74,5 +87,40 @@ describe('INVITE_FIELD_POINTERS', () => {
       '/scope/projectIds': 'projectIds',
       '/projectIds': 'projectIds',
     });
+  });
+});
+
+describe('BR-13 projectRoleOptions', () => {
+  it('offers exactly Admin, Member and Viewer, in that order', () => {
+    expect(projectRoleOptions([...roleFixtures].reverse()).map((o) => o.label)).toEqual(['Admin', 'Member', 'Viewer']);
+  });
+
+  it('uses the role id as the option id', () => {
+    expect(projectRoleOptions(roleFixtures)[0]).toEqual({ id: role('admin').id, label: 'Admin' });
+  });
+});
+
+describe('BR-13 useInviteForm fixedProjectId', () => {
+  const values = (fixedProjectId?: string) => {
+    const client = new QueryClient();
+    const wrapper = ({ children }: { children: ReactNode }) => createElement(QueryClientProvider, { client }, children);
+    return renderHook(
+      () =>
+        useInviteForm({
+          org: 'acme',
+          projectsOnly: true,
+          onOrgSwitched: () => {},
+          ...(fixedProjectId !== undefined && { fixedProjectId }),
+        }),
+      { wrapper },
+    ).result.current.values;
+  };
+
+  it('starts on some projects with that one project', () => {
+    expect(values(P1)).toEqual({ email: '', roleId: '', scope: 'projects', projectIds: [P1] });
+  });
+
+  it('starts with no project without it', () => {
+    expect(values().projectIds).toEqual([]);
   });
 });

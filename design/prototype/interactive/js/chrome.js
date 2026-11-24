@@ -39,7 +39,7 @@
     const orgs = AD.userOrgs(u.id);
     const link = (path, icon, label) => `<a href="${AD.href(path)}" data-act="menu-link" class="btn ghost" role="menuitem" style="${menuItemStyle}">${icon}${label}</a>`;
     let html = '';
-    if (cur) {
+    if (cur && !(AD.orgIsSuspended && AD.orgIsSuspended(cur))) { // a suspended org has no pages to open (OrgSuspendedSwitcher)
       const o = AD.org(cur);
       const p = AD.perm(u.id, cur);
       html += `<span class="sec-h" role="presentation" style="padding:4px 8px 6px"><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(o ? o.name : cur)}">${esc(o ? o.name : cur)}</span></span>`;
@@ -51,10 +51,13 @@
       html += '<span class="sec-h" role="presentation" style="padding:4px 8px 6px">Switch organization</span>';
       html += orgs.map((o) => {
         const on = o.slug === cur;
-        return `<a href="${AD.href('/o/' + o.slug + '/projects')}" data-act="switch-org" data-org="${esc(o.slug)}" class="btn ghost" role="menuitem" style="${menuItemStyle}"${on ? ' aria-current="true"' : ''}>${on ? I.check : noIcon}<span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;${on ? 'font-weight:600;' : ''}" title="${esc(o.name)}">${esc(o.name)}</span></a>`;
+        // BR-48: a suspended org stays in the list, marked "Suspended".
+        const susp = AD.orgIsSuspended && AD.orgIsSuspended(o.slug) ? '<span class="lbl" style="flex:0 0 auto;margin-left:auto">Suspended</span>' : '';
+        return `<a href="${AD.href('/o/' + o.slug + '/projects')}" data-act="switch-org" data-org="${esc(o.slug)}" class="btn ghost" role="menuitem" style="${menuItemStyle}"${on ? ' aria-current="true"' : ''}>${on ? I.check : noIcon}<span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;${on ? 'font-weight:600;' : ''}" title="${esc(o.name)}">${esc(o.name)}</span>${susp}</a>`;
       }).join('');
     }
-    if (u.platform) html += SEP_LINE + `<a href="${AD.href('/orgs/new')}" data-act="menu-link" class="btn ghost" role="menuitem" style="${menuItemStyle}">${I.plus16}Create organization</a>`;
+    // Platform admin area entry (platform-admin-dashboard spec): above Create organization, also in the no-org menu.
+    if (u.platform) html += SEP_LINE + `<a href="${AD.href('/platform/orgs')}" data-act="menu-link" class="btn ghost" role="menuitem" style="${menuItemStyle}">${I.lock16}Platform admin</a><a href="${AD.href('/orgs/new')}" data-act="menu-link" class="btn ghost" role="menuitem" style="${menuItemStyle}">${I.plus16}Create organization</a>`;
     return `<div class="pop" role="dialog" aria-label="Organization" style="left:0;top:calc(100% + 8px);width:300px;padding:8px;gap:2px"><div role="menu" aria-label="Organization" style="display:flex;flex-direction:column;gap:2px">${html}</div></div>`;
   };
 
@@ -130,7 +133,7 @@
       return `<header class="top">${brand}${chrome.orgCrumb(false)}${SLASH}${chrome.projCrumb()}${chrome.projTabs(which)}<span class="grow"></span><a class="btn ghost sm" href="https://github.com/" target="_blank" rel="noopener">${I.ext}Repo on GitHub</a>${tail}</header>`;
     }
     // Org level and personal pages. Create organization has no tabs; no-org people have nothing to open.
-    const tabs = noOrg || screen === 'createorg' ? '' : chrome.orgTabs();
+    const tabs = noOrg || screen === 'createorg' || screen === 'orgsuspended' ? '' : chrome.orgTabs();
     return `<header class="top">${brand}${chrome.orgCrumb(noOrg)}${tabs}<span class="grow"></span>${tail}</header>`;
   };
 

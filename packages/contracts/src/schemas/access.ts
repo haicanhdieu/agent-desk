@@ -51,6 +51,30 @@ export type CreateAssignmentRequest = z.infer<typeof CreateAssignmentRequest>;
 export const UpdateMemberRoleRequest = z.object({ roleId: Id.nullable() });
 export type UpdateMemberRoleRequest = z.infer<typeof UpdateMemberRoleRequest>;
 
+export const MEMBER_SEARCH_MAX = 100;
+export const MembersListQuery = PageQuery.extend({
+  q: z.string().trim().min(1).max(MEMBER_SEARCH_MAX).optional(),
+  excludeProject: Id.optional(),
+});
+export type MembersListQuery = z.infer<typeof MembersListQuery>;
+
+export const ProjectRoleDto = z.object({ assignmentId: Id, role: RoleRef });
+export type ProjectRoleDto = z.infer<typeof ProjectRoleDto>;
+
+export const ProjectMemberDto = z.object({
+  userId: z.string(),
+  name: z.string(),
+  handle: z.string().nullable(),
+  projectRoles: z.array(ProjectRoleDto),
+});
+export type ProjectMemberDto = z.infer<typeof ProjectMemberDto>;
+
+export const AddProjectMemberRequest = z.object({ userId: MemberUserId, roleId: Id });
+export type AddProjectMemberRequest = z.infer<typeof AddProjectMemberRequest>;
+
+export const SetProjectRoleRequest = z.object({ roleId: Id });
+export type SetProjectRoleRequest = z.infer<typeof SetProjectRoleRequest>;
+
 export const AssignmentListQuery = PageQuery.extend({ projectId: Id.optional() });
 export type AssignmentListQuery = z.infer<typeof AssignmentListQuery>;
 

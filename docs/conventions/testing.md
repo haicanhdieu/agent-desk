@@ -141,7 +141,7 @@ Commands for every level (unit, one file, watch, mocked e2e, full local e2e) are
 - Scripts per package: `test:unit` (no Docker), `test:integration` (Docker; accepts `--shard=i/n`), and `test` (both). CI runs the coverage variants of them (`test:unit:coverage`, or `test:coverage` for web and contracts) as the jobs `test / unit (<pkg>)` (one per package), `test / scripts` (`pnpm test:scripts`) and `test / integration (<pkg> <i>/<n>)`.
 - **MUST** add a matrix entry to the `unit` job in `.github/workflows/ci.yml` when you add a package with unit tests. Why: otherwise its tests never run in CI.
 - **Unit sharding:** a `unit` matrix entry may carry `shard` and `total` (the worker runs as four entries); CI then appends `--shard=<shard>/<total>` to the script and uploads `coverage-<pkg>-unit-<shard>`, which the coverage merge unions per package. The target is every `test / unit` job under 5 minutes; raise a package's `total` (and add entries) when its job nears it.
-- **Sharding:** `.github/ci-shards.json` maps a package to its shard count (`{"db": 1, "api": 1, ...}`). Raise a number when that package's integration job passes ~8 minutes; the hard cap is 20 minutes per job.
+- **Sharding:** `.github/ci-shards.json` maps a package to its shard count (`{"db": 1, "api": 3, ...}`). Raise a number when that package's integration job passes ~8 minutes; the hard cap is 20 minutes per job.
 - **MUST** have `pnpm test`, `pnpm typecheck` and `pnpm lint` green before asking for review. CI re-runs them; the only required status check is `gate / ci-passed`.
 
 ## 10. Coverage gate

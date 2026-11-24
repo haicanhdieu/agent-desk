@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import {
   appendFileSync,
   mkdirSync,
@@ -25,6 +26,17 @@ class PodExit extends Error {
   }
 }
 
+const POD_ENV = [
+  'RUN_AUTHOR_NAME',
+  'RUN_AUTHOR_EMAIL',
+  'FAKE_VOLUME_DIR',
+  'FAKE_MAX_LIFE_MS',
+  'FAKE_TRANSCRIPT_ADAPTER',
+  'AGENT_MODEL',
+  'ANTHROPIC_BASE_URL',
+  'RESUME_NOTE',
+];
+
 let dir: string;
 const argv = process.argv;
 
@@ -47,10 +59,22 @@ afterEach(() => {
 
 async function boot(env: Record<string, string> = {}, stateDir: string | null = dir): Promise<void> {
   vi.resetModules();
+  // The pod reads these (and logs every E2E_* name); drop whatever the test runner exported (E2E_WORKERS, AGENT_MODEL,
+  // ANTHROPIC_BASE_URL, ...) so only what a test passes in is visible.
+  for (const k of [...Object.keys(process.env).filter((n) => n.startsWith('E2E_')), ...POD_ENV]) {
+    vi.stubEnv(k, undefined);
+  }
   for (const [k, v] of Object.entries({
     PROMPT: '',
     SETUP_SCRIPT: '',
     RUN_MODE: '',
+    // The launch line reads these; a shell that sets them must not leak in.
+    AGENT_MODEL: '',
+    ANTHROPIC_BASE_URL: '',
+    RUN_AUTHOR_NAME: '',
+    RUN_AUTHOR_EMAIL: '',
+    RESUME_NOTE: '',
+    FAKE_VOLUME_DIR: '',
     FAKE_TURN_MS: String(TURN_MS),
     ...env,
   })) {
@@ -85,6 +109,43 @@ const DONE = `agentdesk: state done declared ${b64('Fake agent finished')}`;
 describe('fake-pod.mjs', () => {
   it('exits 64 without a state dir', async () => {
     await expect(boot({}, null)).rejects.toMatchObject({ code: 64 });
+  });
+
+  describe('env lines', () => {
+    const hash = (v: string): string => createHash('sha256').update(v).digest('hex').slice(0, 12);
+
+    it('logs the first 12 hex of the value hash for each E2E_ name, empty value included', async () => {
+      await boot({ E2E_A: 'hello', E2E_EMPTY: '' });
+      expect(logLines()).toContain(`agentdesk: env E2E_A ${hash('hello')}`);
+      expect(logLines()).toContain(`agentdesk: env E2E_EMPTY ${hash('')}`);
+    });
+
+    it('logs nothing for a name without the E2E_ prefix', async () => {
+      await boot({ OTHER_A: 'hello' });
+      expect(logLines().filter((l) => l.includes('OTHER_A'))).toEqual([]);
+    });
+
+    it('prints the raw value to the pane and log only under --fake-echo-env=<NAME>', async () => {
+      await boot({ E2E_A: 'hello-raw', PROMPT: '--fake-echo-env=E2E_A' });
+      expect(read('pane')).toContain('hello-raw');
+      expect(read('log')).toContain('hello-raw');
+    });
+
+    it('echoes on a fresh start with a volume: raw value in pane and volume copy, hash line logged, no crash', async () => {
+      const vol = join(dir, 'fresh-volume'); // not created: the pod makes it on a fresh start
+      await boot({ E2E_X: 'hello-raw', PROMPT: '--fake-echo-env=E2E_X', FAKE_VOLUME_DIR: vol });
+      expect(read('exit')).not.toBe('137');
+      expect(logLines()).toContain(`agentdesk: env E2E_X ${hash('hello-raw')}`);
+      expect(read('pane')).toContain('hello-raw');
+      expect(readFileSync(join(vol, 'pane'), 'utf8')).toContain('hello-raw');
+    });
+
+    it('keeps the raw value out of the log and pane without the flag', async () => {
+      await boot({ E2E_A: 'hello-raw' });
+      advance(TURN_MS * 2);
+      expect(read('pane')).not.toContain('hello-raw');
+      expect(read('log')).not.toContain('hello-raw');
+    });
   });
 
   describe('launch line', () => {

@@ -9,5 +9,7 @@ export {
   queuedRunsWithoutWorkflow,
   pendingInvitationsForEmail,
   invitationOrgForEmail,
+  platformOrgStats,
+  type PlatformOrgStatsRow,
 } from './functions';
 export { notifyRunStatus, listenRunStatus, RUN_STATUS_CHANNEL, type RunStatusMessage } from './notify';
