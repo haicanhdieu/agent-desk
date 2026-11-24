@@ -1,6 +1,6 @@
 {
   "db": 1,
-  "api": 1,
+  "api": 3,
   "worker": 1,
   "core": 1
 }
