@@ -208,6 +208,53 @@ export const DeskSkillDelete: Story = {
   render: () => <DeskSkillsScreen {...skillsProps} deleting="code-e2e" rulesUsing={['/code-e2e']} />,
 };
 
+export const DeskSkillsSubmitting: Story = {
+  name: 'Skills, submitting',
+  decorators: artboard(900),
+  globals: viewport(1440, 900),
+  render: () => <DeskSkillsScreen {...skillsProps} committing />,
+};
+
+const changeRequest = {
+  sourceBranch: 'agent-desk/skill-update-code-build-m3k9x2',
+  targetBranch: 'main',
+  url: 'https://example.com/harbor-labs/invoicer-api/pull/42',
+} as const;
+
+export const DeskSkillsSubmittedForReview: Story = {
+  name: 'Skills, changes submitted for review',
+  decorators: artboard(900),
+  globals: viewport(1440, 900),
+  render: () => (
+    <DeskSkillsScreen
+      {...skillsProps}
+      submission={{ action: 'save', ...changeRequest }}
+      onDismissSubmission={() => {}}
+    />
+  ),
+};
+
+export const DeskSkillDeleteSubmitting: Story = {
+  name: 'Skills, delete submitting',
+  decorators: artboard(900),
+  globals: viewport(1440, 900),
+  render: () => <DeskSkillsScreen {...skillsProps} deleting="code-e2e" deletePending />,
+};
+
+export const DeskSkillDeleteSubmittedForReview: Story = {
+  name: 'Skills, deletion submitted for review',
+  decorators: artboard(900),
+  globals: viewport(1440, 900),
+  render: () => (
+    <DeskSkillsScreen
+      {...skillsProps}
+      dirty={false}
+      submission={{ action: 'delete', ...changeRequest, sourceBranch: 'agent-desk/skill-delete-code-e2e-m3k9x2' }}
+      onDismissSubmission={() => {}}
+    />
+  ),
+};
+
 const modelField = {
   list: toModelList({ status: 'success', data: agentModelsFixtures.live }, null),
   defaultModel: 'claude-opus-4-5-20251101',

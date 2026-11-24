@@ -11,6 +11,8 @@ export interface ConfirmDeleteDialogProps {
   defaultMessage: string;
   onClose(): void;
   onConfirm(message: string): void;
+  /** The request is in flight: the confirm stays disabled so a double click cannot send two. */
+  pending?: boolean;
 }
 
 /** Inner body is mounted only while open, so typed text and message reset on every open. */
@@ -22,6 +24,7 @@ function Body({
   defaultMessage,
   onClose,
   onConfirm,
+  pending = false,
 }: Omit<ConfirmDeleteDialogProps, 'open'>) {
   const [message, setMessage] = useState(defaultMessage);
   const [typed, setTyped] = useState('');
@@ -43,17 +46,19 @@ function Body({
           <Button
             variant="solid-danger"
             icon="trash"
-            disabled={!confirmed}
-            onClick={() => confirmed && onConfirm(message)}
+            disabled={!confirmed || pending}
+            aria-busy={pending || undefined}
+            onClick={() => confirmed && !pending && onConfirm(message)}
           >
-            Delete and commit
+            {pending ? 'Submitting…' : 'Submit changes'}
           </Button>
         </>
       }
     >
       <p className={styles.confirmText}>
-        This commits the removal of <span className="mono">{path}</span> to <span className="mono">{branch}</span>. You
-        can restore it from git history, not from Agent Desk.
+        This removes <span className="mono">{path}</span> from <span className="mono">{branch}</span>. If that branch
+        requires review, the removal is submitted for review and stays in place until it is merged. You can restore a
+        removed skill from git history, not from Agent Desk.
       </p>
       {warning && (
         <Banner tone="warn" icon={<Icon name="warning" size={16} />}>

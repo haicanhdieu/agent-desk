@@ -136,7 +136,7 @@ describe('desk skills route', () => {
     await user.clear(message);
     await user.type(message, 'code-review: more steps');
     const listBefore = mockDb.requests('GET', skillsPath);
-    await user.click(screen.getByRole('button', { name: 'Commit to main' }));
+    await user.click(screen.getByRole('button', { name: 'Submit changes' }));
 
     await waitFor(() => expect(puts).toHaveLength(1));
     expect(puts[0]).toEqual({ body: `${original}\nMore steps.`, message: 'code-review: more steps', sha });
@@ -150,7 +150,7 @@ describe('desk skills route', () => {
     const { user } = await renderRoute(`${base}/skills?skill=code-review`);
     await user.type(await screen.findByLabelText('SKILL.md source'), 'x');
     await user.clear(screen.getByLabelText('Commit message'));
-    await user.click(screen.getByRole('button', { name: 'Commit to main' }));
+    await user.click(screen.getByRole('button', { name: 'Submit changes' }));
     await waitFor(() => expect(puts).toHaveLength(1));
     expect(puts[0]).toMatchObject({ message: 'Update code-review skill' });
   });
@@ -159,7 +159,7 @@ describe('desk skills route', () => {
     const puts = capturePuts();
     const { user } = await renderRoute(`${base}/skills?skill=code-review`);
     await user.type(await screen.findByLabelText('SKILL.md source'), 'x');
-    const commit = screen.getByRole('button', { name: 'Commit to main' });
+    const commit = screen.getByRole('button', { name: 'Submit changes' });
     // Two clicks before the first PUT answers.
     fireEvent.click(commit);
     fireEvent.click(commit);
@@ -175,18 +175,18 @@ describe('desk skills route', () => {
     Object.assign(skillRow('code-review'), { sha: 'changed-elsewhere', body: 'their version' });
     await user.type(editor, '\nMine.');
     const detailBefore = mockDb.requests('GET', `${skillsPath}/code-review`);
-    await user.click(screen.getByRole('button', { name: 'Commit to main' }));
+    await user.click(screen.getByRole('button', { name: 'Submit changes' }));
 
     expect(await screen.findByText('Skill changed elsewhere — reload')).toBeInTheDocument();
     expect(mockDb.requests('GET', `${skillsPath}/code-review`)).toBeGreaterThan(detailBefore);
     await waitFor(() => expect(screen.getByLabelText('SKILL.md source')).toHaveValue('their version'));
     expect(screen.queryByText('Unsaved changes')).toBeNull();
-    expect(screen.getByRole('button', { name: 'Commit to main' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Submit changes' })).toBeDisabled();
     expect(skillRow('code-review').body).toBe('their version');
 
     // A new edit commits on top of their version, with their sha.
     await user.type(screen.getByLabelText('SKILL.md source'), '!');
-    await user.click(screen.getByRole('button', { name: 'Commit to main' }));
+    await user.click(screen.getByRole('button', { name: 'Submit changes' }));
     await waitFor(() => expect(skillRow('code-review').body).toBe('their version!'));
     expect(puts.at(-1)).toMatchObject({ body: 'their version!', sha: 'changed-elsewhere' });
   });
@@ -203,7 +203,7 @@ describe('desk skills route', () => {
     // The draft survives the refetch.
     expect(screen.getByLabelText('SKILL.md source')).toHaveDisplayValue(/Mine\./);
 
-    await user.click(screen.getByRole('button', { name: 'Commit to main' }));
+    await user.click(screen.getByRole('button', { name: 'Submit changes' }));
     expect(await screen.findByText('Skill changed elsewhere — reload')).toBeInTheDocument();
     expect(puts[0]).toMatchObject({ sha: baseSha });
     expect(skillRow('code-review').body).toBe('their version');
@@ -217,8 +217,9 @@ describe('desk skills route', () => {
     expect(within(dialog).getByText(/uses this skill/)).toBeInTheDocument();
 
     await user.type(within(dialog).getByLabelText(/Type code-e2e to confirm/), 'code-e2e');
-    await user.click(within(dialog).getByRole('button', { name: 'Delete and commit' }));
+    await user.click(within(dialog).getByRole('button', { name: 'Submit changes' }));
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    expect(await screen.findByText('Skill code-e2e removed from main')).toBeInTheDocument();
     expect(mockDb.state.skills[projectId]?.some((s) => s.name === 'code-e2e')).toBe(false);
     const nav = screen.getByRole('navigation', { name: 'Skills' });
     await waitFor(() => expect(within(nav).queryByRole('link', { name: /code-e2e/ })).toBeNull());
@@ -267,6 +268,111 @@ describe('desk skills route', () => {
     mockDb.state.skills[projectId] = [];
     await renderRoute(`${base}/skills`);
     expect(await screen.findByRole('heading', { name: /No skills yet/ })).toBeInTheDocument();
+  });
+});
+
+describe('desk skills submit and review', () => {
+  const edit = async (user: Awaited<ReturnType<typeof renderRoute>>['user'], text = '\nMore steps.') => {
+    await user.type(await screen.findByLabelText('SKILL.md source'), text);
+  };
+
+  it('the commit bar targets the project default branch and offers Submit changes', async () => {
+    await renderRoute(`${base}/skills?skill=code-review`);
+    expect(await screen.findByText('Target')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Submit changes' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Commit to/ })).toBeNull();
+    const row = mockDb.state.projects.find((p) => p.id === projectId);
+    if (!row) throw new Error('project missing');
+    expect(row.defaultBranch).toBe('main');
+  });
+
+  it('a direct commit says Skill saved to main and refreshes the skill', async () => {
+    const { user } = await renderRoute(`${base}/skills?skill=code-review`);
+    await edit(user);
+    await user.click(screen.getByRole('button', { name: 'Submit changes' }));
+    expect(await screen.findByText('Skill saved to main')).toBeInTheDocument();
+    expect(screen.queryByText('Changes submitted for review')).toBeNull();
+    await waitFor(() => expect(screen.queryByText('Unsaved changes')).toBeNull());
+  });
+
+  it('shows Submitting… and keeps the draft when the submission fails', async () => {
+    scenarios.serverError('skills.put', { delayMs: 150 });
+    const { user } = await renderRoute(`${base}/skills?skill=code-review`);
+    await edit(user);
+    const draft = (screen.getByLabelText('SKILL.md source') as HTMLTextAreaElement).value;
+    await user.click(screen.getByRole('button', { name: 'Submit changes' }));
+    expect(await screen.findByRole('button', { name: 'Submitting…' })).toBeDisabled();
+    expect(await screen.findByRole('alert')).toBeInTheDocument();
+    expect(screen.queryByText('Changes submitted for review')).toBeNull();
+    expect(screen.queryByRole('link', { name: /View change request/ })).toBeNull();
+    expect(screen.getByRole('button', { name: 'Submit changes' })).toBeEnabled();
+    expect(screen.getByLabelText('SKILL.md source')).toHaveValue(draft);
+    expect(screen.getByText('Unsaved changes')).toBeInTheDocument();
+  });
+
+  describe('when the default branch needs review', () => {
+    it('submitting an edit shows the change request link and branches, keeps the draft and changes nothing live', async () => {
+      scenarios.skillReviewRequired();
+      const { user } = await renderRoute(`${base}/skills?skill=code-review`);
+      const before = { ...skillRow('code-review') };
+      await edit(user);
+      const draft = (screen.getByLabelText('SKILL.md source') as HTMLTextAreaElement).value;
+      const detailBefore = mockDb.requests('GET', `${skillsPath}/code-review`);
+      await user.click(screen.getByRole('button', { name: 'Submit changes' }));
+
+      expect(await screen.findByText('Changes submitted for review')).toBeInTheDocument();
+      const link = screen.getByRole('link', { name: /View change request/ });
+      expect(link).toHaveAttribute('href', expect.stringMatching(/^https:\/\//));
+      expect(link).toHaveAttribute('target', '_blank');
+      expect(screen.getByRole('status')).toHaveTextContent(/agent-desk\/skill-update-code-review-\d+ → main/);
+      expect(screen.queryByText('Skill saved to main')).toBeNull();
+      // Pending, not live: the draft stays, the stored skill is untouched and nothing was refetched.
+      expect(screen.getByLabelText('SKILL.md source')).toHaveValue(draft);
+      expect(screen.getByText('Unsaved changes')).toBeInTheDocument();
+      expect(skillRow('code-review')).toEqual(before);
+      expect(mockDb.requests('GET', `${skillsPath}/code-review`)).toBe(detailBefore);
+    });
+
+    it('deleting shows Deletion submitted for review, keeps the skill listed and closes the dialog', async () => {
+      scenarios.skillReviewRequired();
+      const { user, router } = await renderRoute(`${base}/skills?skill=code-e2e`);
+      await user.click(await screen.findByRole('button', { name: 'Delete skill' }));
+      const dialog = await screen.findByRole('dialog', { name: 'Delete skill code-e2e?' });
+      await user.type(within(dialog).getByLabelText(/Type code-e2e to confirm/), 'code-e2e');
+      await user.click(within(dialog).getByRole('button', { name: 'Submit changes' }));
+
+      expect(await screen.findByText('Deletion submitted for review')).toBeInTheDocument();
+      expect(screen.getByRole('link', { name: /View change request/ })).toBeInTheDocument();
+      expect(screen.queryByRole('dialog')).toBeNull();
+      expect(mockDb.state.skills[projectId]?.some((s) => s.name === 'code-e2e')).toBe(true);
+      const nav = screen.getByRole('navigation', { name: 'Skills' });
+      expect(within(nav).getByRole('link', { name: /code-e2e/ })).toBeInTheDocument();
+      expect(router.state.location.search).toEqual({ skill: 'code-e2e' });
+    });
+
+    it('opening another skill clears the notice', async () => {
+      scenarios.skillReviewRequired();
+      const { user } = await renderRoute(`${base}/skills?skill=code-review`);
+      await edit(user);
+      await user.click(screen.getByRole('button', { name: 'Submit changes' }));
+      await screen.findByText('Changes submitted for review');
+      const nav = screen.getByRole('navigation', { name: 'Skills' });
+      await user.click(within(nav).getByRole('link', { name: /code-e2e/ }));
+      await screen.findByRole('heading', { level: 2, name: 'code-e2e' });
+      expect(screen.queryByText('Changes submitted for review')).toBeNull();
+    });
+  });
+
+  it('a failed delete keeps the dialog open with a toast and no success state', async () => {
+    scenarios.serverError('skills.remove');
+    const { user } = await renderRoute(`${base}/skills?skill=code-e2e`);
+    await user.click(await screen.findByRole('button', { name: 'Delete skill' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Delete skill code-e2e?' });
+    await user.type(within(dialog).getByLabelText(/Type code-e2e to confirm/), 'code-e2e');
+    await user.click(within(dialog).getByRole('button', { name: 'Submit changes' }));
+    expect(await screen.findByRole('alert')).toBeInTheDocument();
+    expect(screen.getByRole('dialog', { name: 'Delete skill code-e2e?' })).toBeInTheDocument();
+    expect(screen.queryByText('Deletion submitted for review')).toBeNull();
   });
 });
 

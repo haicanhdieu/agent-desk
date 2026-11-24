@@ -16,7 +16,7 @@ const view = (page: Page, name: 'Edit' | 'Preview' | 'Diff') =>
 const source = (page: Page) => page.getByRole('textbox', { name: 'SKILL.md source' });
 const preview = (page: Page) => page.getByRole('region', { name: 'Skill preview' });
 const diff = (page: Page) => page.getByRole('region', { name: 'Changes against main' });
-const commit = (page: Page) => page.getByRole('button', { name: 'Commit to main' });
+const commit = (page: Page) => page.getByRole('button', { name: 'Submit changes' });
 const unsaved = (page: Page) => page.getByText('Unsaved changes');
 
 test('Preview shows the skill as formatted Markdown with its diagram', async ({ page }) => {

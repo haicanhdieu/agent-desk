@@ -33,6 +33,7 @@ import {
   type RunStatus,
   type SetupScriptDto,
   type SetupTestDto,
+  type SkillChangeResponse,
   type SkillDto,
 } from '@agentdesk/contracts';
 import { delay, http, type HttpHandler } from 'msw';
@@ -530,6 +531,22 @@ const nextSha = () => {
   return `c0ffee${String(commits).padStart(34, '0')}`;
 };
 
+/** What a skill change answers when the default branch needs review: a pending change request, nothing written. */
+function changeRequestFor(
+  project: ProjectRow,
+  action: 'create' | 'update' | 'delete',
+  name: string,
+): SkillChangeResponse {
+  commits += 1;
+  return {
+    kind: 'change_request',
+    sourceBranch: `agent-desk/skill-${action}-${name}-${commits}`,
+    targetBranch: project.defaultBranch ?? 'main',
+    url: `https://example.com/${project.repoPath}/pull/${commits}`,
+    id: String(commits),
+  };
+}
+
 /** Saved setup script versions of a project, oldest first (part of the mock store, so a reset clears them). */
 const setupVersionsOf = (projectId: string): SetupScriptDto[] => db().setupScripts[projectId] ?? [];
 const findSetupTest = (id: string): SetupTestDto | undefined => db().setupTests.find((t) => t.id === id);
@@ -684,6 +701,7 @@ const impl: Impl = {
       orgId,
       name: body.name ?? body.repoPath.split('/').at(-1) ?? body.repoPath,
       repoPath: body.repoPath,
+      defaultBranch: (db().repos[conn.id] ?? []).find((r) => r.repoPath === body.repoPath)?.defaultBranch ?? null,
       codeConnectionId: conn.id,
       boardConnectionId: conn.id,
       triggerMode: body.triggerMode,
@@ -854,6 +872,8 @@ const impl: Impl = {
       throw conflict('Skill changed', undefined, 'The skill was changed since you opened it. Reload and try again.');
     }
     if (!existing && body.sha !== undefined) throw conflict('Skill not found at that sha');
+    if (db().skillReviewRequired)
+      return changeRequestFor(projectRow(params.projectId), existing ? 'update' : 'create', params.name);
     const sha = nextSha();
     const next: SkillDto = {
       name: params.name,
@@ -865,13 +885,14 @@ const impl: Impl = {
     };
     if (existing) Object.assign(existing, next);
     else list.push(next);
-    return { commitSha: sha };
+    return { kind: 'commit', commitSha: sha, targetBranch: projectRow(params.projectId).defaultBranch ?? 'main' };
   },
   'skills.remove': ({ params }) => {
     const projectId = projectRow(params.projectId).id;
     skillOf(projectId, params.name);
+    if (db().skillReviewRequired) return changeRequestFor(projectRow(projectId), 'delete', params.name);
     db().skills[projectId] = skillsOf(projectId).filter((s) => s.name !== params.name);
-    return null;
+    return { kind: 'commit', commitSha: nextSha(), targetBranch: projectRow(projectId).defaultBranch ?? 'main' };
   },
 
   'setupScript.get': ({ params }) => setupVersionsOf(projectRow(params.projectId).id).at(-1) ?? null,

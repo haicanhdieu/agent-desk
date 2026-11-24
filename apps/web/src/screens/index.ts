@@ -11,7 +11,7 @@ export { Runs, filterGroups, type RunsProps } from './Runs';
 export { RunsProblems, type RunsProblemsProps, type RunsProblemsWarning } from './RunsProblems';
 export { NeedsYou, type NeedsYouProps, type NeedsYouRun } from './NeedsYou';
 export { RunDetail, type RunDetailProps } from './RunDetail';
-export { DeskSkills, type DeskSkillsProps } from './DeskSkills';
+export { DeskSkills, type DeskSkillsProps, type SkillSubmission } from './DeskSkills';
 export { DeskRules, RulePane, type DeskRulesProps, type RulePaneProps } from './DeskRules';
 export { DeskAudit, type DeskAuditProps } from './DeskAudit';
 export { DeskMembers, type DeskMembersProps } from './DeskMembers';

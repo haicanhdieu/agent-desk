@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Button, CommandChip, IconButton, LabelChip, SegmentedControl } from '@/ds';
+import { Banner, Button, CommandChip, IconButton, LabelChip, SegmentedControl } from '@/ds';
 import {
   AppShell,
   CodeEditor,
@@ -18,6 +18,18 @@ import styles from './Screens.module.css';
 import { DeskFrame, type DeskFrameData } from './DeskFrame';
 
 type View = 'edit' | 'preview' | 'diff';
+
+/** A skill change that was submitted for review (a pending change request), not merged. */
+export interface SkillSubmission {
+  /** 'save' for a create or edit, 'delete' for a removal. */
+  action: 'save' | 'delete';
+  sourceBranch: string;
+  targetBranch: string;
+  /** Where the change request is; untrusted, drawn as a link only when it is http(s). */
+  url: string;
+}
+
+const isWebUrl = (url: string) => /^https?:\/\//i.test(url);
 
 export interface DeskSkillsProps {
   /** Top bar and Desk navigation data. */
@@ -43,8 +55,15 @@ export interface DeskSkillsProps {
   /** Rule commands (e.g. "/code-e2e") that use the skill being deleted. */
   rulesUsing?: string[];
   commitMessage?: string;
-  /** A commit is in flight (Commit disabled). */
+  /** The project's default branch, where changes land. Null when it is not known; defaults to `main` (stories). */
+  defaultBranch?: string | null;
+  /** A submission is in flight (Submit changes disabled). */
   committing?: boolean;
+  /** The delete request is in flight (the dialog's confirm disabled). */
+  deletePending?: boolean;
+  /** The last change submitted for review, shown above the editor until dismissed. */
+  submission?: SkillSubmission;
+  onDismissSubmission?(): void;
   /**
    * Identity of the editor's draft. When it changes the draft starts over from the skill's current body (e.g. after
    * a rejected commit). Defaults to the skill name.
@@ -57,7 +76,7 @@ export interface DeskSkillsProps {
   onDelete?(name: string): void;
   onCloseDelete?(): void;
   onConfirmDelete?(message: string): void;
-  /** Commit the editor's text with the message. */
+  /** Submit the editor's text with the message. */
   onCommit?(body: string, message: string): void;
 }
 
@@ -77,6 +96,7 @@ function SkillEditor({
   preview,
   commitMessage,
   committing,
+  branch,
   onDelete,
   onCommit,
 }: {
@@ -88,6 +108,7 @@ function SkillEditor({
   preview?: DeskSkillsProps['preview'];
   commitMessage: string;
   committing: boolean;
+  branch: string | null;
   onDelete?(name: string): void;
   onCommit?(body: string, message: string): void;
 }) {
@@ -131,14 +152,54 @@ function SkillEditor({
       <CommitBar
         message={message}
         onMessageChange={setMessage}
-        branch="main"
+        branch={branch}
         dirty={dirty}
         pending={committing}
         onDiscard={() => setValue(skill.body)}
         onCommit={() => onCommit?.(value, message)}
-        note="Commits as agent-desk[bot]. Runs that start after the commit use the new version; running runs keep the old one."
+        note="Submitted as agent-desk[bot]. If the target branch requires review, the changes are submitted for review instead of saved. Runs that start after the change is on the target branch use the new version; running runs keep the old one."
       />
     </>
+  );
+}
+
+function SubmissionNotice({ submission, onDismiss }: { submission: SkillSubmission; onDismiss?(): void }) {
+  const deletion = submission.action === 'delete';
+  return (
+    <Banner
+      tone="ok"
+      live="polite"
+      title={deletion ? 'Deletion submitted for review' : 'Changes submitted for review'}
+      actions={
+        <>
+          {isWebUrl(submission.url) && (
+            <Button
+              variant="primary"
+              size="sm"
+              icon="external"
+              href={submission.url}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              View change request
+            </Button>
+          )}
+          {onDismiss && (
+            <Button variant="ghost" size="sm" onClick={onDismiss}>
+              Dismiss
+            </Button>
+          )}
+        </>
+      }
+    >
+      <span className="mono">
+        {submission.sourceBranch} → {submission.targetBranch}
+      </span>
+      . It is not merged yet:{' '}
+      {deletion
+        ? `the skill stays on ${submission.targetBranch} until it is.`
+        : `${submission.targetBranch} keeps the current version until it is.`}
+    </Banner>
   );
 }
 
@@ -157,7 +218,11 @@ export function DeskSkills({
   deleting,
   rulesUsing = [],
   commitMessage = '',
+  defaultBranch = 'main',
   committing = false,
+  deletePending = false,
+  submission,
+  onDismissSubmission,
   editorKey,
   skillHref,
   onSelect,
@@ -167,13 +232,14 @@ export function DeskSkills({
   onCommit,
 }: DeskSkillsProps) {
   const active = activeSkill ?? skills.find((s) => s.name === activeName) ?? skills[0];
+  const branchLabel = defaultBranch ?? 'the default branch';
   const doomed = deleting ? skills.find((s) => s.name === deleting) : undefined;
   const page = (
     <>
       <DeskFrame active="skills" {...frame}>
         <div className={styles.deskRow}>
           <SkillList
-            branch="main"
+            branch={branchLabel}
             activeName={active?.name}
             skills={skills.map((s) => ({
               name: s.name,
@@ -185,6 +251,7 @@ export function DeskSkills({
             footer={skills.length > 0 && pagination ? <Pagination {...pagination} /> : undefined}
           />
           <main className={styles.skillsMain}>
+            {submission && <SubmissionNotice submission={submission} onDismiss={onDismissSubmission} />}
             {active ? (
               <SkillEditor
                 key={editorKey ?? active.name}
@@ -196,6 +263,7 @@ export function DeskSkills({
                 preview={preview}
                 commitMessage={commitMessage}
                 committing={committing}
+                branch={defaultBranch}
                 onDelete={onDelete}
                 onCommit={onCommit}
               />
@@ -224,7 +292,8 @@ export function DeskSkills({
           open
           name={doomed.name}
           path={`.claude/skills/${doomed.name}/`}
-          branch="main"
+          branch={branchLabel}
+          pending={deletePending}
           defaultMessage={`Remove ${doomed.name} skill`}
           warning={
             rulesUsing.length > 0 ? (

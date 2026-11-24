@@ -534,16 +534,23 @@ describe('MSW handler semantics', () => {
       }),
     );
     expect(stale.status).toBe(409);
-    const { commitSha } = await api.skills.put({
+    const put = await api.skills.put({
       params: { projectId: P, name: 'code-review' },
       body: { body: '---\nname: code-review\ndescription: New text\n---\n', message: 'edit', sha: skill.sha },
     });
+    if (put.kind !== 'commit') throw new Error('expected a direct commit');
+    const { commitSha } = put;
     await expect(api.skills.get({ params: { projectId: P, name: 'code-review' } })).resolves.toMatchObject({
       sha: commitSha,
       description: 'New text',
       lastCommit: { sha: commitSha, message: 'edit' },
     });
-    await expect(api.skills.remove({ params: { projectId: P, name: 'code-review' }, query: {} })).resolves.toBeNull();
+    await expect(
+      api.skills.remove({ params: { projectId: P, name: 'code-review' }, query: {} }),
+    ).resolves.toMatchObject({
+      kind: 'commit',
+      targetBranch: 'main',
+    });
     await expect(api.skills.list({ params: { projectId: P } })).resolves.toMatchObject({ total: 3 });
   });
 

@@ -21,7 +21,8 @@ import { projectPaths, useDeskFrame } from '@/features/desk/frame';
 import { rulesUsing, toSkill } from '@/features/desk/map';
 import { isStaleSkill, useCommitSkill, useDeleteSkill } from '@/features/desk/mutations';
 import { deskQueries } from '@/features/desk/queries';
-import { DeskSkills } from '@/screens';
+import { projectsQueries } from '@/features/projects/queries';
+import { DeskSkills, type SkillSubmission } from '@/screens';
 
 const SkillsSearch = z.object({ ...PageSearch.shape, skill: z.string().optional().catch(undefined) });
 
@@ -89,6 +90,9 @@ function DeskSkillsPage() {
   const commit = useCommitSkill(org, projectId);
   const remove = useDeleteSkill(org, projectId);
   const [deleting, setDeleting] = useState<string>();
+  // The last change request opened for review: pending, not merged, so it never replaces the skill shown.
+  const [submission, setSubmission] = useState<SkillSubmission>();
+  const { data: projectDto } = useSuspenseQuery(projectsQueries.detail(org, projectId));
 
   // No silent overwrite: a draft is bound to the sha it started from, and a commit always sends that sha. A
   // background refetch that brings a newer sha keeps the draft and its base, so committing it gets a 409 instead of
@@ -130,7 +134,16 @@ function DeskSkillsPage() {
         onSettled: () => {
           committing.current = false;
         },
-        onSuccess: restartDraft,
+        onSuccess: (res) => {
+          if (res.kind === 'commit') {
+            setSubmission(undefined);
+            toast.show({ tone: 'ok', title: `Skill saved to ${res.targetBranch}` });
+            restartDraft();
+            return;
+          }
+          // Pending review: the editor keeps the draft and the skill on the target branch is unchanged.
+          setSubmission({ action: 'save', ...res });
+        },
         onError: (e) => (isStaleSkill(e) ? restartDraft() : toast.show(toastFromError(e))),
       },
     );
@@ -142,8 +155,15 @@ function DeskSkillsPage() {
     remove.mutate(
       { name, message },
       {
-        onSuccess: () => {
+        onSuccess: (res) => {
           setDeleting(undefined);
+          if (res.kind !== 'commit') {
+            // Pending review: the skill is still live, so it stays listed and open.
+            setSubmission({ action: 'delete', ...res });
+            return;
+          }
+          setSubmission(undefined);
+          toast.show({ tone: 'ok', title: `Skill ${name} removed from ${res.targetBranch}` });
           if (search.skill === name)
             void navigate({ search: (prev) => ({ ...prev, skill: undefined }), replace: true });
         },
@@ -161,9 +181,16 @@ function DeskSkillsPage() {
       active={detail ? toSkill(detail, rules, now) : undefined}
       pagination={pagination}
       editorKey={editorKey}
+      defaultBranch={projectDto.defaultBranch}
       committing={commit.isPending}
+      deletePending={remove.isPending}
+      submission={submission}
+      onDismissSubmission={() => setSubmission(undefined)}
       skillHref={skillHref}
-      onSelect={(name) => void navigate({ search: (prev) => ({ ...prev, skill: name }) })}
+      onSelect={(name) => {
+        setSubmission(undefined);
+        void navigate({ search: (prev) => ({ ...prev, skill: name }) });
+      }}
       onCommit={onCommit}
       onDelete={setDeleting}
       deleting={deleting}

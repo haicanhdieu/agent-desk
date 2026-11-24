@@ -8,6 +8,7 @@ import { mockDb } from './db';
 import { applyMockLists, MOCK_LISTS_KEY, mockListHandlers, parseMockLists } from './e2eLists';
 import { handlers } from './handlers';
 import { PR_STATES_SCENARIO_KEY } from './prStates';
+import { SKILL_REVIEW_KEY } from './skillReview';
 import { ONBOARDING_SCENARIO_KEY, parseOnboardingScenario } from './onboardingScenarios';
 import { PLATFORM_SCENARIO_KEY, parsePlatformScenario } from './platformScenarios';
 import { scenarios, setScenarioTarget } from './scenarios';
@@ -62,6 +63,14 @@ function loadAgentModels(): void {
     for (const [agentId, scenario] of Object.entries(parsed.data)) scenarios.agentModels(agentId, scenario);
   } catch {
     // Storage blocked or corrupt: the default answers apply.
+  }
+}
+
+function loadSkillReview(): void {
+  try {
+    if (sessionStorage.getItem(SKILL_REVIEW_KEY) === '1') scenarios.skillReviewRequired();
+  } catch {
+    // Storage blocked: skill changes commit directly.
   }
 }
 
@@ -166,6 +175,7 @@ export function startMockWorker(opts: { quiet?: boolean } = {}): Promise<unknown
     loadAuth();
     loadAgentModels();
     loadPrStates();
+    loadSkillReview();
     // Runs in the terminal lifecycle states (pausing, crashed, resume failed, resumed), for the mocked e2e specs.
     mockDb.addRuns(lifecycleRunFixtures, lifecycleEventFixtures);
     // Runs after an unexpected pod end with automatic resume (gave up, waiting between tries, resumed), for the mocked e2e specs.

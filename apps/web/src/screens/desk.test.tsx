@@ -27,13 +27,13 @@ describe('DeskSkills', () => {
     expect(screen.queryByLabelText('SKILL.md source')).toBeNull();
   });
 
-  it('dirty shows Unsaved changes and enables Commit to main; otherwise disabled', () => {
+  it('dirty shows Unsaved changes and enables Submit changes; otherwise disabled', () => {
     const { rerender } = render(<DeskSkills frame={deskFrame} skills={skills} activeName="code-build" dirty />);
     expect(screen.getByText('Unsaved changes')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Commit to main' })).toBeEnabled();
+    expect(screen.getByRole('button', { name: 'Submit changes' })).toBeEnabled();
     rerender(<DeskSkills frame={deskFrame} skills={skills} activeName="code-build" />);
     expect(screen.queryByText('Unsaved changes')).toBeNull();
-    expect(screen.getByRole('button', { name: 'Commit to main' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Submit changes' })).toBeDisabled();
   });
 
   const radio = (name: string) =>
@@ -84,10 +84,10 @@ describe('DeskSkills', () => {
     );
     await userEvent.type(screen.getByLabelText('SKILL.md source'), 'x');
     await userEvent.click(radio('Preview'));
-    await userEvent.click(screen.getByRole('button', { name: 'Commit to main' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Submit changes' }));
     expect(onCommit).toHaveBeenLastCalledWith(`${codeBuild.body}x`, 'msg');
     await userEvent.click(radio('Diff'));
-    await userEvent.click(screen.getByRole('button', { name: 'Commit to main' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Submit changes' }));
     expect(onCommit).toHaveBeenCalledTimes(2);
     expect(onCommit).toHaveBeenLastCalledWith(`${codeBuild.body}x`, 'msg');
   });
@@ -112,7 +112,7 @@ describe('DeskSkills', () => {
     expect(
       screen.getByRole('region', { name: 'Changes against main' }).querySelector('[data-kind="add"]'),
     ).not.toBeNull();
-    await userEvent.click(screen.getByRole('button', { name: 'Commit to main' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Submit changes' }));
     expect(onCommit).toHaveBeenCalledWith(`${codeBuild.body}x`, 'msg');
   });
 
@@ -135,7 +135,7 @@ describe('DeskSkills', () => {
     const dialog = screen.getByRole('dialog', { name: 'Delete skill code-e2e?' });
     expect(within(dialog).getByText('/code-e2e')).toBeInTheDocument();
     expect(within(dialog).getByText(/uses this skill/)).toBeInTheDocument();
-    const confirm = within(dialog).getByRole('button', { name: 'Delete and commit' });
+    const confirm = within(dialog).getByRole('button', { name: 'Submit changes' });
     expect(confirm).toBeDisabled();
     await userEvent.type(within(dialog).getByLabelText(/Type code-e2e to confirm/), 'code-e2e');
     expect(confirm).toBeEnabled();
@@ -147,7 +147,7 @@ describe('DeskSkills', () => {
     render(
       <DeskSkills frame={deskFrame} skills={skills} activeName="code-review" commitMessage="msg" onCommit={onCommit} />,
     );
-    const commit = screen.getByRole('button', { name: 'Commit to main' });
+    const commit = screen.getByRole('button', { name: 'Submit changes' });
     expect(commit).toBeDisabled();
     await userEvent.type(screen.getByLabelText('SKILL.md source'), 'x');
     expect(screen.getByText('Unsaved changes')).toBeInTheDocument();
@@ -157,9 +157,85 @@ describe('DeskSkills', () => {
     expect(screen.getByLabelText('SKILL.md source')).toHaveValue(skills[1].body);
   });
 
-  it('committing disables Commit even when dirty', () => {
+  it('committing shows Submitting… and disables the action even when dirty', () => {
     render(<DeskSkills frame={deskFrame} skills={skills} activeName="code-build" dirty committing />);
-    expect(screen.getByRole('button', { name: 'Commit to main' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Submitting…' })).toBeDisabled();
+  });
+
+  it('the commit bar targets the configured default branch, not a hardcoded main', () => {
+    render(<DeskSkills frame={deskFrame} skills={skills} activeName="code-build" defaultBranch="trunk" />);
+    const bar = screen.getByRole('button', { name: 'Submit changes' }).closest('div')?.parentElement;
+    expect(bar).toHaveTextContent('Target');
+    expect(bar).toHaveTextContent('trunk');
+    expect(bar).not.toHaveTextContent('main');
+    expect(screen.getByText(/submitted for review/i)).toBeInTheDocument();
+  });
+
+  const submission = {
+    action: 'save',
+    sourceBranch: 'agent-desk/skill-update-code-build-x1',
+    targetBranch: 'main',
+    url: 'https://example.com/pr/7',
+  } as const;
+
+  it('a change request shows Changes submitted for review, a View change request link and the branches', () => {
+    render(<DeskSkills frame={deskFrame} skills={skills} activeName="code-build" dirty submission={submission} />);
+    const status = screen.getByRole('status');
+    expect(within(status).getByText('Changes submitted for review')).toBeInTheDocument();
+    const link = within(status).getByRole('link', { name: /View change request/ });
+    expect(link).toHaveAttribute('href', 'https://example.com/pr/7');
+    expect(link).toHaveAttribute('target', '_blank');
+    expect(link).toHaveAttribute('rel', 'noopener noreferrer');
+    expect(status).toHaveTextContent('agent-desk/skill-update-code-build-x1 → main');
+    expect(status).toHaveTextContent('not merged');
+    // The editor keeps the content and the pending change is not the live version.
+    expect(screen.getByLabelText('SKILL.md source')).toHaveValue(skills[0].body);
+  });
+
+  it('a deletion change request says Deletion submitted for review and the skill stays listed', () => {
+    render(
+      <DeskSkills
+        frame={deskFrame}
+        skills={skills}
+        activeName="code-build"
+        submission={{ ...submission, action: 'delete' }}
+      />,
+    );
+    expect(screen.getByText('Deletion submitted for review')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /View change request/ })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /code-build/ })).toBeInTheDocument();
+  });
+
+  it('Dismiss closes the submission notice', async () => {
+    const onDismissSubmission = vi.fn();
+    render(
+      <DeskSkills
+        frame={deskFrame}
+        skills={skills}
+        activeName="code-build"
+        submission={submission}
+        onDismissSubmission={onDismissSubmission}
+      />,
+    );
+    await userEvent.click(screen.getByRole('button', { name: 'Dismiss' }));
+    expect(onDismissSubmission).toHaveBeenCalled();
+  });
+
+  it('a link that is not http(s) is not rendered', () => {
+    render(
+      <DeskSkills
+        frame={deskFrame}
+        skills={skills}
+        activeName="code-build"
+        submission={{ ...submission, url: 'javascript:alert(1)' }}
+      />,
+    );
+    expect(screen.queryByRole('link', { name: /View change request/ })).toBeNull();
+  });
+
+  it('deleting shows Submitting… while the request runs', () => {
+    render(<DeskSkills frame={deskFrame} skills={skills} activeName="code-build" deleting="code-e2e" deletePending />);
+    expect(within(screen.getByRole('dialog')).getByRole('button', { name: 'Submitting…' })).toBeDisabled();
   });
 
   it('a plain click on a skill calls onSelect', async () => {
