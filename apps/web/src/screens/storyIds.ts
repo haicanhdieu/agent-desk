@@ -347,6 +347,8 @@ export type BoardName = keyof typeof boardStories;
 export const stateStories = {
   Setup1RefreshRepos: { title: setup, exportName: 'Setup1RefreshRepos', board: 'Setup1' },
   Setup1Refreshing: { title: setup, exportName: 'Setup1Refreshing', board: 'Setup1' },
+  Setup1NoRepositories: { title: setup, exportName: 'Setup1NoRepositories', board: 'Setup1' },
+  Setup1NoRepositoriesAccess: { title: setup, exportName: 'Setup1NoRepositoriesAccess', board: 'Setup1' },
   Setup1PollingFailed: { title: setup, exportName: 'Setup1PollingFailed', board: 'Setup1PollingOk' },
   Setup2Fallback: { title: setup, exportName: 'Setup2Fallback', board: 'Setup2' },
   SetupReadyWithWarning: { title: setup, exportName: 'SetupReadyWithWarning', board: 'SetupReady' },

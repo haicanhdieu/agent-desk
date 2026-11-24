@@ -10,6 +10,7 @@ export const connectionFixtures: ConnectionDto[] = [
     capabilities: { code: true, board: true },
     accountName: 'harbor-labs',
     status: 'active',
+    manageUrl: 'https://github.com/organizations/harbor-labs/settings/installations/1001',
     createdAt: '2026-09-02T09:15:00.000Z',
   },
   {
@@ -18,6 +19,7 @@ export const connectionFixtures: ConnectionDto[] = [
     capabilities: { code: true, board: true },
     accountName: 'kim-hale',
     status: 'active',
+    manageUrl: 'https://github.com/settings/installations/1002',
     createdAt: '2026-10-01T08:00:00.000Z',
   },
   {
@@ -26,6 +28,7 @@ export const connectionFixtures: ConnectionDto[] = [
     capabilities: { code: true, board: true },
     accountName: 'dev',
     status: 'active',
+    manageUrl: null,
     createdAt: '2026-11-01T08:00:00.000Z',
   },
   {
@@ -34,6 +37,7 @@ export const connectionFixtures: ConnectionDto[] = [
     capabilities: { code: true, board: true },
     accountName: 'acme-co',
     status: 'active',
+    manageUrl: 'https://github.com/organizations/acme-co/settings/installations/2001',
     createdAt: '2026-10-20T10:00:00.000Z',
   },
 ];

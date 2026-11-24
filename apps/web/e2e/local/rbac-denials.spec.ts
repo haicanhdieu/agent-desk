@@ -228,4 +228,18 @@ test.describe('BR-12: the 403 body says not allowed, with a requestId', () => {
     const { b } = cast;
     await expectNotAllowedBody(await b.api.get('/api/connections'), 'connections.list as member');
   });
+
+  test('connections.sync: a member, a viewer and an admin of P1 only are refused and the org keeps its connections', async () => {
+    // Syncing links installations the caller's provider account can see, so it needs connection:create at org level
+    // (ADR-0039: another org may hold the same installation; this org links its own row only when allowed).
+    const { o, a, b, v } = cast;
+    const connectionsOf = async (who: Actor): Promise<number> =>
+      z.array(z.unknown()).parse(await ok(await who.api.get('/api/connections'), 200, 'connections.list as owner'))
+        .length;
+    const before = await connectionsOf(o);
+    await expectNotAllowedBody(await b.api.post('/api/connections/fake/sync'), 'connections.sync as member');
+    await expectNotAllowedBody(await v.api.post('/api/connections/fake/sync'), 'connections.sync as viewer');
+    await expectNotAllowedBody(await a.api.post('/api/connections/fake/sync'), 'connections.sync as admin of P1 only');
+    expect(await connectionsOf(o), 'the refused calls linked nothing').toBe(before);
+  });
 });

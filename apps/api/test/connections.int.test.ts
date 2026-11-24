@@ -6,6 +6,7 @@ import { ProjectSchedules } from '../src/projects/project-schedules';
 import { createTestApp, type TestApp } from './helpers/app';
 import { createOrg, grant, inviteAndLogin, revoke, userIdOf } from './helpers/auth';
 import { expectContract } from './helpers/contract';
+import { makeProject, wideFakeRepos } from './helpers/fixtures';
 
 let t: TestApp;
 let alice: string;
@@ -79,7 +80,7 @@ describe('connections', () => {
   });
 
   describe('sync (the app is already installed at the provider, so no callback ever arrives)', () => {
-    async function syncAs(cookie: string, installs: { externalId: string; accountName: string }[]) {
+    async function syncAs(cookie: string, installs: { externalId: string; accountName: string; manageUrl?: string }[]) {
       const synced = await createTestApp({
         wrapAdapters: (real) => ({
           ...real,
@@ -117,7 +118,7 @@ describe('connections', () => {
       expect(expectContract('connections.list', list)).toHaveLength(1);
     });
 
-    it('skips an installation another org already owns instead of failing, and links the rest', async () => {
+    it('links an installation another org already owns, in each org, and keeps the lists apart', async () => {
       const owner = await syncAs('sync-owner', [{ externalId: 'taken-ext', accountName: 'owner-co' }]);
       expect(owner.first.statusCode).toBe(201);
 
@@ -129,13 +130,102 @@ describe('connections', () => {
       const names = (expectContract('connections.list', other.list) as { accountName: string }[]).map(
         (c) => c.accountName,
       );
-      expect(names).toEqual(['other-co']);
+      expect(names).toEqual(['owner-co', 'other-co']);
+      // The first org still sees only its own connection record.
+      const ownerNames = (expectContract('connections.list', owner.list) as { accountName: string }[]).map(
+        (c) => c.accountName,
+      );
+      expect(ownerNames).toEqual(['owner-co']);
+      const ownerIds = (owner.list.json() as { id: string }[]).map((c) => c.id);
+      const otherIds = (other.list.json() as { id: string }[]).map((c) => c.id);
+      expect(otherIds).not.toContain(ownerIds[0]);
+    });
+
+    it('lists the installation settings page the provider gave, and null when it gave none', async () => {
+      const { list } = await syncAs('sync-manage', [
+        { externalId: 'm-1', accountName: 'with-url', manageUrl: 'https://github.com/settings/installations/1' },
+        { externalId: 'm-2', accountName: 'no-url' },
+      ]);
+      const conns = expectContract('connections.list', list) as { accountName: string; manageUrl: string | null }[];
+      expect(conns.map((c) => [c.accountName, c.manageUrl])).toEqual([
+        ['with-url', 'https://github.com/settings/installations/1'],
+        ['no-url', null],
+      ]);
     });
 
     it('returns an empty list when the user can see no installation', async () => {
       const { first, list } = await syncAs('sync-none', []);
       expect(expectContract('connections.sync', first)).toEqual([]);
       expect(expectContract('connections.list', list)).toEqual([]);
+    });
+  });
+
+  describe('sync access when two orgs share one installation (ADR-0039)', () => {
+    it('only connection:create at org level may link it: a member, a project-only admin and another org are refused', async () => {
+      const shared = [{ externalId: 'shared-ext', accountName: 'shared-co' }];
+      const synced = await createTestApp({
+        wrapAdapters: (real) => {
+          const wide = wideFakeRepos(real);
+          return {
+            ...wide,
+            codeHost: (provider) =>
+              Object.assign(Object.create(wide.codeHost(provider)), {
+                listInstallations: async () =>
+                  shared.map((i) => ({ provider, ...i, capabilities: { code: true, board: true } })),
+              }),
+          };
+        },
+      });
+      try {
+        const orgA = (await createOrg(synced, 'Sync A', 'sync-a')).id;
+        const orgB = (await createOrg(synced, 'Sync B', 'sync-b')).id;
+        const ownerA = await inviteAndLogin(synced, orgA, 'sync-owner-a', 'owner', { type: 'org' });
+        // Org A links the installation and has a project on it.
+        const linkedA = await synced.app.inject({
+          method: 'POST',
+          url: '/api/connections/fake/sync',
+          headers: { cookie: ownerA },
+        });
+        expect(linkedA.statusCode).toBe(201);
+        const connectionA = (linkedA.json() as { id: string }[])[0]?.id ?? '';
+        const { projectId } = await makeProject(synced, ownerA, connectionA);
+
+        const memberB = await inviteAndLogin(synced, orgB, 'sync-member-b', 'member', { type: 'org' });
+        const viewerB = await inviteAndLogin(synced, orgB, 'sync-viewer-b', 'viewer', { type: 'org' });
+        const projectAdminA = await inviteAndLogin(synced, orgA, 'sync-padmin-a', 'admin', {
+          type: 'project',
+          projectIds: [projectId],
+        });
+        const sync = (cookie: string) =>
+          synced.app.inject({ method: 'POST', url: '/api/connections/fake/sync', headers: { cookie } });
+        const listOf = async (cookie: string) =>
+          (await synced.app.inject({ method: 'GET', url: '/api/connections', headers: { cookie } })).json() as {
+            id: string;
+          }[];
+
+        // Denied (403): org-level roles without connection:create, and a project grant (never an org permission).
+        for (const cookie of [memberB, viewerB, projectAdminA]) expect((await sync(cookie)).statusCode).toBe(403);
+        // Nothing was linked in org B by the refused calls.
+        const ownerB = await inviteAndLogin(synced, orgB, 'sync-owner-b', 'owner', { type: 'org' });
+        expect(await listOf(ownerB)).toEqual([]);
+
+        // Allowed: org B's owner links the same installation as its own connection row.
+        const linkedB = await sync(ownerB);
+        expect(linkedB.statusCode).toBe(201);
+        const connectionB = (linkedB.json() as { id: string }[])[0]?.id ?? '';
+        expect(connectionB).not.toBe(connectionA);
+        // Cross-tenant: each org lists only its own row, and cannot use the other's.
+        expect((await listOf(ownerA)).map((c) => c.id)).toEqual([connectionA]);
+        expect((await listOf(ownerB)).map((c) => c.id)).toEqual([connectionB]);
+        const reposOfA = await synced.app.inject({
+          method: 'GET',
+          url: `/api/connections/${connectionA}/repos`,
+          headers: { cookie: ownerB },
+        });
+        expect(reposOfA.statusCode).toBe(404);
+      } finally {
+        await synced.close();
+      }
     });
   });
 

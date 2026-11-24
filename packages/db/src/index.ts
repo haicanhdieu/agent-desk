@@ -5,7 +5,7 @@ export { createDb, type Db } from './client';
 export { withOrg, type Tx } from './withOrg';
 export { seedPlatformAdmin } from './platform-admins';
 export {
-  resolveProject,
+  resolveProjects,
   queuedRunsWithoutWorkflow,
   pendingInvitationsForEmail,
   invitationOrgForEmail,

@@ -456,12 +456,20 @@ describe('setup flow fixes', () => {
     expect(mockDb.requests('POST', '/api/connections/github/install')).toBe(0);
   });
 
-  it('Change which repositories the app can access still opens the install page when the org is already connected', async () => {
-    const { tab } = stubTab();
+  it('Change which repositories the app can access links the installation of the picked repo and never starts the install flow', async () => {
+    const { open } = stubTab();
     const { user } = await renderRoute(`${base}/repo`);
-    await user.click(await screen.findByRole('link', { name: 'Change which repositories the app can access' }));
-    await waitFor(() => expect(tab.location.href).toBe(INSTALL_URL));
-    expect(mockDb.requests('POST', '/api/connections/github/install')).toBe(1);
+    const link = await screen.findByRole('link', { name: 'Change which repositories the app can access' });
+    expect(link).toHaveAttribute('href', 'https://github.com/organizations/harbor-labs/settings/installations/1001');
+    expect(link).toHaveAttribute('target', '_blank');
+    expect(link).toHaveAttribute('rel', 'noopener noreferrer');
+    await user.click(await screen.findByRole('radio', { name: 'kim-hale/docs-site' }));
+    expect(screen.getByRole('link', { name: 'Change which repositories the app can access' })).toHaveAttribute(
+      'href',
+      'https://github.com/settings/installations/1002',
+    );
+    expect(open).not.toHaveBeenCalled();
+    expect(mockDb.requests('POST', '/api/connections/github/install')).toBe(0);
   });
 
   it('Connect still opens the install page when linking what the account can see fails', async () => {
@@ -475,10 +483,11 @@ describe('setup flow fixes', () => {
   });
 
   it('opening GitHub keeps the setup step in this tab: a blank tab opens on the click, then goes to the install page', async () => {
+    mockDb.state.connections = mockDb.state.connections.filter((c) => c.orgId !== ids.org.alice);
     const same = vi.spyOn(browserLocation, 'assign').mockImplementation(() => undefined);
     const { tab, open } = stubTab();
     const { user } = await renderRoute(`${base}/repo`);
-    await user.click(await screen.findByRole('link', { name: 'Change which repositories the app can access' }));
+    await user.click(await screen.findByRole('button', { name: 'Connect GitHub' }));
     await waitFor(() => expect(tab.location.href).toBe(INSTALL_URL));
     expect(open).toHaveBeenCalledTimes(1);
     expect(open).toHaveBeenCalledWith('', '_blank');
@@ -489,6 +498,7 @@ describe('setup flow fixes', () => {
   });
 
   it('the new tab opens in the click itself, before the install request has answered', async () => {
+    mockDb.state.connections = mockDb.state.connections.filter((c) => c.orgId !== ids.org.alice);
     let release: () => void = () => undefined;
     const gate = new Promise<void>((resolve) => {
       release = resolve;
@@ -501,7 +511,7 @@ describe('setup flow fixes', () => {
     );
     const { tab, open } = stubTab();
     const { user } = await renderRoute(`${base}/repo`);
-    await user.click(await screen.findByRole('link', { name: 'Change which repositories the app can access' }));
+    await user.click(await screen.findByRole('button', { name: 'Connect GitHub' }));
     expect(open).toHaveBeenCalledTimes(1);
     expect(tab.location.href).toBe('');
     release();
@@ -509,11 +519,12 @@ describe('setup flow fixes', () => {
   });
 
   it('the new tab is closed and the error shows when the install request fails', async () => {
+    mockDb.state.connections = mockDb.state.connections.filter((c) => c.orgId !== ids.org.alice);
     server.use(routeHandler('connections.install', async () => jsonResponse({ title: 'GitHub is down' }, 502)));
     const { tab } = stubTab();
     const same = vi.spyOn(browserLocation, 'assign').mockImplementation(() => undefined);
     const { user } = await renderRoute(`${base}/repo`);
-    await user.click(await screen.findByRole('link', { name: 'Change which repositories the app can access' }));
+    await user.click(await screen.findByRole('button', { name: 'Connect GitHub' }));
     expect(await screen.findByRole('alert')).toBeInTheDocument();
     expect(tab.close).toHaveBeenCalledTimes(1);
     expect(tab.location.href).toBe('');
@@ -521,10 +532,11 @@ describe('setup flow fixes', () => {
   });
 
   it('a blocked new tab falls back to this tab', async () => {
+    mockDb.state.connections = mockDb.state.connections.filter((c) => c.orgId !== ids.org.alice);
     const same = vi.spyOn(browserLocation, 'assign').mockImplementation(() => undefined);
     vi.spyOn(window, 'open').mockReturnValue(null);
     const { user } = await renderRoute(`${base}/repo`);
-    await user.click(await screen.findByRole('link', { name: 'Change which repositories the app can access' }));
+    await user.click(await screen.findByRole('button', { name: 'Connect GitHub' }));
     await waitFor(() => expect(same).toHaveBeenCalledWith(INSTALL_URL));
   });
 
@@ -539,6 +551,84 @@ describe('setup flow fixes', () => {
     expect(screen.queryByRole('radio', { name: 'harbor-labs/new-repo' })).not.toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Refresh repositories' }));
     expect(await screen.findByRole('radio', { name: 'harbor-labs/new-repo' })).toBeInTheDocument();
+  });
+
+  it('Refresh repositories links an installation another org already has, then lists its repositories', async () => {
+    // Org alice has no connection yet; the same GitHub installation is linked in org acme.
+    const acme = mockDb.state.connections.find((c) => c.orgId === ids.org.acme);
+    if (!acme) throw new Error('acme connection missing from the mock store');
+    mockDb.state.connections = mockDb.state.connections.filter((c) => c.orgId !== ids.org.alice);
+    server.use(
+      routeHandler('connections.sync', async () => {
+        const linked = { ...acme, id: ids.created(700), orgId: ids.org.alice };
+        mockDb.state.connections.push(linked);
+        mockDb.state.repos[linked.id] = [{ repoPath: 'acme-co/storefront', private: true, defaultBranch: 'main' }];
+        return jsonResponse([linked], 201);
+      }),
+    );
+    const { user } = await renderRoute(`${base}/repo`);
+    expect(await screen.findByText('No repositories yet')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Refresh repositories' }));
+    expect(await screen.findByRole('radio', { name: 'acme-co/storefront' })).toBeInTheDocument();
+    expect(screen.queryByText('No repositories yet')).not.toBeInTheDocument();
+    expect(mockDb.requests('POST', '/api/connections/github/sync')).toBe(1);
+  });
+
+  it('Refresh repositories that finds nothing keeps the empty state with install guidance and Connect GitHub', async () => {
+    mockDb.state.connections = mockDb.state.connections.filter((c) => c.orgId !== ids.org.alice);
+    server.use(routeHandler('connections.sync', async () => jsonResponse([], 201)));
+    const { user } = await renderRoute(`${base}/repo`);
+    await screen.findByText('No repositories yet');
+    await user.click(screen.getByRole('button', { name: 'Refresh repositories' }));
+    expect(await screen.findByRole('button', { name: 'Refresh repositories' })).toBeEnabled();
+    expect(mockDb.requests('POST', '/api/connections/github/sync')).toBe(1);
+    expect(screen.getByText('No repositories yet')).toBeInTheDocument();
+    expect(screen.getByText(/Install the Agent Desk GitHub App/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Connect GitHub' })).toBeInTheDocument();
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  });
+
+  it('Refresh repositories sends one sync however often it is pressed while it runs', async () => {
+    const { user } = await renderRoute(`${base}/repo`);
+    await screen.findByRole('radio', { name: 'harbor-labs/invoicer-api' });
+    let release: () => void = () => undefined;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    server.use(
+      routeHandler('connections.sync', async () => {
+        await gate;
+        return jsonResponse(
+          mockDb.state.connections.filter((c) => c.orgId === ids.org.alice),
+          201,
+        );
+      }),
+    );
+    await user.click(screen.getByRole('button', { name: 'Refresh repositories' }));
+    const busy = await screen.findByRole('button', { name: 'Refreshing repositories' });
+    expect(busy).toBeDisabled();
+    await user.click(busy);
+    release();
+    expect(await screen.findByRole('button', { name: 'Refresh repositories' })).toBeEnabled();
+    expect(mockDb.requests('POST', '/api/connections/github/sync')).toBe(1);
+  });
+
+  it('Refresh repositories reports a failed sync and does not turn it into an empty list', async () => {
+    mockDb.state.connections = mockDb.state.connections.filter((c) => c.orgId !== ids.org.alice);
+    server.use(routeHandler('connections.sync', async () => jsonResponse({ title: 'GitHub is down' }, 502)));
+    const { user } = await renderRoute(`${base}/repo`);
+    await screen.findByText('No repositories yet');
+    await user.click(screen.getByRole('button', { name: 'Refresh repositories' }));
+    expect(await screen.findByRole('alert')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Refresh repositories' })).toBeEnabled();
+  });
+
+  it('Refresh repositories shows every installation after an install callback narrowed the page to one', async () => {
+    const { user } = await renderRoute(`${base}/repo?connection=${ids.connection.harbor}`);
+    await screen.findByRole('radio', { name: 'harbor-labs/invoicer-api' });
+    expect(screen.queryByRole('radio', { name: 'kim-hale/docs-site' })).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Refresh repositories' }));
+    expect(await screen.findByRole('radio', { name: 'kim-hale/docs-site' })).toBeInTheDocument();
   });
 
   it('Refresh repositories is disabled while the list loads again', async () => {

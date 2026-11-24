@@ -2,6 +2,7 @@
 
 - Status: Accepted
 - Amended by [0031](0031-scoped-rbac-roles-assignments.md) (who may trigger: a linked run owner with `run:create`)
+- Amended by [0039](0039-per-org-connections-and-webhook-fan-out.md) (dedupe is per org; a webhook is handled for every matching project)
 - Date: 2026-11-11
 - Source: PRD (PoC) G1, FR-22 to FR-25; Architecture (PoC) §4, §9 (Trigger mechanism); commit `d5561c4`; control plane design §6.1, §6.4
 
@@ -21,7 +22,9 @@ and changeable later:
   command, authorize, match rule, guard), so rules, authorization, guards and
   dedupe do not depend on the mode.
 - Authorize (amended by [0031](0031-scoped-rbac-roles-assignments.md)): after the author association check, the run owner (the linked commenter, or the origin run's owner for a bot comment) must hold `run:create` on the project; otherwise the comment is ignored (`ignored_owner_unlinked`, `ignored_owner_not_permitted`).
-- Dedupe: `inbound_events` unique on (provider, delivery_id), and `runs` unique
+- Dedupe (amended by 0039): `inbound_events` unique on (org_id, provider,
+  delivery_id), plus (provider, delivery_id) where org_id is null for deliveries
+  that matched no project, and `runs` unique
   on (project_id, trigger_comment_id), so one comment starts at most one run
   whichever path saw it, including during a mode switch.
 - Polling uses conditional requests (ETag, `since` cursor) at 5, 10, 15 or

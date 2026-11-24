@@ -133,6 +133,56 @@ describe('POST /webhooks/:provider', () => {
     expect(t.temporal.callsOfKind('start')).toHaveLength(1);
   });
 
+  it('one delivery for an installation two orgs link starts a run in each org and nothing leaks between them', async () => {
+    t.temporal.reset();
+    const orgB = (await createOrg(t, 'Alice Two', 'alice-two')).id;
+    // Alice may run commands in org B too; carol sets org B up.
+    await inviteAndLogin(t, orgB, 'alice', 'member', { type: 'org' });
+    const aliceB = await inviteAndLogin(t, orgB, 'carol', 'owner', { type: 'org' });
+    const connB = await installFake(t, aliceB);
+    const projectB = await makeProject(t, aliceB, connB);
+    // Org B links the same installation and the same repo as org A (ADR-0039).
+    await admin.query('update connections set external_id = $1 where id = $2', [externalId, connB]);
+    await admin.query('update projects set repo_path = $1 where id = $2', [repoPath, projectB.projectId]);
+    await t.app.inject({
+      method: 'PUT',
+      url: `/api/projects/${projectB.projectId}/skills/fix`,
+      headers: { cookie: aliceB },
+      payload: { body: 'x', message: 'm' },
+    });
+    const rule = await t.app.inject({
+      method: 'POST',
+      url: `/api/projects/${projectB.projectId}/rules`,
+      headers: { cookie: aliceB },
+      payload: { command: 'fix', labelFilter: [], target: 'any', kind: 'skill', skillName: 'fix', enabled: true },
+    });
+    expect(rule.statusCode).toBe(201);
+
+    await new FakeStore(stateDir).addTicket({ repoPath, number: 71, kind: 'issue', title: 'Shared', labels: [] });
+    const w = webhook({ ticketRef: '71' });
+    const res = await w.send();
+    expect(res.statusCode).toBe(202);
+    expect(res.json()).toEqual({ outcome: 'run_created' });
+    const runsIn = (org: string, project: string) =>
+      withOrg(t.db, org, (tx) => tx.select().from(runs).where(eq(runs.projectId, project)));
+    const commentId = (JSON.parse(w.raw) as { commentId: string }).commentId;
+    const runA = (await runsIn(orgId, projectId)).find((r) => r.triggerCommentId === commentId);
+    const runB = (await runsIn(orgB, projectB.projectId)).find((r) => r.triggerCommentId === commentId);
+    expect(runA).toMatchObject({ orgId, projectId });
+    expect(runB).toMatchObject({ orgId: orgB, projectId: projectB.projectId });
+    expect(t.temporal.callsOfKind('start')).toHaveLength(2);
+    // Each org's scope holds only its own project's runs.
+    expect(await runsIn(orgB, projectId)).toHaveLength(0);
+    expect(await runsIn(orgId, projectB.projectId)).toHaveLength(0);
+
+    const again = await w.send();
+    expect(again.statusCode).toBe(200);
+    expect(again.json()).toEqual({ outcome: 'duplicate' });
+    expect(t.temporal.callsOfKind('start')).toHaveLength(2);
+    // Unlink org B again so the rest of the file sees a single org on this installation.
+    await admin.query('update connections set external_id = $1 where id = $2', [`unlinked-${orgB}`, connB]);
+  });
+
   it('a commenter who is not linked to a user is 200 ignored_owner_unlinked and starts nothing', async () => {
     t.temporal.reset();
     const res = await webhook({ author: 'nobody-linked', ticketRef: '31' }).send();

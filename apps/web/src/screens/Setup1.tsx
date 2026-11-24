@@ -35,7 +35,8 @@ export interface Setup1Props extends SetupNav {
   /** The org crumb and menu in the top bar. */
   org?: OrgSwitchProps;
   projectName: string;
-  repos: { name: string; meta: string }[];
+  /** `manageUrl` is the provider's page for changing which repositories the repo's installation can access. */
+  repos: { name: string; meta: string; manageUrl?: string }[];
   selected: string;
   installedOn: string;
   /** Initial trigger mode. Defaults to webhook. */
@@ -46,6 +47,7 @@ export interface Setup1Props extends SetupNav {
   pingAt?: string;
   /** Polling mode: result of the first check, once the project exists. When given, Continue waits for a good check; before the project is saved there is none and Continue (which creates it) stays enabled. */
   polling?: PollingState;
+  /** The installation page to link when no repository is listed (so none can name its own). */
   accessHref?: string;
   onModeChange?(mode: TriggerMode): void;
   onIntervalChange?(interval: PollInterval): void;
@@ -91,7 +93,7 @@ export function Setup1({
   pingAt,
   polling,
   nextHref = '#',
-  accessHref = 'https://github.com/',
+  accessHref,
   onModeChange,
   onIntervalChange,
   onRetry,
@@ -134,6 +136,8 @@ export function Setup1({
     fn();
   };
   const noRepos = repos.length === 0;
+  // Never the provider's home page: without a known installation page there is no link.
+  const manageHref = repos.find((r) => r.name === repo)?.manageUrl ?? (noRepos ? accessHref : undefined);
 
   return (
     <SetupLayout
@@ -214,7 +218,9 @@ export function Setup1({
               )
             }
           >
-            Install the Agent Desk GitHub App on the account that owns the repository, then come back.
+            {installedOn
+              ? `The Agent Desk GitHub App is installed on ${installedOn} but cannot access a repository yet. Grant it access to the repository, then refresh.`
+              : 'Install the Agent Desk GitHub App on the GitHub account or organization that owns the repository, and grant it access to that repository. Then come back and refresh.'}
           </Banner>
         )}
         <div
@@ -245,10 +251,17 @@ export function Setup1({
         )}
         <p className={`muted ${styles.helpLine}`}>
           Missing a repository?{' '}
-          <a href={accessHref} onClick={action(onConnect)}>
-            Change which repositories the app can access
-          </a>{' '}
-          in GitHub, then come back. This list refreshes on its own.
+          {manageHref ? (
+            <>
+              <a href={manageHref} target="_blank" rel="noopener noreferrer">
+                Change which repositories the app can access
+              </a>{' '}
+              in GitHub, then come back.
+            </>
+          ) : (
+            'Change which repositories the app can access in GitHub, then come back.'
+          )}{' '}
+          This list refreshes on its own.
         </p>
         {onRefresh && (
           <div>

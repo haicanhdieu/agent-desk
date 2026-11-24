@@ -25,8 +25,9 @@ Build tenant-ready now, without any org UI:
 - `withOrg(orgId, fn)` opens a transaction, sets `app.org_id`, and is the only
   way request and activity code obtain a database handle.
 - Cross-tenant reads are limited to two `SECURITY DEFINER` functions:
-  `resolve_project` (webhook intake) and `queued_runs_without_workflow`
-  (outbox sweep).
+  `resolve_project` (webhook intake; returns every matching project since
+  [0039](0039-per-org-connections-and-webhook-fan-out.md)) and
+  `queued_runs_without_workflow` (outbox sweep).
 - Each user gets one personal organization at first sign-in (owner role, slug
   from the handle); the session carries `activeOrganizationId`.
 - A record from another org is invisible and returns 404.

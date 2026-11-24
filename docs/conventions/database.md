@@ -25,7 +25,7 @@ Temporal keeps its own databases (`temporal`, `temporal_visibility`); nothing in
 - **MUST** obtain a handle only through `withOrg(db, orgId, tx => …)` (in the api: `OrgDb.run`). _Why: it opens the transaction and sets `app.org_id` locally; without it RLS returns zero rows._
 - **MUST NOT** pass `db` (the pool) into repositories or services; pass `tx: Tx`.
 - **MUST** still write `org_id` on inserts and **SHOULD** filter by `project_id` explicitly; RLS is the backstop, not the only filter. _Why: defence in depth, and the planner uses the index._
-- Cross-tenant reads are limited to five `SECURITY DEFINER` functions: `resolve_project(provider, external_id, repo_path)`, `queued_runs_without_workflow(older_than)`, `pending_invitations_for_email(p_email)` (ids only, [ADR-0031](../adr/0031-scoped-rbac-roles-assignments.md)), `invitation_org_for_email(invitation_id, email)` (the org id only, any status, one id per call) and `platform_org_stats(org_ids)` (ids, counts and timestamps only, at most 100 ids, [spec](../superpowers/specs/2026-11-23-platform-admin-dashboard-design.md); ADR-0038 follows). A new one **MUST** be reviewed against [security.md](security.md), `SET search_path` explicitly, return only ids, counts and timestamps, never row text, and get an RLS test.
+- Cross-tenant reads are limited to five `SECURITY DEFINER` functions: `resolve_project(provider, external_id, repo_path)` (every matching project, one per org that shares the installation, [ADR-0039](../adr/0039-per-org-connections-and-webhook-fan-out.md)), `queued_runs_without_workflow(older_than)`, `pending_invitations_for_email(p_email)` (ids only, [ADR-0031](../adr/0031-scoped-rbac-roles-assignments.md)), `invitation_org_for_email(invitation_id, email)` (the org id only, any status, one id per call) and `platform_org_stats(org_ids)` (ids, counts and timestamps only, at most 100 ids, [spec](../superpowers/specs/2026-11-23-platform-admin-dashboard-design.md); ADR-0038 follows). A new one **MUST** be reviewed against [security.md](security.md), `SET search_path` explicitly, return only ids, counts and timestamps, never row text, and get an RLS test.
 - **MUST** ship a leak test for every new org table: org A cannot read, update or insert B's rows, and a query without `withOrg` sees nothing (`packages/db/test/rls.test.ts`).
 
 ```ts
@@ -83,7 +83,7 @@ export const rules = pgTable(
 ## 4. Indexes and keys
 
 - **MUST** index every foreign key column, leading with it, unless a composite index already starts with it. _Why: Postgres doesn't do it for you; deletes and joins scan otherwise._
-- **MUST** back every idempotency rule with a unique constraint, not an application check: `inbound_events (provider, delivery_id)`, `runs (project_id, trigger_comment_id)`, `runs (project_id, number)`, `rules (project_id, command)`, `connections (provider, external_id)`. _Why: two replicas race; only the database is atomic._
+- **MUST** back every idempotency rule with a unique constraint, not an application check: `inbound_events (org_id, provider, delivery_id)`, `runs (project_id, trigger_comment_id)`, `runs (project_id, number)`, `rules (project_id, command)`, `connections (org_id, provider, external_id)`. _Why: two replicas race; only the database is atomic._
 - **SHOULD** match list queries with a composite index in the same column order as the list's `ORDER BY` (e.g. `runs (project_id, queued_at desc, id)`).
 - **SHOULD** use partial indexes for hot filtered sets (`runs (project_id) where status in ('starting','running','idle')`).
 

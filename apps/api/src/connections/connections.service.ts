@@ -22,6 +22,12 @@ import { signState, verifyState } from './install-state';
 
 type ConnectionRow = typeof connections.$inferSelect;
 
+/** The provider's installation settings page, kept in `config.manageUrl`; null when the provider gave none. */
+function manageUrlOf(config: ConnectionRow['config']): string | null {
+  const url = config['manageUrl'];
+  return typeof url === 'string' ? url : null;
+}
+
 export function toConnectionDto(row: ConnectionRow): ConnectionDto {
   const status = row.status === 'suspended' || row.status === 'revoked' ? row.status : 'active';
   return {
@@ -30,8 +36,14 @@ export function toConnectionDto(row: ConnectionRow): ConnectionDto {
     capabilities: row.capabilities,
     accountName: row.accountName,
     status,
+    manageUrl: manageUrlOf(row.config),
     createdAt: row.createdAt.toISOString(),
   };
+}
+
+/** `config` with the provider's manage URL set or, when the provider gave none this time, left as it was. */
+function withManageUrl(config: ConnectionRow['config'], manageUrl: string | null | undefined): ConnectionRow['config'] {
+  return manageUrl ? { ...config, manageUrl } : config;
 }
 
 @Injectable()
@@ -98,7 +110,7 @@ export class ConnectionsService {
     try {
       row = await this.upsert(orgId, userId, fresh);
     } catch (err) {
-      // (provider, external_id) is unique across orgs; a row owned by another org is invisible under RLS.
+      // (org_id, provider, external_id) is unique: a concurrent callback for the same org inserted it first.
       if (isUniqueViolation(err)) throw new ConflictException('Connection already exists');
       throw err;
     }
@@ -129,6 +141,7 @@ export class ConnectionsService {
           .set({
             accountName: fresh.accountName,
             capabilities: fresh.capabilities,
+            config: withManageUrl(existing[0].config, fresh.manageUrl),
             status: 'active',
             linkedByUserId: userId,
           })
@@ -144,6 +157,7 @@ export class ConnectionsService {
           externalId: fresh.externalId,
           accountName: fresh.accountName,
           capabilities: fresh.capabilities,
+          config: withManageUrl({}, fresh.manageUrl),
           linkedByUserId: userId,
         })
         .returning();
@@ -155,7 +169,8 @@ export class ConnectionsService {
   /**
    * Links installations the user's own provider account can already see. The provider only redirects back to
    * `complete` on a fresh install, so an app installed earlier (e.g. before this org was set up) never gets a
-   * connection that way. An installation already owned by another org is skipped, not an error.
+   * connection that way. An installation another org already linked is linked here too: the user's own provider
+   * account proves access, and each org holds its own connection row.
    */
   async sync(orgId: string, userId: string, provider: Provider): Promise<ConnectionDto[]> {
     this.requireProvider(provider);
@@ -172,6 +187,7 @@ export class ConnectionsService {
         const row = await this.upsert(orgId, userId, fresh);
         await this.resumeRevokedPolling(orgId, row.id);
       } catch (err) {
+        // A concurrent sync for this org inserted the same installation first; it is linked either way.
         if (!isUniqueViolation(err)) throw err;
       }
     }

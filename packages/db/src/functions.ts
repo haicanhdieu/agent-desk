@@ -1,18 +1,20 @@
 import type { Db } from './client';
 
-/** Webhook intake: map (provider, account, repo) to a project across tenants (SECURITY DEFINER function). */
-export async function resolveProject(
+/**
+ * Webhook intake: map (provider, account, repo) to every project that uses it, across tenants (SECURITY DEFINER
+ * function). Orgs may share one installation (ADR-0039), so there can be one match per org; [] when none match.
+ */
+export async function resolveProjects(
   db: Db,
   provider: string,
   externalId: string,
   repoPath: string,
-): Promise<{ orgId: string; projectId: string } | null> {
+): Promise<{ orgId: string; projectId: string }[]> {
   const r = await db.pool.query<{ org_id: string; project_id: string }>(
     'select org_id, project_id from resolve_project($1, $2, $3)',
     [provider, externalId, repoPath],
   );
-  const row = r.rows[0];
-  return row ? { orgId: row.org_id, projectId: row.project_id } : null;
+  return r.rows.map((row) => ({ orgId: row.org_id, projectId: row.project_id }));
 }
 
 /** Sweep: queued runs with no workflow older than the interval, across tenants. */

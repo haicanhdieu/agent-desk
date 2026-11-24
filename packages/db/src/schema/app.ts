@@ -13,6 +13,7 @@ import {
   text,
   timestamp,
   unique,
+  uniqueIndex,
   uuid,
 } from 'drizzle-orm/pg-core';
 import { user } from './auth';
@@ -44,7 +45,10 @@ export const connections = pgTable(
     createdAt: ts('created_at').notNull().defaultNow(),
   },
   (t) => [
-    unique('connections_provider_external_id_key').on(t.provider, t.externalId),
+    // One installation may be linked by several orgs; each org holds at most one row for it.
+    unique('connections_org_provider_external_id_key').on(t.orgId, t.provider, t.externalId),
+    // Webhook intake resolves a project from (provider, external_id) across orgs.
+    index('connections_provider_external_id_idx').on(t.provider, t.externalId),
     index('connections_org_idx').on(t.orgId),
     check('connections_status_check', sql`${t.status} in ('active','suspended','revoked')`),
     orgPolicy(),
@@ -190,7 +194,12 @@ export const inboundEvents = pgTable(
     detail: text('detail'),
   },
   (t) => [
-    unique('inbound_events_provider_delivery_key').on(t.provider, t.deliveryId),
+    // Per org, so every org that shares an installation records the same delivery (ADR-0039). Deliveries with no
+    // project have a null org, which a plain unique key treats as distinct, so a second key covers those replays.
+    unique('inbound_events_org_provider_delivery_key').on(t.orgId, t.provider, t.deliveryId),
+    uniqueIndex('inbound_events_null_org_delivery_key')
+      .on(t.provider, t.deliveryId)
+      .where(sql`${t.orgId} is null`),
     index('inbound_events_project_received_idx').on(t.projectId, t.receivedAt),
     // Serves the ignored-events list and the run stats count, which filter on this exact predicate.
     index('inbound_events_project_received_ignored_idx')

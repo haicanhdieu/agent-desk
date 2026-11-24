@@ -8,7 +8,7 @@ import {
   pendingInvitationsForEmail,
   platformOrgStats,
   queuedRunsWithoutWorkflow,
-  resolveProject,
+  resolveProjects,
   withOrg,
   type Db,
   type RunStatusMessage,
@@ -40,22 +40,18 @@ afterAll(async () => {
   await pgx?.stop();
 });
 
-describe('resolveProject', () => {
+describe('resolveProjects', () => {
   it('returns the org and project ids for a known repo', async () => {
-    expect(await resolveProject(db, 'fake', 'acct-1', 'dev/demo')).toEqual({
-      orgId: ORG_A,
-      projectId: a.projectId,
-    });
-    expect(await resolveProject(db, 'fake', 'acct-2', 'dev/other')).toEqual({
-      orgId: ORG_B,
-      projectId: b.projectId,
-    });
+    expect(await resolveProjects(db, 'fake', 'acct-1', 'dev/demo')).toEqual([{ orgId: ORG_A, projectId: a.projectId }]);
+    expect(await resolveProjects(db, 'fake', 'acct-2', 'dev/other')).toEqual([
+      { orgId: ORG_B, projectId: b.projectId },
+    ]);
   });
 
-  it('returns null for an unknown repo or a repo under another account', async () => {
-    expect(await resolveProject(db, 'fake', 'acct-1', 'dev/nope')).toBeNull();
-    expect(await resolveProject(db, 'fake', 'acct-1', 'dev/other')).toBeNull();
-    expect(await resolveProject(db, 'other-provider', 'acct-1', 'dev/demo')).toBeNull();
+  it('returns no match for an unknown repo or a repo under another account', async () => {
+    expect(await resolveProjects(db, 'fake', 'acct-1', 'dev/nope')).toEqual([]);
+    expect(await resolveProjects(db, 'fake', 'acct-1', 'dev/other')).toEqual([]);
+    expect(await resolveProjects(db, 'other-provider', 'acct-1', 'dev/demo')).toEqual([]);
   });
 
   it('does not resolve a project whose connection belongs to another org', async () => {
@@ -80,9 +76,84 @@ describe('resolveProject', () => {
     } finally {
       await client.end();
     }
-    expect(await resolveProject(db, 'fake', 'acct-cross', 'dev/cross')).toBeNull();
+    expect(await resolveProjects(db, 'fake', 'acct-cross', 'dev/cross')).toEqual([]);
     // A normal project still resolves.
-    expect(await resolveProject(db, 'fake', 'acct-1', 'dev/demo')).toEqual({ orgId: ORG_A, projectId: a.projectId });
+    expect(await resolveProjects(db, 'fake', 'acct-1', 'dev/demo')).toEqual([{ orgId: ORG_A, projectId: a.projectId }]);
+  });
+});
+
+describe('resolveProjects with one installation linked by two orgs', () => {
+  it('lets two orgs hold the same installation, refuses a duplicate in one org, and resolves the project of every org', async () => {
+    const client = new pg.Client({ connectionString: pgx.ownerUrl });
+    await client.connect();
+    try {
+      await client.query('begin');
+      await client.query(`select set_config('app.org_id', $1, true)`, [ORG_B]);
+      // Same provider + external id as org A's connection: allowed, it is a different org.
+      const conn = await client.query<{ id: string }>(
+        `insert into connections (org_id, provider, capabilities, external_id, account_name)
+         values ($1, 'fake', '{"code":true,"board":true}', 'acct-1', 'acct') returning id`,
+        [ORG_B],
+      );
+      await client.query(
+        `insert into projects (org_id, name, repo_path, code_connection_id, board_connection_id)
+         values ($1, 'shared', 'dev/demo', $2, $2)`,
+        [ORG_B, conn.rows[0]?.id],
+      );
+      await client.query('commit');
+      // The same org cannot link it twice.
+      await client.query('begin');
+      await client.query(`select set_config('app.org_id', $1, true)`, [ORG_B]);
+      await expect(
+        client.query(
+          `insert into connections (org_id, provider, capabilities, external_id, account_name)
+           values ($1, 'fake', '{"code":true,"board":true}', 'acct-1', 'acct')`,
+          [ORG_B],
+        ),
+      ).rejects.toMatchObject({ code: '23505' });
+      await client.query('rollback');
+    } finally {
+      await client.end();
+    }
+    const matches = await resolveProjects(db, 'fake', 'acct-1', 'dev/demo');
+    expect(matches).toHaveLength(2);
+    expect(matches).toContainEqual({ orgId: ORG_A, projectId: a.projectId });
+    expect(matches).toContainEqual({ orgId: ORG_B, projectId: expect.any(String) });
+    // Each org still resolves only through its own connection.
+    expect(await resolveProjects(db, 'fake', 'acct-2', 'dev/other')).toEqual([
+      { orgId: ORG_B, projectId: b.projectId },
+    ]);
+  });
+});
+
+describe('inbound_events dedupe key', () => {
+  it('is per org: two orgs record one delivery id, a replay in one org and a null-org replay are refused', async () => {
+    const client = new pg.Client({ connectionString: pgx.ownerUrl });
+    await client.connect();
+    const insert = async (org: string | null) => {
+      await client.query('begin');
+      try {
+        await client.query(`select set_config('app.org_id', $1, true)`, [org ?? '']);
+        await client.query(
+          `insert into inbound_events (provider, channel, delivery_id, org_id, outcome)
+           values ('fake', 'webhook', 'dlv-shared', $1, 'received')`,
+          [org],
+        );
+        await client.query('commit');
+      } catch (err) {
+        await client.query('rollback');
+        throw err;
+      }
+    };
+    try {
+      await insert(ORG_A);
+      await insert(ORG_B);
+      await expect(insert(ORG_A)).rejects.toMatchObject({ code: '23505' });
+      await insert(null);
+      await expect(insert(null)).rejects.toMatchObject({ code: '23505' });
+    } finally {
+      await client.end();
+    }
   });
 });
 

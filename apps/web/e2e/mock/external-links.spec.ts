@@ -33,15 +33,23 @@ test('the run detail ticket link says View issue and opens in a new tab', async 
   expect(new URL(page.url()).pathname).toBe(runUrl);
 });
 
-test('Change which repositories the app can access opens GitHub in a new tab and leaves the repository step open', async ({
+test('Change which repositories the app can access opens the installation settings in a new tab and leaves the repository step open', async ({
   page,
 }) => {
   const repoUrl = `/o/${ORG}/projects/new/repo`;
   await page.goto(repoUrl);
   await expect(page.getByRole('radio', { name: 'harbor-labs/invoicer-api' })).toBeVisible();
 
+  const link = page.getByRole('link', { name: 'Change which repositories the app can access' });
+  await expect(link).toHaveAttribute(
+    'href',
+    'https://github.com/organizations/harbor-labs/settings/installations/1001',
+  );
+  await expect(link).toHaveAttribute('target', '_blank');
+  await expect(link).toHaveAttribute('rel', 'noopener noreferrer');
+
   const popup = page.waitForEvent('popup');
-  await page.getByRole('link', { name: 'Change which repositories the app can access' }).click();
+  await link.click();
   await popup;
   expect(new URL(page.url()).pathname).toBe(repoUrl);
 

@@ -1,5 +1,5 @@
 import type { ConnectionDto, CreateRuleRequest, ProjectDto } from '@agentdesk/contracts';
-import { useQuery, useQueryClient, useSuspenseQueries, useSuspenseQuery } from '@tanstack/react-query';
+import { useQuery, useSuspenseQueries, useSuspenseQuery } from '@tanstack/react-query';
 import { createFileRoute, notFound, redirect, useNavigate } from '@tanstack/react-router';
 import { useState } from 'react';
 import { toastFromError } from '@/app/boundaries';
@@ -34,6 +34,7 @@ import {
   RuleSaveError,
   stepErrors,
   useInstallConnection,
+  useRefreshRepositories,
   useSaveAgentStep,
   useSaveRepoStep,
   useSaveRulesStep,
@@ -103,6 +104,11 @@ function usableConnections(connections: ConnectionDto[], only: string | undefine
   );
 }
 
+/** The connection's installation settings page, only when it is an https URL the app may open. */
+function manageLink(c: ConnectionDto | undefined): string | undefined {
+  return (c?.manageUrl && safeInstallUrl(c.manageUrl)) || undefined;
+}
+
 function SetupPage() {
   const { step } = Route.useRouteContext();
   const { org } = Route.useParams();
@@ -166,33 +172,49 @@ function RepoStep({ org, projectId, connectionId }: { org: string; projectId?: s
   });
   const save = useSaveRepoStep(org);
   const install = useInstallConnection(org);
-  const qc = useQueryClient();
+  const refresh = useRefreshRepositories(org);
   // The repository list is GitHub's: it changes in another tab, so it is read again on return and on request.
-  const [refreshing, setRefreshing] = useState(false);
   const refreshRepos = async () => {
-    setRefreshing(true);
+    if (refresh.isPending) return;
     try {
-      await qc.refetchQueries({ queryKey: setupQueries.connections(org).queryKey }, { throwOnError: true });
+      await refresh.mutateAsync();
+      // Back from an install, the page showed only that connection; a refresh lists every installation.
+      if (connectionId !== undefined) {
+        await navigate({
+          to: '/o/$org/projects/new/$step',
+          params: { org, step: 'repo' },
+          search: projectId ? { project: projectId } : {},
+          replace: true,
+        });
+      }
     } catch (e) {
       toast.show(toastFromError(e));
-    } finally {
-      setRefreshing(false);
     }
   };
   const [errors, setErrors] = useState<StepErrors<'name' | 'repo' | 'mode'>>(noErrors);
 
   // The first connection that lists a repo owns it.
   const owners = new Map<string, string>();
-  const repos: { name: string; meta: string }[] = [];
+  const repos: { name: string; meta: string; manageUrl?: string }[] = [];
   usable.forEach((c, i) => {
+    const manageUrl = manageLink(c);
     for (const r of repoLists[i]?.data ?? []) {
       if (owners.has(r.repoPath)) continue;
       owners.set(r.repoPath, c.id);
-      repos.push({ name: r.repoPath, meta: repoMeta(r) });
+      repos.push({ name: r.repoPath, meta: repoMeta(r), ...(manageUrl && { manageUrl }) });
     }
   });
   // Revisited: the repository is fixed once the project exists.
-  const shown = project ? [{ name: project.repoPath, meta: 'Connected to this project' }] : repos;
+  const projectManageUrl = project ? manageLink(connections.find((c) => c.id === project.codeConnectionId)) : undefined;
+  const shown = project
+    ? [
+        {
+          name: project.repoPath,
+          meta: 'Connected to this project',
+          ...(projectManageUrl && { manageUrl: projectManageUrl }),
+        },
+      ]
+    : repos;
   const selected = project?.repoPath ?? shown[0]?.name ?? '';
   const installedOn = (project ? connections.filter((c) => c.id === project.codeConnectionId) : usable)
     .map((c) => c.accountName)
@@ -273,6 +295,7 @@ function RepoStep({ org, projectId, connectionId }: { org: string; projectId?: s
       repos={shown}
       selected={selected}
       installedOn={installedOn}
+      accessHref={usable.map(manageLink).find((u) => u !== undefined)}
       mode={project?.triggerMode ?? 'webhook'}
       pollInterval={project ? pollIntervalLabel(project.pollIntervalSeconds) : undefined}
       pingAt={heard.pingAt}
@@ -280,7 +303,7 @@ function RepoStep({ org, projectId, connectionId }: { org: string; projectId?: s
       onCheckAgain={projectId ? () => void refetchProgress() : undefined}
       onConnect={() => void onConnect()}
       onRefresh={project ? undefined : () => void refreshRepos()}
-      refreshing={refreshing}
+      refreshing={refresh.isPending}
       onContinue={(d) => void onContinue(d)}
       saving={save.isPending}
       errors={errors.fields}
