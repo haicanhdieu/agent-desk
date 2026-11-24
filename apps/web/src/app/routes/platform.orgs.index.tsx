@@ -107,7 +107,7 @@ function PlatformOrgsPage() {
         pending.current = undefined;
         setFilters({ q: undefined, status: undefined }, false);
       }}
-      createHref="/orgs/new"
+      createHref="/platform/orgs/new"
     />
   );
 }

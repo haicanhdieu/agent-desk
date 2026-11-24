@@ -53,7 +53,7 @@ const bar = {
     orgs: [harbor],
     platformAdmin: false,
     orgHref: (o: { slug: string }) => `/o/${o.slug}/projects`,
-    createHref: '/orgs/new',
+    createHref: '/platform/orgs/new',
     projectsHref: '#projects',
     settingsHref: '#settings',
   },

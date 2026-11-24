@@ -2657,6 +2657,14 @@
    "h": 900,
    "title": "Platform \u2014 Organizations / Not found: \"Back to organizations\" kept; title \"Not found \u00b7 Agent Desk\"",
    "expand": "fill"
+  },
+  "CreateOrgPlatformShell.dc.html": {
+   "x": 12160,
+   "y": 79920,
+   "w": 1440,
+   "h": 900,
+   "title": "Platform \u2014 Create organization at /platform/orgs/new inside the platform shell: Organizations / Create organization",
+   "expand": "fill"
   }
  },
  "order": [
@@ -2687,6 +2695,7 @@
   "PlatformOrgMembersShellError.dc.html",
   "PlatformOrgMembersShellNonMember.dc.html",
   "PlatformOrgOverviewShellNotFound.dc.html",
+  "CreateOrgPlatformShell.dc.html",
   "RunReconnect.dc.html",
   "RunSucceeded.dc.html",
   "RunPrompt.dc.html",

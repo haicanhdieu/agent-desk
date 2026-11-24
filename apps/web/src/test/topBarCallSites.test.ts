@@ -9,7 +9,6 @@ export const TOP_BAR_CALL_SITES: Record<string, number> = {
   'app/routes/o.$org.settings.tsx': 1,
   'app/routes/platform.tsx': 1,
   'components/SetupLayout.tsx': 1,
-  'screens/CreateOrg.tsx': 1,
   'screens/DeskFrame.tsx': 1,
   'screens/InvitationAccept.tsx': 1,
   'screens/MyInvitations.tsx': 1,

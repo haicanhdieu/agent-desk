@@ -51,6 +51,7 @@ const stories = {
   PlatformOrgMembersShellError: ['Screens/Shell', 'PlatformOrgMembersShellError'],
   PlatformOrgMembersShellNonMember: ['Screens/Shell', 'PlatformOrgMembersShellNonMember'],
   PlatformOrgOverviewShellNotFound: ['Screens/Shell', 'PlatformOrgOverviewShellNotFound'],
+  CreateOrgPlatformShell: ['Screens/Shell', 'CreateOrgPlatformShell'],
   Pagination: ['Components/Pagination', 'Board'],
   RunsPaged: ['Screens/Runs', 'RunsPaged'],
   RunsFlatPaged: ['Screens/Runs', 'RunsFlatPaged'],

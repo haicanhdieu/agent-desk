@@ -43,7 +43,7 @@ type Rendered = Awaited<ReturnType<typeof renderRoute>>;
 type Scenario = Parameters<typeof scenarios.onboarding>[0];
 
 const open = async (scenario: Scenario = 'platformAdminNoOrg'): Promise<Rendered> => {
-  const rendered = await renderRoute('/orgs/new', { scenario: () => scenarios.onboarding(scenario) });
+  const rendered = await renderRoute('/platform/orgs/new', { scenario: () => scenarios.onboarding(scenario) });
   await screen.findByRole('heading', { level: 1, name: 'Create an organization' });
   return rendered;
 };
@@ -70,7 +70,7 @@ const emailOfLength = (length: number): string => {
 };
 
 describe('BR-35 a platform admin creates an org', () => {
-  it('fills the URL from the name, shows the created card with the link, and Done goes to /', async () => {
+  it('fills the URL from the name, shows the created card with the link, and Done opens the new org', async () => {
     const rendered = await open();
     await fill(rendered, { name: 'E2E Acme 1', email: 'Owner@Dev.Local' });
     expect(screen.getByRole('textbox', { name: /^URL/ })).toHaveValue('e2e-acme-1');
@@ -93,9 +93,8 @@ describe('BR-35 a platform admin creates an org', () => {
     const visited: string[] = [];
     rendered.router.subscribe('onBeforeNavigate', (e) => visited.push(e.toLocation.pathname));
     await rendered.user.click(screen.getByRole('button', { name: 'Done' }));
-    // `/` sends a person with no org on to the welcome page.
-    await waitFor(() => expect(rendered.router.state.location.pathname).toBe('/invitations'));
-    expect(visited[0]).toBe('/');
+    await waitFor(() => expect(rendered.router.state.location.pathname).toBe(`/platform/orgs/${org?.id}`));
+    expect(visited[0]).toBe(`/platform/orgs/${org?.id}`);
   });
 
   it('keeps an edited URL', async () => {
@@ -548,8 +547,8 @@ describe('BR-39 retry after the owner invitation failed', () => {
 
 describe('BR-46 a non-admin has no create-org form', () => {
   it('shows Forbidden and sends no create request', async () => {
-    await renderRoute('/orgs/new', { scenario: () => scenarios.onboarding('noOrgUninvited') });
-    expect(await screen.findByRole('heading', { name: "You don't have access" })).toBeInTheDocument();
+    await renderRoute('/platform/orgs/new', { scenario: () => scenarios.onboarding('noOrgUninvited') });
+    expect(await screen.findByRole('heading', { level: 1, name: "You don't have access" })).toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: 'Create an organization' })).not.toBeInTheDocument();
     expect(screen.queryByRole('textbox')).not.toBeInTheDocument();
     expect(orgPosts()).toBe(0);
@@ -561,24 +560,36 @@ describe('BR-46 a non-admin has no create-org form', () => {
 
   it('shows a retryable error when the access check fails', async () => {
     server.use(
-      http.get(routeDef('me.access').path, () => problemResponse({ status: 500, title: 'Boom', type: 'internal' })),
+      http.get(routeDef('me.platform').path, () => problemResponse({ status: 500, title: 'Boom', type: 'internal' })),
     );
-    await renderRoute('/orgs/new', { scenario: () => scenarios.onboarding('platformAdminNoOrg') });
+    await renderRoute('/platform/orgs/new', { scenario: () => scenarios.onboarding('platformAdminNoOrg') });
     expect(await screen.findByText('Boom')).toBeInTheDocument();
     expect(orgPosts()).toBe(0);
   });
 });
 
-describe('create organization under the app bar', () => {
-  it('BR-43 shows the org crumb and no tabs', async () => {
-    await open('platformAdminOneOrg');
-    expect(screen.getByRole('button', { name: /^Switch scope, currently/ })).toBeInTheDocument();
-    expect(screen.queryByRole('navigation', { name: 'Organization sections' })).toBeNull();
+describe('create organization in the platform shell', () => {
+  it('/orgs/new redirects to /platform/orgs/new', async () => {
+    const rendered = await renderRoute('/orgs/new', { scenario: () => scenarios.onboarding('platformAdminNoOrg') });
+    await screen.findByRole('heading', { level: 1, name: 'Create an organization' });
+    expect(rendered.router.state.location.pathname).toBe('/platform/orgs/new');
   });
 
-  it('BR-43 a platform admin with no org sees "Switch organization" and no tabs', async () => {
-    await open('platformAdminNoOrg');
-    expect(screen.getByRole('button', { name: /^Switch scope/ })).toHaveTextContent('No organization');
-    expect(screen.queryByRole('navigation', { name: 'Organization sections' })).toBeNull();
+  it('the page renders inside the platform shell: Platform bar, crumbs Organizations / Create organization, Organizations tab current', async () => {
+    await open('platformAdminOneOrg');
+    expect(screen.getByRole('button', { name: /^Switch scope, currently Platform/ })).toBeInTheDocument();
+    const crumbs = screen.getByRole('navigation', { name: 'Breadcrumb' });
+    expect(within(crumbs).getByRole('link', { name: 'Organizations' })).toBeInTheDocument();
+    expect(within(crumbs).getByText('Create organization')).toBeInTheDocument();
+    const tabs = screen.getByRole('navigation', { name: 'Platform sections' });
+    expect(within(tabs).getByRole('link', { name: 'Organizations' })).toHaveAttribute('aria-current', 'page');
+    expect(screen.getAllByRole('banner')).toHaveLength(1);
+  });
+
+  it('/platform/orgs/new is not read as an org id', async () => {
+    await open();
+    const getOrg = routeDef('platform.getOrg');
+    expect(mockDb.requests(getOrg.method, getOrg.path.replace(':orgId', 'new'))).toBe(0);
+    expect(wire.filter((r) => /^GET \/api\/platform\/orgs\/new(\/|$)/.test(r))).toEqual([]);
   });
 });

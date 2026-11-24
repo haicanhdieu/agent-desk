@@ -29,7 +29,7 @@ export const WithSwitches: Story = {
           <OrgSwitch
             {...orgSwitchFixtures.oneOrg}
             orgHref={(o) => `/o/${o.slug}`}
-            createHref="/orgs/new"
+            createHref="/platform/orgs/new"
             projectsHref="#projects"
           />
         ),

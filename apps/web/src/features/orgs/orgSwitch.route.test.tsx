@@ -93,13 +93,16 @@ describe('org switcher on the Projects page', () => {
     expect(await screen.findByRole('heading', { name: 'Page not found' })).toBeInTheDocument();
   });
 
-  it('BR-40: a platform admin of one org is offered Create organization, linking to /orgs/new', async () => {
+  it('BR-40: a platform admin of one org is offered Create organization, linking to /platform/orgs/new', async () => {
     const { user } = await renderRoute('/o/alice/projects', {
       scenario: () => scenarios.onboarding('platformAdminOneOrg'),
     });
     await user.click(await switchButton('Alice'));
     const menu = await screen.findByRole('dialog', { name: 'Scope' });
-    expect(within(menu).getByRole('link', { name: 'Create organization' })).toHaveAttribute('href', '/orgs/new');
+    expect(within(menu).getByRole('link', { name: 'Create organization' })).toHaveAttribute(
+      'href',
+      '/platform/orgs/new',
+    );
   });
 
   it('BR-46: an owner who is not a platform admin sees no Create organization', async () => {
@@ -144,7 +147,7 @@ describe('org switcher on the Projects page', () => {
   });
 
   it('BR-1: a platform admin with no org sees Platform admin in the no-org menu', async () => {
-    const { user } = await renderRoute('/orgs/new', { scenario: () => scenarios.platform('platformAdminNoOrg') });
+    const { user } = await renderRoute('/invitations', { scenario: () => scenarios.platform('platformAdminNoOrg') });
     await user.click(await screen.findByRole('button', { name: 'Switch scope, currently no organization' }));
     const menu = await screen.findByRole('dialog', { name: 'Scope' });
     expect(within(menu).getByRole('link', { name: 'Platform admin' })).toHaveAttribute('href', '/platform');

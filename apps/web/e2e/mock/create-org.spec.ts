@@ -57,7 +57,7 @@ function logRequests(page: Page): Log {
 async function open(page: Page, scenario: OnboardingScenario): Promise<Log> {
   const log = logRequests(page);
   await seedOnboarding(page, scenario);
-  await page.goto('/orgs/new');
+  await page.goto('/platform/orgs/new');
   return log;
 }
 
@@ -117,6 +117,24 @@ async function expectNothingCreated(page: Page, log: Log): Promise<void> {
   await expect(createdHeading(page)).toHaveCount(0);
   await expect(createButton(page)).toBeVisible();
 }
+
+test.describe('the create-org page lives in the platform shell', () => {
+  test('/orgs/new redirects to /platform/orgs/new inside the platform shell', async ({ page }) => {
+    await seedOnboarding(page, 'platformAdminNoOrg');
+    await page.goto('/orgs/new');
+    await expect(page.getByRole('heading', { name: 'Create an organization', level: 1 })).toBeVisible();
+    await expect(page).toHaveURL(/\/platform\/orgs\/new$/);
+    await expect(page.getByRole('button', { name: /^Switch scope/ })).toContainText('Platform');
+    await expect(
+      page
+        .getByRole('navigation', { name: 'Platform sections' })
+        .getByRole('link', { name: 'Organizations', exact: true }),
+    ).toHaveAttribute('aria-current', 'page');
+    await expect(
+      page.getByRole('navigation', { name: 'Breadcrumb' }).getByText('Create organization', { exact: true }),
+    ).toHaveAttribute('aria-current', 'page');
+  });
+});
 
 test.describe('BR-36: create-org field validation', () => {
   test('TC-36.1: an empty Name shows "Enter a name." and creates nothing', async ({ page }) => {

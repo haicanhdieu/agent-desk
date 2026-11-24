@@ -136,7 +136,7 @@ describe('useAppBar', () => {
     expect(result.current.org.current?.slug).toBe('acme');
     expect(result.current.org.orgs).toHaveLength(2);
     expect(result.current.org.orgHref({ id: 'org-b', slug: 'beta', name: 'Beta' })).toBe('/o/beta/projects');
-    expect(result.current.org.createHref).toBe('/orgs/new');
+    expect(result.current.org.createHref).toBe('/platform/orgs/new');
   });
 
   it('personal pages (null slug) use the session access and the active org', async () => {

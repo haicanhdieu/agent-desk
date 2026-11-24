@@ -73,6 +73,7 @@ export function PlatformForbidden() {
       <div className={styles.page}>
         <EmptyState
           title="You don't have access"
+          headingLevel={1}
           body="This area is for platform admins."
           action={
             <Button href="/projects" variant="primary">

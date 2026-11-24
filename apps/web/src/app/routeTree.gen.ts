@@ -25,6 +25,7 @@ import { Route as OOrgInvitationsRouteImport } from './routes/o.$org.invitations
 import { Route as OOrgSettingsRouteImport } from './routes/o.$org.settings';
 import { Route as PlatformOrgsIndexRouteImport } from './routes/platform.orgs.index';
 import { Route as PlatformOrgsOrgIdRouteImport } from './routes/platform.orgs.$orgId';
+import { Route as PlatformOrgsNewRouteImport } from './routes/platform.orgs.new';
 import { Route as OOrgPProjectRouteImport } from './routes/o.$org.p.$project';
 import { Route as OOrgProjectsIndexRouteImport } from './routes/o.$org.projects.index';
 import { Route as OOrgSettingsIndexRouteImport } from './routes/o.$org.settings.index';
@@ -125,6 +126,11 @@ const PlatformOrgsIndexRoute = PlatformOrgsIndexRouteImport.update({
 const PlatformOrgsOrgIdRoute = PlatformOrgsOrgIdRouteImport.update({
   id: '/orgs/$orgId',
   path: '/orgs/$orgId',
+  getParentRoute: () => PlatformRoute,
+} as any);
+const PlatformOrgsNewRoute = PlatformOrgsNewRouteImport.update({
+  id: '/orgs/new',
+  path: '/orgs/new',
   getParentRoute: () => PlatformRoute,
 } as any);
 const OOrgPProjectRoute = OOrgPProjectRouteImport.update({
@@ -251,6 +257,7 @@ export interface FileRoutesByFullPath {
   '/o/$org/invitations': typeof OOrgInvitationsRoute;
   '/o/$org/settings': typeof OOrgSettingsRouteWithChildren;
   '/platform/orgs/$orgId': typeof PlatformOrgsOrgIdRouteWithChildren;
+  '/platform/orgs/new': typeof PlatformOrgsNewRoute;
   '/o/$org/': typeof OOrgIndexRoute;
   '/platform/orgs/': typeof PlatformOrgsIndexRoute;
   '/o/$org/p/$project': typeof OOrgPProjectRouteWithChildren;
@@ -286,6 +293,7 @@ export interface FileRoutesByTo {
   '/invitations': typeof InvitationsIndexRoute;
   '/platform': typeof PlatformIndexRoute;
   '/o/$org/invitations': typeof OOrgInvitationsRoute;
+  '/platform/orgs/new': typeof PlatformOrgsNewRoute;
   '/o/$org': typeof OOrgIndexRoute;
   '/platform/orgs': typeof PlatformOrgsIndexRoute;
   '/o/$org/p/$project': typeof OOrgPProjectRouteWithChildren;
@@ -326,6 +334,7 @@ export interface FileRoutesById {
   '/o/$org/invitations': typeof OOrgInvitationsRoute;
   '/o/$org/settings': typeof OOrgSettingsRouteWithChildren;
   '/platform/orgs/$orgId': typeof PlatformOrgsOrgIdRouteWithChildren;
+  '/platform/orgs/new': typeof PlatformOrgsNewRoute;
   '/o/$org/': typeof OOrgIndexRoute;
   '/platform/orgs/': typeof PlatformOrgsIndexRoute;
   '/o/$org/p/$project': typeof OOrgPProjectRouteWithChildren;
@@ -367,6 +376,7 @@ export interface FileRouteTypes {
     | '/o/$org/invitations'
     | '/o/$org/settings'
     | '/platform/orgs/$orgId'
+    | '/platform/orgs/new'
     | '/o/$org/'
     | '/platform/orgs/'
     | '/o/$org/p/$project'
@@ -402,6 +412,7 @@ export interface FileRouteTypes {
     | '/invitations'
     | '/platform'
     | '/o/$org/invitations'
+    | '/platform/orgs/new'
     | '/o/$org'
     | '/platform/orgs'
     | '/o/$org/p/$project'
@@ -441,6 +452,7 @@ export interface FileRouteTypes {
     | '/o/$org/invitations'
     | '/o/$org/settings'
     | '/platform/orgs/$orgId'
+    | '/platform/orgs/new'
     | '/o/$org/'
     | '/platform/orgs/'
     | '/o/$org/p/$project'
@@ -589,6 +601,13 @@ declare module '@tanstack/react-router' {
       path: '/orgs/$orgId';
       fullPath: '/platform/orgs/$orgId';
       preLoaderRoute: typeof PlatformOrgsOrgIdRouteImport;
+      parentRoute: typeof PlatformRoute;
+    };
+    '/platform/orgs/new': {
+      id: '/platform/orgs/new';
+      path: '/orgs/new';
+      fullPath: '/platform/orgs/new';
+      preLoaderRoute: typeof PlatformOrgsNewRouteImport;
       parentRoute: typeof PlatformRoute;
     };
     '/o/$org/p/$project': {
@@ -763,6 +782,7 @@ interface PlatformRouteChildren {
   PlatformAuditRoute: typeof PlatformAuditRoute;
   PlatformIndexRoute: typeof PlatformIndexRoute;
   PlatformOrgsOrgIdRoute: typeof PlatformOrgsOrgIdRouteWithChildren;
+  PlatformOrgsNewRoute: typeof PlatformOrgsNewRoute;
   PlatformOrgsIndexRoute: typeof PlatformOrgsIndexRoute;
 }
 
@@ -771,6 +791,7 @@ const PlatformRouteChildren: PlatformRouteChildren = {
   PlatformAuditRoute: PlatformAuditRoute,
   PlatformIndexRoute: PlatformIndexRoute,
   PlatformOrgsOrgIdRoute: PlatformOrgsOrgIdRouteWithChildren,
+  PlatformOrgsNewRoute: PlatformOrgsNewRoute,
   PlatformOrgsIndexRoute: PlatformOrgsIndexRoute,
 };
 

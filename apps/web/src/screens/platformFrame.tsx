@@ -24,7 +24,7 @@ const platformScope = (
   scope: 'platform',
   platformHref: '/platform/orgs',
   orgHref: (o) => `/o/${o.slug}/projects`,
-  createHref: '/orgs/new',
+  createHref: '/platform/orgs/new',
 });
 
 const DEFAULT_CRUMBS: Record<FrameActive, PageCrumb[]> = {

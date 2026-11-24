@@ -35,6 +35,7 @@ import {
 } from './OrgInvitations';
 import { CreateOrg as CreateOrgScreen, type CreateOrgState, type CreateOrgValues } from './CreateOrg';
 import { OrgSettingsFrame } from './orgSettingsFrame';
+import { PlatformFrame } from './platformFrame';
 import { viewport } from './viewports';
 
 const noop = () => undefined;
@@ -81,13 +82,13 @@ const noOrg: OrgSwitchProps = {
   orgs: [],
   platformAdmin: false,
   orgHref: (o) => `/o/${o.slug}/projects`,
-  createHref: '/orgs/new',
+  createHref: '/platform/orgs/new',
 };
 
 const adminOrg: OrgSwitchProps = {
   ...orgSwitchFixtures.platformAdminNoOrg,
   orgHref: (o) => `/o/${o.slug}/projects`,
-  createHref: '/orgs/new',
+  createHref: '/platform/orgs/new',
 };
 
 /** The org bar with no tab active: a person of one org. */
@@ -96,7 +97,7 @@ const harborBar: OrgSwitchProps = {
   orgs: [{ id: 'o1', slug: 'harbor-labs', name: 'Harbor Labs' }],
   platformAdmin: false,
   orgHref: (o) => `/o/${o.slug}/projects`,
-  createHref: '/orgs/new',
+  createHref: '/platform/orgs/new',
   projectsHref: '#projects',
   settingsHref: '#settings',
 };
@@ -117,7 +118,7 @@ export const MyInvitationsEmpty: Story = {
   name: 'Welcome, no org, no invitations',
   render: () =>
     screen(
-      { kind: 'empty', email: 'dana.ortiz@example.com', platformAdmin: false, createHref: '/orgs/new' },
+      { kind: 'empty', email: 'dana.ortiz@example.com', platformAdmin: false, createHref: '/platform/orgs/new' },
       dana,
       noOrg,
     ),
@@ -126,7 +127,7 @@ export const MyInvitationsEmptyPlatformAdmin: Story = {
   name: 'Welcome, platform admin, no org',
   render: () =>
     screen(
-      { kind: 'empty', email: 'ops@example.com', platformAdmin: true, createHref: '/orgs/new' },
+      { kind: 'empty', email: 'ops@example.com', platformAdmin: true, createHref: '/platform/orgs/new' },
       opsAdmin,
       adminOrg,
     ),
@@ -134,10 +135,14 @@ export const MyInvitationsEmptyPlatformAdmin: Story = {
 export const MyInvitationsEmptyPlatformAdminMenu: Story = {
   name: 'Welcome, platform admin, no org, menu open with Platform admin',
   render: () =>
-    screen({ kind: 'empty', email: 'ops@example.com', platformAdmin: true, createHref: '/orgs/new' }, opsAdmin, {
-      ...adminOrg,
-      platformHref: '/platform/orgs',
-    }),
+    screen(
+      { kind: 'empty', email: 'ops@example.com', platformAdmin: true, createHref: '/platform/orgs/new' },
+      opsAdmin,
+      {
+        ...adminOrg,
+        platformHref: '/platform/orgs',
+      },
+    ),
   play: async ({ canvasElement }) => {
     await userEvent.click(within(canvasElement).getByRole('button', { name: /^Switch scope/ }));
   },
@@ -465,17 +470,14 @@ const northwind: CreateOrgValues = {
 const emptyOrgValues: CreateOrgValues = { name: '', slug: '', email: '' };
 const requestId = 'req_01JD8B2W4N7P';
 
-const createOrg = (state: CreateOrgState, user: Actor = opsAdmin) => (
-  <CreateOrgScreen
-    user={user}
-    org={adminOrg}
-    state={state}
-    onChange={noop}
-    onSubmit={noop}
-    onRetry={noop}
-    onCopy={noop}
-    onDone={noop}
-  />
+const createOrg = (state: CreateOrgState) => (
+  <PlatformFrame
+    active="orgs"
+    sideMenu={false}
+    crumbs={[{ label: 'Organizations', href: '/platform/orgs' }, { label: 'Create organization' }]}
+  >
+    <CreateOrgScreen state={state} onChange={noop} onSubmit={noop} onRetry={noop} onCopy={noop} onDone={noop} />
+  </PlatformFrame>
 );
 const createForm = (
   values: CreateOrgValues,
@@ -498,6 +500,7 @@ export const CreateOrgCreated: Story = {
   render: () =>
     createOrg({
       kind: 'created',
+      orgId: 'org_northwind',
       email: northwind.email,
       expiresOn: '23 Nov, 14:05',
       link: 'https://agentdesk.example/invitations/7f3c2a9e-41d8-4b6e-9c0a-2e5b8d1f6a43',
@@ -525,7 +528,7 @@ export const CreateOrgFieldErrors: Story = {
 };
 export const CreateOrgForbidden: Story = {
   name: 'Create organization, not a platform admin',
-  render: () => createOrg({ kind: 'forbidden' }, dana),
+  render: () => createOrg({ kind: 'forbidden' }),
 };
 export const CreateOrgInvitationFailed: Story = {
   name: 'Create organization, org created, owner invitation failed',

@@ -110,7 +110,7 @@ describe('welcome page without invitations', () => {
     await renderRoute('/', { scenario: () => scenarios.onboarding('platformAdminNoOrg') });
     expect(await screen.findByRole('heading', { name: "You're not a member of any organization" })).toBeInTheDocument();
     expect(screen.getByText('Create an organization and invite its first owner.')).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Create organization' })).toHaveAttribute('href', '/orgs/new');
+    expect(screen.getByRole('link', { name: 'Create organization' })).toHaveAttribute('href', '/platform/orgs/new');
     expect(screen.getByRole('button', { name: 'Sign out' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Switch scope, currently no organization' })).toHaveTextContent(
       'No organization',

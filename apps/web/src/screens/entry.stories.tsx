@@ -19,7 +19,7 @@ const riverside: OrgOption = {
   slug: 'riverside',
   name: 'Riverside Municipal Water and Power Utilities Digital Services',
 };
-const links = { orgHref: (o: OrgOption) => `/o/${o.slug}/projects`, createHref: '/orgs/new' };
+const links = { orgHref: (o: OrgOption) => `/o/${o.slug}/projects`, createHref: '/platform/orgs/new' };
 const orgOf = (current: OrgOption | null, orgs: OrgOption[], platformAdmin = false): OrgSwitchProps => ({
   current,
   orgs,

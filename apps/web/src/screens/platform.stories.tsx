@@ -213,7 +213,7 @@ const orgs = (over: Partial<PlatformOrgsProps> = {}) => (
       onSearch={noop}
       onStatus={noop}
       onClearFilters={noop}
-      createHref="/orgs/new"
+      createHref="/platform/orgs/new"
       {...over}
     />
   </PlatformFrame>

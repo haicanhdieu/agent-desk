@@ -1,7 +1,6 @@
 import { useEffect, useId, useRef } from 'react';
 import { Banner, Button, Field, Icon, PrefixInput, TextInput } from '@/ds';
-import { InviteLink, SurfaceCard, TopBar, type OrgSwitchProps } from '@/components';
-import type { Actor } from '@/mocks/types';
+import { InviteLink, SurfaceCard } from '@/components';
 import styles from './Screens.module.css';
 
 export interface CreateOrgValues {
@@ -25,12 +24,10 @@ export type CreateOrgState =
       title: string;
       retrying: boolean;
     }
-  | { kind: 'created'; email: string; expiresOn: string; link: string }
+  | { kind: 'created'; orgId: string; email: string; expiresOn: string; link: string }
   | { kind: 'forbidden' };
 
 export interface CreateOrgProps {
-  user: Actor;
-  org?: OrgSwitchProps;
   state: CreateOrgState;
   onChange: (v: CreateOrgValues) => void;
   onSubmit: () => void;
@@ -41,14 +38,12 @@ export interface CreateOrgProps {
 
 const HINT = 'They get the owner role. Send them the link that appears next.';
 
-/** The platform admin's create-org form: name, URL and the first owner's email, then the owner's invitation link. */
-export function CreateOrg({ user, org, state, onChange, onSubmit, onRetry, onCopy, onDone }: CreateOrgProps) {
-  return (
-    <>
-      <TopBar variant="global" crumbs={[{ label: 'Create organization' }]} user={user} org={org} />
-      <main className={styles.emptyMain}>{body(state, { onChange, onSubmit, onRetry, onCopy, onDone })}</main>
-    </>
-  );
+/**
+ * The platform admin's create-org form: name, URL and the first owner's email, then the owner's invitation link.
+ * The page renders inside the platform shell, which draws the bar.
+ */
+export function CreateOrg({ state, onChange, onSubmit, onRetry, onCopy, onDone }: CreateOrgProps) {
+  return <main className={styles.emptyMain}>{body(state, { onChange, onSubmit, onRetry, onCopy, onDone })}</main>;
 }
 
 type Handlers = Pick<CreateOrgProps, 'onChange' | 'onSubmit' | 'onRetry' | 'onCopy' | 'onDone'>;

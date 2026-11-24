@@ -37,7 +37,7 @@ export function OrgSettingsFrame({
     orgs: [current],
     platformAdmin: false,
     orgHref: (o) => `/o/${o.slug}/projects`,
-    createHref: '/orgs/new',
+    createHref: '/platform/orgs/new',
     projectsHref: `${base}/projects`,
     ...(keys.length > 0 && { settingsHref: `${base}/settings/${keys[0]}` }),
   };

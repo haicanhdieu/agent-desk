@@ -107,7 +107,7 @@ export interface CreateOrgOptions {
 type FlowState =
   | { kind: 'form'; errors: FieldErrors; formError?: { title: string; requestId?: string }; saving: boolean }
   | { kind: 'invitationFailed'; errors: Pick<FieldErrors, 'email'>; title: string; retrying: boolean }
-  | { kind: 'created'; email: string; expiresOn: string; link: string };
+  | { kind: 'created'; orgId: string; email: string; expiresOn: string; link: string };
 
 /** Creates the org, then its owner invitation. The state is what the screen shows; `retry` repeats only the invitation. */
 export function useCreateOrgWithOwner({ onOrgSwitched }: CreateOrgOptions) {
@@ -126,6 +126,7 @@ export function useCreateOrgWithOwner({ onOrgSwitched }: CreateOrgOptions) {
       void refreshAudit(queryClient);
       setState({
         kind: 'created',
+        orgId: id,
         email: invitation.email,
         expiresOn: formatShortDate(invitation.expiresAt),
         link: invitationUrl(invitation.id),

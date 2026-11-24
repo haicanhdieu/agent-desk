@@ -15,7 +15,7 @@ type Story = StoryObj<typeof meta>;
 
 const orgBase = {
   orgHref: (o: { slug: string }) => `/o/${o.slug}`,
-  createHref: '/orgs/new',
+  createHref: '/platform/orgs/new',
   projectsHref: '#projects',
 };
 const orgWithSettings = { ...orgBase, ...orgSwitchFixtures.oneOrg, settingsHref: '#settings' };

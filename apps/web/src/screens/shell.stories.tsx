@@ -13,6 +13,7 @@ import {
   terminalByRun,
   type PlatformMemberRowView,
 } from '@/mocks';
+import { CreateOrg } from './CreateOrg';
 import { PlatformAdmins } from './PlatformAdmins';
 import { PlatformAudit } from './PlatformAudit';
 import { PlatformOrgDetail } from './PlatformOrgDetail';
@@ -112,7 +113,7 @@ const orgsScreen = () => (
       onSearch={noop}
       onStatus={noop}
       onClearFilters={noop}
-      createHref="/orgs/new"
+      createHref="/platform/orgs/new"
     />
   </PlatformFrame>
 );
@@ -167,7 +168,7 @@ export const PlatformOrgsShellScopeMenu: PlatformStory = platformStory(
         onSearch={noop}
         onStatus={noop}
         onClearFilters={noop}
-        createHref="/orgs/new"
+        createHref="/platform/orgs/new"
       />
     </PlatformFrame>
   ),
@@ -214,5 +215,28 @@ export const PlatformOrgOverviewShellNotFound: PlatformStory = platformStory(() 
     crumbs={[{ label: 'Organizations', href: '/platform/orgs' }, { label: 'Not found' }]}
   >
     <PlatformOrgDetail view={{ kind: 'notFound', backHref: '/platform/orgs' }} />
+  </PlatformFrame>
+));
+
+/** Board CreateOrgPlatformShell: Organizations / Create organization inside the platform shell, no side menu. */
+export const CreateOrgPlatformShell: PlatformStory = platformStory(() => (
+  <PlatformFrame
+    active="orgs"
+    sideMenu={false}
+    crumbs={[{ label: 'Organizations', href: '/platform/orgs' }, { label: 'Create organization' }]}
+  >
+    <CreateOrg
+      state={{
+        kind: 'form',
+        values: { name: '', slug: '', email: '' },
+        errors: {},
+        saving: false,
+      }}
+      onChange={noop}
+      onSubmit={noop}
+      onRetry={noop}
+      onCopy={noop}
+      onDone={noop}
+    />
   </PlatformFrame>
 ));

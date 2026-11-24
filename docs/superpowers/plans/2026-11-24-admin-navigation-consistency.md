@@ -458,11 +458,11 @@ Plus the changed specs from Task 10's selector updates (`git diff --name-only ma
 - Consumes: Task 5 `platformCrumbs` (`/platform/orgs/new`), Task 8 `PlatformLayout` without `org`.
 - Produces: `CreateOrgProps` without `user`/`org`; `CreateOrgState` `created` adds `orgId: string`.
 
-- [ ] **Step 1: Write the failing tests** in `createOrg.route.test.tsx`: `it('/orgs/new redirects to /platform/orgs/new')`; `it('the page renders inside the platform shell: Platform bar, crumbs Organizations / Create organization, Organizations tab current')`; `it('a non-admin gets the platform forbidden state and no create request')` (the layout check replaces the page check; keeps the denied case); `it('Done opens the new org platform page')`; `it('/platform/orgs/new is not read as an org id')` (no `platform.getOrg` request).
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/features/orgs/createOrg.route.test.tsx src/test/topBarCallSites.test.ts`. Expected: FAIL.
-- [ ] **Step 3: Implement** the route (no own platform check; loader ensures session and orgs as today), the redirect, the screen change, `onDone` → `navigate({ to: '/platform/orgs/$orgId', params: { orgId } })`. Register the board; regenerate the interactive prototype.
-- [ ] **Step 4: Run** `pnpm --filter @agentdesk/web typecheck && pnpm --filter @agentdesk/web test`. Expected: PASS.
-- [ ] **Step 5: Commit** `feat(web): create organization inside the platform shell`.
+- [x] **Step 1: Write the failing tests** in `createOrg.route.test.tsx`: `it('/orgs/new redirects to /platform/orgs/new')`; `it('the page renders inside the platform shell: Platform bar, crumbs Organizations / Create organization, Organizations tab current')`; `it('a non-admin gets the platform forbidden state and no create request')` (the layout check replaces the page check; keeps the denied case); `it('Done opens the new org platform page')`; `it('/platform/orgs/new is not read as an org id')` (no `platform.getOrg` request).
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/features/orgs/createOrg.route.test.tsx src/test/topBarCallSites.test.ts`. Expected: FAIL.
+- [x] **Step 3: Implement** the route (no own platform check; loader ensures session and orgs as today), the redirect, the screen change, `onDone` → `navigate({ to: '/platform/orgs/$orgId', params: { orgId } })`. Register the board; regenerate the interactive prototype.
+- [x] **Step 4: Run** `pnpm --filter @agentdesk/web typecheck && pnpm --filter @agentdesk/web test`. Expected: PASS.
+- [x] **Step 5: Commit** `feat(web): create organization inside the platform shell`.
 
 ### Task 14: e2e for the moved create page
 
@@ -471,9 +471,9 @@ Plus the changed specs from Task 10's selector updates (`git diff --name-only ma
 **Files:**
 - Modify: `apps/web/e2e/mock/create-org.spec.ts` (existing tests open `/platform/orgs/new`; add the redirect case); `apps/web/e2e/local/onboarding-platform.spec.ts` only if it opens `/orgs/new` and asserts the URL
 
-- [ ] **Step 1: Write the tests**: `test('/orgs/new redirects to /platform/orgs/new inside the platform shell')` (URL, scope button "Platform", tab "Organizations" current, crumb "Create organization").
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/web exec vite build --mode mock && pnpm --filter @agentdesk/web exec playwright test e2e/mock/create-org.spec.ts`; if the local spec changed, run it with the stack up. Expected: PASS.
-- [ ] **Step 3: Commit** `test(web): create organization e2e in the platform shell`.
+- [x] **Step 1: Write the tests**: `test('/orgs/new redirects to /platform/orgs/new inside the platform shell')` (URL, scope button "Platform", tab "Organizations" current, crumb "Create organization").
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/web exec vite build --mode mock && pnpm --filter @agentdesk/web exec playwright test e2e/mock/create-org.spec.ts`; if the local spec changed, run it with the stack up. Expected: PASS.
+- [x] **Step 3: Commit** `test(web): create organization e2e in the platform shell`.
 
 ---
 

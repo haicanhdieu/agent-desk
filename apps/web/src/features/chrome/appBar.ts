@@ -73,7 +73,7 @@ export function useAppBar(orgSlug: string | null): AppBarData {
     org: {
       ...switchData,
       orgHref: (o) => `/o/${encodeURIComponent(o.slug)}/projects`,
-      createHref: '/orgs/new',
+      createHref: '/platform/orgs/new',
       ...(platformAdmin && { platformHref: '/platform' }),
       ...(platformAdmin &&
         switchData.current !== null && { manageHref: `/platform/orgs/${encodeURIComponent(switchData.current.id)}` }),

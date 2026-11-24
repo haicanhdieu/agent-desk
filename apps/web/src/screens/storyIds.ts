@@ -44,6 +44,7 @@ export const boardStories = {
   PlatformOrgMembersShellError: { title: 'Screens/Shell', exportName: 'PlatformOrgMembersShellError' },
   PlatformOrgMembersShellNonMember: { title: 'Screens/Shell', exportName: 'PlatformOrgMembersShellNonMember' },
   PlatformOrgOverviewShellNotFound: { title: 'Screens/Shell', exportName: 'PlatformOrgOverviewShellNotFound' },
+  CreateOrgPlatformShell: { title: 'Screens/Shell', exportName: 'CreateOrgPlatformShell' },
   RunReconnect: { title: detail, exportName: 'RunReconnect' },
   RunSucceeded: { title: detail, exportName: 'RunSucceeded' },
   RunPrompt: { title: detail, exportName: 'RunPrompt' },

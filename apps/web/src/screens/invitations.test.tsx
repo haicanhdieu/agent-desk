@@ -599,7 +599,6 @@ describe('CreateOrg', () => {
     email: 'maria.chen@northwind.example',
   };
   const createProps = (state: CreateOrgState) => ({
-    user,
     state,
     onChange: vi.fn(),
     onSubmit: vi.fn(),
@@ -621,11 +620,6 @@ describe('CreateOrg', () => {
     title: 'Internal server error',
     retrying: false,
     ...over,
-  });
-
-  it('BR-43: Create organization shows no tabs', () => {
-    render(<CreateOrg {...createProps(form())} org={settingsOrg} />);
-    expect(screen.queryByRole('navigation', { name: 'Organization sections' })).not.toBeInTheDocument();
   });
 
   it('BR-35: shows the h1, the labelled fields with the /o/ prefix described, the hint and Create organization', async () => {
@@ -771,6 +765,7 @@ describe('CreateOrg', () => {
   it('BR-35: the created state focuses its heading and shows the owner link, Copy link and Done', async () => {
     const p = createProps({
       kind: 'created',
+      orgId: 'org_northwind',
       email: 'maria.chen@northwind.example',
       expiresOn: '23 Nov, 14:05',
       link: 'https://agentdesk.example/invitations/7f3c',

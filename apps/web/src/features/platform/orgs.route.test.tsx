@@ -125,10 +125,10 @@ describe('Organizations directory', () => {
     expect(screen.getByRole('combobox', { name: 'Status' })).toHaveValue('all');
   });
 
-  it('BR-21: "Create organization" goes to /orgs/new', async () => {
+  it('BR-21: "Create organization" goes to /platform/orgs/new', async () => {
     await renderRoute('/platform/orgs', { scenario: asAdmin });
     await ready();
-    expect(screen.getByRole('link', { name: 'Create organization' })).toHaveAttribute('href', '/orgs/new');
+    expect(screen.getByRole('link', { name: 'Create organization' })).toHaveAttribute('href', '/platform/orgs/new');
   });
 
   it('BR-4: shows the empty state', async () => {

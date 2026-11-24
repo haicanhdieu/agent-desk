@@ -5,7 +5,7 @@ import { OrgSwitch } from './OrgSwitch';
 
 const links = {
   orgHref: (o: { slug: string }) => `/o/${o.slug}`,
-  createHref: '/orgs/new',
+  createHref: '/platform/orgs/new',
   projectsHref: '/o/acme/projects',
   settingsHref: '/o/acme/settings',
 };
