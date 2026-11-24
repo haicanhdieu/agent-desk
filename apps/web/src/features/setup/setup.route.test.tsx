@@ -574,6 +574,20 @@ describe('setup flow fixes', () => {
     expect(mockDb.requests('POST', '/api/connections/github/sync')).toBe(1);
   });
 
+  it('Refresh repositories that finds nothing keeps the empty state with install guidance and Connect GitHub', async () => {
+    mockDb.state.connections = mockDb.state.connections.filter((c) => c.orgId !== ids.org.alice);
+    server.use(routeHandler('connections.sync', async () => jsonResponse([], 201)));
+    const { user } = await renderRoute(`${base}/repo`);
+    await screen.findByText('No repositories yet');
+    await user.click(screen.getByRole('button', { name: 'Refresh repositories' }));
+    expect(await screen.findByRole('button', { name: 'Refresh repositories' })).toBeEnabled();
+    expect(mockDb.requests('POST', '/api/connections/github/sync')).toBe(1);
+    expect(screen.getByText('No repositories yet')).toBeInTheDocument();
+    expect(screen.getByText(/Install the Agent Desk GitHub App/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Connect GitHub' })).toBeInTheDocument();
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  });
+
   it('Refresh repositories sends one sync however often it is pressed while it runs', async () => {
     const { user } = await renderRoute(`${base}/repo`);
     await screen.findByRole('radio', { name: 'harbor-labs/invoicer-api' });
