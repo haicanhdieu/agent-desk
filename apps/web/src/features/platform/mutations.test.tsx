@@ -56,7 +56,8 @@ describe('platform mutations: the audit log reads again', () => {
     const add = renderHook(() => useAddPlatformAssignment(orgId), { wrapper });
     let id = '';
     await act(async () => {
-      id = (await add.result.current.mutateAsync({ userId: person.userId, roleId: role.id, scope: { type: 'org' } })).id;
+      id = (await add.result.current.mutateAsync({ userId: person.userId, roleId: role.id, scope: { type: 'org' } }))
+        .id;
     });
     expect(audited(queryClient)).toBe(true);
     queryClient.setQueryData(AUDIT_KEY, { items: [], total: 0, page: 1, pageSize: 20 });
@@ -75,5 +76,39 @@ describe('platform mutations: the audit log reads again', () => {
     const adminId = platformAdminFixtures[1]?.id ?? '';
     await act(() => revoke.result.current.mutateAsync({ adminId, own: false }));
     expect(audited(queryClient)).toBe(true);
+  });
+});
+
+describe('platform mutations: an assignment change leaves the project lists alone', () => {
+  it('adding and removing an assignment refetch members and the directory, not the all-projects query', async () => {
+    const { queryClient, wrapper } = setup();
+    const membersKey = platformKeys.orgList(orgId, 'members', { page: 1 });
+    const directoryKey = platformKeys.orgs({ page: 1 });
+    const projectsKey = platformKeys.orgList(orgId, 'projects', { all: true });
+    const seed = () => {
+      for (const key of [membersKey, directoryKey, projectsKey]) queryClient.setQueryData(key, []);
+    };
+    const invalidated = (key: readonly unknown[]) => queryClient.getQueryState(key)?.isInvalidated;
+    const role = roleFixtures.find((r) => r.key === 'viewer');
+    const person = platformMemberFixtures.find((m) => m.assignments.length === 0);
+    if (!role || !person) throw new Error('fixture missing');
+
+    seed();
+    const add = renderHook(() => useAddPlatformAssignment(orgId), { wrapper });
+    let id = '';
+    await act(async () => {
+      id = (await add.result.current.mutateAsync({ userId: person.userId, roleId: role.id, scope: { type: 'org' } }))
+        .id;
+    });
+    expect(invalidated(membersKey)).toBe(true);
+    expect(invalidated(directoryKey)).toBe(true);
+    expect(invalidated(projectsKey)).toBe(false);
+
+    seed();
+    const remove = renderHook(() => useRemovePlatformAssignment(orgId), { wrapper });
+    await act(() => remove.result.current.mutateAsync({ assignmentId: id }));
+    expect(invalidated(membersKey)).toBe(true);
+    expect(invalidated(directoryKey)).toBe(true);
+    expect(invalidated(projectsKey)).toBe(false);
   });
 });

@@ -116,12 +116,20 @@ export function useUpdatePlatformOrg(
 }
 
 /**
- * Both assignment changes end the same way: everything under `['platform', 'orgs']` is fetched again (this org's
- * members first among them, and the directory's owner column when an Owner came or went). The mutation stays pending
- * until that is done, so a dialog stays unclosable until the rows are fresh.
+ * Both assignment changes end the same way: everything under `['platform', 'orgs']` except the project lists is
+ * fetched again (this org's members first among them, and the directory's owner column when an Owner came or went).
+ * The project lists are left: an assignment never changes them, and the all-projects query is a loop of page requests.
+ * The mutation stays pending until that is done, so a dialog stays unclosable until the rows are fresh.
  */
 const refreshAfterAssignment = (queryClient: QueryClient) =>
-  Promise.all([queryClient.invalidateQueries({ queryKey: platformKeys.orgsAll() }), refreshAudit(queryClient)]);
+  Promise.all([
+    queryClient.invalidateQueries({
+      queryKey: platformKeys.orgsAll(),
+      // `['platform', 'orgs', orgId, 'projects', …]`: the list name sits at index 3.
+      predicate: (q) => q.queryKey[3] !== 'projects',
+    }),
+    refreshAudit(queryClient),
+  ]);
 
 /** `POST /api/platform/orgs/:orgId/assignments`: a repeat returns the same assignment, so it ends like a new one. */
 export function useAddPlatformAssignment(
