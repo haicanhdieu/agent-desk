@@ -1,4 +1,4 @@
-import { AppLink, Button } from '@/ds';
+import { AppLink, Button, Icon } from '@/ds';
 import type { OrgStatusView } from '@/mocks/platform/orgs';
 import { OrgStatus } from './OrgStatus';
 import styles from './PlatformOrgHeader.module.css';
@@ -8,6 +8,8 @@ export interface PlatformOrgHeaderProps {
   slug: string;
   status: OrgStatusView;
   auditHref: string;
+  /** The member's own page of this org. Absent for an org the person does not belong to: no "Open organization" link. */
+  openHref?: string;
   onSuspend: () => void;
   onReactivate: () => void;
   /** Absent: no "Edit organization" button. */
@@ -20,6 +22,7 @@ export function PlatformOrgHeader({
   slug,
   status,
   auditHref,
+  openHref,
   onSuspend,
   onReactivate,
   onEdit,
@@ -45,6 +48,12 @@ export function PlatformOrgHeader({
           <Button onClick={onReactivate}>Reactivate organization</Button>
         )}
         <AppLink href={auditHref}>View audit log</AppLink>
+        {openHref !== undefined && (
+          <AppLink href={openHref} className={styles.open}>
+            Open organization
+            <Icon name="external" size={13} />
+          </AppLink>
+        )}
       </div>
     </div>
   );

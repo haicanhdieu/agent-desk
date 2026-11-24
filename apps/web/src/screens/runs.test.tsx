@@ -541,7 +541,7 @@ describe('Runs under the app bar (BR-43)', () => {
     const tabs = within(bar).getByRole('navigation', { name: 'Project sections' });
     expect(within(tabs).getByRole('link', { name: /^Runs/ })).toHaveAttribute('aria-current', 'page');
     expect(within(tabs).getByRole('link', { name: /^Runs/ })).toHaveTextContent('1');
-    expect(within(tabs).getByRole('link', { name: 'Settings' })).not.toHaveAttribute('aria-current');
+    expect(within(tabs).getByRole('link', { name: 'Project settings' })).not.toHaveAttribute('aria-current');
   });
 
   it('without org: no org crumb and no owner text, only the project', () => {

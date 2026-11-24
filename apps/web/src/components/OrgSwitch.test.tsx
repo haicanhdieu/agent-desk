@@ -61,10 +61,17 @@ describe('OrgSwitch', () => {
     const menu = screen.getByRole('dialog', { name: 'Scope' });
     expect(within(menu).getByRole('heading', { name: 'Acme' })).toBeInTheDocument();
     const links = within(menu).getAllByRole('link');
-    expect(links.map((l) => l.textContent?.trim())).toEqual(['Projects', 'Settings']);
+    expect(links.map((l) => l.textContent?.trim())).toEqual(['Projects', 'Org settings']);
     expect(links[0]).toHaveAttribute('href', projectsHref);
     expect(links[1]).toHaveAttribute('href', settingsHref);
     expect(within(menu).queryByText('Switch organization')).toBeNull();
+  });
+
+  it('the current org group lists "Projects" and "Org settings"', async () => {
+    const user = setup('oneOrg', { projectsHref, settingsHref });
+    await user.click(screen.getByRole('button', { name: 'Switch scope, currently organization Acme' }));
+    const menu = screen.getByRole('dialog');
+    expect(within(menu).getByRole('link', { name: 'Org settings' })).toHaveAttribute('href', settingsHref);
   });
 
   it('BR-44: one org without settingsHref has no Settings item', async () => {
@@ -72,7 +79,7 @@ describe('OrgSwitch', () => {
     await user.click(screen.getByRole('button', { name: 'Switch scope, currently organization Acme' }));
     const menu = screen.getByRole('dialog');
     expect(within(menu).getByRole('link', { name: 'Projects' })).toBeInTheDocument();
-    expect(within(menu).queryByRole('link', { name: 'Settings' })).toBeNull();
+    expect(within(menu).queryByRole('link', { name: 'Org settings' })).toBeNull();
   });
 
   it('BR-44: one org with no current org still shows the button for the lone org', () => {
@@ -90,7 +97,12 @@ describe('OrgSwitch', () => {
     const labels = within(menu)
       .getAllByRole('link')
       .map((l) => l.textContent?.trim());
-    expect(labels).toEqual(['Projects', 'Settings', expect.stringContaining('Acme'), expect.stringContaining('Beta')]);
+    expect(labels).toEqual([
+      'Projects',
+      'Org settings',
+      expect.stringContaining('Acme'),
+      expect.stringContaining('Beta'),
+    ]);
   });
 
   it('BR-44: a person with no org who is not a platform admin sees plain text, no button', () => {
@@ -275,5 +287,31 @@ describe('OrgSwitch', () => {
     await user.keyboard('{Escape}');
     expect(screen.queryByRole('dialog')).toBeNull();
     expect(button()).toHaveFocus();
+  });
+
+  it('"Manage this org in Platform" is absent without manageHref', async () => {
+    const user = setup('platformAdmin', { platformHref: '/platform' });
+    await user.click(button());
+    expect(screen.queryByRole('link', { name: 'Manage this org in Platform' })).not.toBeInTheDocument();
+  });
+
+  it('with manageHref the item sits in the Platform group and links to it', async () => {
+    const user = setup('platformAdmin', { platformHref: '/platform', manageHref: '/platform/orgs/org-1' });
+    await user.click(button());
+    const group = within(screen.getByRole('group', { name: 'Platform' }));
+    expect(group.getByRole('link', { name: 'Manage this org in Platform' })).toHaveAttribute(
+      'href',
+      '/platform/orgs/org-1',
+    );
+  });
+
+  it('the item does not show in the platform scope', async () => {
+    const user = setup('platformAdmin', {
+      platformHref: '/platform',
+      manageHref: '/platform/orgs/org-1',
+      scope: 'platform',
+    });
+    await user.click(button());
+    expect(screen.queryByRole('link', { name: 'Manage this org in Platform' })).not.toBeInTheDocument();
   });
 });

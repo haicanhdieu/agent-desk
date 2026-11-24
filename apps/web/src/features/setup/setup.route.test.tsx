@@ -57,7 +57,10 @@ describe('setup flow', () => {
     const bar = screen.getByRole('banner');
     const tabs = within(bar).getByRole('navigation', { name: 'Organization sections' });
     expect(within(tabs).getByRole('link', { name: 'Projects' })).toHaveAttribute('aria-current', 'page');
-    expect(await within(tabs).findByRole('link', { name: 'Settings' })).toHaveAttribute('href', '/o/alice/settings');
+    expect(await within(tabs).findByRole('link', { name: 'Org settings' })).toHaveAttribute(
+      'href',
+      '/o/alice/settings',
+    );
     expect(within(bar).getByRole('button', { name: /^Switch scope/ })).toBeVisible();
   });
 

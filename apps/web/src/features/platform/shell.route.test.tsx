@@ -69,7 +69,7 @@ describe('the platform shell', () => {
     expect(screen.getByRole('button', { name: 'Switch scope, currently Platform' })).toBeInTheDocument();
     expect(screen.queryByText('No organization')).toBeNull();
     expect(screen.queryByRole('navigation', { name: 'Platform admin' })).toBeNull();
-    expect(screen.queryByRole('link', { name: 'Settings' })).toBeNull();
+    expect(screen.queryByRole('link', { name: 'Org settings' })).toBeNull();
   });
 
   describe('inside one org', () => {

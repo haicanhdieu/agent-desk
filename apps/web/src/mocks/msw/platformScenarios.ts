@@ -45,6 +45,7 @@ export const PLATFORM_SCENARIOS = [
   'manyAudit',
   'platformOrgTabsEmpty',
   'platformOrgFewProjects',
+  'platformAdminMemberOrg',
 ] as const;
 
 export type PlatformScenario = (typeof PLATFORM_SCENARIOS)[number];
@@ -237,6 +238,13 @@ const seeders: Record<PlatformScenario, () => void> = {
   platformOrgFewProjects() {
     applyOnboardingScenario('platformAdminOneOrg');
     seedPlatformOrgTabs({ projects: platformProjectFixtures.slice(0, 2), members: platformMemberFixtures });
+  },
+  // The directory also lists Alice, the org the platform admin belongs to (same id as the membership): its page offers "Open organization".
+  platformAdminMemberOrg() {
+    applyOnboardingScenario('platformAdminOneOrg');
+    const acme = platformOrgDtoFixtures[0];
+    if (!acme) throw new Error('no org fixture');
+    seedPlatformOrgs([{ ...acme, id: ids.org.alice, name: 'Alice', slug: 'alice' }, ...platformOrgDtoFixtures]);
   },
   manyAudit() {
     applyOnboardingScenario('platformAdminOneOrg');

@@ -856,7 +856,7 @@ describe('Desk under the app bar (BR-43)', () => {
     const bar = screen.getByRole('banner');
     expect(within(bar).getByRole('button', { name: /^Switch scope, currently organization Acme/ })).toBeInTheDocument();
     const tabs = within(bar).getByRole('navigation', { name: 'Project sections' });
-    expect(within(tabs).getByRole('link', { name: 'Settings' })).toHaveAttribute('aria-current', 'page');
+    expect(within(tabs).getByRole('link', { name: 'Project settings' })).toHaveAttribute('aria-current', 'page');
     expect(within(tabs).getByRole('link', { name: /^Runs/ })).not.toHaveAttribute('aria-current');
   });
 

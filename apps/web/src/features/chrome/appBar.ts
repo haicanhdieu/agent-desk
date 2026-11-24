@@ -37,6 +37,15 @@ export function firstSettingsTab(access: Access): OrgSettingsTabKey | null {
   return TAB_ORDER.find((key) => ok[key]) ?? null;
 }
 
+/** The projects page of the membership with this org id, or undefined for an org the person does not belong to. Ids are matched, never slugs. */
+export function openOrgHref(
+  memberships: ReadonlyArray<{ id: string; slug: string }>,
+  orgId: string,
+): string | undefined {
+  const m = memberships.find((o) => o.id === orgId);
+  return m === undefined ? undefined : `/o/${encodeURIComponent(m.slug)}/projects`;
+}
+
 export interface AppBarData {
   user: Actor;
   org: OrgSwitchProps;
@@ -66,6 +75,8 @@ export function useAppBar(orgSlug: string | null): AppBarData {
       orgHref: (o) => `/o/${encodeURIComponent(o.slug)}/projects`,
       createHref: '/orgs/new',
       ...(platformAdmin && { platformHref: '/platform' }),
+      ...(platformAdmin &&
+        switchData.current !== null && { manageHref: `/platform/orgs/${encodeURIComponent(switchData.current.id)}` }),
       ...(base !== undefined && { projectsHref: `${base}/projects` }),
       // A platform admin who belongs to no org has no org page to land on: the logo opens Platform > Organizations.
       ...(base === undefined && platformAdmin && orgs.length === 0 && { projectsHref: '/platform/orgs' }),

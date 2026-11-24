@@ -120,13 +120,27 @@ describe('TopBar project', () => {
     const runs = within(tabs).getByRole('link', { name: /Runs/ });
     expect(runs).toHaveAttribute('aria-current', 'page');
     expect(runs.className).toMatch(/\bon\b/);
-    expect(within(tabs).getByRole('link', { name: 'Settings' })).not.toHaveAttribute('aria-current');
+    expect(within(tabs).getByRole('link', { name: 'Project settings' })).not.toHaveAttribute('aria-current');
+  });
+  it('the project settings tab reads "Project settings"', () => {
+    render(
+      <TopBar
+        crumbs={NO_PAGE_CRUMBS}
+        variant="project"
+        user={user}
+        project={project}
+        active="runs"
+        links={{ desk: '/desk' }}
+      />,
+    );
+    const tabs = screen.getByRole('navigation', { name: 'Project sections' });
+    expect(within(tabs).getByRole('link', { name: 'Project settings' })).toHaveAttribute('href', '/desk');
   });
   it('shows no Settings tab without a desk link (a member or viewer may not open the Desk)', () => {
     render(<TopBar crumbs={NO_PAGE_CRUMBS} variant="project" user={user} project={project} active="runs" />);
     const tabs = screen.getByRole('navigation', { name: 'Project sections' });
     expect(within(tabs).getByRole('link', { name: /Runs/ })).toBeInTheDocument();
-    expect(within(tabs).queryByRole('link', { name: 'Settings' })).not.toBeInTheDocument();
+    expect(within(tabs).queryByRole('link', { name: 'Project settings' })).not.toBeInTheDocument();
   });
   it('draws the project Settings tab with the org Settings tab icon and no Desk label', () => {
     render(
@@ -137,8 +151,8 @@ describe('TopBar project', () => {
     );
     const orgNav = screen.getByRole('navigation', { name: 'Organization sections' });
     const projectNav = screen.getByRole('navigation', { name: 'Project sections' });
-    const orgIcon = within(orgNav).getByRole('link', { name: 'Settings' }).querySelector('svg');
-    const projectIcon = within(projectNav).getByRole('link', { name: 'Settings' }).querySelector('svg');
+    const orgIcon = within(orgNav).getByRole('link', { name: 'Org settings' }).querySelector('svg');
+    const projectIcon = within(projectNav).getByRole('link', { name: 'Project settings' }).querySelector('svg');
     expect(orgIcon).not.toBeNull();
     expect(projectIcon?.innerHTML).toBe(orgIcon?.innerHTML);
     expect(within(projectNav).queryByText('Desk')).toBeNull();
@@ -206,8 +220,8 @@ describe('TopBar org level', () => {
     const tabs = screen.getByRole('navigation', { name: 'Organization sections' });
     expect(within(tabs).getByRole('link', { name: 'Projects' })).toHaveAttribute('aria-current', 'page');
     expect(within(tabs).getByRole('link', { name: 'Projects' })).toHaveAttribute('href', '/o/acme/projects');
-    expect(within(tabs).getByRole('link', { name: 'Settings' })).toHaveAttribute('href', '/o/acme/settings');
-    expect(within(tabs).getByRole('link', { name: 'Settings' })).not.toHaveAttribute('aria-current');
+    expect(within(tabs).getByRole('link', { name: 'Org settings' })).toHaveAttribute('href', '/o/acme/settings');
+    expect(within(tabs).getByRole('link', { name: 'Org settings' })).not.toHaveAttribute('aria-current');
     expect(screen.getByRole('button', { name: 'Notifications on' })).toBeInTheDocument();
   });
   it('shows only Projects without a settings link (BR-43)', () => {
@@ -314,7 +328,7 @@ describe('TopBar project level with the org crumb', () => {
       /^invoicer-api$/,
     );
     const tabs = screen.getByRole('navigation', { name: 'Project sections' });
-    expect(within(tabs).getByRole('link', { name: 'Settings' })).toHaveAttribute('aria-current', 'page');
+    expect(within(tabs).getByRole('link', { name: 'Project settings' })).toHaveAttribute('aria-current', 'page');
     expect(within(tabs).getByRole('link', { name: /Runs/ })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: /Repo on GitHub/ })).toHaveAttribute('href', project.repoUrl);
     expect(screen.getByRole('button', { name: 'Notifications on' })).toBeInTheDocument();

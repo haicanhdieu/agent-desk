@@ -23,12 +23,12 @@ describe('SetupLayout org bar', () => {
     render(layout({ org: org('/o/harbor-labs/settings') }));
     const nav = screen.getByRole('navigation', { name: 'Organization sections' });
     expect(within(nav).getByRole('link', { name: /Projects/ })).toHaveAttribute('aria-current', 'page');
-    expect(within(nav).getByRole('link', { name: /Settings/ })).toBeInTheDocument();
+    expect(within(nav).getByRole('link', { name: /Org settings/ })).toBeInTheDocument();
   });
 
   it('has no Settings tab without settingsHref', () => {
     render(layout({ org: org() }));
     const nav = screen.getByRole('navigation', { name: 'Organization sections' });
-    expect(within(nav).queryByRole('link', { name: /Settings/ })).not.toBeInTheDocument();
+    expect(within(nav).queryByRole('link', { name: /Org settings/ })).not.toBeInTheDocument();
   });
 });

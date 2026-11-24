@@ -126,7 +126,7 @@ test.describe('BR-2: the entry lands on the Organizations directory', () => {
     await expect(bar.getByRole('button', { name: 'Switch scope, currently Platform' })).toBeVisible();
     await expect(bar.getByText('No organization')).toHaveCount(0);
     await expect(bar.getByRole('link', { name: 'Projects', exact: true })).toHaveCount(0);
-    await expect(bar.getByRole('link', { name: 'Settings' })).toHaveCount(0);
+    await expect(bar.getByRole('link', { name: 'Org settings' })).toHaveCount(0);
   });
 
   test('TC-2.2: a platform admin in no org opens the same directory from "/"', async ({ page }) => {

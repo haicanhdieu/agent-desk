@@ -12,12 +12,14 @@ import {
   asPlatformAdmin,
   createOrg,
   freshUser,
+  grantPlatformAdmin,
   inviteAndSignIn,
   ok,
   platformAdminContext,
   platformAuditFor,
   platformOrgIdBySlug,
   reactivateOrg,
+  revokePlatformAdmin,
   signInAndCreateProject,
   suspendOrg,
 } from './helpers';
@@ -318,5 +320,49 @@ test.describe('BR-46: a non-admin cannot read the platform audit', () => {
     const shown = await page.locator('body').innerText();
     expect(shown).not.toContain('Reason');
     expect(shown).not.toContain(reason);
+  });
+});
+
+/*
+ * "Open organization" on the platform org page (spec 2026-11-24-admin-navigation-consistency): shown only for an org the
+ * person belongs to; a platform admin who is not a member gets no link and no tenant page. The user is granted the platform
+ * role for the test and loses it in `afterEach`.
+ */
+const grantedAdmins: string[] = [];
+
+test.afterEach(async () => {
+  for (const id of grantedAdmins.splice(0)) await revokePlatformAdmin(pa, id).catch(() => null);
+});
+
+test.describe('Open organization', () => {
+  test('a dual-role user clicks "Open organization" and lands on the org with it active', async ({ page }) => {
+    const { handle } = await signInAndCreateProject(page);
+    const orgId = await platformOrgIdBySlug(pa, handle);
+    const { entry } = await grantPlatformAdmin(pa, `${handle}@dev.local`);
+    grantedAdmins.push(entry.id);
+
+    await page.goto(`/platform/orgs/${orgId}`);
+    await page.getByRole('link', { name: 'Open organization' }).click();
+    await expect(page).toHaveURL(new RegExp(`/o/${handle}/projects$`));
+    await expect(
+      page.getByRole('button', { name: `Switch scope, currently organization E2E ${handle}` }),
+    ).toBeVisible();
+  });
+
+  test('a platform admin who is a member of org A sees no "Open organization" on org B and /o/<b-slug> stays not found', async ({
+    page,
+  }) => {
+    const { handle } = await signInAndCreateProject(page);
+    const { entry } = await grantPlatformAdmin(pa, `${handle}@dev.local`);
+    grantedAdmins.push(entry.id);
+    const slugB = `e2e-${randomBytes(4).toString('hex')}`;
+    const orgB = await createOrg(pa, `E2E ${slugB}`, slugB);
+
+    await page.goto(`/platform/orgs/${orgB.id}`);
+    await expect(page.getByRole('heading', { name: `E2E ${slugB}`, level: 1 })).toBeVisible();
+    await expect(page.getByRole('link', { name: 'Open organization' })).toHaveCount(0);
+
+    await page.goto(`/o/${slugB}/projects`);
+    await expect(page.getByRole('heading', { name: 'Page not found' })).toBeVisible();
   });
 });

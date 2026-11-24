@@ -5,6 +5,7 @@ import { problemResponse } from '@/mocks/msw/http';
 import { server } from '@/mocks/msw/node';
 import { scenarios } from '@/mocks/msw/scenarios';
 import { renderRoute } from '@/test/renderRoute';
+import { ids } from '@/mocks/dto/ids';
 import { platformKeys } from './keys';
 
 // Real routes and the real guard of the platform shell; only the data behind the API is the mock.
@@ -300,5 +301,21 @@ describe('Platform org detail', () => {
     } finally {
       posts.stop();
     }
+  });
+});
+
+describe('Open organization link', () => {
+  it('a member org shows the link to its projects page', async () => {
+    await renderRoute(`/platform/orgs/${ids.org.alice}`, {
+      scenario: () => scenarios.platform('suspendedPlatformAdmin'),
+    });
+    const link = await screen.findByRole('link', { name: 'Open organization' });
+    expect(link).toHaveAttribute('href', '/o/alice/projects');
+  });
+
+  it('a non-member org shows no link', async () => {
+    await renderRoute(detailPath, { scenario: asAdmin });
+    await ready();
+    expect(screen.queryByRole('link', { name: 'Open organization' })).not.toBeInTheDocument();
   });
 });

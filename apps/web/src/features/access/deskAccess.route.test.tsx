@@ -61,7 +61,7 @@ describe.each(['member', 'viewer'] as const)('a %s', (role) => {
   it('has no Settings tab on the runs page and no Desk data is requested there', async () => {
     await open(`/o/acme/p/${P1}/runs`, role);
     expect(await screen.findByRole('link', { name: /^Runs/ })).toBeInTheDocument();
-    expect(screen.queryByRole('link', { name: 'Settings' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Project settings' })).not.toBeInTheDocument();
     expect(deskCalls()).toEqual([]);
   });
 
@@ -92,7 +92,7 @@ describe.each(['owner', 'orgAdmin'] as const)('an %s', (role) => {
 
   it('sees the Settings tab on the runs page', async () => {
     await open(`/o/acme/p/${P1}/runs`, role);
-    expect(await screen.findByRole('link', { name: 'Settings' })).toBeInTheDocument();
+    expect(await screen.findByRole('link', { name: 'Project settings' })).toBeInTheDocument();
   });
 });
 
@@ -165,6 +165,6 @@ describe('the Access group of the Desk side menu (BR-1)', () => {
   it.each(['member', 'viewer'] as const)('gives a %s no Settings tab', async (role) => {
     await renderRoute(`/o/alice/p/${P1}/runs`, { scenario: () => applyProjectSpace(mockDb, { role }) });
     expect(await screen.findByRole('link', { name: /^Runs/ })).toBeInTheDocument();
-    expect(screen.queryByRole('link', { name: 'Settings' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Project settings' })).not.toBeInTheDocument();
   });
 });

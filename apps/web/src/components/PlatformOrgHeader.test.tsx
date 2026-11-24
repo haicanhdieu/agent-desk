@@ -84,4 +84,23 @@ describe('PlatformOrgHeader', () => {
       expect(els[1].compareDocumentPosition(els[2]) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     },
   );
+
+  it('shows "Open organization" after "View audit log" only with openHref', () => {
+    const { unmount } = render(
+      <PlatformOrgHeader
+        name="Acme"
+        slug="acme"
+        status="active"
+        auditHref="/platform/audit?org=1"
+        openHref="/o/acme/projects"
+        onSuspend={vi.fn()}
+        onReactivate={vi.fn()}
+      />,
+    );
+    expect(screen.getAllByRole('link').map((l) => l.textContent)).toEqual(['View audit log', 'Open organization']);
+    expect(screen.getByRole('link', { name: 'Open organization' })).toHaveAttribute('href', '/o/acme/projects');
+    unmount();
+    setup();
+    expect(screen.queryByRole('link', { name: 'Open organization' })).not.toBeInTheDocument();
+  });
 });

@@ -183,7 +183,9 @@ const roleDialog = (page: Page, name: string): Locator =>
 const card = (scope: Locator, role: string): Locator => scope.getByRole('radio', { name: new RegExp(`^${role}`) });
 const okToast = (page: Page, title: string): Locator => page.getByRole('status').filter({ hasText: title });
 const settingsTab = (page: Page): Locator =>
-  page.getByRole('navigation', { name: 'Organization sections' }).getByRole('link', { name: 'Settings', exact: true });
+  page
+    .getByRole('navigation', { name: 'Organization sections' })
+    .getByRole('link', { name: 'Org settings', exact: true });
 
 async function openMembers(page: Page, w: World): Promise<void> {
   await page.goto(membersUrl(w));
@@ -637,7 +639,9 @@ test('TC-10.1: O invites B again as Viewer; B accepts and is listed with Viewer,
     await expect(b.page).toHaveURL(new RegExp(`/o/${w.org.slug}/p/${w.projectId}/runs$`));
     await expect(b.page.getByRole('navigation', { name: 'Project sections' })).toBeVisible();
     await expect(
-      b.page.getByRole('navigation', { name: 'Project sections' }).getByRole('link', { name: 'Settings', exact: true }),
+      b.page
+        .getByRole('navigation', { name: 'Project sections' })
+        .getByRole('link', { name: 'Project settings', exact: true }),
     ).toHaveCount(0);
     const access = AccessDto.parse(await ok(await b.api.get('/api/me/access'), 200, 'B access'));
     const permissions = access.assignments.flatMap((a) => a.permissions.map((p) => p.permission));

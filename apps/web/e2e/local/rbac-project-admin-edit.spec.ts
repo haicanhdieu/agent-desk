@@ -83,7 +83,7 @@ async function openMembers(who: Actor): Promise<void> {
   await who.page.goto(runsUrl());
   await who.page
     .getByRole('navigation', { name: 'Project sections' })
-    .getByRole('link', { name: 'Settings', exact: true })
+    .getByRole('link', { name: 'Project settings', exact: true })
     .click();
   await who.page.getByRole('navigation', { name: 'Desk' }).getByRole('link', { name: 'Members' }).click();
   await expect(membersHeading(who.page)).toBeVisible();

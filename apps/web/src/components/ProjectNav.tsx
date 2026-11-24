@@ -43,7 +43,7 @@ export function ProjectNav({
           aria-current={active === 'desk' ? 'page' : undefined}
         >
           <Icon name="sliders" size={15} />
-          Settings
+          Project settings
         </AppLink>
       )}
     </nav>

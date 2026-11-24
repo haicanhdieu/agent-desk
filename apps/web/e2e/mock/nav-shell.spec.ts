@@ -81,3 +81,58 @@ test.describe('breadcrumb and title', () => {
     await expect(crumbs(page).getByRole('link', { name: 'Acme' })).toHaveAttribute('href', `/platform/orgs/${ACME_ID}`);
   });
 });
+
+test.describe('tab names', () => {
+  test('the org tabs read Projects and Org settings, the project tabs Runs and Project settings', async ({ page }) => {
+    await seedOnboarding(page, 'owner');
+    await page.goto('/o/acme/projects');
+    const orgTabs = page.getByRole('navigation', { name: 'Organization sections' });
+    await expect(orgTabs.getByRole('link', { name: 'Projects', exact: true })).toBeVisible();
+    await expect(orgTabs.getByRole('link', { name: 'Org settings', exact: true })).toBeVisible();
+    await expect(orgTabs.getByRole('link', { name: 'Settings', exact: true })).toHaveCount(0);
+
+    await page.goto(`/o/acme/p/${INVOICER_API}/runs`);
+    const projectTabs = page.getByRole('navigation', { name: 'Project sections' });
+    await expect(projectTabs.getByRole('link', { name: /^Runs/ })).toBeVisible();
+    await expect(projectTabs.getByRole('link', { name: 'Project settings', exact: true })).toBeVisible();
+    await expect(projectTabs.getByRole('link', { name: 'Settings', exact: true })).toHaveCount(0);
+  });
+});
+
+test.describe('roles', () => {
+  const scopeMenu = (page: Page): Locator => page.getByRole('dialog', { name: 'Scope' });
+  const openScopeMenu = async (page: Page): Promise<void> => {
+    await page.getByRole('button', { name: /^Switch scope/ }).click();
+    await expect(scopeMenu(page)).toBeVisible();
+  };
+
+  test('an org admin without the platform role sees no Platform group and no "Manage this org in Platform"', async ({
+    page,
+  }) => {
+    await seedOnboarding(page, 'orgAdmin');
+    await page.goto('/o/acme/projects');
+    await openScopeMenu(page);
+    await expect(scopeMenu(page).getByRole('group', { name: 'Platform' })).toHaveCount(0);
+    await expect(scopeMenu(page).getByRole('link', { name: 'Platform admin' })).toHaveCount(0);
+    await expect(scopeMenu(page).getByText('Manage this org in Platform')).toHaveCount(0);
+  });
+
+  test('a project admin sees no Platform group and the Org settings tab opens Invitations only', async ({ page }) => {
+    await seedOnboarding(page, 'projectAdmin');
+    await page.goto('/o/acme/projects');
+    await openScopeMenu(page);
+    await expect(scopeMenu(page).getByRole('group', { name: 'Platform' })).toHaveCount(0);
+    await expect(scopeMenu(page).getByText('Manage this org in Platform')).toHaveCount(0);
+    await page.keyboard.press('Escape');
+
+    await page
+      .getByRole('navigation', { name: 'Organization sections' })
+      .getByRole('link', { name: 'Org settings' })
+      .click();
+    const side = page.getByRole('navigation', { name: 'Organization settings' });
+    await expect(side.getByRole('link', { name: 'Invitations', exact: true })).toBeVisible();
+    for (const name of ['General', 'Members', 'Audit log']) {
+      await expect(side.getByRole('link', { name, exact: true })).toHaveCount(0);
+    }
+  });
+});

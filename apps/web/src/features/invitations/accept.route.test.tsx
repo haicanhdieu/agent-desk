@@ -330,7 +330,7 @@ describe('invitation link under the app bar', () => {
     expect(within(nav).getByRole('link', { name: 'Projects' })).not.toHaveAttribute('aria-current');
     await user.click(screen.getByRole('button', { name: /^Switch scope/ }));
     const menu = await screen.findByRole('dialog', { name: 'Scope' });
-    expect(within(menu).getByRole('link', { name: 'Settings' })).toHaveAttribute('href', '/o/alice/settings');
+    expect(within(menu).getByRole('link', { name: 'Org settings' })).toHaveAttribute('href', '/o/alice/settings');
   });
 
   it('BR-43 a person with no org sees "No organization" and no tabs', async () => {

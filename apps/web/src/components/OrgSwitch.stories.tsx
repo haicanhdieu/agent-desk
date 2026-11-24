@@ -70,3 +70,7 @@ export const DualRole: Story = {
   play: openOnLoad,
 };
 export const MemberOnly: Story = { args: orgSwitchFixtures.oneOrgSettings, play: openOnLoad };
+export const DualRoleManage: Story = {
+  args: { ...orgSwitchFixtures.platformAdminSettings, ...platformLinks, manageHref: '/platform/orgs/acme' },
+  play: openOnLoad,
+};

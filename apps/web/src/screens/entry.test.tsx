@@ -182,7 +182,7 @@ describe('Projects onboarding', () => {
     render(<Projects user={user} projects={projects} newHref="/new" canCreate />);
     const main = screen.getByRole('main');
     expect(within(main).getByRole('link', { name: 'New project' })).toBeInTheDocument();
-    expect(within(main).queryByRole('link', { name: /^(Settings|Invitations)$/ })).not.toBeInTheDocument();
+    expect(within(main).queryByRole('link', { name: /^(Org settings|Invitations)$/ })).not.toBeInTheDocument();
   });
 
   it('shows no New project and no Settings or Switch to polling without their hrefs', async () => {
@@ -262,7 +262,7 @@ describe('ProjectsEmpty onboarding', () => {
   it('TC-49.6: offers Create project and no Settings or Invitations button', () => {
     render(<ProjectsEmpty user={user} createHref="/new" canCreate />);
     expect(screen.getByRole('link', { name: 'Create project' })).toBeInTheDocument();
-    expect(screen.queryByRole('link', { name: /^(Settings|Invitations)$/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: /^(Org settings|Invitations)$/ })).not.toBeInTheDocument();
   });
 
   it('shows no Create project when canCreate is left out (fail closed)', () => {
@@ -317,7 +317,7 @@ describe('org bar on Projects and ProjectsEmpty', () => {
     render(make('/o/harbor-labs/settings'));
     const nav = screen.getByRole('navigation', { name: 'Organization sections' });
     expect(within(nav).getByRole('link', { name: /Projects/ })).toHaveAttribute('aria-current', 'page');
-    expect(within(nav).getByRole('link', { name: /Settings/ })).toHaveAttribute('href', '/o/harbor-labs/settings');
+    expect(within(nav).getByRole('link', { name: /Org settings/ })).toHaveAttribute('href', '/o/harbor-labs/settings');
   });
 
   it.each(cases)('%s: header has no Settings or Invitations button when the Settings tab is shown', (_n, make) => {
@@ -327,15 +327,15 @@ describe('org bar on Projects and ProjectsEmpty', () => {
       screen.queryAllByRole(role, { name }).filter((el) => !nav.contains(el));
     expect(screen.queryByRole('link', { name: 'Invitations' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Invitations' })).not.toBeInTheDocument();
-    expect(outsideNav('link', /^Settings$/)).toHaveLength(0);
-    expect(outsideNav('button', /^Settings$/)).toHaveLength(0);
+    expect(outsideNav('link', /^Org settings$/)).toHaveLength(0);
+    expect(outsideNav('button', /^Org settings$/)).toHaveLength(0);
   });
 
   it.each(cases)('%s: no Settings tab without settingsHref', (_n, make) => {
     render(make());
     const nav = screen.getByRole('navigation', { name: 'Organization sections' });
     expect(within(nav).getByRole('link', { name: /Projects/ })).toHaveAttribute('aria-current', 'page');
-    expect(within(nav).queryByRole('link', { name: /Settings/ })).not.toBeInTheDocument();
+    expect(within(nav).queryByRole('link', { name: /Org settings/ })).not.toBeInTheDocument();
   });
 });
 

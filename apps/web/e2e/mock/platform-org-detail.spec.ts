@@ -22,6 +22,7 @@ test.use({ timezoneId: 'UTC', locale: 'en-US' });
 
 const ORGS = '/platform/orgs';
 const ACME = 'b8000000-0000-4000-8000-000000000001';
+const ALICE_ORG = 'b6000000-0000-4000-8000-000000000001';
 const DETAIL = `${ORGS}/${ACME}`;
 const PENDING = 'pending@example.test';
 const REVOKED = 'revoked@example.test';
@@ -531,5 +532,21 @@ test.describe('BR-31: invitation email validation', () => {
     await submit(page);
 
     await expectErrorAtEmailAndNothingCreated(page, 'new@example.test');
+  });
+});
+
+test.describe('Open organization', () => {
+  test('"Open organization" on a member org lands on /o/<slug>/projects', async ({ page }) => {
+    await open(page, 'platformAdminMemberOrg', { path: `${ORGS}/${ALICE_ORG}` });
+    const link = page.getByRole('link', { name: 'Open organization' });
+    await expect(link).toHaveAttribute('href', '/o/alice/projects');
+    await link.click();
+    await expect(page).toHaveURL(/\/o\/alice\/projects$/);
+  });
+
+  test('a non-member org has no "Open organization"', async ({ page }) => {
+    await open(page);
+    await expect(page.getByRole('heading', { name: 'Acme', level: 1 })).toBeVisible();
+    await expect(page.getByRole('link', { name: 'Open organization' })).toHaveCount(0);
   });
 });

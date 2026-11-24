@@ -27,7 +27,7 @@ export function OrgNav({ active, projectsHref, settingsHref }: OrgNavProps) {
           aria-current={active === 'settings' ? 'page' : undefined}
         >
           <Icon name="sliders" size={15} />
-          Settings
+          Org settings
         </AppLink>
       )}
     </nav>

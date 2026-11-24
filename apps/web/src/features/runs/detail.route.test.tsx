@@ -106,7 +106,7 @@ describe('run detail route', () => {
       const { user, router } = await renderRoute(`${base}/runs/62`);
       await screen.findByText('The agent is waiting for your answer');
       await user.click(orgButton());
-      await user.click(await screen.findByRole('link', { name: /^Settings/ }));
+      await user.click(await screen.findByRole('link', { name: /^Org settings/ }));
       await screen.findByRole('navigation', { name: 'Organization settings' });
       expect(router.state.location.pathname).toBe('/o/alice/settings/general');
     });
@@ -126,7 +126,7 @@ describe('run detail route', () => {
       });
       await screen.findByText('The agent is waiting for your answer');
       await user.click(orgButton());
-      await user.click(await screen.findByRole('link', { name: /^Settings/ }));
+      await user.click(await screen.findByRole('link', { name: /^Org settings/ }));
       const side = await screen.findByRole('navigation', { name: 'Organization settings' });
       expect(router.state.location.pathname).toBe('/o/acme/settings/invitations');
       expect(
@@ -143,7 +143,7 @@ describe('run detail route', () => {
       await screen.findByText('The agent is waiting for your answer');
       await user.click(orgButton());
       await screen.findByRole('link', { name: /^Projects/ });
-      expect(screen.queryByRole('link', { name: /^Settings/ })).not.toBeInTheDocument();
+      expect(screen.queryByRole('link', { name: /^Org settings/ })).not.toBeInTheDocument();
     });
   });
 

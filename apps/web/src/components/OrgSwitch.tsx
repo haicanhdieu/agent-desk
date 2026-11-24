@@ -13,6 +13,8 @@ export interface OrgSwitchProps extends OrgSwitchData {
   settingsHref?: string;
   /** Present for a platform admin: the "Platform admin" item above "Create organization". */
   platformHref?: string;
+  /** Present for a platform admin on an org page: "Manage this org in Platform" in the Platform group (org scope only). */
+  manageHref?: string;
   /** Where the bar sits: the button names Platform in the platform scope. Default 'org'. */
   scope?: 'org' | 'platform';
 }
@@ -40,6 +42,7 @@ function OrgSwitchMenu({
   projectsHref,
   settingsHref,
   platformHref,
+  manageHref,
   scope = 'org',
 }: OrgSwitchProps) {
   const inPlatform = scope === 'platform';
@@ -117,6 +120,11 @@ function OrgSwitchMenu({
                   </span>
                 )}
               </AppLink>
+              {manageHref !== undefined && !inPlatform && (
+                <AppLink href={manageHref} className={styles.item} onClick={close}>
+                  <span className={styles.itemName}>Manage this org in Platform</span>
+                </AppLink>
+              )}
             </div>
           )}
           {orgShown && (
@@ -134,7 +142,7 @@ function OrgSwitchMenu({
               {settingsHref !== undefined && (
                 <AppLink href={settingsHref} className={styles.item} onClick={close}>
                   <Icon name="sliders" size={15} />
-                  <span className={styles.itemName}>Settings</span>
+                  <span className={styles.itemName}>Org settings</span>
                 </AppLink>
               )}
             </>

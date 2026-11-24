@@ -380,11 +380,11 @@ export interface PlatformLayoutProps {
 - Modify: `components/OrgNav.tsx`, `ProjectNav.tsx`, `OrgSwitch.tsx` (item "Org settings"), their tests and stories, `Chrome.test.tsx`
 - Modify (selectors): files from `grep -rlnE "name: 'Settings'|name: /\^?Settings/|'Settings' \}" apps/web/src apps/web/e2e` (34 files on `main`); replace with `'Org settings'` or `'Project settings'` by context, never with a looser regex
 
-- [ ] **Step 1: Write the failing tests**: `OrgNav.test.tsx` `it('the settings tab reads "Org settings"')`; `Chrome.test.tsx` `it('the project settings tab reads "Project settings"')`; `OrgSwitch.test.tsx` `it('the current org group lists "Projects" and "Org settings"')`.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/components/OrgNav.test.tsx src/components/Chrome.test.tsx src/components/OrgSwitch.test.tsx`. Expected: FAIL.
-- [ ] **Step 3: Implement** the three labels; update selectors from the grep.
-- [ ] **Step 4: Run** `pnpm --filter @agentdesk/web test`. Expected: PASS.
-- [ ] **Step 5: Commit** `feat(web): Org settings and Project settings tab names`.
+- [x] **Step 1: Write the failing tests**: `OrgNav.test.tsx` `it('the settings tab reads "Org settings"')`; `Chrome.test.tsx` `it('the project settings tab reads "Project settings"')`; `OrgSwitch.test.tsx` `it('the current org group lists "Projects" and "Org settings"')`.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/components/OrgNav.test.tsx src/components/Chrome.test.tsx src/components/OrgSwitch.test.tsx`. Expected: FAIL.
+- [x] **Step 3: Implement** the three labels; update selectors from the grep.
+- [x] **Step 4: Run** `pnpm --filter @agentdesk/web test`. Expected: PASS.
+- [x] **Step 5: Commit** `feat(web): Org settings and Project settings tab names`.
 
 ### Task 11: "Open organization" and "Manage this org in Platform"
 
@@ -405,15 +405,15 @@ OrgSwitchProps: + manageHref?: string // "Manage this org in Platform" in the Pl
 PlatformOrgHeaderProps: + openHref?: string
 ```
 
-- [ ] **Step 1: Write the failing tests.**
+- [x] **Step 1: Write the failing tests.**
   - `appBar.test.tsx`: `openOrgHref` returns the href for a membership id and `undefined` for another id; ids are matched, never slugs.
   - `appBar.route.test.tsx`: `it('a platform admin gets manageHref for the current org')`; `it('an org admin without the platform role gets no manageHref')`; `it('a failed GET /api/me/platform gives no Platform group and no manageHref')` (MSW 500; Review Focus 4).
   - `OrgSwitch.test.tsx`: the item shows only with `manageHref` and only in org scope.
   - `PlatformOrgHeader.test.tsx`: link "Open organization" only with `openHref`, after "View audit log".
   - `features/platform/orgDetail.route.test.tsx`: member org shows the link to `/o/alice/projects`; non-member org shows none.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/features/chrome src/components/OrgSwitch.test.tsx src/components/PlatformOrgHeader.test.tsx src/features/platform/orgDetail.route.test.tsx`. Expected: FAIL.
-- [ ] **Step 3: Implement**: the route reads `useSuspenseQuery(orgsQuery)` (already ensured by the platform `beforeLoad`) and passes `openOrgHref(orgs, orgId)`. Stories: header WithOpenLink / WithoutOpenLink; OrgSwitch DualRoleManage. Register the 9 boards; regenerate the interactive prototype.
-- [ ] **Step 4: Run** `pnpm --filter @agentdesk/web typecheck && pnpm --filter @agentdesk/web test`. Expected: PASS.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/features/chrome src/components/OrgSwitch.test.tsx src/components/PlatformOrgHeader.test.tsx src/features/platform/orgDetail.route.test.tsx`. Expected: FAIL.
+- [x] **Step 3: Implement**: the route reads `useSuspenseQuery(orgsQuery)` (already ensured by the platform `beforeLoad`) and passes `openOrgHref(orgs, orgId)`. Stories: header WithOpenLink / WithoutOpenLink; OrgSwitch DualRoleManage. The 9-board registration is deferred to the follow-up `test(web): navigation shell boards` PR (Agent call, unit over about 850 lines).
+- [x] **Step 4: Run** `pnpm --filter @agentdesk/web typecheck && pnpm --filter @agentdesk/web test`. Expected: PASS.
 - [ ] **Step 5: Commit** `feat(web): Open organization and Manage this org in Platform links`.
 
 ### Task 12: e2e for cross-scope links, tab names and roles
@@ -423,13 +423,13 @@ PlatformOrgHeaderProps: + openHref?: string
 **Files:**
 - Modify: `apps/web/e2e/mock/nav-shell.spec.ts`, `platform-org-detail.spec.ts`, `org-switch.spec.ts`; `apps/web/e2e/local/platform-access.spec.ts`
 
-- [ ] **Step 1: Write the tests.**
+- [x] **Step 1: Write the tests.**
   - `nav-shell.spec.ts` (`test.describe('tab names')`, `owner`): `test('the org tabs read Projects and Org settings, the project tabs Runs and Project settings')`.
   - `nav-shell.spec.ts` (`test.describe('roles')`, the role-based case): `test('an org admin without the platform role sees no Platform group and no "Manage this org in Platform"')` (`seedOnboarding(page, 'orgAdmin')`); `test('a project admin sees no Platform group and the Org settings tab opens Invitations only')` (`'projectAdmin'`: tab "Org settings" visible; side menu `Organization settings` holds "Invitations" and none of "General", "Members", "Audit log").
   - `platform-org-detail.spec.ts` (`platformAdminOrgs`): `test('"Open organization" on a member org lands on /o/<slug>/projects')`; `test('a non-member org has no "Open organization"')`. Agent call: if the scenario has no platform org the admin is not a member of, add one to `platformScenarios.ts` in this task.
   - `org-switch.spec.ts`: `test('"Manage this org in Platform" opens /platform/orgs/<id>')`.
   - `platform-access.spec.ts` (local): `test('a dual-role user clicks "Open organization" and lands on the org with it active')` (fresh user via `freshUser`, `grantPlatformAdmin(pa, …)`, owner of org A via `signInAndCreateProject`; open `/platform/orgs/<A id>`, click, expect `/o/<A slug>/projects` and the scope button names org A); `test('a platform admin who is a member of org A sees no "Open organization" on org B and /o/<b-slug> stays not found')` (org B via `createOrg(pa, …)`; cross-tenant).
-- [ ] **Step 2: Run**
+- [x] **Step 2: Run**
 
 ```bash
 pnpm --filter @agentdesk/web exec vite build --mode mock
@@ -439,7 +439,7 @@ pnpm --filter @agentdesk/web exec playwright test e2e/local/platform-access.spec
 ```
 
 Plus the changed specs from Task 10's selector updates (`git diff --name-only main -- apps/web/e2e`). Expected: PASS. If the stack cannot start, say so in the PR and list the local tests as written but not run.
-- [ ] **Step 3: Commit** `test(web): cross-scope links, tab names and role e2e`.
+- [x] **Step 3: Commit** `test(web): cross-scope links, tab names and role e2e`.
 
 ---
 

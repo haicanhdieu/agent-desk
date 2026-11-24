@@ -838,7 +838,7 @@ describe('OrgInvitations inside the settings layout', () => {
       </OrgSettingsFrame>,
     );
     const main = within(screen.getByRole('navigation', { name: 'Organization sections' }));
-    expect(main.getByRole('link', { name: 'Settings' })).toHaveAttribute('aria-current', 'page');
+    expect(main.getByRole('link', { name: 'Org settings' })).toHaveAttribute('aria-current', 'page');
     expect(tabNames()).toEqual(['General', 'Members', 'Invitations', 'Audit log']);
     const side = within(screen.getByRole('navigation', { name: 'Organization settings' }));
     expect(side.getByRole('link', { name: 'Invitations' })).toHaveAttribute('aria-current', 'page');
@@ -859,7 +859,7 @@ describe('OrgInvitations inside the settings layout', () => {
         <p>Body</p>
       </OrgSettingsFrame>,
     );
-    expect(screen.queryByRole('link', { name: 'Settings' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Org settings' })).not.toBeInTheDocument();
     expect(screen.queryByRole('navigation', { name: 'Organization settings' })).not.toBeInTheDocument();
     expect(screen.getByText('Body')).toBeInTheDocument();
   });
@@ -867,7 +867,7 @@ describe('OrgInvitations inside the settings layout', () => {
   const noTabActive = () => {
     const main = within(screen.getByRole('navigation', { name: 'Organization sections' }));
     expect(main.getByRole('link', { name: 'Projects' })).not.toHaveAttribute('aria-current');
-    expect(main.getByRole('link', { name: 'Settings' })).not.toHaveAttribute('aria-current');
+    expect(main.getByRole('link', { name: 'Org settings' })).not.toHaveAttribute('aria-current');
   };
 
   it('BR-43: My invitations shows the org bar with no tab active', () => {
