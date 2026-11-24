@@ -371,6 +371,8 @@ export const stateStories = {
   DeskAgentCheckingNow: { title: desk, exportName: 'DeskAgentCheckingNow', board: 'DeskAgent' },
   DeskAgentCheckNowRefused: { title: desk, exportName: 'DeskAgentCheckNowRefused', board: 'DeskAgent' },
   DeskRulesNewRuleError: { title: desk, exportName: 'DeskRulesNewRuleError', board: 'DeskRules' },
+  Setup4Skip: { title: setup, exportName: 'Setup4Skip', board: 'Setup4' },
+  SetupReadyNoRule: { title: setup, exportName: 'SetupReadyNoRule', board: 'SetupReady' },
   Setup4Prompt: { title: setup, exportName: 'Setup4Prompt', board: 'Setup4' },
   DeskAgentLoadingModels: { title: desk, exportName: 'DeskAgentLoadingModels', board: 'DeskAgent' },
   DeskAgentModelsFailed: { title: desk, exportName: 'DeskAgentModelsFailed', board: 'DeskAgent' },

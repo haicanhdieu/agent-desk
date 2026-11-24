@@ -26,6 +26,8 @@ export interface SetupReadyProps {
   runsHref?: string;
   /** Where to add a rule later; shown when there is no rule yet. */
   rulesHref?: string;
+  /** False hides the Add a rule action (the viewer cannot create rules). Display only: the API decides. */
+  canAddRule?: boolean;
   /** Workspace setup warning (warn, don't block): the project still goes live. */
   warning?: { title: string; detail: string; href?: string };
 }
@@ -44,6 +46,7 @@ export function SetupReady({
   issuesHref = `https://github.com/${repo}/issues`,
   runsHref = '#',
   rulesHref = '#',
+  canAddRule = true,
   warning,
 }: SetupReadyProps) {
   return (
@@ -122,9 +125,11 @@ export function SetupReady({
             Open issues in GitHub
           </Button>
         ) : (
-          <Button variant="primary" href={rulesHref}>
-            Add a rule
-          </Button>
+          canAddRule && (
+            <Button variant="primary" href={rulesHref}>
+              Add a rule
+            </Button>
+          )
         )}
         <Button href={runsHref}>Go to runs</Button>
       </div>

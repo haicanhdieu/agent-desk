@@ -527,3 +527,22 @@ describe('setup screens pass the org to the top bar', () => {
     expect(screen.getByRole('button', { name: /Harbor Labs/ })).toBeInTheDocument();
   });
 });
+
+describe('SetupReady without rule:create', () => {
+  it('hides the Add a rule action but keeps the empty state', () => {
+    render(
+      <SetupReady
+        user={user}
+        projectName="invoicer-api"
+        repo={repo}
+        summary={[]}
+        lastEvent={{ mode: 'webhook', at: 'ping, 14:01:37' }}
+        rulesHref="/o/alice/p/p1/desk/rules"
+        canAddRule={false}
+      />,
+    );
+    expect(screen.getByText('No rule yet')).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Add a rule' })).toBeNull();
+    expect(screen.getByRole('link', { name: 'Go to runs' })).toBeInTheDocument();
+  });
+});

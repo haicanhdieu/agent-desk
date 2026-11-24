@@ -96,11 +96,13 @@ test('skipping the workspace, skills and first rule steps still finishes setup',
   await expect(page.getByText('Step 4 of 5, optional')).toBeVisible();
   await page.getByRole('button', { name: 'Skip' }).click();
   await expect(page.getByText('Step 5 of 5, optional')).toBeVisible();
+  await expect(page.getByRole('listitem').filter({ hasText: 'Add first rule' }).getByText('optional')).toBeVisible();
   await page.getByRole('button', { name: 'Skip' }).click();
 
   // Ready, with no rule: an empty state that points to adding one.
   await expect(page).toHaveURL(/\/new\/ready\?project=/);
   await expect(page.getByRole('heading', { name: 'Add a rule to trigger runs', level: 1 })).toBeVisible();
+  await expect(page.getByText('Project ready')).toBeVisible();
   await expect(page.getByText('No rule yet')).toBeVisible();
   await expect(page.getByRole('link', { name: 'Add a rule' })).toBeVisible();
   await page.getByRole('link', { name: 'Go to runs' }).click();

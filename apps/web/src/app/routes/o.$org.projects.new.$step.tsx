@@ -533,6 +533,7 @@ function ReadyStep({ org, projectId }: { org: string; projectId: string }) {
   const rules = rulesPage.items;
   const { data: connection } = useSuspenseQuery(projectsQueries.connection(org, projectId));
   const warning = useSetupWarning(org, projectId, useCan(org, 'setup:read', { projectId }));
+  const canAddRule = useCan(org, 'rule:create', { projectId });
   const first = rules[0];
   const label = first?.labelFilter[0];
   const skillList = skills.items.map((s) => s.name).join(', ');
@@ -571,6 +572,7 @@ function ReadyStep({ org, projectId }: { org: string; projectId: string }) {
       credentialDetail={credentialDetail(agent)}
       runsHref={`/o/${encodeURIComponent(org)}/p/${encodeURIComponent(projectId)}/runs`}
       rulesHref={projectPaths(org, projectId).rules}
+      canAddRule={canAddRule}
       {...(warning && {
         warning: { title: warning.title, detail: warning.detail, href: projectPaths(org, projectId).setup },
       })}
