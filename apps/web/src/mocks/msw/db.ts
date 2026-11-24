@@ -35,6 +35,7 @@ import { projectMemberFixtures } from '../dto/projectMembers';
 import { ruleFixtures } from '../dto/rules';
 import { runFixtures, type MockRun } from '../dto/runs';
 import { prStateFixtures } from '../dto/prStates';
+import type { GithubSyncScenario } from './githubSync';
 import type { PrStatesScenario } from './prStates';
 import { environmentFixtures, pluginFixtures, setupScriptFixtures } from '../dto/setup';
 import { skillFixtures } from '../dto/skills';
@@ -172,6 +173,8 @@ export interface MockState {
   /** Live PR states per project id and ticket number (`tickets.prStates`), and the scenario that bends the answer. */
   prStates: Record<string, Record<string, PrState>>;
   prStatesScenario?: PrStatesScenario;
+  /** How `connections.sync` fails until the person signs in with GitHub again (the sign-in clears it). */
+  githubSyncScenario?: GithubSyncScenario;
   skills: Record<string, SkillDto[]>;
   /** When set, skill writes and deletes answer with a pending change request instead of a commit (a protected default branch). */
   skillReviewRequired?: boolean;

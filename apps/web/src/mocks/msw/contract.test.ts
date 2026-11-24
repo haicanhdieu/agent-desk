@@ -410,6 +410,22 @@ describe('MSW handler semantics', () => {
     expect(res.status).toBe(400);
   });
 
+  it('connections.sync fails as the scenario says (409 reconnect, 503 later) until the GitHub sign-in clears it', async () => {
+    scenarios.githubSync('reauth');
+    const reauth = await rejection(api.connections.sync({ params: { provider: 'github' } }));
+    expect([reauth.status, reauth.type]).toEqual([409, 'urn:agentdesk:problem:provider-reauthorization-required']);
+    scenarios.githubSync('unavailable');
+    const later = await rejection(api.connections.sync({ params: { provider: 'github' } }));
+    expect([later.status, later.type]).toEqual([503, 'urn:agentdesk:problem:provider-unavailable']);
+    scenarios.githubSync('reauth');
+    await fetch('http://localhost:3000/auth/sign-in/social', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ provider: 'github', callbackURL: '/' }),
+    });
+    expect(await api.connections.sync({ params: { provider: 'github' } })).toBeInstanceOf(Array);
+  });
+
   it('creates, updates and deletes rules with a 409 on a duplicate command', async () => {
     const created = await api.rules.create({
       params: { projectId: P },

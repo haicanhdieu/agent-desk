@@ -60,6 +60,12 @@ export interface Setup1Props extends SetupNav {
   onRefresh?(): void;
   /** The repository list is loading again: Refresh repositories is disabled until it is done. */
   refreshing?: boolean;
+  /** GitHub no longer accepts the signed-in account's token, so looking up repositories cannot work until the person signs in with GitHub again. Shows the Reconnect GitHub banner. */
+  reconnectRequired?: boolean;
+  /** Sign in with GitHub again, then come back to this step. */
+  onReconnect?(): void;
+  /** The sign-in is starting: Reconnect GitHub is disabled until it answers. */
+  reconnecting?: boolean;
   /** Saves the step. With it, Continue is a button instead of the `nextHref` link. */
   onContinue?(draft: Setup1Draft): void;
   saving?: boolean;
@@ -101,6 +107,9 @@ export function Setup1({
   onConnect,
   onRefresh,
   refreshing,
+  reconnectRequired,
+  onReconnect,
+  reconnecting,
   onContinue,
   saving,
   errors,
@@ -182,6 +191,23 @@ export function Setup1({
       }
     >
       {formError && <Banner tone="err" icon={<Icon name="warning" size={16} />} title={formError} live="assertive" />}
+      {reconnectRequired && (
+        <Banner
+          tone="err"
+          icon={<Icon name="warning" size={16} />}
+          title={c.reconnectTitle}
+          live="assertive"
+          actions={
+            onReconnect && (
+              <Button variant="primary" size="sm" onClick={onReconnect} disabled={reconnecting}>
+                {c.reconnectAction}
+              </Button>
+            )
+          }
+        >
+          {c.reconnectBody}
+        </Banner>
+      )}
       <Field label="Project name" error={errors?.name}>
         {({ id, describedBy, invalid }) => (
           <TextInput

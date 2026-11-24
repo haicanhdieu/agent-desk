@@ -1,5 +1,6 @@
 import { focusManager, type QueryClient } from '@tanstack/react-query';
 import { act, screen, waitFor, within } from '@testing-library/react';
+import { http, HttpResponse } from 'msw';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ids } from '@/mocks/dto/ids';
 import { mockDb } from '@/mocks/msw/db';
@@ -661,6 +662,129 @@ describe('setup flow fixes', () => {
     expect(await screen.findByRole('alert')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Refresh repositories' })).toBeEnabled();
     expect(screen.getByRole('radio', { name: 'harbor-labs/invoicer-api' })).toBeInTheDocument();
+  });
+
+  describe('a GitHub account that must be connected again', () => {
+    const reauth = () =>
+      routeHandler('connections.sync', async () =>
+        problemResponse({
+          status: 409,
+          title: 'Conflict',
+          type: 'provider-reauthorization-required',
+          detail: 'Your account at the provider must be connected again.',
+        }),
+      );
+
+    /** Answers the GitHub sign-in the way better-auth does, without sending jsdom anywhere; records what was asked. */
+    function captureSignIn() {
+      const asked: unknown[] = [];
+      server.use(
+        http.post('/auth/sign-in/social', async ({ request }) => {
+          asked.push(await request.json());
+          return HttpResponse.json({ url: '/', redirect: false });
+        }),
+      );
+      return asked;
+    }
+
+    it('Refresh repositories offers Reconnect GitHub, which signs in with GitHub again and returns to this step', async () => {
+      server.use(reauth());
+      const asked = captureSignIn();
+      const { user } = await renderRoute(`${base}/repo`);
+      await screen.findByRole('radio', { name: 'harbor-labs/invoicer-api' });
+      await user.click(screen.getByRole('button', { name: 'Refresh repositories' }));
+      const reconnect = await screen.findByRole('button', { name: 'Reconnect GitHub' });
+      expect(screen.getByText(/sign in with GitHub again/i)).toBeInTheDocument();
+      // The list the page already had stays, and no toast says "Conflict".
+      expect(screen.getByRole('radio', { name: 'harbor-labs/invoicer-api' })).toBeInTheDocument();
+      expect(screen.queryByText('Conflict')).not.toBeInTheDocument();
+      await user.click(reconnect);
+      await waitFor(() => expect(asked).toHaveLength(1));
+      expect(asked[0]).toMatchObject({
+        provider: 'github',
+        callbackURL: `${base}/repo`,
+        errorCallbackURL: `${base}/repo`,
+      });
+    });
+
+    it('the reconnect return keeps the search of the step (the project being edited)', async () => {
+      server.use(reauth());
+      const asked = captureSignIn();
+      const { user } = await renderRoute(`${base}/repo?connection=${ids.connection.harbor}`);
+      await screen.findByRole('radio', { name: 'harbor-labs/invoicer-api' });
+      await user.click(screen.getByRole('button', { name: 'Refresh repositories' }));
+      await user.click(await screen.findByRole('button', { name: 'Reconnect GitHub' }));
+      await waitFor(() => expect(asked).toHaveLength(1));
+      expect(asked[0]).toMatchObject({ callbackURL: `${base}/repo?connection=${ids.connection.harbor}` });
+    });
+
+    it('a later successful refresh takes the Reconnect GitHub banner away', async () => {
+      server.use(reauth());
+      const { user } = await renderRoute(`${base}/repo`);
+      await screen.findByRole('radio', { name: 'harbor-labs/invoicer-api' });
+      await user.click(screen.getByRole('button', { name: 'Refresh repositories' }));
+      await screen.findByRole('button', { name: 'Reconnect GitHub' });
+      server.resetHandlers();
+      await user.click(screen.getByRole('button', { name: 'Refresh repositories' }));
+      await waitFor(() => expect(screen.queryByRole('button', { name: 'Reconnect GitHub' })).not.toBeInTheDocument());
+    });
+
+    it('Connect GitHub does not hide it behind the install page', async () => {
+      mockDb.state.connections = mockDb.state.connections.filter((c) => c.orgId !== ids.org.alice);
+      server.use(reauth());
+      const { tab } = stubTab();
+      const same = vi.spyOn(browserLocation, 'assign').mockImplementation(() => undefined);
+      const { user } = await renderRoute(`${base}/repo`);
+      await user.click(await screen.findByRole('button', { name: 'Connect GitHub' }));
+      expect(await screen.findByRole('button', { name: 'Reconnect GitHub' })).toBeInTheDocument();
+      expect(mockDb.requests('POST', '/api/connections/github/install')).toBe(0);
+      expect(tab.close).toHaveBeenCalledTimes(1);
+      expect(tab.location.href).toBe('');
+      expect(same).not.toHaveBeenCalled();
+    });
+
+    it('Connect GitHub still falls back to the install page when the lookup fails for another reason', async () => {
+      mockDb.state.connections = mockDb.state.connections.filter((c) => c.orgId !== ids.org.alice);
+      server.use(routeHandler('connections.sync', async () => jsonResponse({ title: 'GitHub is down' }, 502)));
+      const { tab } = stubTab();
+      const { user } = await renderRoute(`${base}/repo`);
+      await user.click(await screen.findByRole('button', { name: 'Connect GitHub' }));
+      await waitFor(() => expect(tab.location.href).toBe(INSTALL_URL));
+      expect(screen.queryByRole('button', { name: 'Reconnect GitHub' })).not.toBeInTheDocument();
+    });
+
+    it('GitHub being unavailable is a retry-later toast, not a reconnect', async () => {
+      server.use(
+        routeHandler('connections.sync', async () =>
+          problemResponse({
+            status: 503,
+            title: 'Service Unavailable',
+            type: 'provider-unavailable',
+            detail: 'The provider is not available right now. Try again later.',
+          }),
+        ),
+      );
+      const { user } = await renderRoute(`${base}/repo`);
+      await screen.findByRole('radio', { name: 'harbor-labs/invoicer-api' });
+      await user.click(screen.getByRole('button', { name: 'Refresh repositories' }));
+      expect(await screen.findByRole('alert')).toHaveTextContent('Try again later');
+      expect(screen.queryByRole('button', { name: 'Reconnect GitHub' })).not.toBeInTheDocument();
+    });
+
+    it('a failed Reconnect GitHub says so and can be tried again', async () => {
+      server.use(reauth());
+      server.use(
+        http.post('/auth/sign-in/social', () =>
+          HttpResponse.json({ code: 'PROVIDER_ERROR', message: 'GitHub is unavailable' }, { status: 500 }),
+        ),
+      );
+      const { user } = await renderRoute(`${base}/repo`);
+      await screen.findByRole('radio', { name: 'harbor-labs/invoicer-api' });
+      await user.click(screen.getByRole('button', { name: 'Refresh repositories' }));
+      await user.click(await screen.findByRole('button', { name: 'Reconnect GitHub' }));
+      expect(await screen.findByText('GitHub is unavailable')).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Reconnect GitHub' })).toBeEnabled();
+    });
   });
 
   it('coming back to the tab refreshes the repository list on its own', async () => {

@@ -105,6 +105,14 @@ export const Setup1RefreshRepos: Story = {
   render: () => <Setup1Screen {...setup1} pingAt="14:01:37" onRefresh={() => undefined} />,
 };
 
+export const Setup1ReconnectGithub: Story = {
+  name: 'Setup 1, reconnect GitHub',
+  ...tall,
+  render: () => (
+    <Setup1Screen {...setup1} onRefresh={() => undefined} reconnectRequired onReconnect={() => undefined} />
+  ),
+};
+
 export const Setup1Refreshing: Story = {
   name: 'Setup 1, refreshing repositories',
   ...tall,
