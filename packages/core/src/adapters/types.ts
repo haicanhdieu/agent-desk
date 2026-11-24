@@ -186,6 +186,32 @@ export class SkillNotFoundError extends Error {
   }
 }
 
+/**
+ * Thrown when the provider rejects the user's own token (revoked, expired, or no longer refreshable). Retrying cannot
+ * help: the user must connect that account again. Carries no provider detail.
+ */
+export class ProviderReauthRequiredError extends Error {
+  constructor() {
+    super('the provider rejected the linked account token');
+    this.name = 'ProviderReauthRequiredError';
+  }
+}
+
+/**
+ * Thrown when the provider could not answer (server error, network failure) or is limiting requests. Retrying later
+ * may work. `upstreamStatus` is the provider's HTTP status when it gave one; no provider message is kept.
+ */
+export class ProviderUnavailableError extends Error {
+  readonly rateLimited: boolean;
+  readonly upstreamStatus: number | undefined;
+  constructor(opts: { rateLimited: boolean; upstreamStatus?: number | undefined }) {
+    super(opts.rateLimited ? 'the provider is rate limiting requests' : 'the provider is unavailable');
+    this.name = 'ProviderUnavailableError';
+    this.rateLimited = opts.rateLimited;
+    this.upstreamStatus = opts.upstreamStatus;
+  }
+}
+
 export interface AdapterRegistry {
   board(provider: Provider): BoardAdapter;
   codeHost(provider: Provider): CodeHostAdapter;

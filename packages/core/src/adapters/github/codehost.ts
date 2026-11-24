@@ -12,12 +12,14 @@ import {
   type AdapterProject,
   type CheckoutTicket,
   type CodeHostAdapter,
+  ProviderReauthRequiredError,
+  ProviderUnavailableError,
   RepoFileError,
   type InstallUser,
   type NewConnection,
   type SkillChangeResult,
 } from '../types';
-import { assertSafeRef, errorStatus, splitRepoPath, type GithubClients } from './app';
+import { assertSafeRef, errorHeaders, errorStatus, splitRepoPath, type GithubClients } from './app';
 
 export interface GithubCodeHostOptions {
   appSlug: string;
@@ -86,6 +88,24 @@ function isPermissionStatus(s: number | undefined): boolean {
   return s === 401 || s === 403;
 }
 
+/**
+ * What a failed request made with the user's own token means, in provider-neutral terms: a rejected token needs the
+ * user to connect again; a rate limit, a server error or a network failure (Octokit reports it as status 500) means
+ * try later. Anything else (a plain 403, 404, a parse error) is returned unchanged. Only the status survives.
+ */
+function userRequestFailure(e: unknown): unknown {
+  const status = errorStatus(e);
+  if (status === undefined) return e;
+  if (status === 401) return new ProviderReauthRequiredError();
+  const headers = errorHeaders(e);
+  const limited =
+    status === 429 ||
+    (status === 403 && (headers['x-ratelimit-remaining'] === '0' || headers['retry-after'] !== undefined));
+  if (limited) return new ProviderUnavailableError({ rateLimited: true, upstreamStatus: status });
+  if (status >= 500) return new ProviderUnavailableError({ rateLimited: false, upstreamStatus: status });
+  return e;
+}
+
 /** Only GitHub's "reference already exists" is a branch-name collision; any other failure is not a stale edit. */
 function refCreateError(e: unknown, name: string): Error {
   const status = errorStatus(e);
@@ -115,17 +135,21 @@ export class GithubCodeHostAdapter implements CodeHostAdapter {
     if (!user.linkedAccountToken) throw new Error('no linked account for this user');
     // The user's token is only used for this one access check and is never stored or logged.
     const userClient = this.clients.user(user.linkedAccountToken);
-    const isOwned = await this.ownershipTest(userClient);
     let accessible = false;
-    for (let page = 1; page <= MAX_PAGES; page++) {
-      const res = await userClient.request('GET /user/installations', { per_page: PER_PAGE, page });
-      const { installations } = UserInstallations.parse(res.data);
-      const found = installations.find((i) => i.id === installationId);
-      if (found) {
-        accessible = await isOwned(found.account);
-        break;
+    try {
+      const isOwned = await this.ownershipTest(userClient);
+      for (let page = 1; page <= MAX_PAGES; page++) {
+        const res = await userClient.request('GET /user/installations', { per_page: PER_PAGE, page });
+        const { installations } = UserInstallations.parse(res.data);
+        const found = installations.find((i) => i.id === installationId);
+        if (found) {
+          accessible = await isOwned(found.account);
+          break;
+        }
+        if (installations.length < PER_PAGE) break;
       }
-      if (installations.length < PER_PAGE) break;
+    } catch (e) {
+      throw userRequestFailure(e);
     }
     if (!accessible) throw new Error('installation is not accessible to this user');
     const info = InstallationInfo.parse(
@@ -152,22 +176,26 @@ export class GithubCodeHostAdapter implements CodeHostAdapter {
   async listInstallations(user: InstallUser): Promise<NewConnection[]> {
     if (!user.linkedAccountToken) return [];
     const client = this.clients.user(user.linkedAccountToken);
-    const isOwned = await this.ownershipTest(client);
     const out: NewConnection[] = [];
-    for (let page = 1; page <= MAX_PAGES; page++) {
-      const res = await client.request('GET /user/installations', { per_page: PER_PAGE, page });
-      const { installations } = UserInstallations.parse(res.data);
-      for (const i of installations) {
-        if (!(await isOwned(i.account))) continue;
-        out.push({
-          provider: 'github',
-          externalId: String(i.id),
-          accountName: i.account?.login ?? String(i.id),
-          capabilities: { code: true, board: true },
-          manageUrl: manageUrlOf(i.html_url),
-        });
+    try {
+      const isOwned = await this.ownershipTest(client);
+      for (let page = 1; page <= MAX_PAGES; page++) {
+        const res = await client.request('GET /user/installations', { per_page: PER_PAGE, page });
+        const { installations } = UserInstallations.parse(res.data);
+        for (const i of installations) {
+          if (!(await isOwned(i.account))) continue;
+          out.push({
+            provider: 'github',
+            externalId: String(i.id),
+            accountName: i.account?.login ?? String(i.id),
+            capabilities: { code: true, board: true },
+            manageUrl: manageUrlOf(i.html_url),
+          });
+        }
+        if (installations.length < PER_PAGE) break;
       }
-      if (installations.length < PER_PAGE) break;
+    } catch (e) {
+      throw userRequestFailure(e);
     }
     return out;
   }

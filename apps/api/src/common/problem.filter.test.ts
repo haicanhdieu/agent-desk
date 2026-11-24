@@ -2,6 +2,8 @@ import type { ArgumentsHost } from '@nestjs/common';
 import type { Logger } from 'pino';
 import { describe, expect, it } from 'vitest';
 import { ConflictException } from '@nestjs/common';
+import { PROVIDER_REAUTH_REQUIRED_PROBLEM_TYPE, PROVIDER_UNAVAILABLE_PROBLEM_TYPE } from '@agentdesk/contracts';
+import { ProviderReauthRequiredError, ProviderUnavailableError } from '@agentdesk/core';
 import { OrgMismatchException } from './org-mismatch';
 import { OrgSuspendedException } from './org-suspended';
 import { NotFoundProblemException } from './zod-validation';
@@ -110,5 +112,43 @@ describe('ProblemFilter org-suspended', () => {
       detail: 'This organization is suspended.',
       requestId: 'req-1',
     });
+  });
+});
+
+describe('ProblemFilter provider errors', () => {
+  it('answers a rejected or unrefreshable provider token with a 409 of type provider-reauthorization-required', () => {
+    const { logger, logged } = capturingLogger();
+    const { host: h, sent } = host();
+    new ProblemFilter(logger).catch(new ProviderReauthRequiredError(), h);
+    expect(sent.status).toBe(409);
+    expect(sent.body).toEqual({
+      type: PROVIDER_REAUTH_REQUIRED_PROBLEM_TYPE,
+      title: 'Conflict',
+      status: 409,
+      detail: 'Your account at the provider must be connected again.',
+      requestId: 'req-1',
+    });
+    expect(JSON.stringify(logged)).toContain('ProviderReauthRequiredError');
+  });
+
+  it('answers a provider outage with a 503 and a rate limit with a 429, both of type provider-unavailable, and logs the upstream status', () => {
+    const { logger, logged } = capturingLogger();
+    const down = host();
+    new ProblemFilter(logger).catch(
+      new ProviderUnavailableError({ rateLimited: false, upstreamStatus: 502 }),
+      down.host,
+    );
+    expect(down.sent.status).toBe(503);
+    expect(down.sent.body).toMatchObject({ type: PROVIDER_UNAVAILABLE_PROBLEM_TYPE, status: 503 });
+    const limited = host();
+    new ProblemFilter(logger).catch(
+      new ProviderUnavailableError({ rateLimited: true, upstreamStatus: 403 }),
+      limited.host,
+    );
+    expect(limited.sent.status).toBe(429);
+    expect(limited.sent.body).toMatchObject({ type: PROVIDER_UNAVAILABLE_PROBLEM_TYPE, status: 429 });
+    const dump = JSON.stringify(logged);
+    expect(dump).toContain('502');
+    expect(dump).toContain('ProviderUnavailableError');
   });
 });

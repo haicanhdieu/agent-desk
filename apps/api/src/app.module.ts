@@ -10,6 +10,8 @@ import { AuthModule } from './auth/auth.module';
 import { ConfigModule } from './config/config.module';
 import { ConnectionsController } from './connections/connections.controller';
 import { ConnectionsService } from './connections/connections.service';
+import { ProviderTokens } from './connections/provider-tokens';
+import { CLOCK } from './common/clock';
 import { DbModule } from './db/db.module';
 import { IntakeModule } from './intake/intake.module';
 import { InvitationsModule } from './invitations/invitations.module';
@@ -70,6 +72,8 @@ import { TemporalClientModule } from './temporal/temporal-client.module';
   ],
   providers: [
     ConnectionsService,
+    ProviderTokens,
+    { provide: CLOCK, useValue: systemClock },
     ProjectSchedules,
     ProjectsService,
     agentHttpProvider,
