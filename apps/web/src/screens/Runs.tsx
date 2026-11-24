@@ -11,6 +11,7 @@ import {
 } from '@/components';
 import type { RunStatus } from '@/ds/tokens';
 import type { RunSummary, TicketGroup } from '@/mocks/types';
+import styles from './Screens.module.css';
 import { RunsPage, type RunsFilter, type RunsPageProps } from './RunsPage';
 
 export type { RunsFilter } from './RunsPage';
@@ -57,6 +58,7 @@ const columns = [
   { key: 'by', header: 'Triggered by' },
   { key: 'started', header: 'Started' },
   { key: 'duration', header: 'Duration' },
+  { key: 'usage', header: 'Usage' },
   { key: 'actions', header: <span className="sr-only">Actions</span> },
 ];
 
@@ -122,7 +124,7 @@ export function Runs({
           Run {waitingRun} is waiting for a free slot.
         </Banner>
       )}
-      <section aria-label="Run results" aria-busy={pagination?.busy ? true : undefined}>
+      <section aria-label="Run results" className={styles.scroll} aria-busy={pagination?.busy ? true : undefined}>
         {shown.length === 0 && searched !== '' ? (
           <EmptyState
             title={`No runs match “${searched}”`}

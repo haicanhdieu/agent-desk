@@ -1,4 +1,4 @@
-import type { AgentKind } from '@agentdesk/contracts';
+import { AgentKind } from '@agentdesk/contracts';
 import { createClaudeAdapter } from './claude';
 import type { AgentAdapter, AgentHttpGet } from './types';
 
@@ -11,4 +11,10 @@ export function agentAdapterFor(kind: AgentKind, opts: { http?: AgentHttpGet } =
       throw new Error(`unknown agent kind: ${String(unreachable)}`);
     }
   }
+}
+
+/** The distinct price providers of every agent kind. */
+export function pricingProviders(): string[] {
+  const providers = AgentKind.options.flatMap((k) => agentAdapterFor(k).pricing?.provider ?? []);
+  return [...new Set(providers)];
 }

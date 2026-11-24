@@ -3,3 +3,4 @@ export { OutboxSweepWorkflow, ReconcileWorkflow } from './schedules.workflow';
 export { RunWorkflow } from './run.workflow';
 export { PollOnceWorkflow, resumePollWorkflow } from './poll.workflow';
 export { SetupTestWorkflow } from './setup-test.workflow';
+export { PriceSyncWorkflow } from './price-sync.workflow';

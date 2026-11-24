@@ -2,12 +2,14 @@ import { Inject, Logger, Module, type OnApplicationShutdown } from '@nestjs/comm
 import {
   createAdapterRegistry,
   createKubeGateway,
+  createPriceSourceRegistry,
   createSecretStore,
   parseConfig,
   systemClock,
   type AdapterRegistry,
   type Config,
   type KubeGateway,
+  type PriceSourceRegistry,
   type SecretStore,
 } from '@agentdesk/core';
 import { createDb, type Db } from '@agentdesk/db';
@@ -17,6 +19,7 @@ export const DB = Symbol('DB');
 export const ADAPTERS = Symbol('ADAPTERS');
 export const SECRET_STORE = Symbol('SECRET_STORE');
 export const KUBE = Symbol('KUBE');
+export const PRICE_SOURCES = Symbol('PRICE_SOURCES');
 
 function boardLog(): { warn(fields: { err: string }, msg: string): void } {
   const logger = new Logger('BoardAdapter');
@@ -35,8 +38,13 @@ function boardLog(): { warn(fields: { err: string }, msg: string): void } {
     },
     { provide: SECRET_STORE, inject: [CONFIG], useFactory: (c: Config): SecretStore => createSecretStore(c) },
     { provide: KUBE, inject: [CONFIG], useFactory: (c: Config): KubeGateway => createKubeGateway(c) },
+    {
+      provide: PRICE_SOURCES,
+      inject: [CONFIG],
+      useFactory: (c: Config): PriceSourceRegistry => createPriceSourceRegistry(c),
+    },
   ],
-  exports: [CONFIG, DB, ADAPTERS, SECRET_STORE, KUBE],
+  exports: [CONFIG, DB, ADAPTERS, SECRET_STORE, KUBE, PRICE_SOURCES],
 })
 export class WorkerModule implements OnApplicationShutdown {
   constructor(@Inject(DB) private readonly db: Db) {}

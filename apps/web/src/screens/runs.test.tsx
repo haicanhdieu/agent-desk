@@ -99,6 +99,21 @@ describe('Runs', () => {
     expect(screen.queryByRole('columnheader', { name: 'Skill' })).not.toBeInTheDocument();
   });
 
+  it('has a Usage column header after Duration and shows each row cell from the fixture', () => {
+    render(<Runs {...base} filter="all" />);
+    const heads = screen.getAllByRole('columnheader').map((h) => h.textContent);
+    expect(heads.indexOf('Usage')).toBe(heads.indexOf('Duration') + 1);
+    const row = (id: number) => {
+      const tr = screen.getByRole('link', { name: new RegExp(`^Run ${id}\\b`) }).closest('tr');
+      if (!tr) throw new Error(`no row for run ${id}`);
+      return tr;
+    };
+    expect(row(60)).toHaveTextContent('48.2k · ~$0.42');
+    expect(row(55)).toHaveTextContent('61.2k · ~$0.42+');
+    expect(row(63)).toHaveTextContent('No usage data');
+    expect(row(60)).not.toHaveTextContent(/model-|cache|Nov 2026/i);
+  });
+
   it('shows ended runs 60, 55, 56, 57, 54, 52', () => {
     render(<Runs {...base} filter="ended" />);
     expect(runIds()).toEqual([60, 55, 56, 57, 54, 52]);

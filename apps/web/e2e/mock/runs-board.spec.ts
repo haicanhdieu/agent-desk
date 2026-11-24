@@ -1,20 +1,20 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
-import { INVOICER_API, ORG, seedLists } from './mock';
+import { INVOICER_API, ORG, seedLists, USAGE_RUNS } from './mock';
 
 /** The routing rule command of run 65 (src/mocks/dto/runs.ts), long enough to be truncated in the Run List. */
 const LONG_COMMAND = 'code-build-with-a-very-long-routing-rule-command-name-that-overflows-the-cell';
 
 /**
- * The browser mock adds runs 67-104 (lifecycle, session and auto-resume fixtures) newer than the base fixtures, and the
- * Run List shows 20 runs a page, so the base fixture runs sit on a later page: runs 65-84 (the long routing rule
- * command) on page 2, runs 52-64 on page 3.
+ * The browser mock adds runs 67-120 (lifecycle, session, auto-resume and usage fixtures) newer than the base fixtures,
+ * and the Run List shows 20 runs a page, so the base fixture runs sit on a later page: the long routing rule command
+ * run on page 3, runs 52-64 on page 4. Only the first, last and nearby page buttons exist, so jump with Go to page.
  */
 async function openRunsPage(page: Page, n: number): Promise<void> {
   await page.goto(`/o/${ORG}/p/${INVOICER_API}/runs`);
-  await page
-    .getByRole('navigation', { name: 'Pagination' })
-    .getByRole('button', { name: `Page ${n}`, exact: true })
-    .click();
+  // The page buttons show only the first, last and nearby pages, so jump with the Go to page box.
+  const pagination = page.getByRole('navigation', { name: 'Pagination' });
+  await pagination.getByLabel('Go to page').fill(String(n));
+  await pagination.getByRole('button', { name: 'Go', exact: true }).click();
   await expect(page.getByRole('link', { name: /^Run \d+$/ }).first()).toBeVisible();
 }
 
@@ -64,7 +64,7 @@ test('the Grouped by ticket choice survives a reload of the Run List', async ({ 
 });
 
 test('the Run List shows durations in compact units', async ({ page }) => {
-  await openRunsPage(page, 3);
+  await openRunsPage(page, 4);
   await expect(page.getByRole('cell', { name: '7m 50s', exact: true }).first()).toBeVisible();
   await expect(page.getByRole('cell', { name: '30m', exact: true }).first()).toBeVisible();
   await expect(page.getByRole('cell', { name: /^\d+m 0s$|^0\d/ })).toHaveCount(0);
@@ -93,7 +93,7 @@ test('ticket and PR numbers on the Run Board open GitHub in a new window', async
 });
 
 test('the Run List shows the routing rule command in a Routing rule column instead of Skill', async ({ page }) => {
-  await openRunsPage(page, 3);
+  await openRunsPage(page, 4);
   await expect(page.getByRole('columnheader', { name: 'Routing rule' })).toBeVisible();
   await expect(page.getByRole('columnheader', { name: 'Skill' })).toHaveCount(0);
 
@@ -106,7 +106,7 @@ test('the Run List shows the routing rule command in a Routing rule column inste
 test('a long routing rule command is truncated in the Run List and its full value is in the title', async ({
   page,
 }) => {
-  await openRunsPage(page, 2);
+  await openRunsPage(page, 3);
   const longCommand = `/${LONG_COMMAND}`;
   const cell = page.getByText(longCommand, { exact: true });
   await expect(cell).toBeVisible();
@@ -183,11 +183,17 @@ const board = (page: Page): Promise<Group[]> =>
 const rowsOf = (page: Page, head: string): Promise<string[] | undefined> =>
   board(page).then((b) => b.find((g) => g.head === head)?.rows);
 
+/**
+ * The accessible name of a ticket link. Once `tickets.prStates` answers, a PR link also names its live state
+ * ("Merged PR #148", see TicketRef), so the name is matched with or without that state word.
+ */
+const ticketLink = (label: string): RegExp => new RegExp(`^(?:(?:Open|Draft|Merged|Closed) )?${label}$`);
+
 /** The header row that holds the link named `label` and no `Run N` link. */
 const header = (page: Page, label: string): Locator =>
   page
     .getByRole('row')
-    .filter({ has: page.getByRole('link', { name: label, exact: true }) })
+    .filter({ has: page.getByRole('link', { name: ticketLink(label) }) })
     .filter({ hasNot: page.getByRole('link', { name: /^Run \d+$/ }) });
 
 const openRuns = async (page: Page, ticketRuns?: TicketRun[]) => {
@@ -317,7 +323,7 @@ test.describe('BR-11 a PR linked to two issues joins the lower one', () => {
     await expect.poll(() => rowsOf(page, 'Issue #150')).toEqual(['2:#150']);
     await expect(header(page, 'Issue #150')).toContainText(/1 of 10 runs$/);
     await expect(header(page, 'Issue #150')).not.toContainText(CHAIN_ARROW);
-    await expect(page.getByRole('link', { name: 'PR #148', exact: true })).toHaveCount(1);
+    await expect(page.getByRole('link', { name: ticketLink('PR #148') })).toHaveCount(1);
   });
 });
 
@@ -368,4 +374,151 @@ test.describe('BR-18 an issue with no linked PR runs', () => {
     await expect(header(page, 'Issue #139')).toContainText(/3 of 10 runs$/);
     await expect(header(page, 'Issue #139')).not.toContainText(CHAIN_ARROW);
   });
+});
+
+/** The Usage column of the Runs list (spec 2026-11-24-run-token-usage-cost, BR-1, BR-4, BR-5, BR-12, BR-15). */
+async function openUsageRuns(page: Page): Promise<void> {
+  await page.goto(`/o/${ORG}/p/${INVOICER_API}/runs`);
+  await expect(page.getByRole('link', { name: new RegExp(`^Run ${USAGE_RUNS.oneModel}\\b`) })).toBeVisible();
+}
+
+function usageRow(page: Page, run: number): Locator {
+  return page.getByRole('row').filter({ has: page.getByRole('link', { name: new RegExp(`^Run ${run}\\b`) }) });
+}
+
+/** The row's Usage cell: the cell at the Usage header's column. */
+async function usageCell(page: Page, run: number): Promise<Locator> {
+  const heads = await page.getByRole('columnheader').allTextContents();
+  const col = heads.findIndex((h) => h.trim() === 'Usage');
+  expect(col).toBeGreaterThanOrEqual(0);
+  return usageRow(page, run).getByRole('cell').nth(col);
+}
+
+/** The visible text of the cell: its first text node, without the screen-reader-only suffix. */
+const visibleText = (cell: Locator) => cell.evaluate((el) => el.firstChild?.textContent ?? '');
+/** Lines of the cell's visible text: the distinct tops of its text node's line boxes. */
+const lineCount = (cell: Locator) =>
+  cell.evaluate((el) => {
+    const range = document.createRange();
+    if (el.firstChild) range.selectNodeContents(el.firstChild);
+    return new Set([...range.getClientRects()].map((r) => Math.round(r.top))).size;
+  });
+const titleOf = (cell: Locator) => cell.getAttribute('title');
+
+test('TC-1.1: the Usage column follows Duration and shows tokens and cost without model or split', async ({ page }) => {
+  await openUsageRuns(page);
+  const heads = (await page.getByRole('columnheader').allTextContents()).map((h) => h.trim());
+  const usage = heads.indexOf('Usage');
+  expect(usage).toBeGreaterThan(-1);
+  expect(usage).toBe(heads.indexOf('Duration') + 1);
+  // Usage is the last data column: only the screen-reader-only Actions column follows it.
+  expect(heads.slice(usage + 1)).toEqual(['Actions']);
+  const cell = await usageCell(page, USAGE_RUNS.oneModel);
+  expect(await visibleText(cell)).toBe('48.2k · ~$0.42');
+  const row = usageRow(page, USAGE_RUNS.oneModel);
+  await expect(row).not.toContainText(/model-[ab]|input|cache|output/i);
+});
+
+test('TC-1.2: a cost under one cent reads ~<$0.01 in the usage cell', async ({ page }) => {
+  await openUsageRuns(page);
+  expect(await visibleText(await usageCell(page, USAGE_RUNS.subCent))).toBe('2.1k · ~<$0.01');
+});
+
+test('TC-1.3: a run with an unpriced model shows a + after the cost', async ({ page }) => {
+  await openUsageRuns(page);
+  expect(await visibleText(await usageCell(page, USAGE_RUNS.unpriced))).toBe('61.2k · ~$0.42+');
+});
+
+test('TC-1.4: a run with no priced model shows tokens and a dash for cost', async ({ page }) => {
+  await openUsageRuns(page);
+  expect(await visibleText(await usageCell(page, USAGE_RUNS.nonePriced))).toBe('12.8k · —');
+});
+
+test('TC-1.5: the usage cell titles give tokens, cost and model count', async ({ page }) => {
+  await openUsageRuns(page);
+  const one = await usageCell(page, USAGE_RUNS.oneModel);
+  await one.hover();
+  expect(await titleOf(one)).toBe('48,213 tokens in total, estimated cost $0.42, 1 model');
+  const two = await usageCell(page, USAGE_RUNS.unpriced);
+  await two.hover();
+  expect(await titleOf(two)).toBe('61,173 tokens in total, estimated cost at least $0.42, 2 models');
+});
+
+test('TC-4.1: the list cell has a ~ cost, an estimate title and no provider bill note', async ({ page }) => {
+  await openUsageRuns(page);
+  const cell = await usageCell(page, USAGE_RUNS.oneModel);
+  await cell.hover();
+  expect(await visibleText(cell)).toContain('~$0.42');
+  const title = (await titleOf(cell)) ?? '';
+  expect(title).toContain('estimated cost');
+  expect(title.toLowerCase()).not.toContain('provider bill');
+  await expect(cell).not.toContainText(/provider bill/i);
+});
+
+test('TC-4.3: a sub-cent run shows ~<$0.01 and an under-one-cent title', async ({ page }) => {
+  await openUsageRuns(page);
+  const cell = await usageCell(page, USAGE_RUNS.subCent);
+  await cell.hover();
+  expect(await visibleText(cell)).toContain('~<$0.01');
+  expect(await titleOf(cell)).toBe('2,104 tokens in total, estimated cost under $0.01, 1 model');
+});
+
+test('TC-5.1: a run without recorded usage shows a dash and the title No usage data', async ({ page }) => {
+  await openUsageRuns(page);
+  const cell = await usageCell(page, USAGE_RUNS.noUsage);
+  await cell.hover();
+  expect(await visibleText(cell)).toBe('—');
+  expect(await titleOf(cell)).toBe('No usage data');
+  expect(await visibleText(cell)).not.toMatch(/\$|\b0\b/);
+});
+
+test('TC-12.1: every row has one one-line usage cell and no model, split, note or price date', async ({ page }) => {
+  await openUsageRuns(page);
+  const heads = await page.getByRole('columnheader').allTextContents();
+  expect(heads.filter((h) => h.trim() === 'Usage')).toHaveLength(1);
+  const rows = page.getByRole('row').filter({ has: page.getByRole('link', { name: /^Run \d+\b/ }) });
+  const count = await rows.count();
+  expect(count).toBeGreaterThan(5);
+  const col = heads.findIndex((h) => h.trim() === 'Usage');
+  for (let i = 0; i < count; i++) {
+    const row = rows.nth(i);
+    await expect(row.getByRole('cell')).toHaveCount(heads.length);
+    expect(await lineCount(row.getByRole('cell').nth(col))).toBe(1);
+    await expect(row).not.toContainText(
+      /model-[ab]|Input \(uncached\)|Cache read|Cache write|provider bill|Prices as of/i,
+    );
+  }
+});
+
+test('TC-12.2: at a narrow viewport the usage cell stays on one line and the page does not scroll sideways', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 800 });
+  await openUsageRuns(page);
+  for (const run of [USAGE_RUNS.oneModel, USAGE_RUNS.unpriced, USAGE_RUNS.nonePriced]) {
+    const cell = await usageCell(page, run);
+    await expect(cell).toBeVisible();
+    const fits = await cell.evaluate((el) => el.scrollWidth <= el.clientWidth);
+    expect(fits).toBe(true);
+    expect(await lineCount(cell)).toBe(1);
+  }
+  // The table scrolls inside its section: the section is the scroll container and the table adds no page width.
+  // (The app shell's own header is wider than 390 px, so the page width is compared with the section hidden.)
+  const section = page.getByRole('region', { name: 'Run results' });
+  const sectionScrolls = await section.evaluate(
+    (el) => getComputedStyle(el).overflowX === 'auto' && el.scrollWidth > el.clientWidth,
+  );
+  expect(sectionScrolls).toBe(true);
+  // The shell's header is wider while the web fonts still load (714 px against 684 px), so measure both widths only
+  // once the fonts are loaded.
+  await expect.poll(() => page.evaluate(async () => (await document.fonts.ready).status)).toBe('loaded');
+  const pageWidth = () => page.evaluate(() => document.documentElement.scrollWidth);
+  const withTable = await pageWidth();
+  await section.evaluate((el) => (el.style.display = 'none'));
+  expect(withTable).toBeLessThanOrEqual(await pageWidth());
+});
+
+test('TC-15.2: a run that reached the call cap carries a + after the cost in the list', async ({ page }) => {
+  await openUsageRuns(page);
+  expect(await visibleText(await usageCell(page, USAGE_RUNS.capPartial))).toBe('48.2k · ~$0.42+');
 });

@@ -17,6 +17,7 @@ import {
   uuid,
 } from 'drizzle-orm/pg-core';
 import { user } from './auth';
+import { modelPriceVersions } from './prices';
 
 /**
  * Tenant predicate. `current_setting(..., true)` yields NULL when `app.org_id` was never set and ''
@@ -370,6 +371,53 @@ export const runTranscriptEntries = pgTable(
     index('run_transcript_entries_org_idx').on(t.orgId),
     // Literals mirror TranscriptKind in @agentdesk/contracts.
     check('run_transcript_entries_kind_check', sql`${t.kind} in ('user','agent','tool','notice')`),
+    orgPolicy(),
+  ],
+);
+
+/**
+ * One row per distinct model call of a run (`source_id` is the adapter's stable call id). Token counters only grow;
+ * the price columns are a snapshot (USD per million tokens) fixed at the first insert, all null when the model had no price.
+ */
+export const runUsageEntries = pgTable(
+  'run_usage_entries',
+  {
+    orgId: uuid('org_id').notNull(),
+    runId: uuid('run_id')
+      .notNull()
+      .references(() => runs.id, { onDelete: 'cascade' }),
+    sourceId: text('source_id').notNull(),
+    model: text('model').notNull(),
+    inputTokens: integer('input_tokens').notNull().default(0),
+    outputTokens: integer('output_tokens').notNull().default(0),
+    cacheReadTokens: integer('cache_read_tokens').notNull().default(0),
+    cacheWriteTokens: integer('cache_write_tokens').notNull().default(0),
+    cacheWriteLongTokens: integer('cache_write_long_tokens').notNull().default(0),
+    reasoningTokens: integer('reasoning_tokens'),
+    priceInput: numeric('price_input', { precision: 12, scale: 6, mode: 'string' }),
+    priceOutput: numeric('price_output', { precision: 12, scale: 6, mode: 'string' }),
+    priceCacheRead: numeric('price_cache_read', { precision: 12, scale: 6, mode: 'string' }),
+    priceCacheWrite: numeric('price_cache_write', { precision: 12, scale: 6, mode: 'string' }),
+    priceCacheWriteLong: numeric('price_cache_write_long', { precision: 12, scale: 6, mode: 'string' }),
+    priceAsOf: ts('price_as_of'),
+    priceSource: text('price_source'),
+    priceVersionId: uuid('price_version_id').references(() => modelPriceVersions.id, { onDelete: 'set null' }),
+  },
+  (t) => [
+    primaryKey({ name: 'run_usage_entries_pkey', columns: [t.runId, t.sourceId] }),
+    index('run_usage_entries_org_idx').on(t.orgId),
+    check(
+      'run_usage_entries_tokens_check',
+      sql`${t.inputTokens} >= 0 and ${t.outputTokens} >= 0 and ${t.cacheReadTokens} >= 0 and ${t.cacheWriteTokens} >= 0 and ${t.cacheWriteLongTokens} >= 0 and (${t.reasoningTokens} is null or (${t.reasoningTokens} >= 0 and ${t.reasoningTokens} <= ${t.outputTokens}))`,
+    ),
+    check(
+      'run_usage_entries_rates_check',
+      sql`coalesce(${t.priceInput}, 0) >= 0 and coalesce(${t.priceOutput}, 0) >= 0 and coalesce(${t.priceCacheRead}, 0) >= 0 and coalesce(${t.priceCacheWrite}, 0) >= 0 and coalesce(${t.priceCacheWriteLong}, 0) >= 0`,
+    ),
+    check(
+      'run_usage_entries_price_all_or_none_check',
+      sql`(${t.priceInput} is null and ${t.priceOutput} is null and ${t.priceCacheRead} is null and ${t.priceCacheWrite} is null and ${t.priceCacheWriteLong} is null and ${t.priceAsOf} is null and ${t.priceSource} is null) or (${t.priceInput} is not null and ${t.priceOutput} is not null and ${t.priceCacheRead} is not null and ${t.priceCacheWrite} is not null and ${t.priceCacheWriteLong} is not null and ${t.priceAsOf} is not null and ${t.priceSource} is not null)`,
+    ),
     orgPolicy(),
   ],
 );

@@ -90,6 +90,7 @@ import { appendRunEvent, currentSeq } from './run-events';
 import { setRunStatusTx } from './run-status.activity';
 import { createSessionActivities } from './session.activity';
 import { createTranscriptSink } from './transcript-store';
+import { createUsageSink } from './usage-store';
 import {
   type CommentKind,
   type FinishDetails,
@@ -940,6 +941,14 @@ export function createRunActivities(deps: RunActivityDeps): RunActivityImpls {
       now: () => clock.now(),
       warn: (msg, fields) => log.warn(msg, fields),
     });
+    // Usage entries also go to their own table; a replayed line only raises counters (never lowers) there.
+    const usageSink = createUsageSink({
+      db,
+      orgId: ctx.orgId,
+      runId: ctx.runId,
+      clock,
+      warn: (msg, fields) => log.warn(msg, fields),
+    });
     // A scrollback block is only durable once stored as one row, so `durable` never moves past an unfinished block and
     // a new pass re-reads it from its begin line. The block is per pass.
     let block: ScrollbackBlock | null = null;
@@ -1102,6 +1111,9 @@ export function createRunActivities(deps: RunActivityDeps): RunActivityImpls {
           } else if (parsed.kind === 'transcript' && parsed.transcript) {
             // Redacted and stored by the sink (never written to run_events, logs or workflow history).
             await transcriptSink.store(parsed.transcript, secrets);
+          } else if (parsed.kind === 'usage' && parsed.usage) {
+            // Token counts only: stored by the sink, never written to run_events.
+            await usageSink.store(parsed.usage, secrets);
           } else if (parsed.kind === 'text') {
             textTail.push(redact(line, secrets));
             if (textTail.length > TEXT_TAIL_LINES) textTail.shift();

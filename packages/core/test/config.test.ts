@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
@@ -231,5 +231,63 @@ describe('AGENT_MODELS_SOURCE', () => {
 describe('PLATFORM_ADMIN_EMAILS', () => {
   it('drops a leftover PLATFORM_ADMIN_EMAILS', () => {
     expect('PLATFORM_ADMIN_EMAILS' in parseConfig({ ...base, PLATFORM_ADMIN_EMAILS: 'a@x.io' })).toBe(false);
+  });
+});
+
+describe('MODEL_PRICES_SOURCE', () => {
+  it('defaults to litellm, treats blank as the default and accepts fake and off', () => {
+    expect(parseConfig(base).MODEL_PRICES_SOURCE).toBe('litellm');
+    expect(parseConfig({ ...base, MODEL_PRICES_SOURCE: '' }).MODEL_PRICES_SOURCE).toBe('litellm');
+    expect(parseConfig({ ...base, MODEL_PRICES_SOURCE: 'fake' }).MODEL_PRICES_SOURCE).toBe('fake');
+    expect(parseConfig({ ...base, MODEL_PRICES_SOURCE: 'off' }).MODEL_PRICES_SOURCE).toBe('off');
+  });
+
+  it('rejects any other value', () => {
+    expect(() => parseConfig({ ...base, MODEL_PRICES_SOURCE: 'other' })).toThrow();
+  });
+
+  it('rejects fake in production', () => {
+    expect(() =>
+      parseConfig({
+        ...base,
+        NODE_ENV: 'production',
+        KUBE_MODE: 'incluster',
+        RUN_VOLUME_STORAGE_CLASS: 'sc',
+        MODEL_PRICES_SOURCE: 'fake',
+      }),
+    ).toThrow(/MODEL_PRICES_SOURCE/);
+  });
+});
+
+describe('MODEL_PRICES_URL', () => {
+  it('is undefined when unset or blank', () => {
+    expect(parseConfig(base).MODEL_PRICES_URL).toBeUndefined();
+    expect(parseConfig({ ...base, MODEL_PRICES_URL: '' }).MODEL_PRICES_URL).toBeUndefined();
+  });
+
+  it('accepts an https url', () => {
+    expect(parseConfig({ ...base, MODEL_PRICES_URL: 'https://prices.example/x.json' }).MODEL_PRICES_URL).toBe(
+      'https://prices.example/x.json',
+    );
+  });
+
+  it.each([
+    'http://prices.example/x.json',
+    'file:///etc/passwd',
+    'ftp://prices.example/x.json',
+    'https://u:p@h/x',
+    'https://h/x#f',
+    `https://h/${'a'.repeat(2049)}`,
+    'not a url',
+  ])('rejects %s', (value) => {
+    expect(() => parseConfig({ ...base, MODEL_PRICES_URL: value })).toThrow(/MODEL_PRICES_URL/);
+  });
+});
+
+describe('.env.example price keys', () => {
+  it('lists fake prices and an empty url line', () => {
+    const text = readFileSync(resolve(__dirname, '../../../.env.example'), 'utf8');
+    expect(text).toMatch(/^MODEL_PRICES_SOURCE=fake$/m);
+    expect(text).toMatch(/^MODEL_PRICES_URL=$/m);
   });
 });

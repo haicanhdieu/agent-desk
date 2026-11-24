@@ -120,6 +120,7 @@ describe('RunWorkflow end to end (KUBE_MODE=fake, fake provider)', () => {
         signaller: ops,
         temporal: ops,
         pollSchedules: pollScheduleOps(env.client),
+        priceSources: { source: () => undefined },
         clock: systemClock,
         config,
         timing: { pollMs: 100 },

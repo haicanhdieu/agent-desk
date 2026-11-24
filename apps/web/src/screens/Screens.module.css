@@ -826,3 +826,9 @@
   margin: 0;
   font-size: var(--fs-15);
 }
+
+/* The Runs list section: the table scrolls inside it on a narrow viewport, not the page. */
+.scroll {
+  position: relative; /* contains the sr-only (absolute) text of the cells, so it cannot widen the page */
+  overflow-x: auto;
+}

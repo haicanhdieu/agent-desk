@@ -20,6 +20,7 @@ import type {
 } from '@/mocks/types';
 import { relativeTime, timeLeft } from '../relativeTime';
 import type { RunCore } from './queries';
+import { toUsageCell } from './usage.map';
 
 const MIN = 60_000;
 
@@ -145,6 +146,7 @@ export function toRunSummary(dto: RunCore & { statusNote?: string }, now: Date):
     triggeredBy: { login, bot: login.endsWith('[bot]') },
     startedAt: clockOrDateTime(dto.startedAt ?? dto.queuedAt, now),
     ...(time !== undefined && { duration: time }),
+    usage: toUsageCell(dto.usage),
   };
 }
 

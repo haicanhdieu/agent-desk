@@ -51,7 +51,12 @@
 //     --fake-transcript-bulk=<n> (the first session file holds exactly n entries, sent by one flush at the first turn
 //     end), --fake-unflushed (the first typed line is sent, then one more reply "UNFLUSHED-MARKER" is appended unflushed; the next
 //     flush, a turn end or the end flush, sends it; that turn stays open until a `release-turn` file exists),
-//     --fake-bad-transcript-lines (after `session started`, three malformed transcript lines go to log and pane).
+//     --fake-bad-transcript-lines (after `session started`, three malformed transcript lines go to log and pane),
+//     --fake-usage (the first turn also writes Claude-shaped usage rows that the adapter turns into `agentdesk: usage`
+//     lines: msg_fake_1 as a placeholder then final row, msg_fake_2, its retry msg_fake_2r and msg_fake_3 on a second
+//     model, 3050 tokens in all; every later turn writes one fake-model-a call with fresh ids, 240 tokens; the mode is kept
+//     in $FAKE_VOLUME_DIR/usage-mode because a resumed pod gets no prompt),
+//     --fake-usage-unpriced (like --fake-usage with fake-model-unpriced as the second model).
 // The launch line is `agentdesk: agent claude model <AGENT_MODEL or default> endpoint <scheme://host[:port] of
 // ANTHROPIC_BASE_URL or default>`, built by the same rules as the runner's. The fake pod prints it first (before the
 // resume-failed exit 79 and the setup-failed exit 78, where the real runner prints none) so the e2e can read the first
@@ -63,7 +68,7 @@ import { appendFileSync, existsSync, mkdirSync, readFileSync, realpathSync, stat
 import { join } from 'node:path';
 import { StringDecoder } from 'node:string_decoder';
 import { fileURLToPath } from 'node:url';
-import { appendEntry, replyEntry, toolResultEntry, userEntry } from './fake-claude-log.mjs';
+import { appendEntry, replyEntry, toolResultEntry, usageEntry, userEntry } from './fake-claude-log.mjs';
 
 const dir = process.argv[2];
 if (!dir) process.exit(64);
@@ -82,6 +87,23 @@ const TICK_MS = 50;
 const adapterPath =
   process.env.FAKE_TRANSCRIPT_ADAPTER ??
   fileURLToPath(new URL('../../../../images/runner/agents/claude/transcript.mjs', import.meta.url));
+// A resumed pod gets no prompt (the real job spec sets none), so the usage mode is kept on the volume.
+const usageFile = volumeDir === '' ? '' : volumeFile('usage-mode');
+const usageMode = resume
+  ? usageFile !== '' && existsSync(usageFile)
+    ? readFileSync(usageFile, 'utf8')
+    : ''
+  : prompt.includes('--fake-usage-unpriced')
+    ? 'unpriced'
+    : prompt.includes('--fake-usage')
+      ? 'priced'
+      : '';
+if (!resume && usageMode !== '' && usageFile !== '') {
+  mkdirSync(volumeDir, { recursive: true });
+  writeFileSync(usageFile, usageMode);
+}
+const usageOn = usageMode !== '';
+const usageModelB = usageMode === 'unpriced' ? 'fake-model-unpriced' : 'fake-model-b';
 const bulkMatch = /--fake-transcript-bulk=(\d+)/.exec(prompt);
 const transcriptOn =
   volumeDir !== '' &&
@@ -178,6 +200,21 @@ function nextTurnNo() {
   const n = (existsSync(f) ? Number.parseInt(readFileSync(f, 'utf8'), 10) || 0 : 0) + 1;
   writeFileSync(f, String(n));
   return n;
+}
+// --fake-usage rows: the first turn of a fresh pod writes the fixed set, every later turn one call with fresh ids.
+function recordUsage(first) {
+  const call = (id, model, input, output, extra = {}) =>
+    record(usageEntry({ messageId: `msg_${id}`, requestId: `req_${id}`, model, input, output, ...extra }));
+  if (!first) {
+    const id = randomUUID();
+    call(id, 'fake-model-a', 200, 40);
+    return;
+  }
+  call('fake_1', 'fake-model-a', 1000, 1, { cacheRead: 500, cacheCreation5m: 100 });
+  call('fake_2', 'fake-model-a', 300, 50);
+  call('fake_2r', 'fake-model-a', 300, 50);
+  call('fake_3', usageModelB, 400, 100, { cacheCreation1h: 50 });
+  call('fake_1', 'fake-model-a', 1000, 200, { cacheRead: 500, cacheCreation5m: 100 });
 }
 function afterSessionStarted(fresh) {
   if (fresh && bulkMatch) {
@@ -325,6 +362,7 @@ if (prompt.includes('--fake-pending')) {
         );
       }
       if (tools.length > 0) record(toolResultEntry('OUTPUT-MARKER'));
+      if (usageOn) recordUsage(first);
       if (first && prompt.includes('--fake-long-replies')) {
         record(replyEntry('a'.repeat(8000)));
         record(replyEntry('b'.repeat(8001)));

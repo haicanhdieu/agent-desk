@@ -1,5 +1,14 @@
 import { bot, user } from './projects';
 import { PR_STATES, type PrState } from '@/ds/tokens';
+import {
+  usageCellNoCost,
+  usageCellPartial,
+  usageCellRun54,
+  usageCellRun61,
+  usageCellRun62,
+  usageCellSubCent,
+  usageCellValue,
+} from './usage';
 import type { Label, RunSummary, Ticket, TicketGroup } from './types';
 
 // Prototype board: Runs (grouped table), RunsProblems; ticket titles/states from the Run*.dc.html side panels.
@@ -89,6 +98,7 @@ const run52: RunSummary = {
   triggeredBy: user,
   startedAt: '13:02',
   duration: '7m 50s',
+  usage: usageCellSubCent,
 };
 const run54: RunSummary = {
   ...base,
@@ -100,6 +110,7 @@ const run54: RunSummary = {
   triggeredBy: user,
   startedAt: '10:02',
   duration: '30m',
+  usage: usageCellRun54,
 };
 const run55: RunSummary = {
   ...base,
@@ -111,6 +122,7 @@ const run55: RunSummary = {
   triggeredBy: user,
   startedAt: '11:20',
   duration: '8m 3s',
+  usage: usageCellPartial,
 };
 const run56: RunSummary = {
   ...base,
@@ -135,6 +147,7 @@ const run57: RunSummary = {
   triggeredBy: user,
   startedAt: '11:52',
   duration: '5m 41s',
+  usage: usageCellNoCost,
 };
 const run60: RunSummary = {
   ...base,
@@ -146,6 +159,7 @@ const run60: RunSummary = {
   triggeredBy: user,
   startedAt: '14:02',
   duration: '6m 12s',
+  usage: usageCellValue,
 };
 const run61: RunSummary = {
   ...base,
@@ -157,6 +171,7 @@ const run61: RunSummary = {
   triggeredBy: user,
   startedAt: '14:05',
   duration: '7m 40s',
+  usage: usageCellRun61,
 };
 const run62: RunSummary = {
   ...base,
@@ -169,6 +184,7 @@ const run62: RunSummary = {
   triggeredBy: bot,
   startedAt: '14:09',
   duration: '4m 51s',
+  usage: usageCellRun62,
 };
 const run63: RunSummary = {
   ...base,

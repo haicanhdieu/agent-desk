@@ -1,0 +1,7 @@
+.cell {
+  font-variant-numeric: tabular-nums;
+  font-family: var(--mono);
+  font-size: var(--fs-12_5);
+  color: var(--muted);
+  white-space: nowrap;
+}

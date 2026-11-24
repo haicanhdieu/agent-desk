@@ -37,3 +37,39 @@ export function replyEntry(text, { thinking, tools, apiError } = {}) {
 
 /** @param {string} file @param {object} entry */
 export const appendEntry = (file, entry) => appendFileSync(file, `${JSON.stringify(entry)}\n`);
+
+/**
+ * A Claude-shaped assistant entry that carries token usage: one text block, `requestId`, `message.id`,
+ * `message.model` and `message.usage` with the `cache_creation` split. Writing the same ids twice with a larger
+ * `output` is how a streaming placeholder row followed by its final row looks in the real log.
+ * @param {{ messageId: string; requestId: string; model: string; input: number; output: number; cacheRead?: number; cacheCreation5m?: number; cacheCreation1h?: number }} u
+ */
+export function usageEntry({
+  messageId,
+  requestId,
+  model,
+  input,
+  output,
+  cacheRead = 0,
+  cacheCreation5m = 0,
+  cacheCreation1h = 0,
+}) {
+  return {
+    type: 'assistant',
+    ...base(),
+    requestId,
+    message: {
+      id: messageId,
+      role: 'assistant',
+      model,
+      content: [{ type: 'text', text: 'Fake usage call' }],
+      usage: {
+        input_tokens: input,
+        output_tokens: output,
+        cache_read_input_tokens: cacheRead,
+        cache_creation_input_tokens: cacheCreation5m + cacheCreation1h,
+        cache_creation: { ephemeral_5m_input_tokens: cacheCreation5m, ephemeral_1h_input_tokens: cacheCreation1h },
+      },
+    },
+  };
+}

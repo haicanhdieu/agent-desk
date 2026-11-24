@@ -1,6 +1,7 @@
-import { sweepOutbox, type Config, type WorkflowStarter } from '@agentdesk/core';
+import { sweepOutbox, type Config, type PriceSourceRegistry, type WorkflowStarter } from '@agentdesk/core';
 import type { Db } from '@agentdesk/db';
 import { pausePollSchedule, pollOnce, resumePollSchedule, type PollDeps, type PollScheduleOps } from './poll.activity';
+import { syncModelPrices } from './price-sync.activity';
 import { reconcile, type ReconcileLogger, type ReconcileTemporal } from './reconcile.activity';
 import { setRunStatus, type SetRunStatusInput } from './run-status.activity';
 import { createRunActivities, type RunActivityDeps } from './run.activities.impl';
@@ -16,6 +17,7 @@ export interface ActivityDeps extends Omit<RunActivityDeps, 'db' | 'config'> {
   gate: GateSignaller;
   temporal: ReconcileTemporal;
   pollSchedules: PollScheduleOps;
+  priceSources: PriceSourceRegistry;
   log?: ReconcileLogger;
 }
 
@@ -47,6 +49,16 @@ export function createActivities(deps: ActivityDeps): Activities {
     pausePollSchedule: (input) => pausePollSchedule(pollDeps, input),
     resumePollSchedule: (input) => resumePollSchedule(pollDeps, input),
     sweepOutbox: () => sweepOutbox({ db: deps.db, starter: deps.starter }),
+    syncModelPrices: () =>
+      syncModelPrices({
+        db: deps.db,
+        registry: deps.priceSources,
+        clock: deps.clock,
+        log: {
+          warn: (msg, meta) => deps.log?.warn(msg, meta),
+          error: (msg, meta) => deps.log?.error?.(msg, meta),
+        },
+      }),
     reconcile: async (): Promise<void> => {
       await reconcile({
         db: deps.db,

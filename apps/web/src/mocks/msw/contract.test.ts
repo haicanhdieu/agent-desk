@@ -32,6 +32,7 @@ import {
   RunDto,
   RunEventDto,
   RunListItem,
+  RunListResponse,
   SetupScriptDto,
   SkillDto,
   canResume,
@@ -78,6 +79,7 @@ import { ids } from '../dto/ids';
 import { ignoredFixtures, projectConnectionFixtures, projectFixtures } from '../dto/projects';
 import { ruleFixtures } from '../dto/rules';
 import { runFixtures, type MockRun } from '../dto/runs';
+import { usageRunFixtures } from '../dto/usageRuns';
 import { prStateFixtures } from '../dto/prStates';
 import { environmentFixtures, pluginFixtures, setupScriptFixtures } from '../dto/setup';
 import { skillFixtures } from '../dto/skills';
@@ -1788,5 +1790,26 @@ describe('platform org invitations of a directory org (BR-29 to BR-31)', () => {
   it('still answers 404 for an org that is neither in the directory nor in the store', async () => {
     seed();
     expect((await fetch(`${root}/${crypto.randomUUID()}/invitations`)).status).toBe(404);
+  });
+});
+
+describe('run usage in the mock API', () => {
+  it('serves usage on run details and without the per-model split on list items', async () => {
+    mockDb.reset();
+    mockDb.addRuns(usageRunFixtures, {});
+    expect(() => usageRunFixtures.forEach((r) => RunDto.parse(r))).not.toThrow();
+    const details = usageRunFixtures.map((r) => r.usage);
+    expect(details.some((u) => u?.models.length === 2)).toBe(true);
+    expect(details.some((u) => u === null)).toBe(true);
+    expect(details.some((u) => u?.estimatedCostUsd === null)).toBe(true);
+    const list = RunListResponse.parse(await api.runs.list({ params: { projectId: P }, query: { pageSize: 100 } }));
+    const withUsage = list.items.filter((r) => usageRunFixtures.some((f) => f.id === r.id));
+    expect(withUsage).toHaveLength(usageRunFixtures.length);
+    const raw = await (await fetch(`http://localhost:3000/api/projects/${P}/runs?pageSize=100`)).json();
+    const items = z.object({ items: z.array(z.object({ usage: z.record(z.string(), z.unknown()).nullable() })) });
+    for (const i of items.parse(raw).items) {
+      expect(i.usage === null || !('models' in i.usage)).toBe(true);
+      expect(i.usage === null || !('priceSource' in i.usage)).toBe(true);
+    }
   });
 });

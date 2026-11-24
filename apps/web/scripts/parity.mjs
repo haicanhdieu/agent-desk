@@ -41,6 +41,7 @@ const stories = {
   Setup4: ['Screens/Setup', 'Setup4'],
   SetupReady: ['Screens/Setup', 'SetupReady'],
   Runs: ['Screens/Runs', 'Runs'],
+  RunsUsage: ['Screens/Runs', 'RunsUsage'],
   RunsProblems: ['Screens/Runs', 'RunsProblems'],
   RunIdleShell: ['Screens/Shell', 'RunIdleShell'],
   PlatformOrgsShell: ['Screens/Shell', 'PlatformOrgsShell'],
@@ -56,6 +57,7 @@ const stories = {
   RunsPaged: ['Screens/Runs', 'RunsPaged'],
   RunsFlatPaged: ['Screens/Runs', 'RunsFlatPaged'],
   RunsPageLoading: ['Screens/Runs', 'RunsPageLoading'],
+  RunsPageLoadingUsage: ['Screens/Runs', 'RunsPageLoadingUsage'],
   RunsEmpty: ['Screens/Runs', 'RunsEmpty'],
   RunsProblemsPaged: ['Screens/Runs', 'RunsProblemsPaged'],
   RunsProblemsEmpty: ['Screens/Runs', 'RunsProblemsEmpty'],
@@ -313,6 +315,24 @@ const stories = {
       'StoppedAutoResumeFailedGaveUp',
       'RunningAutoResume',
     ].map((s) => [`Run${s}`, ['Screens/Run detail', `Run${s}`]]),
+    // The usage boards of Run detail: RunRunningUsage, RunRunningUsageReconnecting, RunSucceededUsage, RunSucceededUsageCollapsed, RunSucceededUsageModelsCollapsed, RunSucceededUsageMultiModel, RunSucceededUsageUnpriced, RunSucceededUsagePartial, RunSucceededUsageNonePriced, RunSucceededUsageReasoning, RunSucceededUsageZero, RunSucceededUsageNone, RunSucceededUsagePriceRange.
+    ...Object.fromEntries(
+      [
+        'RunRunningUsage',
+        'RunRunningUsageReconnecting',
+        'RunSucceededUsage',
+        'RunSucceededUsageCollapsed',
+        'RunSucceededUsageModelsCollapsed',
+        'RunSucceededUsageMultiModel',
+        'RunSucceededUsageUnpriced',
+        'RunSucceededUsagePartial',
+        'RunSucceededUsageNonePriced',
+        'RunSucceededUsageReasoning',
+        'RunSucceededUsageZero',
+        'RunSucceededUsageNone',
+        'RunSucceededUsagePriceRange',
+      ].map((n) => [n, ['Screens/Run detail', n]]),
+    ),
   ),
   ...Object.fromEntries(
     [

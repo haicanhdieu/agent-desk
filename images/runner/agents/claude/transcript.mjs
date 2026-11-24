@@ -17,7 +17,7 @@ import {
   unlinkSync,
   writeFileSync,
 } from 'node:fs';
-import { join, resolve, sep } from 'node:path';
+import { basename, dirname, join, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const TEXT_MAX_BYTES = 8000;
@@ -30,11 +30,16 @@ const FLUSH_WAIT_MS = 2500;
 const FLUSH_STALE_MS = 2000;
 const WAIT_STEP_MS = 50;
 const PREFIX = 'agentdesk: transcript ';
+const USAGE_PREFIX = 'agentdesk: usage ';
+const USAGE_BASE64_MAX = 1000;
+const STATE_VERSION = 2;
 
 /** @typedef {{ id: string; at?: string; kind: 'user' | 'agent' | 'tool' | 'notice'; text: string; tool?: string; truncated?: boolean }} WireEntry */
 
 /** @param {unknown} v @returns {v is Record<string, unknown>} */
 const isRecord = (v) => typeof v === 'object' && v !== null && !Array.isArray(v);
+
+/** @typedef {{ id: string; model: string; inputTokens: number; outputTokens: number; cacheReadTokens: number; cacheWriteTokens: number; cacheWriteLongTokens: number }} UsageWire */
 
 /** @param {unknown} ts @returns {string | undefined} */
 const toAt = (ts) => {
@@ -103,6 +108,57 @@ export function mapEntry(entry) {
   return [];
 }
 
+/** @param {unknown} v @returns {v is number} */
+const isCount = (v) => typeof v === 'number' && Number.isInteger(v) && v >= 0;
+
+/**
+ * Claude assistant log entry to one agent-neutral usage record (disjoint buckets), or undefined when it has no usable
+ * usage. Sidechain (subagent) entries count. Only the model id, the call id and integers are taken from the entry.
+ * @param {unknown} entry
+ * @returns {UsageWire | undefined}
+ */
+export function mapUsage(entry) {
+  if (!isRecord(entry) || entry.type !== 'assistant') return undefined;
+  const message = entry.message;
+  if (!isRecord(message) || typeof message.id !== 'string' || message.id === '') return undefined;
+  if (typeof message.model !== 'string' || message.model === '' || message.model === '<synthetic>') return undefined;
+  const usage = message.usage;
+  if (!isRecord(usage) || !isCount(usage.input_tokens) || !isCount(usage.output_tokens)) return undefined;
+  const optional = (/** @type {unknown} */ v) => (isCount(v) ? v : 0);
+  const split = isRecord(usage.cache_creation) ? usage.cache_creation : undefined;
+  const requestId = typeof entry.requestId === 'string' && entry.requestId !== '' ? entry.requestId : undefined;
+  return {
+    id: requestId ? `${message.id}:${requestId}` : message.id,
+    model: message.model,
+    inputTokens: usage.input_tokens,
+    outputTokens: usage.output_tokens,
+    cacheReadTokens: optional(usage.cache_read_input_tokens),
+    cacheWriteTokens: split ? optional(split.ephemeral_5m_input_tokens) : optional(usage.cache_creation_input_tokens),
+    cacheWriteLongTokens: split ? optional(split.ephemeral_1h_input_tokens) : 0,
+  };
+}
+
+/**
+ * One protocol line: `agentdesk: usage <base64(JSON)>`; undefined when the body is over 1000 chars.
+ * @param {UsageWire} u
+ * @returns {string | undefined}
+ */
+export function usageLine(u) {
+  const body = Buffer.from(
+    JSON.stringify({
+      id: u.id,
+      model: u.model,
+      inputTokens: u.inputTokens,
+      outputTokens: u.outputTokens,
+      cacheReadTokens: u.cacheReadTokens,
+      cacheWriteTokens: u.cacheWriteTokens,
+      cacheWriteLongTokens: u.cacheWriteLongTokens,
+    }),
+    'utf8',
+  ).toString('base64');
+  return body.length > USAGE_BASE64_MAX ? undefined : `${USAGE_PREFIX}${body}`;
+}
+
 /**
  * Cuts text to at most 8000 UTF-8 bytes on a code point boundary, and so that `encode(text)` (the base64 body of the
  * whole line) is at most 12000 chars.
@@ -152,19 +208,47 @@ export function wireLine(entry) {
 /** @param {string} stateDir */
 const stateFileOf = (stateDir) => join(stateDir, 'transcript.json');
 
-/** @param {string} stateDir @returns {Record<string, { offset: number }>} */
-function readFiles(stateDir) {
+/** Most usage lines kept for a retry when the output stays unwritable. */
+const MAX_PENDING_USAGE = 500;
+
+/** @param {string} stateDir @returns {{ files: Record<string, { offset: number }>; pending: string[] }} */
+function readState(stateDir) {
   try {
     const parsed = JSON.parse(readFileSync(stateFileOf(stateDir), 'utf8'));
     const files = isRecord(parsed) && isRecord(parsed.files) ? parsed.files : {};
+    // A state file from before usage lines has no version: every tracked file restarts at offset 0 once.
+    const restart = !isRecord(parsed) || parsed.version !== STATE_VERSION;
     /** @type {Record<string, { offset: number }>} */
     const result = {};
     for (const [path, v] of Object.entries(files)) {
-      result[path] = { offset: isRecord(v) && typeof v.offset === 'number' && v.offset >= 0 ? v.offset : 0 };
+      result[path] = {
+        offset: !restart && isRecord(v) && typeof v.offset === 'number' && v.offset >= 0 ? v.offset : 0,
+      };
     }
-    return result;
+    const pending =
+      !restart && Array.isArray(parsed.pendingUsage)
+        ? parsed.pendingUsage.filter((l) => typeof l === 'string' && /^agentdesk: usage [A-Za-z0-9+/=]+$/.test(l))
+        : [];
+    return { files: result, pending };
   } catch {
-    return {};
+    return { files: {}, pending: [] };
+  }
+}
+
+/**
+ * The session's subagent logs: Claude Code writes sidechain calls to <session>/subagents/agent-*.jsonl, not to the
+ * main file.
+ * @param {string} path the main session file
+ * @returns {string[]}
+ */
+function subagentFiles(path) {
+  try {
+    const dir = join(path.replace(/\.jsonl$/, ''), 'subagents');
+    return readdirSync(dir)
+      .filter((n) => n.startsWith('agent-') && n.endsWith('.jsonl'))
+      .map((n) => join(dir, n));
+  } catch {
+    return [];
   }
 }
 
@@ -237,12 +321,15 @@ export function sendNew({ paths, stateDir, out, waitMs = 0, staleMs = LOCK_STALE
   const lock = join(stateDir, 'transcript.lock');
   if (!acquire(lock, waitMs, staleMs)) return 0;
   try {
-    const files = readFiles(stateDir);
-    for (const p of paths) files[p] ??= { offset: 0 };
+    const { files, pending } = readState(stateDir);
+    for (const p of paths) for (const q of [p, ...subagentFiles(p)]) files[q] ??= { offset: 0 };
+    /** @type {Map<string, UsageWire>} */
+    const usage = new Map();
     let written = 0;
     for (const [path, state] of Object.entries(files)) {
       try {
         const { lines, offset } = readNew(path, state.offset);
+        const isSubagent = basename(dirname(path)) === 'subagents';
         /** @type {string[]} */
         const wire = [];
         for (const line of lines) {
@@ -252,7 +339,15 @@ export function sendNew({ paths, stateDir, out, waitMs = 0, staleMs = LOCK_STALE
           } catch {
             continue;
           }
-          for (const e of mapEntry(entry)) wire.push(wireLine(e));
+          // Subagent files only feed usage; their prompts and replies are not the run's thread.
+          if (!isSubagent) {
+            for (const e of mapEntry(entry)) wire.push(wireLine(e));
+          }
+          const u = mapUsage(entry);
+          // One line per id per pass: the row with the larger output wins (a streaming placeholder never beats the
+          // final row, whatever the order); on a tie the later row wins.
+          const seen = u ? usage.get(u.id) : undefined;
+          if (u && (!seen || u.outputTokens >= seen.outputTokens)) usage.set(u.id, u);
         }
         if (wire.length > 0) appendFileSync(out, `${wire.join('\n')}\n`);
         written += wire.length;
@@ -261,8 +356,25 @@ export function sendNew({ paths, stateDir, out, waitMs = 0, staleMs = LOCK_STALE
         // A missing or unreadable file, or an unwritable output: its offset stays, so the next call retries.
       }
     }
+    const usageLines = [...pending];
+    for (const u of usage.values()) {
+      const l = usageLine(u);
+      if (l) usageLines.push(l);
+    }
+    /** @type {string[]} */
+    let unsent = [];
+    if (usageLines.length > 0) {
+      try {
+        appendFileSync(out, `${usageLines.join('\n')}\n`);
+        written += usageLines.length;
+      } catch {
+        // An unwritable output: those rows' offsets have moved on, so keep their lines in the state file and
+        // send them on the next pass (the store dedupes by id).
+        unsent = usageLines.slice(-MAX_PENDING_USAGE);
+      }
+    }
     const tmp = `${stateFileOf(stateDir)}.${process.pid}.tmp`;
-    writeFileSync(tmp, JSON.stringify({ files }));
+    writeFileSync(tmp, JSON.stringify({ version: STATE_VERSION, files, pendingUsage: unsent }));
     renameSync(tmp, stateFileOf(stateDir));
     return written;
   } finally {

@@ -19,7 +19,16 @@ import {
   type KubeGateway,
   type RunPod,
 } from '@agentdesk/core';
-import { createDb, runEvents, runs, runTranscriptEntries, setupScriptVersions, withOrg, type Db } from '@agentdesk/db';
+import {
+  createDb,
+  runEvents,
+  runs,
+  runTranscriptEntries,
+  runUsageEntries,
+  setupScriptVersions,
+  withOrg,
+  type Db,
+} from '@agentdesk/db';
 import { startPg, type TestPg } from '@agentdesk/db/testing';
 import type { FollowPodLogsResult, RunActivities, RunContext } from '../src/activities/run.activities';
 import { createRunActivities, type RunActivityDeps, type RunSignaller } from '../src/activities/run.activities.impl';
@@ -2701,6 +2710,42 @@ describe('resume mode', () => {
     expect((err as ApplicationFailure).type).toBe('NoAgentCredential');
     expect((err as ApplicationFailure).nonRetryable).toBe(true);
     expect(await kube.readSecret(`run-${runId}`)).toBeNull();
+  });
+});
+
+describe('usage lines', () => {
+  const uline = (entry: Record<string, unknown>) =>
+    `agentdesk: usage ${Buffer.from(JSON.stringify(entry), 'utf8').toString('base64')}`;
+  const podLogging = (lines: string[]): KubeGateway =>
+    wrapKube({
+      getRunPod: async (name) => ({ name, phase: 'Succeeded', pendingSince: null, reason: null, exitCode: 0 }),
+      streamLogs: async function* () {
+        for (const l of lines) yield l;
+      },
+      readSecret: async () => ({ x: 'y' }),
+    });
+
+  it('are stored in run_usage_entries and not written to run_events', async () => {
+    const runId = await seedRun('x', 'starting');
+    const ctx = await ctxFor(runId);
+    const kube1 = podLogging([
+      'agentdesk: session started',
+      uline({ id: 'm1', model: 'sonnet', inputTokens: 10, outputTokens: 2 }),
+      uline({ id: 'm1', model: 'sonnet', inputTokens: 10, outputTokens: 40 }),
+      uline({ id: 'm2', model: 'sonnet', inputTokens: 5, outputTokens: 6 }),
+    ]);
+    await follow(ctx, deps({ kube: kube1 })).promise;
+    const rows = await withOrg(db, ORG, (tx) =>
+      tx.select().from(runUsageEntries).where(eq(runUsageEntries.runId, runId)).orderBy(runUsageEntries.sourceId),
+    );
+    expect(rows.map((r) => [r.sourceId, r.inputTokens, r.outputTokens])).toEqual([
+      ['m1', 10, 40],
+      ['m2', 5, 6],
+    ]);
+    const { events } = await load(runId);
+    expect(events.filter((e) => e.type === 'lifecycle').map((e) => e.payload.kind)).toEqual(['session_started']);
+    expect(JSON.stringify(events)).not.toContain('usage');
+    expect(JSON.stringify(events)).not.toContain('sonnet');
   });
 });
 

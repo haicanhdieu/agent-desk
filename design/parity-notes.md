@@ -612,3 +612,8 @@ item reads "Change access".
 - The platform bar reads the scope "Platform", the page crumbs, the Platform sections tabs and the bell. The side menu is only the org group
   (the org name linking to Overview, then Overview, Projects, Members, Invitations) and shows only inside one org.
 - Not compared by browser: the new boards and stories were not rendered side by side in this change.
+
+## Run token usage and cost (#248)
+
+- Runs, RunsPageLoading, RunRunning and RunSucceeded: the stories now show the Usage column or section. The boards are left as drawn, because the usage design lives on the new boards (RunsUsage, RunsPageLoadingUsage, RunRunningUsage, RunSucceededUsage and its variants). No old board is redrawn.
+- RunRunningStop and RunRunningAutoResume keep showing no usage, as drawn.

@@ -1,0 +1,94 @@
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+}
+.body[hidden] {
+  display: none;
+}
+.split {
+  margin: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 7px 10px;
+  font-size: var(--fs-13);
+  align-items: baseline;
+}
+.split > div {
+  display: contents;
+}
+.split dt {
+  color: var(--muted);
+}
+.split dd {
+  margin: 0;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.total dt {
+  color: var(--text);
+}
+.total dd {
+  font-weight: 600;
+}
+.hint {
+  font-size: var(--fs-12);
+}
+.cost dt,
+.cost dd {
+  padding-top: 6px;
+}
+.atLeast {
+  color: var(--muted);
+  font-family: var(--sans);
+  font-size: var(--fs-13);
+}
+.reasoning {
+  grid-column: 1 / -1;
+  display: flex;
+  justify-content: space-between;
+  padding-left: 12px;
+  font-size: var(--fs-12_5);
+}
+.models-h {
+  margin-top: 2px;
+}
+.table {
+  table-layout: fixed;
+  width: 100%;
+  border-collapse: collapse;
+}
+.table[hidden] {
+  display: none;
+}
+.table th,
+.table td {
+  padding: 6px 0;
+  text-align: right;
+  font-size: var(--fs-12_5);
+}
+.table thead th {
+  padding: 0 0 6px;
+  font-weight: 500;
+  color: var(--muted);
+}
+.table thead th:first-child,
+.table tbody th {
+  text-align: left;
+  padding-right: 8px;
+}
+.table .tokens {
+  width: 84px;
+}
+.table .costCol {
+  width: 72px;
+}
+.table tbody th {
+  font-family: var(--mono);
+  font-weight: 400;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

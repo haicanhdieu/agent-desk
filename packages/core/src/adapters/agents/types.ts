@@ -20,9 +20,17 @@ export type AgentHttpGet = (
   opts?: { timeoutMs: number },
 ) => Promise<{ status: number; json: unknown }>;
 
+/** Which price catalog provider an agent's models are priced under. Never holds rates. */
+export interface AgentPricing {
+  provider: string;
+  /** Maps a model id the agent reports to the catalog key; the core default applies when absent. */
+  modelKey?(model: string): string;
+}
+
 export interface AgentAdapter {
   kind: AgentKind;
   builtinModels: readonly AgentModelOption[];
+  pricing?: AgentPricing;
   credentialEnv(type: CredentialType): string;
   launchEnv(input: { model: string; baseUrl: string | null }): { name: string; value: string }[];
   listModels(input: {

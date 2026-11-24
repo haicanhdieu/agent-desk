@@ -3,6 +3,8 @@ import {
   AgentStateSource,
   TRANSCRIPT_WIRE_MAX_BASE64,
   TranscriptWireEntry,
+  USAGE_WIRE_MAX_BASE64,
+  UsageWireEntry,
   toAgentNoteWire,
 } from '@agentdesk/contracts';
 
@@ -30,6 +32,7 @@ export type LogLineKind =
   | 'setup_output'
   | 'plugin_output'
   | 'transcript'
+  | 'usage'
   | 'text';
 
 export interface ParsedLogLine {
@@ -41,6 +44,8 @@ export interface ParsedLogLine {
   end?: { reason: EndReason; code: number };
   /** Only for kind `transcript`; `text` is then empty so the encoded body is never stored or logged by accident. */
   transcript?: TranscriptWireEntry;
+  /** Only for kind `usage`; `text` is then empty, like `transcript`. */
+  usage?: UsageWireEntry;
   agent?: { state: AgentState; source?: AgentStateSource; waitingOn?: 'background'; note?: string };
 }
 
@@ -74,6 +79,8 @@ const STATE_DECIDED =
 
 const TRANSCRIPT = /^agentdesk: transcript ([A-Za-z0-9+/]+={0,2})$/;
 
+const USAGE = /^agentdesk: usage ([A-Za-z0-9+/]+={0,2})$/;
+
 const PLUGIN_KINDS = { installed: 'plugin_installed', failed: 'plugin_failed' } as const;
 
 export function parseLogLine(line: string): ParsedLogLine {
@@ -86,6 +93,8 @@ export function parseLogLine(line: string): ParsedLogLine {
   if (agent) return { kind: 'agent_state', text: trimmed, agent };
   const transcript = parseTranscript(trimmed);
   if (transcript) return { kind: 'transcript', text: '', transcript };
+  const usage = parseUsage(trimmed);
+  if (usage) return { kind: 'usage', text: '', usage };
   const checkout = CHECKOUT.exec(trimmed);
   if (checkout?.[1]) return { kind: 'checkout', text: trimmed, sha: checkout[1] };
   const plugin = PLUGIN.exec(trimmed);
@@ -110,6 +119,18 @@ function parseTranscript(trimmed: string): TranscriptWireEntry | undefined {
   if (body === undefined || body.length > TRANSCRIPT_WIRE_MAX_BASE64 || body.length % 4 !== 0) return undefined;
   try {
     const parsed = TranscriptWireEntry.safeParse(JSON.parse(Buffer.from(body, 'base64').toString('utf8')));
+    return parsed.success ? parsed.data : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/** Same length and decode rules as `parseTranscript`; anything else is plain text. */
+function parseUsage(trimmed: string): UsageWireEntry | undefined {
+  const body = USAGE.exec(trimmed)?.[1];
+  if (body === undefined || body.length > USAGE_WIRE_MAX_BASE64 || body.length % 4 !== 0) return undefined;
+  try {
+    const parsed = UsageWireEntry.safeParse(JSON.parse(Buffer.from(body, 'base64').toString('utf8')));
     return parsed.success ? parsed.data : undefined;
   } catch {
     return undefined;

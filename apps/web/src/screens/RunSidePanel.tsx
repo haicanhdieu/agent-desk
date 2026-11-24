@@ -9,6 +9,7 @@ import {
   Note,
   RuleText,
   RunPromptSection,
+  RunUsage,
   Section,
   SidePanel,
   SideRail,
@@ -167,6 +168,13 @@ export function RunSidePanel({ data, collapsed, onExpand, links, maxRunsPerTicke
             aria-label={`${data.time.percent}% of run time limit used`}
           />
         </Section>
+      )}
+      {data.usage && (
+        <RunUsage
+          usage={data.usage}
+          initialOpen={!data.usageCollapsed}
+          initialModelsOpen={!data.usageModelsCollapsed}
+        />
       )}
       <Section title="Chain on this ticket" aside={<span className="faint num">max {maxRunsPerTicket} runs</span>}>
         <ChainTimeline steps={data.chain} />

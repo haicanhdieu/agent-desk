@@ -710,6 +710,114 @@ describe('fake-pod.mjs', () => {
       expect(wires().map((w) => w.text)).toContain('UNFLUSHED-MARKER');
     });
 
+    type UsageWire = {
+      id: string;
+      model: string;
+      inputTokens: number;
+      outputTokens: number;
+      cacheReadTokens: number;
+      cacheWriteTokens: number;
+      cacheWriteLongTokens: number;
+    };
+    const usages = (): UsageWire[] =>
+      logLines()
+        .filter((l) => l.startsWith('agentdesk: usage '))
+        .map(
+          (l) => JSON.parse(Buffer.from(l.slice('agentdesk: usage '.length), 'base64').toString('utf8')) as UsageWire,
+        );
+    const total = (u: UsageWire): number =>
+      u.inputTokens + u.outputTokens + u.cacheReadTokens + u.cacheWriteTokens + u.cacheWriteLongTokens;
+    // The store's rule: one row per id, the largest counts win.
+    const deduped = (list: UsageWire[]): Map<string, UsageWire> => {
+      const byId = new Map<string, UsageWire>();
+      for (const u of list) {
+        const seen = byId.get(u.id);
+        if (!seen || u.outputTokens >= seen.outputTokens) byId.set(u.id, u);
+      }
+      return byId;
+    };
+    const perModel = (list: UsageWire[]): Record<string, number> => {
+      const sums: Record<string, number> = {};
+      for (const u of deduped(list).values()) sums[u.model] = (sums[u.model] ?? 0) + total(u);
+      return sums;
+    };
+
+    it('--fake-usage first turn prints usage lines that sum to 3050 over two models', async () => {
+      await boot(tEnv({ PROMPT: `${PROMPT} --fake-usage` }));
+      advance(TURN_MS);
+      expect(perModel(usages())).toEqual({ 'fake-model-a': 2500, 'fake-model-b': 550 });
+      expect(deduped(usages()).size).toBe(4);
+    });
+
+    it('--fake-usage writes the placeholder and the final row under one id', async () => {
+      await boot(tEnv({ PROMPT: `${PROMPT} --fake-usage` }));
+      advance(TURN_MS);
+      // The adapter keeps one row per id per pass, so read both rows from the session file.
+      const rows = readFileSync(sessionFile(), 'utf8')
+        .split('\n')
+        .filter((l) => l.includes('"msg_fake_1"'))
+        .map((l) => JSON.parse(l) as { requestId: string; message: { usage: { output_tokens: number } } });
+      expect(rows.map((r) => r.message.usage.output_tokens)).toEqual([1, 200]);
+      expect(new Set(rows.map((r) => r.requestId))).toEqual(new Set(['req_fake_1']));
+      expect(usages().filter((u) => u.id.startsWith('msg_fake_1:'))).toHaveLength(1);
+    });
+
+    it('--fake-usage adds one 240-token call with a new id for a typed line', async () => {
+      await boot(tEnv({ PROMPT: `${PROMPT} --fake-usage` }));
+      advance(TURN_MS);
+      const before = new Set(usages().map((u) => u.id));
+      appendFileSync(join(dir, 'input'), 'again\r');
+      advance(TICK_MS);
+      advance(TURN_MS);
+      const added = usages().filter((u) => !before.has(u.id));
+      expect(added.map((u) => [u.model, total(u)])).toEqual([['fake-model-a', 240]]);
+    });
+
+    it('--fake-usage on a resumed pod prints no id it has not printed before its first new turn', async () => {
+      await boot(tEnv({ PROMPT: `${PROMPT} --fake-usage` }));
+      advance(TURN_MS);
+      const before = new Set(usages().map((u) => u.id));
+      vi.clearAllTimers();
+      await boot(tEnv({ PROMPT: `${PROMPT} --fake-usage`, RUN_MODE: 'resume' }));
+      expect(usages().every((u) => before.has(u.id))).toBe(true);
+      appendFileSync(join(dir, 'input'), 'again\r');
+      advance(TICK_MS);
+      advance(TURN_MS);
+      expect(
+        usages()
+          .filter((u) => !before.has(u.id))
+          .map(total),
+      ).toEqual([240]);
+    });
+
+    it('--fake-usage keeps counting on a resumed pod that gets no prompt, like the real job spec', async () => {
+      await boot(tEnv({ PROMPT: `${PROMPT} --fake-usage` }));
+      advance(TURN_MS);
+      const before = new Set(usages().map((u) => u.id));
+      vi.clearAllTimers();
+      await boot(tEnv({ PROMPT: '', RUN_MODE: 'resume' }));
+      appendFileSync(join(dir, 'input'), 'again\r');
+      advance(TICK_MS);
+      advance(TURN_MS);
+      expect(
+        usages()
+          .filter((u) => !before.has(u.id))
+          .map(total),
+      ).toEqual([240]);
+    });
+
+    it('--fake-usage-unpriced swaps the second model for fake-model-unpriced', async () => {
+      await boot(tEnv({ PROMPT: `${PROMPT} --fake-usage-unpriced` }));
+      advance(TURN_MS);
+      expect(perModel(usages())).toEqual({ 'fake-model-a': 2500, 'fake-model-unpriced': 550 });
+    });
+
+    it('prints no usage line without the flag', async () => {
+      await boot(tEnv());
+      advance(TURN_MS);
+      expect(usages()).toEqual([]);
+    });
+
     it('--fake-bad-transcript-lines logs three malformed lines to the log and the pane', async () => {
       await boot(tEnv({ PROMPT: `${PROMPT} --fake-bad-transcript-lines` }));
       const bodies = logLines()

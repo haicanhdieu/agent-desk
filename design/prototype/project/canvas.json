@@ -2665,6 +2665,126 @@
    "h": 900,
    "title": "Platform \u2014 Create organization at /platform/orgs/new inside the platform shell: Organizations / Create organization",
    "expand": "fill"
+  },
+  "RunsUsage.dc.html": {
+   "x": 0,
+   "y": 81200,
+   "w": 1440,
+   "h": 1000,
+   "title": "Runs \u2014 project home, usage column",
+   "expand": "fill"
+  },
+  "RunsPageLoadingUsage.dc.html": {
+   "x": 1520,
+   "y": 81200,
+   "w": 1440,
+   "h": 1000,
+   "title": "Runs \u2014 grouped, loading page 3 from page 4, usage column",
+   "expand": "fill"
+  },
+  "RunRunningUsage.dc.html": {
+   "x": 3040,
+   "y": 81200,
+   "w": 1440,
+   "h": 900,
+   "title": "Run 61 \u2014 running, usage so far",
+   "expand": "fill"
+  },
+  "RunRunningUsageReconnecting.dc.html": {
+   "x": 4560,
+   "y": 81200,
+   "w": 1440,
+   "h": 900,
+   "title": "Run 61 \u2014 running, reconnecting, cached usage stays",
+   "expand": "fill"
+  },
+  "RunSucceededUsage.dc.html": {
+   "x": 6080,
+   "y": 81200,
+   "w": 1440,
+   "h": 900,
+   "title": "Run 60 \u2014 succeeded, usage with one model",
+   "expand": "fill"
+  },
+  "RunSucceededUsageCollapsed.dc.html": {
+   "x": 7600,
+   "y": 81200,
+   "w": 1440,
+   "h": 900,
+   "title": "Run 60 \u2014 succeeded, Usage section collapsed",
+   "expand": "fill"
+  },
+  "RunSucceededUsageModelsCollapsed.dc.html": {
+   "x": 9120,
+   "y": 81200,
+   "w": 1440,
+   "h": 900,
+   "title": "Run 60 \u2014 succeeded, Usage open, Models collapsed",
+   "expand": "fill"
+  },
+  "RunSucceededUsageMultiModel.dc.html": {
+   "x": 10640,
+   "y": 81200,
+   "w": 1440,
+   "h": 900,
+   "title": "Run 60 \u2014 succeeded, usage with two models",
+   "expand": "fill"
+  },
+  "RunSucceededUsageUnpriced.dc.html": {
+   "x": 0,
+   "y": 82480,
+   "w": 1440,
+   "h": 900,
+   "title": "Run 60 \u2014 succeeded, usage with an unpriced model and a long model name",
+   "expand": "fill"
+  },
+  "RunSucceededUsagePartial.dc.html": {
+   "x": 1520,
+   "y": 82480,
+   "w": 1440,
+   "h": 900,
+   "title": "Run 60 \u2014 succeeded, usage partial (call cap reached)",
+   "expand": "fill"
+  },
+  "RunSucceededUsageNonePriced.dc.html": {
+   "x": 3040,
+   "y": 82480,
+   "w": 1440,
+   "h": 900,
+   "title": "Run 60 \u2014 succeeded, usage with no priced model",
+   "expand": "fill"
+  },
+  "RunSucceededUsageReasoning.dc.html": {
+   "x": 4560,
+   "y": 82480,
+   "w": 1440,
+   "h": 900,
+   "title": "Run 60 \u2014 succeeded, usage with reasoning reported",
+   "expand": "fill"
+  },
+  "RunSucceededUsageZero.dc.html": {
+   "x": 6080,
+   "y": 82480,
+   "w": 1440,
+   "h": 900,
+   "title": "Run 60 \u2014 succeeded, zero usage",
+   "expand": "fill"
+  },
+  "RunSucceededUsageNone.dc.html": {
+   "x": 7600,
+   "y": 82480,
+   "w": 1440,
+   "h": 900,
+   "title": "Run 60 \u2014 succeeded, no usage data",
+   "expand": "fill"
+  },
+  "RunSucceededUsagePriceRange.dc.html": {
+   "x": 9120,
+   "y": 82480,
+   "w": 1440,
+   "h": 900,
+   "title": "Run 60 \u2014 succeeded, usage across a price change (date range)",
+   "expand": "fill"
   }
  },
  "order": [
@@ -2682,9 +2802,12 @@
   "Setup4.dc.html",
   "SetupReady.dc.html",
   "Runs.dc.html",
+  "RunsUsage.dc.html",
   "RunsProblems.dc.html",
   "RunStarting.dc.html",
   "RunRunning.dc.html",
+  "RunRunningUsage.dc.html",
+  "RunRunningUsageReconnecting.dc.html",
   "RunIdle.dc.html",
   "RunIdleShell.dc.html",
   "PlatformOrgsShell.dc.html",
@@ -2698,6 +2821,17 @@
   "CreateOrgPlatformShell.dc.html",
   "RunReconnect.dc.html",
   "RunSucceeded.dc.html",
+  "RunSucceededUsage.dc.html",
+  "RunSucceededUsageCollapsed.dc.html",
+  "RunSucceededUsageModelsCollapsed.dc.html",
+  "RunSucceededUsageMultiModel.dc.html",
+  "RunSucceededUsageUnpriced.dc.html",
+  "RunSucceededUsagePartial.dc.html",
+  "RunSucceededUsageNonePriced.dc.html",
+  "RunSucceededUsageReasoning.dc.html",
+  "RunSucceededUsageZero.dc.html",
+  "RunSucceededUsageNone.dc.html",
+  "RunSucceededUsagePriceRange.dc.html",
   "RunPrompt.dc.html",
   "RunFailed.dc.html",
   "RunSetupFailed.dc.html",
@@ -2741,6 +2875,7 @@
   "RunsPaged.dc.html",
   "RunsFlatPaged.dc.html",
   "RunsPageLoading.dc.html",
+  "RunsPageLoadingUsage.dc.html",
   "RunsEmpty.dc.html",
   "RunsProblemsPaged.dc.html",
   "RunsProblemsEmpty.dc.html",

@@ -245,14 +245,14 @@ export async function disposeCast(cast: Cast): Promise<void> {
 export async function secondOrg(
   browser: Browser,
   pa: APIRequestContext,
-): Promise<{ orgId: string; owner: Actor; project: string; run: string }> {
+): Promise<{ orgId: string; slug: string; owner: Actor; project: string; run: string }> {
   const tag = uniq();
   const org = await createOrg(pa, `RBAC Y ${tag}`, `rbac-y-${tag}`);
   const owner = await signIn(browser, pa, org.id, `rbac-y-${tag}`, 'owner', { type: 'org' });
   const connectionId = await installFake(owner);
   const project = await setUpProject(owner, connectionId, REPO_NEW);
   const run = await startRun(owner, project, REPO_NEW);
-  return { orgId: org.id, owner, project, run };
+  return { orgId: org.id, slug: `rbac-y-${tag}`, owner, project, run };
 }
 
 /** Disposes what `secondOrg` made. */

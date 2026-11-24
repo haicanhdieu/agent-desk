@@ -18,6 +18,7 @@ export interface ReconcileTemporal {
 
 export interface ReconcileLogger {
   warn(msg: string, meta?: Record<string, unknown>): void;
+  error?(msg: string, meta?: Record<string, unknown>): void;
 }
 
 export interface ReconcileDeps {

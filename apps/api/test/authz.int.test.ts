@@ -17,6 +17,7 @@ import {
   roleAssignments,
   roles,
   rules as rulesTable,
+  runUsageEntries,
   runs,
   seedPlatformAdmin,
   setupTests,
@@ -32,6 +33,7 @@ import { SessionGuard } from '../src/auth/session.guard';
 import { createTestApp, type TestApp } from './helpers/app';
 import { asPlatformAdmin, createOrg, inviteAndLogin, userIdOf } from './helpers/auth';
 import { freshStateDir, installFake, makeProject, wideFakeRepos } from './helpers/fixtures';
+import { makeUsageEntry } from './helpers/usage';
 
 /**
  * Route keys whose controllers are added by later tasks of the RBAC plan. Each entry is asserted to be still
@@ -491,6 +493,7 @@ describe('permission and project scope', () => {
         })
         .returning({ id: runs.id });
       if (!row) throw new Error('no run');
+      await tx.insert(runUsageEntries).values({ ...makeUsageEntry(), orgId, runId: row.id });
       return row.id;
     });
   }
@@ -918,6 +921,7 @@ describe('denial table over every route, stream and terminal', () => {
         })
         .returning({ id: runs.id });
       if (!row) throw new Error('no run');
+      await tx.insert(runUsageEntries).values({ ...makeUsageEntry(), orgId: orgA, runId: row.id });
       return row.id;
     });
   }
@@ -1263,6 +1267,24 @@ describe('denial table over every route, stream and terminal', () => {
     expect(await mismatches(reads, viewerCookie, (k) => Number(DENIAL_TABLE[k].viewer))).toEqual([]);
     for (const key of ALL_KEYS.filter((k) => DENIAL_TABLE[k].viewer === 'stream')) {
       expect(await streamStatus(key, viewerCookie), key).toBe(200);
+    }
+  });
+
+  it('run usage: a viewer reads it on a run, a role without run:read gets 403 before any lookup', async () => {
+    const read = (cookie: string, id: string) =>
+      t.app.inject({ method: 'GET', url: `/api/runs/${id}`, headers: { cookie } });
+    const ok = await read(viewerCookie, runTerminalId);
+    expect(ok.statusCode).toBe(200);
+    expect(ok.json<{ usage: { totalTokens: number } }>().usage.totalTokens).toBeGreaterThan(0);
+    for (const id of [runTerminalId, '00000000-0000-4000-8000-000000000000']) {
+      const res = await read(noneCookie, id);
+      expect(res.statusCode, id).toBe(403);
+      expect(res.body).not.toContain('totalTokens');
+    }
+    for (const url of [`/api/projects/${p1}/runs`, `/api/projects/${p1}/runs/stats?since=2020-01-01T00:00:00.000Z`]) {
+      const res = await t.app.inject({ method: 'GET', url, headers: { cookie: noneCookie } });
+      expect(res.statusCode, url).toBe(403);
+      expect(res.body, url).not.toContain('totalTokens');
     }
   });
 
