@@ -350,6 +350,20 @@ describe('desk skills submit and review', () => {
       expect(router.state.location.search).toEqual({ skill: 'code-e2e' });
     });
 
+    it('a stale edit shows the reload message, no review notice, and restarts the draft', async () => {
+      scenarios.skillReviewRequired();
+      const { user } = await renderRoute(`${base}/skills?skill=code-review`);
+      await screen.findByLabelText('SKILL.md source');
+      Object.assign(skillRow('code-review'), { sha: 'changed-elsewhere', body: 'their version' });
+      await edit(user);
+      await user.click(screen.getByRole('button', { name: 'Submit changes' }));
+
+      expect(await screen.findByText('Skill changed elsewhere — reload')).toBeInTheDocument();
+      expect(screen.queryByText('Changes submitted for review')).toBeNull();
+      expect(screen.queryByRole('link', { name: /View change request/ })).toBeNull();
+      await waitFor(() => expect(screen.getByLabelText('SKILL.md source')).toHaveValue('their version'));
+    });
+
     it('opening another skill clears the notice', async () => {
       scenarios.skillReviewRequired();
       const { user } = await renderRoute(`${base}/skills?skill=code-review`);

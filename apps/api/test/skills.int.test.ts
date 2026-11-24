@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { Page, SkillChangeResponse, SkillDto, SkillSummaryDto } from '@agentdesk/contracts';
-import { FakeStore } from '@agentdesk/core';
+import { FakeStore, SkillBranchExistsError, SkillChangeRequestError, type AdapterRegistry } from '@agentdesk/core';
 import { createTestApp, type TestApp } from './helpers/app';
 import { createOrg, inviteAndLogin } from './helpers/auth';
 import { expectContract } from './helpers/contract';
@@ -13,11 +13,29 @@ let projectId: string;
 let aliceOrgId: string;
 let store: FakeStore;
 let repoPath: string;
+/** When set, the fake code host's skill writes fail with it (raw provider text on purpose). */
+let injected: Error | undefined;
+const failingWrites = (real: AdapterRegistry): AdapterRegistry => {
+  const wide = wideFakeRepos(real);
+  return {
+    ...wide,
+    codeHost: (provider) => {
+      const host = wide.codeHost(provider);
+      if (provider !== 'fake') return host;
+      return Object.assign(Object.create(host), {
+        writeSkill: async (...args: Parameters<typeof host.writeSkill>) => {
+          if (injected) throw injected;
+          return host.writeSkill(...args);
+        },
+      });
+    },
+  };
+};
 
 beforeAll(async () => {
   const stateDir = freshStateDir();
   store = new FakeStore(stateDir);
-  t = await createTestApp({ env: { FAKE_STATE_DIR: stateDir }, wrapAdapters: wideFakeRepos });
+  t = await createTestApp({ env: { FAKE_STATE_DIR: stateDir }, wrapAdapters: failingWrites });
   const aliceOrg = (await createOrg(t, 'Alice', 'alice')).id;
   aliceOrgId = aliceOrg;
   const bobOrg = (await createOrg(t, 'Bob', 'bob')).id;
@@ -251,6 +269,35 @@ describe('skills: protected default branch', () => {
       expect((await put('stale-cr', { body: 'three', message: 'm', sha: first.sha })).statusCode).toBe(409);
     } finally {
       await store.setBranchProtected(repoPath, false);
+    }
+  });
+
+  it.each([
+    ['a branch name collision', new SkillBranchExistsError('x'), 409],
+    ['a branch creation failure', new SkillChangeRequestError('branch', 'x'), 502],
+    ['a change request creation failure', new SkillChangeRequestError('change_request', 'x'), 502],
+    ['a permission failure', new SkillChangeRequestError('permission', 'x'), 502],
+  ])('%s is an actionable problem that is not a stale-edit message', async (_label, err, status) => {
+    injected = err;
+    try {
+      const res = await put('failing', { body: 'x', message: 'm' });
+      expect(res.statusCode).toBe(status);
+      const detail = String((res.json() as { detail?: string }).detail);
+      expect(detail).not.toMatch(/changed since it was read/);
+      expect(detail.length).toBeGreaterThan(20);
+    } finally {
+      injected = undefined;
+    }
+  });
+
+  it('never leaks raw provider text from an unexpected write failure', async () => {
+    injected = Object.assign(new Error('Validation Failed: ghs_secrettoken octokit internals'), { status: 422 });
+    try {
+      const res = await put('failing', { body: 'x', message: 'm' });
+      expect(res.statusCode).toBe(500);
+      expect(res.body).not.toMatch(/ghs_secrettoken|octokit|Validation Failed/);
+    } finally {
+      injected = undefined;
     }
   });
 

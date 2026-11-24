@@ -56,9 +56,8 @@ function Body({
       }
     >
       <p className={styles.confirmText}>
-        This removes <span className="mono">{path}</span> from <span className="mono">{branch}</span>. If that branch
-        requires review, the removal is submitted for review and stays in place until it is merged. You can restore a
-        removed skill from git history, not from Agent Desk.
+        This removes <span className="mono">{path}</span> from <span className="mono">{branch}</span>, or submits the
+        removal for review if that branch requires it. Restore it from git history, not from Agent Desk.
       </p>
       {warning && (
         <Banner tone="warn" icon={<Icon name="warning" size={16} />}>

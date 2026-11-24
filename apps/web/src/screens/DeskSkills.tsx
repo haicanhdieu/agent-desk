@@ -157,7 +157,7 @@ function SkillEditor({
         pending={committing}
         onDiscard={() => setValue(skill.body)}
         onCommit={() => onCommit?.(value, message)}
-        note="Submitted as agent-desk[bot]. If the target branch requires review, the changes are submitted for review instead of saved. Runs that start after the change is on the target branch use the new version; running runs keep the old one."
+        note="Submitted as agent-desk[bot]. If the target branch requires review, the changes are submitted for review instead of saved."
       />
     </>
   );

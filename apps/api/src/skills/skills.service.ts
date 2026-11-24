@@ -1,4 +1,4 @@
-import { ConflictException, Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { BadGatewayException, ConflictException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { eq } from 'drizzle-orm';
 import { connections, projects, withOrg, type Db } from '@agentdesk/db';
 import {
@@ -13,6 +13,8 @@ import {
   type SkillSummaryDto,
 } from '@agentdesk/contracts';
 import {
+  SkillBranchExistsError,
+  SkillChangeRequestError,
   SkillConflictError,
   SkillNotFoundError,
   toAdapterProject,
@@ -104,5 +106,21 @@ export class SkillsService {
 function mapSkillError(err: unknown): unknown {
   if (err instanceof SkillNotFoundError) return new NotFoundException('Skill not found');
   if (err instanceof SkillConflictError) return new ConflictException('Skill changed since it was read');
+  if (err instanceof SkillBranchExistsError) {
+    return new ConflictException('A change request branch with that name already exists. Submit again.');
+  }
+  // Fixed texts only: provider errors never reach the client.
+  if (err instanceof SkillChangeRequestError) {
+    if (err.stage === 'permission') {
+      return new BadGatewayException(
+        'The code host refused the change request. Check that the connection can write to this repository.',
+      );
+    }
+    return new BadGatewayException(
+      err.stage === 'branch'
+        ? 'Could not create a branch for the change request. Try again, or check the repository.'
+        : 'Could not open the change request. Try again, or check the repository.',
+    );
+  }
   return err;
 }

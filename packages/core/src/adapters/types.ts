@@ -154,6 +154,28 @@ export class SkillConflictError extends Error {
   }
 }
 
+/** Thrown when the change-request branch name is already taken (a retry picks a new one). */
+export class SkillBranchExistsError extends Error {
+  constructor(name: string) {
+    super(`change request branch for skill ${name} already exists`);
+    this.name = 'SkillBranchExistsError';
+  }
+}
+
+/**
+ * Thrown when a skill change could not be turned into a change request. `stage` says what failed; the message never
+ * carries provider text.
+ */
+export class SkillChangeRequestError extends Error {
+  constructor(
+    readonly stage: 'branch' | 'change_request' | 'permission',
+    name: string,
+  ) {
+    super(`skill ${name} change request failed at ${stage}`);
+    this.name = 'SkillChangeRequestError';
+  }
+}
+
 /** Thrown when a skill does not exist. */
 export class SkillNotFoundError extends Error {
   constructor(name: string) {

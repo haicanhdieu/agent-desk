@@ -3,6 +3,8 @@ import { z } from 'zod';
 import type { Clock } from '../../clock';
 import {
   SKILLS_DIR,
+  SkillBranchExistsError,
+  SkillChangeRequestError,
   SkillConflictError,
   SkillNotFoundError,
   skillDescription,
@@ -67,6 +69,18 @@ function skillPath(name: string): string {
 }
 
 type GithubInstallationClient = ReturnType<GithubClients['installation']>;
+
+function isPermissionStatus(s: number | undefined): boolean {
+  return s === 401 || s === 403;
+}
+
+/** Only GitHub's "reference already exists" is a branch-name collision; any other failure is not a stale edit. */
+function refCreateError(e: unknown, name: string): Error {
+  const status = errorStatus(e);
+  const message = e instanceof Error ? e.message : '';
+  if (status === 422 && /already exists/i.test(message)) return new SkillBranchExistsError(name);
+  return new SkillChangeRequestError(isPermissionStatus(status) ? 'permission' : 'branch', name);
+}
 
 export class GithubCodeHostAdapter implements CodeHostAdapter {
   constructor(
@@ -368,8 +382,7 @@ export class GithubCodeHostAdapter implements CodeHostAdapter {
         sha: meta.commit.sha,
       });
     } catch (e) {
-      if (errorStatus(e) === 422) throw new SkillConflictError(name);
-      throw e;
+      throw refCreateError(e, name);
     }
     try {
       await commit(sourceBranch);
@@ -389,7 +402,8 @@ export class GithubCodeHostAdapter implements CodeHostAdapter {
       return { kind: 'change_request', sourceBranch, targetBranch, url: pr.html_url, id: String(pr.number) };
     } catch (e) {
       await this.dropBranch(octokit, owner, repo, sourceBranch);
-      throw e;
+      if (e instanceof SkillConflictError) throw e;
+      throw new SkillChangeRequestError(isPermissionStatus(errorStatus(e)) ? 'permission' : 'change_request', name);
     }
   }
 
