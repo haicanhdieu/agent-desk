@@ -309,6 +309,14 @@ export const boardStories = {
   PlatformOrgEditSlugConfirm: { title: platform, exportName: 'PlatformOrgEditSlugConfirm' },
   PlatformOrgEditError: { title: platform, exportName: 'PlatformOrgEditError' },
   OrgAuditPlatformEdit: { title: orgSettings, exportName: 'OrgAuditPlatformEdit' },
+  PlatformAudit: { title: platform, exportName: 'PlatformAudit' },
+  PlatformAuditLoading: { title: platform, exportName: 'PlatformAuditLoading' },
+  PlatformAuditEmpty: { title: platform, exportName: 'PlatformAuditEmpty' },
+  PlatformAuditEmptyFiltered: { title: platform, exportName: 'PlatformAuditEmptyFiltered' },
+  PlatformAuditError: { title: platform, exportName: 'PlatformAuditError' },
+  PlatformAuditPaged: { title: platform, exportName: 'PlatformAuditPaged' },
+  PlatformAuditOrgChip: { title: platform, exportName: 'PlatformAuditOrgChip' },
+  PlatformAuditOrgChipUnknown: { title: platform, exportName: 'PlatformAuditOrgChipUnknown' },
 } as const satisfies Record<string, BoardStory>;
 
 export type BoardName = keyof typeof boardStories;

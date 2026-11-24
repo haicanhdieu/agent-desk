@@ -1672,11 +1672,11 @@ export function PlatformAudit(props: PlatformAuditProps): JSX.Element;
 // mocks/platform/audit.ts: platformAuditRows (every action, a "Deleted user", reasons on suspend/reactivate, an edit), pagedPlatformAuditRows
 ```
 
-- [ ] **Step 1: Write the failing tests**: `AuditRow.test.tsx` renders `note` muted under the sentence and nothing without it; `platform.test.tsx`: h1 "Audit log", columns When, Who, What, Action select "All actions", chip "Organization: <name>" with a remove button labelled "Remove filter Organization: <name>", "No audit entries", "No audit entries match" with "Clear filters".
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/components/AuditRow.test.tsx src/screens/platform.test.tsx`. Expected: FAIL.
-- [ ] **Step 3: Implement** the note, the screen and stories `PlatformAudit`, `…Loading`, `…Empty`, `…EmptyFiltered`, `…Error`, `…Paged`, `…OrgChip`, `…OrgChipUnknown`; `AuditRow` story WithNote; register the 8 boards; coverage 232 to 240; regenerate the interactive prototype; parity notes.
-- [ ] **Step 4: Run** the same commands as Task 5 Step 4 for these 8 boards plus `OrgAudit*` (the shared `AuditRow`). Expected: PASS.
-- [ ] **Step 5: Commit**: `feat(web): platform audit log boards in Storybook`.
+- [x] **Step 1: Write the failing tests**: `AuditRow.test.tsx` renders `note` muted under the sentence and nothing without it; `platform.test.tsx`: h1 "Audit log", columns When, Who, What, Action select "All actions", chip "Organization: <name>" with a remove button labelled "Remove filter Organization: <name>", "No audit entries", "No audit entries match" with "Clear filters".
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/components/AuditRow.test.tsx src/screens/platform.test.tsx`. Expected: FAIL.
+- [x] **Step 3: Implement** the note, the screen and stories `PlatformAudit`, `…Loading`, `…Empty`, `…EmptyFiltered`, `…Error`, `…Paged`, `…OrgChip`, `…OrgChipUnknown`; `AuditRow` story WithNote; register the 8 boards; coverage 232 to 240; regenerate the interactive prototype; parity notes.
+- [x] **Step 4: Run** the same commands as Task 5 Step 4 for these 8 boards plus `OrgAudit*` (the shared `AuditRow`). Expected: PASS.
+- [x] **Step 5: Commit**: `feat(web): platform audit log boards in Storybook`.
 
 ---
 

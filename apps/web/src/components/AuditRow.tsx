@@ -10,7 +10,7 @@ export const auditColumns: DataTableColumn[] = [
 
 /** One audit entry: time, actor, and what happened. Every string renders as React text only. */
 export function AuditRow({ row }: { row: AuditRowView }) {
-  const { when, who, what } = row;
+  const { when, who, what, note } = row;
   return (
     <tr>
       <td className={styles.when}>
@@ -31,6 +31,11 @@ export function AuditRow({ row }: { row: AuditRowView }) {
           <span className={styles.what} title={what.target ? `${what.key} ${what.target}` : what.key}>
             <span className="mono">{what.key}</span>
             {what.target && <span className={styles.target}> {what.target}</span>}
+          </span>
+        )}
+        {note && (
+          <span className={styles.note} title={note}>
+            {note}
           </span>
         )}
       </td>

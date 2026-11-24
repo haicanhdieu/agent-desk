@@ -2345,6 +2345,70 @@
    "h": 900,
    "title": "Settings \u2014 Audit log: a platform admin renamed the organization (marked Platform admin)",
    "expand": "fill"
+  },
+  "PlatformAudit.dc.html": {
+   "x": 3040,
+   "y": 73520,
+   "w": 1440,
+   "h": 900,
+   "title": "Platform audit log \u2014 newest first, reason on suspend and reactivate",
+   "expand": "fill"
+  },
+  "PlatformAuditLoading.dc.html": {
+   "x": 4560,
+   "y": 73520,
+   "w": 1440,
+   "h": 900,
+   "title": "Platform audit log \u2014 loading",
+   "expand": "fill"
+  },
+  "PlatformAuditEmpty.dc.html": {
+   "x": 6080,
+   "y": 73520,
+   "w": 1440,
+   "h": 900,
+   "title": "Platform audit log \u2014 no entries",
+   "expand": "fill"
+  },
+  "PlatformAuditEmptyFiltered.dc.html": {
+   "x": 0,
+   "y": 74800,
+   "w": 1440,
+   "h": 900,
+   "title": "Platform audit log \u2014 action filter matches nothing",
+   "expand": "fill"
+  },
+  "PlatformAuditError.dc.html": {
+   "x": 1520,
+   "y": 74800,
+   "w": 1440,
+   "h": 900,
+   "title": "Platform audit log \u2014 failed to load",
+   "expand": "fill"
+  },
+  "PlatformAuditPaged.dc.html": {
+   "x": 3040,
+   "y": 74800,
+   "w": 1440,
+   "h": 900,
+   "title": "Platform audit log \u2014 page 2 of 2",
+   "expand": "fill"
+  },
+  "PlatformAuditOrgChip.dc.html": {
+   "x": 4560,
+   "y": 74800,
+   "w": 1440,
+   "h": 900,
+   "title": "Platform audit log \u2014 from \"View audit log\": filtered to one org, removable chip",
+   "expand": "fill"
+  },
+  "PlatformAuditOrgChipUnknown.dc.html": {
+   "x": 6080,
+   "y": 74800,
+   "w": 1440,
+   "h": 900,
+   "title": "Platform audit log \u2014 org filter with an unknown id",
+   "expand": "fill"
   }
  },
  "order": [
@@ -2639,7 +2703,15 @@
   "PlatformOrgEditSaving.dc.html",
   "PlatformOrgEditSlugConfirm.dc.html",
   "PlatformOrgEditError.dc.html",
-  "OrgAuditPlatformEdit.dc.html"
+  "OrgAuditPlatformEdit.dc.html",
+  "PlatformAudit.dc.html",
+  "PlatformAuditLoading.dc.html",
+  "PlatformAuditEmpty.dc.html",
+  "PlatformAuditEmptyFiltered.dc.html",
+  "PlatformAuditError.dc.html",
+  "PlatformAuditPaged.dc.html",
+  "PlatformAuditOrgChip.dc.html",
+  "PlatformAuditOrgChipUnknown.dc.html"
  ],
  "notes": {
   "t-intro": {

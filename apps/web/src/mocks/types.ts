@@ -312,6 +312,8 @@ export interface AuditRowView {
   who: { label: string; tag: 'deleted' | 'platform' | null };
   what:
     { kind: 'sentence'; parts: AuditTextPart[]; title: string } | { kind: 'raw'; key: string; target: string | null };
+  /** Muted line under the sentence, for example "Reason: <text>". */
+  note?: string;
 }
 
 // Project space (Settings → Members and Audit log of one project).
