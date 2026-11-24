@@ -183,11 +183,17 @@ const board = (page: Page): Promise<Group[]> =>
 const rowsOf = (page: Page, head: string): Promise<string[] | undefined> =>
   board(page).then((b) => b.find((g) => g.head === head)?.rows);
 
+/**
+ * The accessible name of a ticket link. Once `tickets.prStates` answers, a PR link also names its live state
+ * ("Merged PR #148", see TicketRef), so the name is matched with or without that state word.
+ */
+const ticketLink = (label: string): RegExp => new RegExp(`^(?:(?:Open|Draft|Merged|Closed) )?${label}$`);
+
 /** The header row that holds the link named `label` and no `Run N` link. */
 const header = (page: Page, label: string): Locator =>
   page
     .getByRole('row')
-    .filter({ has: page.getByRole('link', { name: label, exact: true }) })
+    .filter({ has: page.getByRole('link', { name: ticketLink(label) }) })
     .filter({ hasNot: page.getByRole('link', { name: /^Run \d+$/ }) });
 
 const openRuns = async (page: Page, ticketRuns?: TicketRun[]) => {
@@ -317,7 +323,7 @@ test.describe('BR-11 a PR linked to two issues joins the lower one', () => {
     await expect.poll(() => rowsOf(page, 'Issue #150')).toEqual(['2:#150']);
     await expect(header(page, 'Issue #150')).toContainText(/1 of 10 runs$/);
     await expect(header(page, 'Issue #150')).not.toContainText(CHAIN_ARROW);
-    await expect(page.getByRole('link', { name: 'PR #148', exact: true })).toHaveCount(1);
+    await expect(page.getByRole('link', { name: ticketLink('PR #148') })).toHaveCount(1);
   });
 });
 

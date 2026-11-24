@@ -166,9 +166,15 @@ test('the run terminal prints Claude Code glyphs and uses a font stack that cove
 
   // Smoke check only: screen reader mode puts the text in the page whatever the renderer draws, so this does not
   // prove the pixels. The stack check below is what fails without the fix.
+  // The terminal runs in screen reader mode, where xterm drops `insertText` input (keyboard.insertText); a paste is
+  // sent whatever the mode, so the glyphs go in as a paste event on its input.
   const glyphs = '● ⎿ ▐▛███▜▌ ╭─╮';
   await terminal.click();
-  await page.keyboard.insertText(glyphs);
+  await terminal.locator('textarea').evaluate((el, text) => {
+    const data = new DataTransfer();
+    data.setData('text/plain', text);
+    el.dispatchEvent(new ClipboardEvent('paste', { clipboardData: data, bubbles: true, cancelable: true }));
+  }, glyphs);
   await expect(terminal).toContainText(glyphs);
 
   // The terminal gets its own stack (--term-mono, with glyph-covering fallbacks); the UI's --mono is unchanged.

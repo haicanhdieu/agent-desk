@@ -550,7 +550,8 @@ test.describe('BR-4 (group issue and PR runs): several PRs of one issue', () => 
     await expect(header).toHaveCount(1);
     await expect(header).toContainText('Issue #142 (1 of 10 runs) → PR #148 (1 of 10 runs), PR #150 (2 of 10 runs)');
     await expect(runLinks(page)).toHaveCount(1);
-    await expect(page.getByRole('link', { name: 'PR #148', exact: true })).toHaveCount(1);
+    // Once `tickets.prStates` answers, the PR link also names its live state ("Merged PR #148", see TicketRef).
+    await expect(page.getByRole('link', { name: /^(?:(?:Open|Draft|Merged|Closed) )?PR #148$/ })).toHaveCount(1);
   });
 });
 
