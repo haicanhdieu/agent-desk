@@ -1506,11 +1506,11 @@ PlatformOrgHeaderProps.onEdit present → "Edit organization" button first in th
 - Consumes: `routes.platform.updateOrg` (Task 34); `validateGeneral`, `changedFields`, `generalProblem`, `GENERAL_ERRORS` (`features/orgSettings/general.form.ts`); `EditOrgDialog`, `SlugChangeConfirm` (Task 36).
 - Produces: `export function useUpdatePlatformOrg(orgId: string): UseMutationResult<PlatformOrgDetailDto, ApiError, UpdateOrgRequest>;` (`setQueryData` on `platformKeys.org(orgId)`, invalidate `['platform','orgs']` and `orgsQuery`; no navigation).
 
-- [ ] **Step 1: Write the failing tests** in `orgEdit.route.test.tsx`: dialog prefilled, "Save" disabled until dirty and again when values equal the current ones (BR-59, no request); name-only save shows no confirm, toasts "Organization updated", stays on `/platform/orgs/<id>`, header and directory cache show the new name (BR-53, BR-57); a slug change shows the confirm first, Cancel returns to the dialog with input kept and sends nothing, "Change URL" saves (BR-57); "Enter a name.", "Use 100 characters or fewer." and the slug format message at the field, first invalid field focused (BR-54, BR-55); 409 lands "This URL is taken. Try another." at URL with input kept (BR-56); 404 toasts "Organization not found" and goes to the directory; 403/5xx show the Banner with the request id; on a suspended org Edit is enabled and the header keeps "Suspended" after save (BR-62); only changed fields are sent.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/features/platform/orgEdit.route.test.tsx`. Expected: FAIL.
-- [ ] **Step 3: Implement** the dialog state in the `$orgId` layout (errors on submit, then on blur after first touch; Enter submits, Escape cancels, focus returns to "Edit organization").
-- [ ] **Step 4: Run** `pnpm --filter @agentdesk/web exec vitest run src/features/platform src/features/orgSettings` and `pnpm --filter @agentdesk/web typecheck`. Expected: PASS.
-- [ ] **Step 5: Commit**: `feat(web): edit an organization from the platform detail`.
+- [x] **Step 1: Write the failing tests** in `orgEdit.route.test.tsx`: dialog prefilled, "Save" disabled until dirty and again when values equal the current ones (BR-59, no request); name-only save shows no confirm, toasts "Organization updated", stays on `/platform/orgs/<id>`, header and directory cache show the new name (BR-53, BR-57); a slug change shows the confirm first, Cancel returns to the dialog with input kept and sends nothing, "Change URL" saves (BR-57); "Enter a name.", "Use 100 characters or fewer." and the slug format message at the field, first invalid field focused (BR-54, BR-55); 409 lands "This URL is taken. Try another." at URL with input kept (BR-56); 404 toasts "Organization not found" and goes to the directory; 403/5xx show the Banner with the request id; on a suspended org Edit is enabled and the header keeps "Suspended" after save (BR-62); only changed fields are sent.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/features/platform/orgEdit.route.test.tsx`. Expected: FAIL.
+- [x] **Step 3: Implement** the dialog state in the `$orgId` layout (errors on submit, then on blur after first touch; Enter submits, Escape cancels, focus returns to "Edit organization").
+- [x] **Step 4: Run** `pnpm --filter @agentdesk/web exec vitest run src/features/platform src/features/orgSettings` and `pnpm --filter @agentdesk/web typecheck`. Expected: PASS.
+- [x] **Step 5: Commit**: `feat(web): edit an organization from the platform detail`.
 
 ---
 
@@ -1526,9 +1526,9 @@ PlatformOrgHeaderProps.onEdit present → "Edit organization" button first in th
 
 Covers: BR-52 (TC-52.3), BR-53 (TC-53.1, TC-53.2), BR-54 (TC-54.1 to TC-54.4), BR-55 (TC-55.1 to TC-55.5), BR-56 (TC-56.1), BR-57 (TC-57.1, TC-57.2, TC-57.3), BR-59 (TC-59.1), BR-62 (TC-62.1). Role-based case: TC-52.3.
 
-- [ ] **Step 1: Write the spec** with the spec's strings; TC-59.1 asserts "Save" is disabled and no PATCH was sent (spec open question Q5: the no-audit part is Task 35).
-- [ ] **Step 2: Run** the mock build, then `pnpm --filter @agentdesk/web exec playwright test e2e/mock/platform-org-edit.spec.ts`. Expected: PASS.
-- [ ] **Step 3: Commit**: `test(web): mock e2e for editing an organization`.
+- [x] **Step 1: Write the spec** with the spec's strings; TC-59.1 asserts "Save" is disabled and no PATCH was sent (spec open question Q5: the no-audit part is Task 35).
+- [x] **Step 2: Run** the mock build, then `pnpm --filter @agentdesk/web exec playwright test e2e/mock/platform-org-edit.spec.ts`. Expected: PASS.
+- [x] **Step 3: Commit**: `test(web): mock e2e for editing an organization`.
 
 ---
 
