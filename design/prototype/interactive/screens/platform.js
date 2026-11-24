@@ -85,7 +85,7 @@
       susp: { 'bluefin-health': { since: '21 Nov 2026', by: 'Morgan Avery', reason: 'Contract ended on 20 Nov; the customer asked us to pause access.' } },
       admins: [
         { id: 'adm3', email: 'sre-oncall@agentdesk.example', account: false, added: T(21, '09', '30', 'yesterday'), by: null },
-        { id: 'adm2', name: 'Priya Natarajan', handle: 'priya-n', email: 'priya.natarajan@agentdesk.example', account: true, added: T(20, '14', '02', '2 days ago'), by: 'Morgan Avery' },
+        { id: 'adm2', uid: 'priya-natarajan', name: 'Priya Natarajan', handle: 'priya-natarajan', email: 'priya.natarajan@agentdesk.example', account: true, added: T(20, '14', '02', '2 days ago'), by: 'Morgan Avery' },
         { id: 'adm1', uid: 'ops-admin', name: 'Morgan Avery', handle: 'ops-admin', email: 'morgan.avery@agentdesk.example', account: true, added: T(12, '09', '00', '12 Nov'), by: null },
       ],
       audit,
@@ -93,7 +93,7 @@
     return st;
   }
   const seed0 = AD.seed;
-  AD.seed = function () { AD.USERS['ops-admin'].platform = true; return platformSeed(seed0()); };
+  AD.seed = function () { AD.USERS['ops-admin'].platform = true; AD.USERS['priya-natarajan'].platform = true; return platformSeed(seed0()); };
   platformSeed(AD.state);
 
   /* ---------- org helpers ---------- */
@@ -176,18 +176,40 @@
     return auditText0(e);
   };
 
-  /* ---------- layout ---------- */
-  function sideNav(active, org) {
-    const a = (path, q, id, icon, label) => `<a href="${AD.href(path, q)}" class="${active === id ? 'on' : ''}"${active === id ? ' aria-current="page"' : ''}>${icon}${label}</a>`;
-    let h = `<nav class="subnav" aria-label="Platform admin"><div class="grp-h" style="padding-top:2px">Platform admin</div>${a('/platform/orgs', {}, 'orgs', I.grid, 'Organizations')}${a('/platform/admins', {}, 'admins', I.lock15, 'Platform admins')}${a('/platform/audit', {}, 'audit', I.clock, 'Audit log')}`;
-    if (org) {
-      const base = '/platform/orgs/' + org.id;
-      h += `<div class="grp-h">${span(org.name)}</div>${a(base, {}, 'overview', I.sliders, 'Overview')}${a(base + '/projects', {}, 'projects', '<svg aria-hidden="true" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M8 6h12M8 12h12M8 18h12M4 6h.01M4 12h.01M4 18h.01"/></svg>', 'Projects')}${a(base + '/members', {}, 'members', I.people, 'Members')}${a(base + '/invitations', {}, 'invitations', I.envelope15, 'Invitations')}`;
+  /* ---------- layout (navigation-consistency spec) ----------
+     The platform sections (Organizations, Platform admins, Audit log) are tabs in the top bar; the side menu holds only the
+     pages of one organization: its name (a link to Overview), Overview, Projects, Members, Invitations. While the org loads,
+     the group keeps the same size (fixed-height placeholders), so the menu does not jump. */
+  const TAB_LABEL = { overview: 'Overview', projects: 'Projects', members: 'Members', invitations: 'Invitations' };
+  const PROJ_ICON = '<svg aria-hidden="true" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M8 6h12M8 12h12M8 18h12M4 6h.01M4 12h.01M4 18h.01"/></svg>';
+  const SK = (w) => `<span aria-hidden="true" class="sk-line" style="width:${w}"></span>`;
+  // st: undefined (ready), 'loading' (placeholders), 'error' (the org name reads "Organization")
+  function orgSideNav(active, org, st, orgId) {
+    const id = org ? org.id : orgId;
+    const base = '/platform/orgs/' + id;
+    const a = (path, tab, icon, label) => `<a href="${AD.href(path)}" class="${active === tab ? 'on' : ''}"${active === tab ? ' aria-current="page"' : ''}>${icon}${label}</a>`;
+    if (st === 'loading') {
+      const row = (w) => `<span class="subnav-sk" aria-hidden="true">${SK("15px")}${SK(w)}&#8203;</span>`;
+      return `<nav class="subnav" aria-label="Platform admin" aria-busy="true"><span class="grp-h grp-link" role="status" aria-label="Loading organization" style="padding-top:2px">${SK('120px')}&#8203;</span>${row('64px')}${row('56px')}${row('62px')}${row('72px')}</nav>`;
     }
-    return h + '</nav>';
+    const name = st === 'error' || !org ? 'Organization' : org.name;
+    return `<nav class="subnav" aria-label="Platform admin"><a href="${AD.href(base)}" class="grp-h grp-link" style="padding-top:2px" title="${esc(name)}">${span(name)}</a>${a(base, 'overview', I.sliders, 'Overview')}${a(base + '/projects', 'projects', PROJ_ICON, 'Projects')}${a(base + '/members', 'members', I.people, 'Members')}${a(base + '/invitations', 'invitations', I.envelope15, 'Invitations')}</nav>`;
   }
-  function out(title, active, org, main, overlay, after) {
-    return { header: 'global', noOrg: true, h: 900, title, html: `<div style="flex:1;display:flex;min-height:0">${sideNav(active, org)}<main style="${MAIN}">${main}</main></div>${overlay || ''}`, after };
+  // Page crumbs of a platform page (the scope crumb "Platform" comes first, from the bar).
+  function pcrumbs(active, org, st) {
+    if (active === 'orgs') return [{ label: 'Organizations' }];
+    if (active === 'admins') return [{ label: 'Platform admins' }];
+    if (active === 'audit') return [{ label: 'Audit log' }];
+    const orgsC = { label: 'Organizations', href: AD.href('/platform/orgs') };
+    if (st === 'notfound') return [orgsC, { label: 'Not found' }];
+    const id = org ? org.id : AD.cur.params.orgId;
+    const nameC = st === 'loading' ? { loading: true, what: 'organization' } : { label: st === 'error' || !org ? 'Organization' : org.name, href: AD.href('/platform/orgs/' + id) };
+    return [orgsC, nameC, { label: TAB_LABEL[active] || 'Overview' }];
+  }
+  function out(title, active, org, main, overlay, after, st) {
+    const inOrg = !!TAB_LABEL[active];
+    const side = inOrg && st !== 'notfound' ? orgSideNav(active, org, st, AD.cur.params.orgId) : '';
+    return { header: 'platform', h: 900, title, crumbs: pcrumbs(active, org, st), html: `<div style="flex:1;display:flex;min-height:0">${side}<main style="${MAIN}">${main}</main></div>${overlay || ''}`, after };
   }
   const LOADING = `<div aria-busy="true" role="status" aria-label="Loading" style="display:flex;flex-direction:column;gap:14px">${'<span aria-hidden="true" style="display:block;height:30px;width:100%;background:var(--raised);border-radius:6px"></span>'.repeat(5)}</div>`;
   const ERROR = () => AD.errBanner({ title: 'Internal server error', reqId: AD.reqId() }, `<button class="btn" data-act="retry">${I.retry}Retry</button>`);
@@ -200,11 +222,15 @@
   // Board snapshots, the non-admin gate and the generic loading/error states, shared by every platform screen.
   function gate(ctx, active, org) {
     const s = ctx.scen;
-    if (s !== 'live' && AD.B[s]) { const o = AD.boardOut(s); if (s !== 'PlatformAdminsForbidden') o.noOrg = true; return o; }
-    if (s === 'forbidden' || !ctx.user.platform) return Object.assign(AD.boardOut('PlatformAdminsForbidden'), { snapshot: false, board: null, title: "You don't have access" });
+    if (s !== 'live' && AD.B[s]) {
+      // Board snapshots inside the live bar: the crumbs follow the drawn state (loading skeleton, "Organization" on error).
+      const st = /Loading$/.test(s) ? 'loading' : /Error$/.test(s) && /^PlatformOrg[A-Z]/.test(s) && !/Edit|Suspend/.test(s) ? 'error' : /NotFound$/.test(s) ? 'notfound' : undefined;
+      return Object.assign(AD.boardOut(s), { crumbs: pcrumbs(active, org, st) });
+    }
+    if (s === 'forbidden' || !ctx.user.platform) return Object.assign(AD.boardOut('PlatformAdminsForbidden'), { snapshot: false, board: null, title: "You don't have access", header: 'global' });
     if (s === 'crash') return AD.boardOut('RouteError');
-    if (s === 'loading') return out('Loading', active, org, LOADING);
-    if (s === 'error') return out('Error', active, org, ERROR());
+    if (s === 'loading') return out('Loading', active, org, LOADING, '', null, 'loading');
+    if (s === 'error') return out('Error', active, org, ERROR(), '', null, TAB_LABEL[active] ? 'error' : undefined);
     return null;
   }
   const snaps = (re) => () => AD.snapGroup(AD.boardNames(re));
@@ -217,7 +243,7 @@
     const e = email.toLowerCase();
     for (const uid of Object.keys(AD.USERS)) if (uid !== 'jo-marsh' && AD.USERS[uid].email === e) return { uid, name: AD.USERS[uid].name, handle: uid };
     for (const slug of Object.keys(AD.state.members)) for (const m of AD.state.members[slug]) if (memberEmail(m, slug) === e) return { name: m.name, handle: m.handle };
-    if (e === 'priya.natarajan@agentdesk.example') return { name: 'Priya Natarajan', handle: 'priya-n' };
+    if (e === 'priya.natarajan@agentdesk.example') return { uid: 'priya-natarajan', name: 'Priya Natarajan', handle: 'priya-natarajan' };
     return null;
   }
   function adminRow(a, last) {
@@ -291,7 +317,7 @@
     });
   };
 
-  AD.screens['platform.index'] = { title: 'Platform admin', render() { setTimeout(() => AD.nav('/platform/orgs', {}, { replace: true }), 0); return out('Platform admin', 'orgs', null, LOADING); } };
+  AD.screens['platform.index'] = { title: 'Platform admin', render() { setTimeout(() => AD.nav('/platform/orgs', {}, { replace: true }), 0); return out('Organizations', 'orgs', null, LOADING); } };
   AD.screens['platform.admins'] = {
     title: 'Platform admins',
     snaps: snaps(/^PlatformAdmins/),
@@ -330,7 +356,7 @@
     snaps: snaps(/^PlatformOrgs/),
     render(ctx) {
       const g = gate(ctx, 'orgs'); if (g) return g;
-      const head = `<div class="row" style="justify-content:space-between"><h1 tabindex="-1">Organizations</h1><a href="${AD.href('/orgs/new')}" class="btn primary">${I.plus}Create organization</a></div>`;
+      const head = `<div class="row" style="justify-content:space-between"><h1 tabindex="-1">Organizations</h1><a href="${AD.href('/platform/orgs/new')}" class="btn primary">${I.plus}Create organization</a></div>`;
       const all = ctx.scen === 'empty' ? [] : allOrgs().map((o) => info(o.slug)).sort((a, b) => (a.created.iso < b.created.iso ? 1 : -1));
       if (!all.length) return out('Organizations', 'orgs', null, head + empty('No organizations yet', 'Create one to invite its first owner.'));
       const q = (ctx.q.q || '').trim().toLowerCase();
@@ -348,9 +374,15 @@
   /* =========================================================================================================
      Organization detail
      ========================================================================================================= */
+  // "Open organization": only when the org is in the signed-in person's own memberships (Decision 1). A platform admin who
+  // is not a member gets no link (and the org's own pages stay "not found" for them).
+  function openLink(o) {
+    if (!AD.memberOf(o.slug, AD.state.uid)) return '';
+    return `<a href="${AD.href('/o/' + o.slug + '/projects')}" data-act="switch-org" data-org="${esc(o.slug)}" class="row" style="gap:6px;font-size:13.5px">${I.ext}Open organization</a>`;
+  }
   function orgHeader(o) {
     const btn = o.suspended ? '<button class="btn" data-act="porg-status-open" data-mode="reactivate">Reactivate organization</button>' : '<button class="btn danger" data-act="porg-status-open" data-mode="suspend">Suspend organization</button>';
-    let h = `<div class="row" style="justify-content:space-between;align-items:flex-start;gap:16px"><div style="display:flex;flex-direction:column;gap:6px;min-width:0"><h1 tabindex="-1" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(o.name)}">${esc(o.name)}</h1><div class="row" style="gap:12px"><span class="muted mono">/o/${esc(o.slug)}</span>${statusCell(o.suspended)}</div></div><div class="row" style="gap:16px;flex:0 0 auto"><button class="btn" data-act="porg-edit-open">Edit organization</button>${btn}<a href="${AD.href('/platform/audit', { org: o.id })}" class="row" style="gap:6px;font-size:13.5px">${I.clock}View audit log</a></div></div>`;
+    let h = `<div class="row" style="justify-content:space-between;align-items:flex-start;gap:16px"><div style="display:flex;flex-direction:column;gap:6px;min-width:0"><h1 tabindex="-1" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(o.name)}">${esc(o.name)}</h1><div class="row" style="gap:12px"><span class="muted mono">/o/${esc(o.slug)}</span>${statusCell(o.suspended)}</div></div><div class="row" style="gap:16px;flex:0 0 auto"><button class="btn" data-act="porg-edit-open">Edit organization</button>${btn}<a href="${AD.href('/platform/audit', { org: o.id })}" class="row" style="gap:6px;font-size:13.5px">${I.clock}View audit log</a>${openLink(o)}</div></div>`;
     const s = PS().susp[o.slug];
     if (s) h += `<div class="banner warn" role="status"><span class="b-ico">${I.warn}</span><div class="grow" style="display:flex;flex-direction:column;gap:4px"><b style="font-weight:600">This organization is suspended</b><span style="font-size:13.5px">Since ${esc(s.since)} by ${esc(s.by)}. People cannot open it and no new runs start.</span><span class="muted" style="font-size:13px">Reason: ${esc(s.reason)}</span></div></div>`;
     return h;
@@ -539,7 +571,7 @@
       const o = slug ? info(slug) : null;
       const g = gate(ctx, tab, o); if (g) return g;
       if (!o || !['overview', 'projects', 'members', 'invitations'].includes(tab)) {
-        return out('Page not found', 'orgs', null, `<div style="flex:1;display:flex;justify-content:center;padding:72px 0"><div style="width:100%;max-width:760px;display:flex;flex-direction:column;align-items:center;gap:10px;text-align:center"><h1 style="font-size:28px">Page not found</h1><p class="muted" style="font-size:15px;max-width:56ch">This organization does not exist.</p><div class="row" style="gap:12px;margin-top:10px;justify-content:center"><a href="${AD.href('/platform/orgs')}" class="btn">Back to organizations</a></div></div></div>`);
+        return out('Page not found', 'overview', null, `<div style="flex:1;display:flex;justify-content:center;padding:72px 0"><div style="width:100%;max-width:760px;display:flex;flex-direction:column;align-items:center;gap:10px;text-align:center"><h1 style="font-size:28px">Page not found</h1><p class="muted" style="font-size:15px;max-width:56ch">This organization does not exist.</p><div class="row" style="gap:12px;margin-top:10px;justify-content:center"><a href="${AD.href('/platform/orgs')}" class="btn">Back to organizations</a></div></div></div>`, '', null, 'notfound');
       }
       const d = AD.ui.dialog;
       let overlay = d && d.type === 'pstatus' ? statusDialog(o) : d && d.type === 'pedit' ? editDialog(o) : d && d.type === 'pedit-confirm' ? slugConfirm(o) : '';

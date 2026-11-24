@@ -22,7 +22,7 @@ export function setupSteps({
     { label: 'Add Claude credential', detail: credential },
     ...(withWorkspace ? [{ label: 'Prepare workspace', optional: true, detail: workspace }] : []),
     { label: 'Add skills', optional: true, detail: skills },
-    { label: 'Add first rule' },
+    { label: 'Add first rule', optional: true },
   ];
 }
 

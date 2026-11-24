@@ -17,62 +17,76 @@ A dashed panel at the bottom right, collapsible (it remembers its state in the b
 
 | Control | What it does |
 | --- | --- |
-| Signed in as (role) | Switches the signed-in person: Org owner (Kim Hale), Org admin (Jordan Wu), Project admin (Lee Park), Member (Mira Chen), Viewer (Theo Brandt), Platform admin (Morgan Avery), New user with invitations (Dana Ortiz), Visitor with no invitation (Jo Marsh). Only roles that appear in the boards and spec are offered. |
+| Signed in as (role) | Switches the signed-in person: Org owner (Kim Hale), Org admin (Jordan Wu), Project admin (Lee Park), Member (Mira Chen), Viewer (Theo Brandt), Platform admin (Morgan Avery, no membership), Platform admin + org admin + project admin (Priya Natarajan), New user with invitations (Dana Ortiz), Visitor with no invitation (Jo Marsh). Only roles that appear in the boards and specs are offered. |
 | Scenario / state of this screen | Live (the working screen), Loading, Empty, Error, Forbidden, Page crash, plus every board of that screen family as a static snapshot. The choice is stored in the URL as `?s=`. |
 | Fail the next action with | Makes the next save, role change, remove, invite, resend, revoke or accept fail with 500, 403, 404 (removed meanwhile), 409 (last owner, no longer pending; on the Environment tab: entry limit on add, 256 KiB size on edit), "Too large (409)" (Environment tab: 256 KiB size) or "clipboard blocked". On the Environment tab, 404 on Edit, Replace or Remove acts as if another admin removed the entry meanwhile. |
 | Reset | Restores all fake data and signs out. |
 | Logout, Screen map, Copy link | Log out; a modal list of every route; copy the current URL. |
-| Proposals to review | Two checkboxes, both off by default, for the open questions of the navigation proposal (see "Navigation (Option A)"): "Keep a Settings button on the Projects page header" and "Show the org-wide 'needs you' count on the Projects tab". Reset turns both off. |
+| Proposals to review | Two checkboxes, both off by default, for the open questions of the Option A navigation proposal (see "Navigation"): "Keep a Settings button on the Projects page header" and "Show the org-wide 'needs you' count on the Projects tab". Reset turns both off. |
 
 ## Roles and what they see (per spec)
 
-| Role | Settings tab and org-menu item | Settings side menu | Notes |
-| --- | --- | --- | --- |
-| Org owner | yes | General, Members, Invitations, Audit log | Owner card in Change access; can act on owner rows; step-down warning on own row; cannot remove self |
-| Org admin | yes | General, Members, Invitations, Audit log | No Owner card; no actions on owner rows |
-| Project admin | yes | Invitations only | Sees and invites only for projects they administer; other tabs show "You don't have access" inside the Settings layout; sees only their projects |
-| Member, Viewer | no | none | A typed Settings URL shows "You don't have access" under the same bar |
-| Platform admin | no | none | "Platform admin" and "Create organization" in the org switcher; holds no org role, so org Settings shows "You don't have access". "Platform admin" opens the platform area (`#/platform/...`), which every other role sees as "You don't have access" |
+| Role | Scope switch (first crumb) and its menu | Org settings tab and menu item | Org settings side menu | Notes |
+| --- | --- | --- | --- | --- |
+| Org owner (Kim Hale) | Org name; menu: this org (Projects, Org settings), Switch organization (3 orgs) | yes | General, Members, Invitations, Audit log | Owner card in Change access; can act on owner rows; step-down warning on own row; cannot remove self |
+| Org admin (Jordan Wu) | Org name; menu: this org only (one org) | yes | General, Members, Invitations, Audit log | No Owner card; no actions on owner rows |
+| Project admin (Lee Park) | Org name; menu: this org only | yes | Invitations only | Sees and invites only for projects they administer; other tabs show "You don't have access" inside the layout; sees only their projects. Project scope: Runs, Project settings |
+| Member, Viewer | Org name; menu: Projects (+ org list for Mira) | no | none | A typed Settings URL shows "You don't have access" under the same bar |
+| Platform admin, no membership (Morgan Avery) | "Platform"; menu: Platform group (Platform admin), Create organization; no org list | n/a | n/a | Lands on Platform > Organizations. Platform tabs. No "Open organization" on any platform org page; every `/o/<org>` URL is "Not found" (Decision 1, unchanged) |
+| Platform admin + org admin + project admin (Priya Natarajan) | "Platform" on platform pages, the org name elsewhere; menu: Platform group (Platform admin, and on org pages "Manage this org in Platform"), this org, Switch organization (Harbor Labs, Northwind), Create organization | Harbor Labs: yes (org admin). Northwind: yes, Invitations only (project grant on forecast-service, no org role) | per org, as the rows above | "Open organization" on the platform pages of Harbor Labs and Northwind only. Use this persona for the Platform <-> Org <-> Project walk-through |
 
-## Navigation (Option A)
+Every other role sees the platform area (`#/platform/...`) as "You don't have access" under their own bar.
 
-From the approved navigation proposal ("go with option A"). One top bar on every page. The crumbs say where you are, and the tabs are the sections of the last crumb.
+## Navigation: one scope-aware shell
+
+From the approved navigation-consistency spec (`docs/superpowers/specs/2026-11-24-admin-navigation-consistency-design.md`), on top of Option A. One rule on every page: **top bar tabs are the sections of the current scope; the side menu holds the pages of one section; the breadcrumb says where you are.**
 
 ```
-Org page      [logo] | Harbor Labs v |  Projects   Settings                         bell (KH)
-Project page  [logo] | Harbor Labs v / invoicer-api v |  Runs   Settings    Repo on GitHub  bell (KH)
-Run page      [logo] | Harbor Labs v / invoicer-api v / Runs 1 / Run 62   status, actions   (KH)
-Personal      [logo] | Harbor Labs v                                                 bell (KH)   (My invitations: org tabs, none active)
-Create org    [logo] | No organization v                                             bell (KH)   (no tabs)
-No org (Dana) [logo] | No organization                                               bell (KH)
+Platform page  [logo] | Platform v / Organizations / Harbor Labs / Members   Organizations  Platform admins  Audit log   bell (PN)
+Org page       [logo] | Harbor Labs v / Org settings / Members              Projects  Org settings                     bell (PN)
+Project page   [logo] | Harbor Labs v / invoicer-api v / Runs               Runs 1  Project settings   Repo on GitHub  bell (PN)
+Run page       [logo] | Harbor Labs v / invoicer-api v / Runs 1 / Run 62    status, actions                            bell (PN)
+Create org     [logo] | Platform v / Organizations / Create organization    Organizations  Platform admins  Audit log   bell (PN)
+No org (Dana)  [logo] | No organization / Invitations                                                                  bell (DO)
 ```
 
 | Part | What it does |
 | --- | --- |
-| Logo | Goes to the org's Projects list (the proposal keeps this, but it is no longer the only way). |
-| Org crumb "Harbor Labs v" | Always a button, also for people in one org. Menu: the org name, Projects, Settings (only for roles that may open it), then "Switch organization" (2+ orgs, or platform admin), then "Create organization" (platform admin). |
-| Project crumb "invoicer-api v" | Project switcher with needs-you counts and "All projects". Shows only the project name (the org has its own crumb). |
-| Tabs, org level | Projects, Settings. Settings opens the first tab the role may open (project admin: Invitations). Members, viewers and platform admins get no Settings tab and no Settings item in the org menu. |
-| Tabs, project level | Runs (with "1 needs you"), Settings, plus the "Repo on GitHub" link. |
-| Run page | Compact bar with the org and project crumbs, then "Runs" (goes to the project's Runs list) and "Run N". No tabs, so the terminal keeps its height. |
-| Account menu (avatar) | Name with the full email under it, "Logout" (with an icon). No Settings here: Settings belongs to the org. |
-| Settings side menu | `<nav aria-label="Organization settings">`; the tabs in the bar are `<nav aria-label="Main">`. |
-| Needs you page (`/o/<org>/needs-you`) | Now under the org bar (no tab is active, because it is not one of the tabs). |
-| New project setup | Org bar, Projects tab active. |
+| Skip link | "Skip to main content": the first focusable item on every page (press Tab once); visible on focus; Enter moves focus to `main` |
+| Logo | The person's home: the org's Projects on org pages; elsewhere the first org's Projects, or Platform > Organizations for a platform admin with no membership |
+| Scope switch (first crumb) | Shows the scope: "Platform" in the platform area, otherwise the org name (`aria-label` "Switch scope, currently Platform" / "... currently organization Harbor Labs"). Menu, top to bottom: **Platform** group (platform admins only: "Platform admin", and on org and project pages "Manage this org in Platform"), this org's Projects and Org settings, "Switch organization" (memberships only; none for a platform admin without membership, not an empty group), "Create organization" (platform admins) |
+| Project crumb | Project switcher on project and run pages (unchanged) |
+| Page crumbs | After the scope crumbs on every page: `Organizations / Harbor Labs / Members`, `Org settings / Members`, `Project settings / Routing rules`, `Runs / Run 62`. Every crumb but the last is a link; the last has `aria-current="page"`. All crumbs sit in one `<nav aria-label="Breadcrumb">` (the old `aria-hidden` "/" span on the project bar is gone) |
+| Tabs | Platform: Organizations, Platform admins, Audit log (`<nav aria-label="Platform sections">`). Org: Projects, Org settings (`Organization sections`). Project: Runs, Project settings (`Project sections`). No nav is named "Main" any more; no two navs share a name |
+| Platform side menu | Only inside one org: the org name (a link to Overview), Overview, Projects, Members, Invitations (`<nav aria-label="Platform admin">`). The directory, Platform admins and Audit log have no side menu. While the org loads the group keeps its size (fixed-height placeholders) and the crumb shows a fixed-width skeleton, so nothing jumps |
+| "Open organization" | On a platform org page (after "View audit log"), only when the org is one of the signed-in person's memberships. Opens `/o/<slug>/projects` with that org active |
+| "Manage this org in Platform" | In the scope menu on org and project pages, platform admins only. Opens `/platform/orgs/<id>` |
+| Create organization | `#/platform/orgs/new` inside the platform shell (Organizations tab active); `#/orgs/new` redirects there. Done opens the new org's platform page (the creator is not a member) |
+| Bell | On every bar, platform and run included. No behaviour yet (a click shows the prototype's "Not wired" toast) |
+| Page title | `<last crumb> · <scope> · Agent Desk` from the same crumb list: "Members · Platform · Agent Desk", "Projects · Harbor Labs · Agent Desk", "Run 62 · invoicer-api · Agent Desk" (never the ticket title). Not found and forbidden: "Not found · Agent Desk", "You don't have access · Agent Desk" |
+| Account menu (avatar) | Name, email, "Logout" (unchanged) |
 
-Clicks, as the proposal promises: Projects <-> Settings is one click with the tabs. From Runs, Settings (project) or a run to org Settings: org menu, Settings (2 clicks). To another org: org menu, org (2 clicks). To another project: project menu, project (2 clicks). The browser back button follows every step.
+Clicks for the combined role: Org -> Platform: scope switch, "Manage this org in Platform" (2). Platform -> Org: "Open organization" (1), or scope switch, org (2). Project or run -> Platform: scope switch, "Platform admin" (2). Back: the crumbs and the browser back button on every page.
+
+States drawn for the changed screens: loading (crumb skeleton, side menu placeholder: `?s=loading` on a platform org page, board PlatformOrgMembersShellLoading), error (the org crumb and side menu group read "Organization": `?s=error`, PlatformOrgMembersShellError), not found (crumbs `Organizations / Not found`, "Back to organizations": an unknown org id, PlatformOrgOverviewShellNotFound), empty (no org list in the scope menu for a platform admin without membership: PlatformOrgsShellScopeMenu), platform check failed (no Platform group: ProjectsShellScopeMenuPlatformError).
+
+### Option A (kept from the earlier proposal)
+
+The Option A rules still hold: one bar on every page, the org crumb is always a button, Settings is a tab (now "Org settings" / "Project settings"), the run page bar has no tabs, the account menu holds no Settings.
 
 ### What changed from the first prototype
 
-- Three different bars (global, project, run) became one bar with two crumb depths (`chrome.bar`, `chrome.orgCrumb`, `chrome.projCrumb`, `chrome.orgTabs`, `chrome.projTabs` in `js/chrome.js`).
+- Three different bars (global, project, run) became one bar with two crumb depths (`chrome.bar`, `chrome.orgCrumb`, `chrome.projCrumb`, `chrome.orgTabs`, `chrome.projTabs` in `js/chrome.js`; the shell added `chrome.scope`, `chrome.pageCrumbs`, `chrome.breadcrumb`, `chrome.platformTabs` and `chrome.title`).
 - The org switcher is now on every org, project and run page, and is a real menu also for single-org people.
 - Settings is a tab (org pages) and an org-menu item (every page). The Settings button on the Projects page header is gone by default (a proposal toggle brings it back). The avatar-menu Settings item and its toggle are dropped.
 - The run page crumb "invoicer-api" no longer leads to the all-projects list; the crumbs are now the org and project switchers followed by "Runs" (the project's Runs list).
 - The needs-you page has the bar. My invitations is reached from sign-in, not from the account menu. "Sign out" is now "Logout" everywhere (the code uses "Logout").
-- The 337 static boards are still drawn inside the live bar: the bar of each board's header strip is replaced by the live one (198 org-level, 95 project-level, 34 run-level). Boards drawn without a bar and now given one: the needs-you explainer (org bar) and the page-crash and loading boards (bar of the current area). Boards that stay barless: Main (index), the two sign-in boards, Pagination and RunTranscriptStates (explainers). The check script counts the bars of every board: exactly one, never two.
+- The static boards are still drawn inside the live bar: the bar of each board's header strip is replaced by the live one (198 org-level, 95 project-level, 34 run-level). Boards drawn without a bar and now given one: the needs-you explainer (org bar) and the page-crash and loading boards (bar of the current area). Boards that stay barless: Main (index), the two sign-in boards, Pagination and RunTranscriptStates (explainers). The check script counts the bars of every board: exactly one, never two.
 - Board text changes done at display time (the boards stay untouched): "This list is one click away on the logo." reads "... on the Projects tab." on Projects boards, and the Settings or Invitations button in the head of the Projects boards is hidden unless the first proposal toggle is on.
 
-### Proposals to review (open questions 2 and 3 of the proposal, not decided)
+### Proposals to review
+
+The navigation-consistency spec's three decisions are drawn as decided, with no toggle: (1) "Open organization" only for members, a platform admin who is not a member gets no org pages; (2) the tabs are "Org settings" and "Project settings"; (3) the bell is on every bar, platform included, with no behaviour. The two toggles below are the still-open questions 2 and 3 of the earlier Option A proposal (not decided):
 
 | Toggle (Prototype controls) | Default | What it does |
 | --- | --- | --- |
@@ -88,20 +102,21 @@ The proposal's question 1 (is "Settings two clicks from inside a project" accept
 | `#/signin` | Sign in (also the refused case with `?s=SignInNoInvitation`) | SignIn, SignInNoInvitation |
 | `#/invitations` | My invitations (accept and decline work) | MyInvitations* |
 | `#/invitations/<token>` | Accept an invitation | InvitationAccept* |
-| `#/orgs/new` | Create organization (platform admin) | CreateOrg* |
+| `#/platform/orgs/new` | Create organization (platform admin) inside the platform shell; the old `#/orgs/new` redirects here | CreateOrg*, CreateOrgPlatformShell |
 | `#/platform` | Redirects to the Organizations directory (platform admin only) | n/a |
-| `#/platform/orgs` | Platform admin > Organizations: search and status filter in the URL (`?q=`, `?status=`), Create organization | PlatformOrgs* |
-| `#/platform/orgs/<orgId>` | Organization detail > Overview: status, Edit organization (name and URL, URL-change confirm; also on a suspended org), Suspend / Reactivate with a reason, View audit log. After a URL change the old `/o/<old-slug>` shows not found | PlatformOrgOverview*, PlatformOrgEdit* |
+| (every page) | The one scope-aware shell: scope switch, crumbs, tabs per scope, skip link, page title (see "Navigation") | *Shell boards |
+| `#/platform/orgs` | Platform > Organizations tab: search and status filter in the URL (`?q=`, `?status=`), Create organization. No side menu | PlatformOrgs*, PlatformOrgsShell* |
+| `#/platform/orgs/<orgId>` | Organization detail > Overview: status, Edit organization (name and URL, URL-change confirm; also on a suspended org), Suspend / Reactivate with a reason, View audit log. After a URL change the old `/o/<old-slug>` shows not found. Crumbs `Organizations / <org> / Overview`; "Open organization" for members; side menu with the org group only | PlatformOrgOverview*, PlatformOrgEdit*, PlatformOrgOverviewShell* |
 | `#/platform/orgs/<orgId>/projects` | Organization detail > Projects (id and name only) | PlatformOrgProjects* |
-| `#/platform/orgs/<orgId>/members` | Organization detail > Members: roles with scopes; row menu Add assignment, Remove one assignment | PlatformOrgMembers* |
+| `#/platform/orgs/<orgId>/members` | Organization detail > Members: roles with scopes; row menu Add assignment, Remove one assignment | PlatformOrgMembers*, PlatformOrgMembersShell* |
 | `#/platform/orgs/<orgId>/invitations` | Organization detail > Invitations (same actions as Settings > Invitations; Owner may be invited) | PlatformOrgInvitations* |
-| `#/platform/admins` | Platform admins: add (404 / 422 field errors), revoke, revoke yourself, last working admin | PlatformAdmins* |
-| `#/platform/audit` | Platform audit log: Action select (`?action=`), org chip (`?org=<orgId>`) | PlatformAudit* |
+| `#/platform/admins` | Platform admins tab: add (404 / 422 field errors), revoke, revoke yourself, last working admin | PlatformAdmins*, PlatformAdminsShell |
+| `#/platform/audit` | Platform Audit log tab: Action select (`?action=`), org chip (`?org=<orgId>`) | PlatformAudit*, PlatformAuditShell |
 | `#/o/<suspended org>/...` | Every URL of a suspended org shows "This organization is suspended"; the switcher marks it "Suspended" | OrgSuspended* |
-| `#/o/<org>/projects` | Projects list, banners, checklist, org switcher | Projects* |
+| `#/o/<org>/projects` | Projects list, banners, checklist, scope switch | Projects*, ProjectsShell* |
 | `#/o/<org>/projects/new/1..4`, `ready`, `workspace` | New project setup | Setup* |
 | `#/o/<org>/needs-you` | Needs you outside the run page (under the org bar) | NeedsYou* |
-| `#/o/<org>/p/<project>/runs` | Runs (grouped, flat, problems, linked) | Runs* |
+| `#/o/<org>/p/<project>/runs` | Runs (grouped, flat, problems, linked) | Runs*, RunsShell |
 | `#/o/<org>/p/<project>/runs/<n>` | Run page (starting, running, idle, stopped, failed, ...) | Run* |
 | `#/o/<org>/p/<project>/runs?s=RunsUsage` | Run token usage and estimated cost (run-token-usage-cost spec): the Runs list with the Usage column; click Run 60, 55, 57 or 61 to open the run page with its Usage section (Runs crumb returns to this list). The detail note ends with its "Prices as of" date (a date range on RunSucceededUsagePriceRange, none when there is no cost) before "Your provider bill may differ." On every run usage board, Show / Hide on the Usage section and on its Models table collapses and expands them. Scenario group "Token usage and cost" on the Runs and Run screens lists every state | RunsUsage, RunsPageLoadingUsage, RunSucceededUsage* (incl. RunSucceededUsagePriceRange), RunRunningUsage* |
 | `#/o/<org>/p/<project>/desk/agent\|rules\|skills` | Desk (agent settings, routing rules, skills); a project admin gets Agent & settings without the Danger zone | DeskAgent*, DeskRules*, DeskSkill* |
@@ -111,14 +126,14 @@ The proposal's question 1 (is "Settings two clicks from inside a project" accept
 | `#/o/<org>/p/<project>/desk/setup?tab=environment` | Desk > Workspace setup, Environment tab (live: variables and secrets in memory) | DeskSetupEnvironment* |
 | `#/o/<org>/settings` | Redirects to the first tab the role may open | n/a |
 | `#/o/<org>/settings/general` | General (rename, URL change) | OrgGeneral* |
-| `#/o/<org>/settings/members` | Members (change role, remove) | OrgMembers* |
+| `#/o/<org>/settings/members` | Members (change role, remove) | OrgMembers*, OrgMembersShell |
 | `#/o/<org>/settings/invitations` | Invitations (invite, revoke, resend, copy link) | OrgInvitationsSettings, OrgInvitations* |
 | `#/o/<org>/settings/audit` | Audit log | OrgAudit* |
 | `#/o/<org>/invitations` | Old URL; redirects to Settings > Invitations | n/a |
 | `#/index` | Index of all boards | Main |
 | `#/gallery/pagination` | Pagination and route loading/error boards | Pagination, RouteLoading, RouteError |
 
-Orgs in the data: `harbor-labs` (Harbor Labs, main one), `northwind` (Northwind Analytics, empty, with a getting-started checklist), `riverside` (long name, Kim Hale is only a member). The platform directory also lists `acme-rockets` (no owner yet) and `bluefin-health` (suspended); those two exist only in the platform area. In Add platform admin, `jo.marsh@example.com` has no account (404) and `new.hire@agentdesk.example` is not verified (422); any persona or member email works. Projects: invoicer-api, invoicer-web, docs-site, billing-jobs.
+Orgs in the data: `harbor-labs` (Harbor Labs, main one), `northwind` (Northwind Analytics, empty, with a getting-started checklist), `riverside` (long name, Kim Hale is only a member). The platform directory also lists `acme-rockets` (no owner yet) and `bluefin-health` (suspended); those two exist only in the platform area. In Add platform admin, `jo.marsh@example.com` has no account (404) and `new.hire@agentdesk.example` is not verified (422); any persona or member email works. Projects: invoicer-api, invoicer-web, docs-site, billing-jobs. Priya Natarajan (the combined role) is a platform admin, an Admin of Harbor Labs (plus Admin on invoicer-api) and, in Northwind, Admin of forecast-service with no org role.
 
 ## What is real and what is faked
 
@@ -138,7 +153,7 @@ Faked or static:
 
 ## Coverage of every board
 
-There are 337 boards in `design/prototype/project/`. Every one is reproduced: each is reachable through the route in the table and also from the Scenario selector on its screen. "Live screen" means the default route is the working, stateful screen. "Board snapshot" means the route shows the board as drawn inside the live header and navigation. Where a board's states can be produced live, the last column says how. Routes assume `harbor-labs` and `invoicer-api`; the Screen map and the Scenario selector build them for the current org and project.
+There are 356 boards in `design/prototype/project/` (322 before the navigation-consistency boards, plus 19 `*Shell` boards and 15 token usage boards). Every one is reproduced: each is reachable through the route in the table and also from the Scenario selector on its screen. "Live screen" means the default route is the working, stateful screen. "Board snapshot" means the route shows the board as drawn inside the live header and navigation. Where a board's states can be produced live, the last column says how. Routes assume `harbor-labs` and `invoicer-api`; the Screen map and the Scenario selector build them for the current org and project.
 
 Three default routes depend on the role: CreateOrg (Platform admin; others see CreateOrgForbidden), MyInvitations (New user with invitations; others see the empty board) and InvitationAccept (New user with invitations; others see "not available"). Their other boards are reachable with `?s=`.
 
@@ -148,11 +163,13 @@ Boards not reproduced: none. Closest to not reproduced: `OrgInvitationsInviteTab
 ## Gaps and choices
 
 - Org slug: the boards use `harbor-labs`; some plans and boards' sample text mention `acme`. The prototype uses `harbor-labs` throughout.
-- Navigation follows Option A of the approved proposal (see "Navigation (Option A)"). The avatar-menu Settings proposal is dropped; the account menu has name, email and Logout. The boards had no account menu, so this menu itself is new.
-- Agent calls in the bar, for the designer to review: (1) the Projects tab icon is a new four-square icon in the same stroke style as the others (Settings reuses the sliders icon of the side menu); (2) My invitations and the invitation-accept page show the org tabs with none active, so the way back is one click (Create organization shows no tabs, as the proposal says); (3) on the run page the project crumb is a project switcher, and "Runs" is the crumb that goes to the project (the proposal drew "invoicer-api" as the link); (4) the needs-you page shows no active tab; (5) a long org name is cut with an ellipsis in the bar (full name on hover and in the menu); (6) the run bar keeps no bell, as the boards drew it.
+- Navigation follows Option A of the approved proposal (see "Navigation"). The avatar-menu Settings proposal is dropped; the account menu has name, email and Logout. The boards had no account menu, so this menu itself is new.
+- Navigation-consistency agent calls (not in the spec): the org settings crumb reads "Org settings" (the spec example says "Settings"); the page title of a project or run page uses the project as the scope ("Runs · invoicer-api · Agent Desk"); "Open organization" is a link with the external-link icon after "View audit log"; Create organization's Done opens the new org's platform page; the scope menu keeps the current org's Projects and Org settings between the Platform group and the org list; a platform admin with no membership lands on Platform > Organizations; the old Platform* boards keep their drawn side menu when shown as snapshots (the live screens and the *Shell boards show the new one).
+- Agent calls in the bar (Option A), for the designer to review: (1) the Projects tab icon is a new four-square icon in the same stroke style as the others (Settings reuses the sliders icon of the side menu); (2) My invitations and the invitation-accept page show the org tabs with none active, so the way back is one click (Create organization shows no tabs, as the proposal says); (3) on the run page the project crumb is a project switcher, and "Runs" is the crumb that goes to the project (the proposal drew "invoicer-api" as the link); (4) the needs-you page shows no active tab; (5) a long org name is cut with an ellipsis in the bar (full name on hover and in the menu); (6) the run bar now has the bell too (navigation-consistency Decision 3).
 - The needs-you explainer board still draws the old "In the app" panel (the board is not changed here). The proposal asks to redraw it with the count on the Projects tab.
 - Member persona: Mira Chen is used for Member because the boards name her. Viewer is Theo Brandt, who exists in the member list.
-- Platform admin: the spec says platform admins create orgs and hold no org role. The prototype shows them every org they created plus Harbor Labs, with "Create organization" in the switcher. The boards do not say whether a platform admin may open Settings; here they cannot, because Settings needs an org role.
+- Platform admin: the platform role gives no org list and no org pages (navigation-consistency Decision 1). Morgan Avery (no membership) sees "Platform" in the scope switch, lands on Platform > Organizations, and every `/o/<org>` URL is "Not found" for them, as for any non-member. The orgs they create appear only in the platform directory.
+- Project admin and "Org settings": the spec's role table says a project grant does not show Org settings, but its access table reuses the existing `canOpenSettings`, which counts the invite permission from a project grant (`canInvite` holds `assignment:create` anywhere). The prototype keeps today's behaviour (Lee Park, and Priya in Northwind, see Org settings with Invitations only).
 - Project admin: invitations are limited to projects they administer (rows and the project picker). The spec does not say whether they can also invite to the whole organization; the prototype does not allow it.
 - Run, Desk, Setup and Needs-you show sample invoicer-api data for every project, because the boards draw one project only. Project scope is still enforced: a project the role cannot see gives "Not found".
 - Pages with no board for loading, empty, error or forbidden use generic placeholders built from the board markup (Not found, loading skeleton, "Internal server error" banner, "You don't have access"). They are not designed screens.
@@ -166,7 +183,7 @@ Boards not reproduced: none. Closest to not reproduced: `OrgInvitationsInviteTab
 - Build step: `design/prototype/interactive/_tools/build-boards.mjs` (Node, no packages) regenerates `data/boards.js` and `board-styles.css` from the boards. Run it after changing a board: `node design/prototype/interactive/_tools/build-boards.mjs`. Do not edit the two generated files by hand.
 - Environment tab (Desk > Workspace setup): the Scenario selector adds "Workspace setup states (live, clickable)": more than one page (23 variables, 22 secrets), both lists loading, no entries yet, variables or secrets failed to load, read-only role (`setup:read` only; no persona holds it, so it is a scenario), secrets read-only (no `secret:update`), and a setup test running (both tabs). The standard Loading, Empty and Error states map to both lists on the Environment tab and to the version-history boards on the Setup script tab. Each data set (seed, more than one page, empty) is kept per project in memory; invoicer-api starts with 3 variables and 2 secrets, every other project with none. Messages the spec leaves to the server (name exists, reserved, limit, size, invalid name) use the wording drawn on the DeskSetupEnvironment* boards, chosen for the prototype because the spec does not give it.
 - **Keep the boards and this prototype in sync.** The boards in `design/prototype/project/` are the source and the contract (Storybook parity is checked against them); this prototype is generated from them. Whoever changes or adds a board re-runs the build step above, then `node design/prototype/interactive/_checks/nav-check.mjs`, and commits `data/boards.js` and `board-styles.css` with the board change. A screen that is new in the app also needs its live screen added under `screens/` and a row in the screen map. A board that changes the top bar changes `js/chrome.js` as well.
-- The build step sorts each board's bar into `global` (org level), `project` (has the project switcher) or `run` (breadcrumb only). It does not use the tabs for this, because org pages have tabs too (Option A).
+- The build step sorts each board's bar into `global` (org level), `project` (has the project switcher) or `run` (breadcrumb only). It does not use the tabs for this, because org pages have tabs too (Option A). The `*Shell` boards have a Breadcrumb on every bar, so they mark it: `<header class="top" data-bar="platform|org|project|run">`. On a run board the scope crumbs sit between `<!--scope-->` and `<!--/scope-->` so the live bar can replace them.
 
 ## Files
 
@@ -175,7 +192,7 @@ Boards not reproduced: none. Closest to not reproduced: `OrgInvitationsInviteTab
 | `index.html` | Entry; loads the CSS and scripts in order |
 | `board-styles.css` | Union of the boards' shared CSS (generated) |
 | `styles.css` | Prototype-only styles: sticky bar, name truncation in the bar, menus, toasts, controls panel, screen map (tokens only) |
-| `data/boards.js` | The 337 boards' markup (generated) |
+| `data/boards.js` | The 356 boards' markup (generated) |
 | `js/core.js` | Fake data, roles, permission rules, fake API |
 | `js/router.js` | Hash router |
 | `js/boards.js` | Board lookup, board-to-route mapping, generic states |
@@ -183,25 +200,26 @@ Boards not reproduced: none. Closest to not reproduced: `OrgInvitationsInviteTab
 | `js/controls.js` | Prototype controls panel and screen map |
 | `js/main.js` | Render pipeline, click and input handlers |
 | `screens/*.js` | Settings, invitations, projects, sign-in and invitation screens, board-backed screens; `screens/platform.js` is the platform admin area and the suspended-org page; `screens/desksetup.js` is the live Desk > Workspace setup (tab strip and Environment tab) |
-| `_checks/` | Screenshots from the headless Chrome run (not needed to use the prototype). `_checks/nav-check.mjs` re-runs the navigation checks (Option A) and writes `_checks/nav/*.png`; it needs playwright-core and a headless Chromium (read-only use of the repo's `node_modules`). |
+| `_checks/` | Screenshots from the headless Chrome run (not needed to use the prototype). `_checks/nav-check.mjs` re-runs the navigation checks (Option A and the one shell: dual-role flow, crumbs, titles, landmarks, skip link, loading/error/not found, and that every `*Shell` board is reachable) and writes `_checks/nav/*.png`; it needs playwright-core and a headless Chromium (read-only use of the repo's `node_modules`). |
 
 ## Coverage table
 
-No routes changed with the Option A navigation update, so every row below still holds. "Live header and navigation" now means the Option A bar.
+"Live header and navigation" now means the one scope-aware shell. The navigation-consistency update moved Create organization to `#/platform/orgs/new` (the rows below say so) and added the 19 `*Shell` boards (rows marked "new").
 
 | Board | Route (after sign-in as the Org owner) | How shown | How to reach it / note |
 | --- | --- | --- | --- |
-| `CreateOrg` | `#/orgs/new` | Snapshot (the default route shows CreateOrgForbidden for Org owner; see note) | Live: persona Platform admin > org switcher > Create organization (as another role: CreateOrgForbidden) |
-| `CreateOrgCreated` | `#/orgs/new?s=CreateOrgCreated` | Board snapshot, live header and navigation | Live: submit the form |
-| `CreateOrgError` | `#/orgs/new?s=CreateOrgError` | Board snapshot, live header and navigation | Board snapshot (static) |
-| `CreateOrgFieldErrors` | `#/orgs/new?s=CreateOrgFieldErrors` | Board snapshot, live header and navigation | Live: submit an empty form |
-| `CreateOrgForbidden` | `#/orgs/new?s=CreateOrgForbidden` | Board snapshot, live header and navigation | Live: open #/orgs/new as any non-platform role |
-| `CreateOrgInvitationFailed` | `#/orgs/new?s=CreateOrgInvitationFailed` | Board snapshot, live header and navigation | Live: Fail next = Conflict, then submit |
-| `CreateOrgRetrying` | `#/orgs/new?s=CreateOrgRetrying` | Board snapshot, live header and navigation | Live: Retry on the invitation-failed view |
-| `CreateOrgSaving` | `#/orgs/new?s=CreateOrgSaving` | Board snapshot, live header and navigation | Live: submit (0.7 s) |
-| `CreateOrgSlugAuto` | `#/orgs/new?s=CreateOrgSlugAuto` | Board snapshot, live header and navigation | Live: type a name; the URL fills in |
-| `CreateOrgSlugEdited` | `#/orgs/new?s=CreateOrgSlugEdited` | Board snapshot, live header and navigation | Live: edit the URL |
-| `CreateOrgSlugTaken` | `#/orgs/new?s=CreateOrgSlugTaken` | Board snapshot, live header and navigation | Live: use northwind as URL |
+| `CreateOrg` | `#/platform/orgs/new` | Snapshot (the default route shows CreateOrgForbidden for Org owner; see note) | Live: persona Platform admin > scope switch > Create organization, or Platform > Organizations > Create organization (as another role: CreateOrgForbidden) |
+| `CreateOrgCreated` | `#/platform/orgs/new?s=CreateOrgCreated` | Board snapshot, live header and navigation | Live: submit the form |
+| `CreateOrgError` | `#/platform/orgs/new?s=CreateOrgError` | Board snapshot, live header and navigation | Board snapshot (static) |
+| `CreateOrgFieldErrors` | `#/platform/orgs/new?s=CreateOrgFieldErrors` | Board snapshot, live header and navigation | Live: submit an empty form |
+| `CreateOrgForbidden` | `#/platform/orgs/new?s=CreateOrgForbidden` | Board snapshot, live header and navigation | Live: open #/platform/orgs/new (or the old #/orgs/new) as any non-platform role |
+| `CreateOrgInvitationFailed` | `#/platform/orgs/new?s=CreateOrgInvitationFailed` | Board snapshot, live header and navigation | Live: Fail next = Conflict, then submit |
+| `CreateOrgPlatformShell` | `#/platform/orgs/new?s=CreateOrgPlatformShell` | Board snapshot, live header and navigation (new) | Live: Priya or Morgan > scope switch > Create organization |
+| `CreateOrgRetrying` | `#/platform/orgs/new?s=CreateOrgRetrying` | Board snapshot, live header and navigation | Live: Retry on the invitation-failed view |
+| `CreateOrgSaving` | `#/platform/orgs/new?s=CreateOrgSaving` | Board snapshot, live header and navigation | Live: submit (0.7 s) |
+| `CreateOrgSlugAuto` | `#/platform/orgs/new?s=CreateOrgSlugAuto` | Board snapshot, live header and navigation | Live: type a name; the URL fills in |
+| `CreateOrgSlugEdited` | `#/platform/orgs/new?s=CreateOrgSlugEdited` | Board snapshot, live header and navigation | Live: edit the URL |
+| `CreateOrgSlugTaken` | `#/platform/orgs/new?s=CreateOrgSlugTaken` | Board snapshot, live header and navigation | Live: use northwind as URL |
 | `DeskAgent` | `#/o/harbor-labs/p/invoicer-api/desk/agent` | Board snapshot, live header and navigation | Static board (not stateful in this prototype) |
 | `DeskAgentAddressChanged` | `#/o/harbor-labs/p/invoicer-api/desk/agent?s=DeskAgentAddressChanged` | Board snapshot, live header and navigation | Static board (not stateful in this prototype) |
 | `DeskAgentAutoResume` | `#/o/harbor-labs/p/invoicer-api/desk/agent?s=DeskAgentAutoResume` | Board snapshot, live header and navigation | Static board (not stateful in this prototype) |
@@ -279,6 +297,7 @@ No routes changed with the Option A navigation update, so every row below still 
 | `DeskSkills` | `#/o/harbor-labs/p/invoicer-api/desk/skills` | Board snapshot, live header and navigation | Static board (not stateful in this prototype) |
 | `DeskSkillsEmpty` | `#/o/harbor-labs/p/invoicer-api/desk/skills?s=DeskSkillsEmpty` | Board snapshot, live header and navigation | Static board (not stateful in this prototype) |
 | `DeskSkillsPaged` | `#/o/harbor-labs/p/invoicer-api/desk/skills?s=DeskSkillsPaged` | Board snapshot, live header and navigation | Static board (not stateful in this prototype) |
+| `DeskSkillsShell` | `#/o/harbor-labs/p/invoicer-api/desk/skills?s=DeskSkillsShell` | Board snapshot, live header and navigation (new) | Live: any project > Project settings tab |
 | `InvitationAccept` | `#/invitations/7f3c2a9e-41d8-4b6e-9c0a-2e5b8d1f6a43` | Snapshot (the default route shows InvitationAcceptNotAvailable for Org owner; see note) | Live: New user with invitations, open the sample link (from Screen map) |
 | `InvitationAcceptAccepted` | `#/invitations/7f3c2a9e-41d8-4b6e-9c0a-2e5b8d1f6a43?s=InvitationAcceptAccepted` | Board snapshot, live header and navigation | Live: Accept on the link page |
 | `InvitationAcceptAccepting` | `#/invitations/7f3c2a9e-41d8-4b6e-9c0a-2e5b8d1f6a43?s=InvitationAcceptAccepting` | Board snapshot, live header and navigation | Board snapshot (static) |
@@ -296,7 +315,7 @@ No routes changed with the Option A navigation update, so every row below still 
 | `MyInvitationsAccepting` | `#/invitations?s=MyInvitationsAccepting` | Board snapshot, live header and navigation | Live: Accept (0.7 s) |
 | `MyInvitationsEmpty` | `#/invitations?s=MyInvitationsEmpty` | Board snapshot, live header and navigation | Live: persona Org owner, open #/invitations |
 | `MyInvitationsEmptyPlatformAdmin` | `#/invitations?s=MyInvitationsEmptyPlatformAdmin` | Board snapshot, live header and navigation | Live: persona Platform admin, open #/invitations |
-| `MyInvitationsEmptyPlatformAdminMenu` | `#/invitations?s=MyInvitationsEmptyPlatformAdminMenu` | Board snapshot, live header and navigation | Live: as Platform admin open #/orgs/new and the "No organization" menu |
+| `MyInvitationsEmptyPlatformAdminMenu` | `#/invitations?s=MyInvitationsEmptyPlatformAdminMenu` | Board snapshot, live header and navigation | Live: as Platform admin open #/invitations and the "No organization" menu |
 | `MyInvitationsError` | `#/invitations?s=MyInvitationsError` | Board snapshot, live header and navigation | Board snapshot (static) |
 | `MyInvitationsLoading` | `#/invitations?s=MyInvitationsLoading` | Board snapshot, live header and navigation | Board snapshot (static) |
 | `NeedsYou` | `#/o/harbor-labs/needs-you` | Board snapshot, under the live org bar (new) | Static board (not stateful in this prototype) |
@@ -375,6 +394,7 @@ No routes changed with the Option A navigation update, so every row below still 
 | `OrgMembersRoleChanged` | `#/o/harbor-labs/settings/members?s=OrgMembersRoleChanged` | Board snapshot, live header and navigation | Live: Save access (toast, audit entry) |
 | `OrgMembersRowMenu` | `#/o/harbor-labs/settings/members?s=OrgMembersRowMenu` | Board snapshot, live header and navigation | Live: row menu on another member |
 | `OrgMembersRowMenuSelf` | `#/o/harbor-labs/settings/members?s=OrgMembersRowMenuSelf` | Board snapshot, live header and navigation | Live: row menu on your own row |
+| `OrgMembersShell` | `#/o/harbor-labs/settings/members?s=OrgMembersShell` | Board snapshot, live header and navigation (new) | Live: Org settings tab > Members |
 | `OrgMembersStepDown` | `#/o/harbor-labs/settings/members?s=OrgMembersStepDown` | Board snapshot, live header and navigation | Live: as owner, Change access on your own row, pick a lower role |
 | `OrgSuspended` | `#/o/harbor-labs/projects?s=OrgSuspended` | Board snapshot, live header and navigation | Live: as Platform admin suspend Harbor Labs, then switch persona to Org owner |
 | `OrgSuspendedPlatformAdmin` | `#/o/harbor-labs/projects?s=OrgSuspendedPlatformAdmin` | Board snapshot, live header and navigation | Live: as Platform admin open #/o/harbor-labs/projects after suspending it, then the org switcher |
@@ -394,6 +414,7 @@ No routes changed with the Option A navigation update, so every row below still 
 | `PlatformAdminsRevokeConfirm` | `#/platform/admins?s=PlatformAdminsRevokeConfirm` | Board snapshot, live header and navigation | Live: Revoke on Priya Natarajan |
 | `PlatformAdminsRevokeSelf` | `#/platform/admins?s=PlatformAdminsRevokeSelf` | Board snapshot, live header and navigation | Live: Revoke on your own row (needs another working admin; confirming goes to the home page) |
 | `PlatformAdminsRevoking` | `#/platform/admins?s=PlatformAdminsRevoking` | Board snapshot, live header and navigation | Live: confirm Revoke (0.6 s) |
+| `PlatformAdminsShell` | `#/platform/admins?s=PlatformAdminsShell` | Board snapshot, live header and navigation (new) | Live: Platform admins tab |
 | `PlatformAudit` | `#/platform/audit` | Live screen (Platform admin) | Live: persona Platform admin, Platform admin > Audit log |
 | `PlatformAuditEmpty` | `#/platform/audit?s=PlatformAuditEmpty` | Board snapshot, live header and navigation | Scenario Empty |
 | `PlatformAuditEmptyFiltered` | `#/platform/audit?s=PlatformAuditEmptyFiltered` | Board snapshot, live header and navigation | Live: pick an action with no entries, e.g. after a reset none match "Invitation resent" for Bluefin Health |
@@ -402,6 +423,7 @@ No routes changed with the Option A navigation update, so every row below still 
 | `PlatformAuditOrgChip` | `#/platform/audit?s=PlatformAuditOrgChip` | Board snapshot, live header and navigation | Live: org detail > View audit log; the chip x removes the filter |
 | `PlatformAuditOrgChipUnknown` | `#/platform/audit?s=PlatformAuditOrgChipUnknown` | Board snapshot, live header and navigation | Live: #/platform/audit?org=<unknown id> |
 | `PlatformAuditPaged` | `#/platform/audit?s=PlatformAuditPaged` | Board snapshot, live header and navigation | Live: page 2 |
+| `PlatformAuditShell` | `#/platform/audit?s=PlatformAuditShell` | Board snapshot, live header and navigation (new) | Live: Audit log tab |
 | `PlatformOrgEdit` | `#/platform/orgs/0f6d2a91-3c4b-4e8a-9b1d-7a2c5e8f4b10?s=PlatformOrgEdit` | Board snapshot, live header and navigation | Live: org detail > Edit organization (Save stays disabled until a value changes) |
 | `PlatformOrgEditError` | `#/platform/orgs/0f6d2a91-3c4b-4e8a-9b1d-7a2c5e8f4b10?s=PlatformOrgEditError` | Board snapshot, live header and navigation | Live: Fail the next action with 500 or 403, then Save (404 gives the "Organization not found" toast) |
 | `PlatformOrgEditFieldErrors` | `#/platform/orgs/0f6d2a91-3c4b-4e8a-9b1d-7a2c5e8f4b10?s=PlatformOrgEditFieldErrors` | Board snapshot, live header and navigation | Live: clear the Name or type -harbor- as URL, then Save |
@@ -425,11 +447,17 @@ No routes changed with the Option A navigation update, so every row below still 
 | `PlatformOrgMembersRemoveConfirm` | `#/platform/orgs/0f6d2a91-3c4b-4e8a-9b1d-7a2c5e8f4b10/members?s=PlatformOrgMembersRemoveConfirm` | Board snapshot, live header and navigation | Live: row menu > Remove <assignment> |
 | `PlatformOrgMembersRemoving` | `#/platform/orgs/0f6d2a91-3c4b-4e8a-9b1d-7a2c5e8f4b10/members?s=PlatformOrgMembersRemoving` | Board snapshot, live header and navigation | Live: confirm Remove (0.6 s); removing the last owner is allowed and the directory shows "No owner yet" |
 | `PlatformOrgMembersRowMenu` | `#/platform/orgs/0f6d2a91-3c4b-4e8a-9b1d-7a2c5e8f4b10/members?s=PlatformOrgMembersRowMenu` | Board snapshot, live header and navigation | Live: a row menu |
+| `PlatformOrgMembersShell` | `#/platform/orgs/0f6d2a91-3c4b-4e8a-9b1d-7a2c5e8f4b10/members?s=PlatformOrgMembersShell` | Board snapshot, live header and navigation (new) | Live: Priya > Organizations > Harbor Labs > Members ("Open organization" shown) |
+| `PlatformOrgMembersShellError` | `#/platform/orgs/0f6d2a91-3c4b-4e8a-9b1d-7a2c5e8f4b10/members?s=PlatformOrgMembersShellError` | Board snapshot, live header and navigation (new) | Live: Scenario Error on a platform org page (crumb "Organization") |
+| `PlatformOrgMembersShellLoading` | `#/platform/orgs/0f6d2a91-3c4b-4e8a-9b1d-7a2c5e8f4b10/members?s=PlatformOrgMembersShellLoading` | Board snapshot, live header and navigation (new) | Live: Scenario Loading on a platform org page (crumb skeleton, side menu placeholder) |
+| `PlatformOrgMembersShellNonMember` | `#/platform/orgs/0f6d2a91-3c4b-4e8a-9b1d-7a2c5e8f4b10/members?s=PlatformOrgMembersShellNonMember` | Board snapshot, live header and navigation (new) | Live: Morgan (Platform admin) > Harbor Labs > Members (no "Open organization") |
 | `PlatformOrgOverview` | `#/platform/orgs/0f6d2a91-3c4b-4e8a-9b1d-7a2c5e8f4b10` | Live screen (Platform admin) | Live: directory > Harbor Labs |
 | `PlatformOrgOverviewError` | `#/platform/orgs/0f6d2a91-3c4b-4e8a-9b1d-7a2c5e8f4b10?s=PlatformOrgOverviewError` | Board snapshot, live header and navigation | Scenario Error |
 | `PlatformOrgOverviewLoading` | `#/platform/orgs/0f6d2a91-3c4b-4e8a-9b1d-7a2c5e8f4b10?s=PlatformOrgOverviewLoading` | Board snapshot, live header and navigation | Scenario Loading |
 | `PlatformOrgOverviewNotFound` | `#/platform/orgs/0f6d2a91-3c4b-4e8a-9b1d-7a2c5e8f4b10?s=PlatformOrgOverviewNotFound` | Board snapshot, live header and navigation | Live: #/platform/orgs/<unknown id> |
 | `PlatformOrgOverviewReactivateDialog` | `#/platform/orgs/b47d9c62-1e5f-4a38-9d6b-2f8a4c7e1d93?s=PlatformOrgOverviewReactivateDialog` | Board snapshot, live header and navigation | Live: Reactivate organization on Bluefin Health |
+| `PlatformOrgOverviewShell` | `#/platform/orgs/0f6d2a91-3c4b-4e8a-9b1d-7a2c5e8f4b10?s=PlatformOrgOverviewShell` | Board snapshot, live header and navigation (new) | Live: Priya > scope switch > Manage this org in Platform |
+| `PlatformOrgOverviewShellNotFound` | `#/platform/orgs/0f6d2a91-3c4b-4e8a-9b1d-7a2c5e8f4b10?s=PlatformOrgOverviewShellNotFound` | Board snapshot, live header and navigation (new) | Live: #/platform/orgs/<unknown id> |
 | `PlatformOrgOverviewSuspendDialog` | `#/platform/orgs/0f6d2a91-3c4b-4e8a-9b1d-7a2c5e8f4b10?s=PlatformOrgOverviewSuspendDialog` | Board snapshot, live header and navigation | Live: Suspend organization |
 | `PlatformOrgOverviewSuspendError` | `#/platform/orgs/0f6d2a91-3c4b-4e8a-9b1d-7a2c5e8f4b10?s=PlatformOrgOverviewSuspendError` | Board snapshot, live header and navigation | Live: Suspend with an empty reason (or over 500 characters) |
 | `PlatformOrgOverviewSuspendFormError` | `#/platform/orgs/0f6d2a91-3c4b-4e8a-9b1d-7a2c5e8f4b10?s=PlatformOrgOverviewSuspendFormError` | Board snapshot, live header and navigation | Live: Fail the next action with 500 or 403, then Suspend (404 gives the "Organization not found" toast) |
@@ -446,6 +474,8 @@ No routes changed with the Option A navigation update, so every row below still 
 | `PlatformOrgsError` | `#/platform/orgs?s=PlatformOrgsError` | Board snapshot, live header and navigation | Scenario Error |
 | `PlatformOrgsLoading` | `#/platform/orgs?s=PlatformOrgsLoading` | Board snapshot, live header and navigation | Scenario Loading |
 | `PlatformOrgsPaged` | `#/platform/orgs?s=PlatformOrgsPaged` | Board snapshot, live header and navigation | Board snapshot (static); live directory has 5 orgs plus the ones you create |
+| `PlatformOrgsShell` | `#/platform/orgs?s=PlatformOrgsShell` | Board snapshot, live header and navigation (new) | Live: scope switch > Platform admin |
+| `PlatformOrgsShellScopeMenu` | `#/platform/orgs?s=PlatformOrgsShellScopeMenu` | Board snapshot, live header and navigation (new) | Live: Morgan, open the "Platform" scope switch |
 | `Projects` | `#/o/harbor-labs/projects` | Live screen | Live: Projects |
 | `ProjectsChecklist` | `#/o/harbor-labs/projects?s=ProjectsChecklist` | Board snapshot, live header and navigation | Live: Northwind as Kim Hale (the drawn Settings or Invitations head button is hidden unless the proposal toggle is on) |
 | `ProjectsChecklistDone` | `#/o/harbor-labs/projects?s=ProjectsChecklistDone` | Board snapshot, live header and navigation | Board snapshot (static) (the drawn Settings or Invitations head button is hidden unless the proposal toggle is on) |
@@ -462,6 +492,10 @@ No routes changed with the Option A navigation update, so every row below still 
 | `ProjectsOrgSwitchAdminPlatform` | `#/o/harbor-labs/projects?s=ProjectsOrgSwitchAdminPlatform` | Board snapshot, live header and navigation | Live: org switcher as Platform admin |
 | `ProjectsOrgSwitchOpen` | `#/o/harbor-labs/projects?s=ProjectsOrgSwitchOpen` | Board snapshot, live header and navigation | Live: open the org switcher (the drawn Settings or Invitations head button is hidden unless the proposal toggle is on) |
 | `ProjectsPaged` | `#/o/harbor-labs/projects?s=ProjectsPaged` | Board snapshot, live header and navigation | Board snapshot (static) |
+| `ProjectsShell` | `#/o/harbor-labs/projects?s=ProjectsShell` | Board snapshot, live header and navigation (new) | Live: Priya signs in |
+| `ProjectsShellScopeMenu` | `#/o/harbor-labs/projects?s=ProjectsShellScopeMenu` | Board snapshot, live header and navigation (new) | Live: Priya, open the "Harbor Labs" scope switch |
+| `ProjectsShellScopeMenuPlatformError` | `#/o/harbor-labs/projects?s=ProjectsShellScopeMenuPlatformError` | Board snapshot, live header and navigation (new) | Board snapshot; the live scope menu on this scenario also hides the Platform group |
+| `ProjectsShellSkipLink` | `#/o/harbor-labs/projects?s=ProjectsShellSkipLink` | Board snapshot, live header and navigation (new) | Live: press Tab once on any page |
 | `ProjectsSwitching` | `#/o/harbor-labs/projects?s=ProjectsSwitching` | Board snapshot, live header and navigation | Live: choose another org (0.7 s) |
 | `RouteError` | `#/gallery/pagination?s=RouteError` | Board snapshot, live header and navigation | Static board (not stateful in this prototype) |
 | `RouteLoading` | `#/gallery/pagination?s=RouteLoading` | Board snapshot, live header and navigation | Static board: a loading skeleton with no text; select it in the Scenario selector |
@@ -469,6 +503,7 @@ No routes changed with the Option A navigation update, so every row below still 
 | `RunFailed` | `#/o/harbor-labs/p/invoicer-api/runs/56` | Board snapshot, live header and navigation | Static board (not stateful in this prototype) |
 | `RunIdle` | `#/o/harbor-labs/p/invoicer-api/runs/62` | Board snapshot, live header and navigation | Static board (not stateful in this prototype) |
 | `RunIdleEnding` | `#/o/harbor-labs/p/invoicer-api/runs/62?s=RunIdleEnding` | Board snapshot, live header and navigation | Static board (not stateful in this prototype) |
+| `RunIdleShell` | `#/o/harbor-labs/p/invoicer-api/runs/62?s=RunIdleShell` | Board snapshot, live header and navigation (new) | Live: open Run 62 (bell on the run bar) |
 | `RunPrompt` | `#/o/harbor-labs/p/invoicer-api/runs/60?s=RunPrompt` | Board snapshot, live header and navigation | Static board (not stateful in this prototype) |
 | `RunReconnect` | `#/o/harbor-labs/p/invoicer-api/runs/61?s=RunReconnect` | Board snapshot, live header and navigation | Static board (not stateful in this prototype) |
 | `RunRunning` | `#/o/harbor-labs/p/invoicer-api/runs/61` | Board snapshot, live header and navigation | Static board (not stateful in this prototype) |
@@ -518,6 +553,7 @@ No routes changed with the Option A navigation update, so every row below still 
 | `RunsProblemsEmpty` | `#/o/harbor-labs/p/invoicer-api/runs?s=RunsProblemsEmpty` | Board snapshot, live header and navigation | Static board (not stateful in this prototype) |
 | `RunsProblemsPaged` | `#/o/harbor-labs/p/invoicer-api/runs?s=RunsProblemsPaged` | Board snapshot, live header and navigation | Static board (not stateful in this prototype) |
 | `RunsUsage` | `#/o/harbor-labs/p/invoicer-api/runs?s=RunsUsage` | Board snapshot, live header and navigation | Token usage: Usage column (value, partial "+", no cost, none "—"); Run 60, 55, 57, 61 open their usage boards |
+| `RunsShell` | `#/o/harbor-labs/p/invoicer-api/runs?s=RunsShell` | Board snapshot, live header and navigation (new) | Live: open a project |
 | `Setup1` | `#/o/harbor-labs/projects/new/1` | Board snapshot, live header and navigation | Static board (not stateful in this prototype) |
 | `Setup1Polling` | `#/o/harbor-labs/projects/new/1?s=Setup1Polling` | Board snapshot, live header and navigation | Static board (not stateful in this prototype) |
 | `Setup1PollingOk` | `#/o/harbor-labs/projects/new/1?s=Setup1PollingOk` | Board snapshot, live header and navigation | Static board (not stateful in this prototype) |

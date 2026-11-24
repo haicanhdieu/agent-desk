@@ -54,6 +54,10 @@ export interface Setup1Props extends SetupNav {
   onCheckAgain?(): void;
   /** Install the GitHub App or change its repositories; shown as "Connect GitHub" when there are no repositories. */
   onConnect?(): void;
+  /** Reload the repository list, after the app's repositories changed in GitHub. */
+  onRefresh?(): void;
+  /** The repository list is loading again: Refresh repositories is disabled until it is done. */
+  refreshing?: boolean;
   /** Saves the step. With it, Continue is a button instead of the `nextHref` link. */
   onContinue?(draft: Setup1Draft): void;
   saving?: boolean;
@@ -93,6 +97,8 @@ export function Setup1({
   onRetry,
   onCheckAgain,
   onConnect,
+  onRefresh,
+  refreshing,
   onContinue,
   saving,
   errors,
@@ -244,6 +250,13 @@ export function Setup1({
           </a>{' '}
           in GitHub, then come back. This list refreshes on its own.
         </p>
+        {onRefresh && (
+          <div>
+            <Button size="sm" icon="refresh" onClick={onRefresh} disabled={refreshing}>
+              {refreshing ? 'Refreshing repositories' : 'Refresh repositories'}
+            </Button>
+          </div>
+        )}
       </div>
       <div className={styles.stack10}>
         <span id={modeLabelId} className={styles.groupLabel}>

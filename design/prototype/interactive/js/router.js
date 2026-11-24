@@ -40,7 +40,8 @@
     if (n === 0) return { screen: 'landing', params: {} };
     if (p[0] === 'signin') return { screen: 'signin', params: {} };
     if (p[0] === 'index') return { screen: 'index', params: {} };
-    if (p[0] === 'orgs' && p[1] === 'new') return { screen: 'createorg', params: {} };
+    // Create organization lives in the platform shell (navigation-consistency spec); the old URL redirects there.
+    if (p[0] === 'orgs' && p[1] === 'new') return { screen: 'createorg.redirect', params: {} };
     if (p[0] === 'invitations' && n === 1) return { screen: 'myinvites', params: {} };
     if (p[0] === 'invitations' && n === 2) return { screen: 'accept', params: { token: p[1] } };
     if (p[0] === 'gallery' && p[1] === 'pagination') return { screen: 'gallery', params: {} };
@@ -51,6 +52,7 @@
       if (p[1] === 'admins' && n === 2) return { screen: 'platform.admins', params: {} };
       if (p[1] === 'audit' && n === 2) return { screen: 'platform.audit', params: {} };
       if (p[1] === 'orgs' && n === 2) return { screen: 'platform.orgs', params: {} };
+      if (p[1] === 'orgs' && p[2] === 'new' && n === 3) return { screen: 'createorg', params: {} };
       if (p[1] === 'orgs' && p[2] && n <= 4) return { screen: 'platform.org', params: { orgId: p[2], tab: p[3] || 'overview' } };
     }
     if (p[0] === 'o' && p[1]) {

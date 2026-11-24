@@ -85,12 +85,16 @@
       { uid: 'nadia-rahman', name: 'Nadia Rahman', handle: 'nadia-rahman', role: null, projects: [] },
       { uid: 'tom-becker', name: 'Tom Becker', handle: 'tom-becker', role: 'admin', projects: [] },
     ];
+    // Priya Natarajan (navigation-consistency spec, combined role): org admin of Harbor Labs and also Admin on invoicer-api.
+    filler.find((m) => m.uid === 'priya-natarajan').projects = [P('invoicer-api', 'Admin')];
     return {
       'harbor-labs': [...harbor, ...filler, ...page2],
       northwind: [
         { uid: 'maria-chen', name: 'Maria Chen', handle: 'maria-chen', role: 'owner', projects: [] },
         { uid: 'kim-hale', name: 'Kim Hale', handle: 'kim-hale', role: 'admin', projects: [] },
         { uid: 'mira-chen', name: 'Mira Chen', handle: 'mira-chen', role: null, projects: [] },
+        // project grant only (no org role): Admin of forecast-service
+        { uid: 'priya-natarajan', name: 'Priya Natarajan', handle: 'priya-natarajan', role: null, projects: [P('forecast-service', 'Admin')] },
       ],
       riverside: [
         { uid: 'sana-iqbal', name: 'Sana Iqbal', handle: 'sana-iqbal', role: 'owner', projects: [] },
@@ -173,13 +177,15 @@
     { id: 'lee-park', label: 'Project admin', hint: 'Lee Park, no org role, admin on invoicer-api only' },
     { id: 'mira-chen', label: 'Member', hint: 'Mira Chen, member of Harbor Labs (no role in Northwind)' },
     { id: 'theo-brandt', label: 'Viewer', hint: 'Theo Brandt, viewer in Harbor Labs' },
-    { id: 'ops-admin', label: 'Platform admin', hint: 'ops-admin (Morgan Avery), creates orgs, no org role; "Platform admin" in the org menu opens the platform area' },
+    { id: 'ops-admin', label: 'Platform admin', hint: 'ops-admin (Morgan Avery), platform admin with no membership in any org: lands on Platform > Organizations; org pages are not found for them' },
+    { id: 'priya-natarajan', label: 'Platform admin + org admin + project admin', hint: 'Priya Natarajan: platform admin; admin of Harbor Labs (and Admin on invoicer-api); project admin of forecast-service in Northwind with no org role there. Use the scope switch (first crumb) to move Platform <-> Org <-> Project' },
     { id: 'dana-ortiz', label: 'New user with invitations', hint: 'Dana Ortiz, no org yet, 2 pending invitations' },
     { id: 'jo-marsh', label: 'Visitor with no invitation', hint: 'Jo Marsh, sign-in is refused' },
   ];
   const USERS = {
     'kim-hale': { email: 'kim.hale@harborlabs.dev', name: 'Kim Hale', initials: 'KH' }, 'jordan-wu': { email: 'jordan.wu@harborlabs.dev', name: 'Jordan Wu', initials: 'JW' }, 'lee-park': { email: 'lee.park@harborlabs.dev', name: 'Lee Park', initials: 'LP' },
     'mira-chen': { email: 'mira.chen@example.com', name: 'Mira Chen', initials: 'MC' }, 'theo-brandt': { email: 'theo.brandt@example.com', name: 'Theo Brandt', initials: 'TB' }, 'ops-admin': { email: 'morgan.avery@agentdesk.example', name: 'Morgan Avery', initials: 'OA', platform: true },
+    'priya-natarajan': { email: 'priya.natarajan@agentdesk.example', name: 'Priya Natarajan', initials: 'PN', platform: true },
     'dana-ortiz': { email: 'dana.ortiz@example.com', name: 'Dana Ortiz', initials: 'DO' }, 'jo-marsh': { email: 'jo.marsh@example.com', name: 'Jo Marsh', initials: 'JM' },
   };
   AD.USERS = USERS;
@@ -215,12 +221,9 @@
   AD.user = () => (AD.state.uid ? Object.assign({ id: AD.state.uid }, USERS[AD.state.uid]) : null);
   AD.org = (slug) => AD.state.orgs.find((o) => o.slug === slug) || null;
   AD.memberOf = (slug, uid) => (AD.state.members[slug] || []).find((m) => m.uid === uid) || null;
-  // Orgs the user can see in the switcher: the ones they belong to; a platform admin sees all of them.
-  AD.userOrgs = (uid) => {
-    const u = USERS[uid] || {};
-    if (u.platform) return AD.state.orgs.slice(0, 1).concat(AD.state.orgs.slice(3));
-    return AD.state.orgs.filter((o) => AD.memberOf(o.slug, uid));
-  };
+  // Orgs the user can see in the scope switch and open: only the ones they belong to. The platform role adds none
+  // (navigation-consistency spec, Decision 1: a platform admin who is not a member does not open the org's pages).
+  AD.userOrgs = (uid) => AD.state.orgs.filter((o) => AD.memberOf(o.slug, uid));
   AD.roleLabel = (r) => ({ owner: 'Owner', admin: 'Admin', member: 'Member', viewer: 'Viewer' }[r] || 'No role');
 
   AD.access = function (uid, slug) {
@@ -228,14 +231,14 @@
     const m = AD.memberOf(slug, uid);
     const role = m ? m.role : null;
     const adminProjects = m ? m.projects.filter((p) => p.role === 'Admin').map((p) => p.name) : [];
-    const known = !!m || !!u.platform;
+    const known = !!m;
     return { known, platform: !!u.platform, role, adminProjects, projectNames: m ? m.projects.map((p) => p.name) : [] };
   };
   AD.perm = function (uid, slug) {
     const a = AD.access(uid, slug);
     const orgAdmin = a.role === 'owner' || a.role === 'admin';
     const projectAdmin = a.adminProjects.length > 0;
-    const hasContent = a.platform || !!a.role || a.projectNames.length > 0;
+    const hasContent = !!a.role || a.projectNames.length > 0;
     return Object.assign({}, a, {
       isOwner: a.role === 'owner', orgAdmin, projectAdmin, hasContent,
       general: orgAdmin, members: orgAdmin, audit: orgAdmin,
@@ -248,7 +251,7 @@
   AD.visibleProjects = function (uid, slug) {
     const a = AD.access(uid, slug);
     const all = AD.state.projects[slug] || [];
-    if (a.platform || a.role) return all;
+    if (a.role) return all; // the platform role gives no org content
     return all.filter((p) => a.projectNames.includes(p.id));
   };
   AD.settingsFirstTab = (p) => (p.general ? 'general' : p.invitations ? 'invitations' : null);

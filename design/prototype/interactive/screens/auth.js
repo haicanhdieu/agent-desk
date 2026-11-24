@@ -156,7 +156,7 @@
     const name = f.name.trim();
     if (!name) f.errors.name = 'Enter a name.'; else if (name.length > 100) f.errors.name = 'Use 100 characters or fewer.';
     if (!SLUG_RE.test(f.slug)) f.errors.slug = 'Use lowercase letters, numbers and dashes, with no dash at the start or end.';
-    else if (AD.state.orgs.some((o) => o.slug === f.slug)) f.errors.slug = 'This URL is taken. Try another.';
+    else if (AD.state.orgs.concat((AD.state.platform && AD.state.platform.extraOrgs) || []).some((o) => o.slug === f.slug)) f.errors.slug = 'This URL is taken. Try another.';
     if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(f.email.trim())) f.errors.email = 'Enter a valid email address.';
     if (Object.keys(f.errors).length) { AD.render(); return; }
     f.phase = 'saving'; f.banner = null; AD.render();
@@ -183,17 +183,25 @@
     const done = () => AD.toast('ok', 'Link copied');
     try { if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(createdOrgLink()).then(done, () => AD.toast('err', 'Could not copy. Select the link and copy it.')); else AD.toast('err', 'Could not copy. Select the link and copy it.'); } catch (e) { AD.toast('err', 'Could not copy. Select the link and copy it.'); }
   };
-  AD.acts['createorg-done'] = () => { const f = form(); const slug = f.created; AD.ui.form = null; AD.nav('/o/' + slug + '/projects'); };
+  // Done: back to the new org in the platform area (the creator is not a member of it, so its own pages would be not found).
+  AD.acts['createorg-done'] = () => { const f = form(); const slug = f.created; AD.ui.form = null; AD.nav('/platform/orgs/' + AD.platformOrgId(slug)); };
+
+  // Old URL: /orgs/new redirects to /platform/orgs/new (navigation-consistency spec).
+  AD.screens['createorg.redirect'] = {
+    title: 'Create organization',
+    render(ctx) { setTimeout(() => AD.nav('/platform/orgs/new', ctx.q, { replace: true }), 0); return { header: 'global', h: 900, html: AD.loadingMain() }; },
+  };
 
   AD.screens.createorg = {
-    title: 'Create an organization',
+    title: 'Create organization',
     snaps: () => AD.snapGroup(AD.boardNames(/^CreateOrg/)),
     render(ctx) {
       const s = ctx.scen;
-      if (s !== 'live' && AD.B[s]) { const o = AD.boardOut(s); o.noOrg = s !== 'CreateOrgForbidden'; return o; }
+      // Inside the platform shell: platform bar, Organizations tab active, crumbs Organizations / Create organization.
+      if (s !== 'live' && AD.B[s]) return AD.boardOut(s);
       if (s === 'forbidden' || !ctx.user.platform) return AD.boardOut('CreateOrgForbidden');
-      if (s === 'loading') return { header: 'global', noOrg: true, h: 900, html: AD.loadingMain() };
-      if (s === 'error') return { header: 'global', noOrg: true, h: 900, html: AD.errorMain() };
+      if (s === 'loading') return { header: 'global', h: 900, html: AD.loadingMain() };
+      if (s === 'error') return { header: 'global', h: 900, html: AD.errorMain() };
       const f = form();
       const e = f.errors;
       const ro = f.phase === 'invfailed' || f.phase === 'retrying' ? ' readonly aria-readonly="true"' : '';
@@ -206,7 +214,7 @@
         inner = `${banner}<div style="display:flex;flex-direction:column;gap:18px"><div class="field"><label for="on">Name</label><input id="on" class="input${e.name ? ' bad' : ''}" value="${esc(f.name)}" data-in="name" data-on="createorg-name"${e.name ? ' aria-invalid="true" aria-describedby="one"' : ''}${ro}>${e.name ? `<span id="one" class="ferr" role="alert">${esc(e.name)}</span>` : ''}</div><div class="field"><label for="os">URL</label><div class="prefix"${e.slug ? ' style="border-color:var(--fail)"' : ''}><span id="osp">/o/</span><input id="os" value="${esc(f.slug)}" data-in="slug" data-on="createorg-slug" aria-describedby="osp${e.slug ? ' ose' : ''}"${e.slug ? ' aria-invalid="true"' : ''}${ro}></div>${e.slug ? `<span id="ose" class="ferr" role="alert">${esc(e.slug)}</span>` : ''}</div><div class="field"><label for="oe">First owner email</label><input id="oe" class="input${e.email ? ' bad' : ''}" value="${esc(f.email)}" data-in="email" aria-describedby="oeh${e.email ? ' oee' : ''}"${e.email ? ' aria-invalid="true"' : ''}><span id="oeh" class="help">They get the owner role. Send them the link that appears next.</span>${e.email ? `<span id="oee" class="ferr" role="alert">${esc(e.email)}</span>` : ''}</div></div>${f.phase === 'invfailed' || f.phase === 'retrying' ? '' : `<div class="row" style="gap:12px"><button class="btn primary lg" data-act="createorg-submit"${saving ? ' disabled aria-busy="true"' : ''}>${saving ? 'Creating…' : 'Create organization'}</button></div>`}`;
       }
       const html = `<main style="${WIDE}"><div style="width:100%;max-width:560px;display:flex;flex-direction:column;gap:24px"><h1 style="font-size:28px">Create an organization</h1>${inner}</div></main>`;
-      return { header: 'global', noOrg: true, h: 900, html };
+      return { header: 'global', h: 900, html };
     },
   };
 })();

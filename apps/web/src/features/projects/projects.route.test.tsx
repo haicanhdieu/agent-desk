@@ -818,3 +818,29 @@ describe('checklist is not refetched when a write does not complete a step', () 
     expectUntouched(before);
   });
 });
+
+describe('setup rules step: Skip', () => {
+  it('marks setup ready without reading or creating rules (Skip needs only the project update)', async () => {
+    const { queryClient } = await renderRoute('/o/acme/projects', {
+      scenario: () => scenarios.onboarding('checklistPartial'),
+    });
+    await screen.findByText('Add an agent');
+    const wrapper = ({ children }: { children: ReactNode }) =>
+      createElement(QueryClientProvider, { client: queryClient }, children);
+    const project = projectFixtures.find((p) => p.id === ids.project.invoicerApi);
+    if (!project) throw new Error('no project');
+    let ruleCalls = 0;
+    server.use(
+      http.all('*/api/projects/*/rules', () => {
+        ruleCalls += 1;
+        return problemResponse({ status: 403, title: 'Forbidden', type: 'forbidden' });
+      }),
+    );
+    const { result } = renderHook(() => useSaveRulesStep('acme'), { wrapper });
+    const next = await act(() =>
+      result.current.mutateAsync({ project: { ...project, setupStep: 'rules' }, rules: [] }),
+    );
+    expect(next.setupStep).toBe('ready');
+    expect(ruleCalls).toBe(0);
+  });
+});
