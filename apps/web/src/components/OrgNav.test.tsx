@@ -5,7 +5,7 @@ import { OrgNav } from './OrgNav';
 describe('OrgNav', () => {
   it('BR-43: Projects and Settings sit in the Main nav, the active one marked current', () => {
     render(<OrgNav active="settings" projectsHref="/o/acme/projects" settingsHref="/o/acme/settings" />);
-    const nav = screen.getByRole('navigation', { name: 'Main' });
+    const nav = screen.getByRole('navigation', { name: 'Organization sections' });
     const projects = within(nav).getByRole('link', { name: 'Projects' });
     const settings = within(nav).getByRole('link', { name: 'Settings' });
     expect(projects).toHaveAttribute('href', '/o/acme/projects');

@@ -13,7 +13,7 @@ const sideItems = () =>
   within(screen.getByRole('navigation', { name: 'Organization settings' }))
     .getAllByRole('link')
     .map((a) => a.textContent);
-const mainNav = () => within(screen.getByRole('navigation', { name: 'Main' }));
+const mainNav = () => within(screen.getByRole('navigation', { name: 'Organization sections' }));
 const noAccess = () => screen.findByText("You don't have access");
 
 describe('settings layout: who lands where', () => {

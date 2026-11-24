@@ -10,8 +10,8 @@ describe('app bar on the suspended page (BR-51)', () => {
       scenario: () => scenarios.platform('suspendedPlatformAdmin'),
     });
     await screen.findByRole('heading', { name: 'This organization is suspended' });
-    await user.click(await screen.findByRole('button', { name: /^(Switch organization|Organization menu)/ }));
-    const menu = await screen.findByRole('dialog', { name: 'Organizations' });
+    await user.click(await screen.findByRole('button', { name: /^Switch scope/ }));
+    const menu = await screen.findByRole('dialog', { name: 'Scope' });
     expect(within(menu).getByRole('link', { name: 'Platform admin' })).toHaveAttribute('href', '/platform');
     await act(() => router.navigate({ to: '/platform/orgs' }));
     expect(await screen.findByRole('heading', { level: 1, name: 'Organizations' })).toBeInTheDocument();

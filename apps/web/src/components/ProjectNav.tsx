@@ -14,7 +14,13 @@ export interface ProjectNavProps {
 }
 
 /** Runs / Settings tabs of the project top bar (the Settings tab opens the project's Desk pages). */
-export function ProjectNav({ active, needsYou, runsHref = '/runs', deskHref, label = 'Main' }: ProjectNavProps) {
+export function ProjectNav({
+  active,
+  needsYou,
+  runsHref = '/runs',
+  deskHref,
+  label = 'Project sections',
+}: ProjectNavProps) {
   return (
     <nav className={styles.tabs} aria-label={label}>
       <AppLink

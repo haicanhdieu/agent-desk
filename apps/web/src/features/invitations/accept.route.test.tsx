@@ -326,10 +326,10 @@ describe('invitation link under the app bar', () => {
   it('BR-43 / BR-13 an owner sees the org bar with no tab active and Settings in the org menu', async () => {
     const { user } = await renderRoute(`/invitations/${pendingId}`, { scenario: asOwnerOfAlice });
     await screen.findByRole('heading', { level: 1, name: 'Join Acme Robotics' });
-    const nav = await screen.findByRole('navigation', { name: 'Main' });
+    const nav = await screen.findByRole('navigation', { name: 'Organization sections' });
     expect(within(nav).getByRole('link', { name: 'Projects' })).not.toHaveAttribute('aria-current');
-    await user.click(screen.getByRole('button', { name: /^Organization menu/ }));
-    const menu = await screen.findByRole('dialog', { name: 'Organizations' });
+    await user.click(screen.getByRole('button', { name: /^Switch scope/ }));
+    const menu = await screen.findByRole('dialog', { name: 'Scope' });
     expect(within(menu).getByRole('link', { name: 'Settings' })).toHaveAttribute('href', '/o/alice/settings');
   });
 
@@ -337,6 +337,6 @@ describe('invitation link under the app bar', () => {
     await open(pendingId);
     await screen.findByRole('heading', { level: 1, name: 'Join Acme Robotics' });
     expect(screen.getByText('No organization')).toBeInTheDocument();
-    expect(screen.queryByRole('navigation', { name: 'Main' })).toBeNull();
+    expect(screen.queryByRole('navigation', { name: 'Organization sections' })).toBeNull();
   });
 });

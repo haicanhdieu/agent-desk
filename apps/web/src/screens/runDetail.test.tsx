@@ -816,7 +816,9 @@ describe('RunDetail under the app bar (BR-46)', () => {
     show('RunRunning', { org, run });
     const crumbs = screen.getByRole('navigation', { name: 'Breadcrumb' });
     expect(crumbs).toHaveTextContent(/^Acme\/invoicer-api\/Runs\/Run 61$/);
-    expect(within(crumbs).getByRole('button', { name: /^Organization menu, Acme/ })).toBeInTheDocument();
+    expect(
+      within(crumbs).getByRole('button', { name: /^Switch scope, currently organization Acme/ }),
+    ).toBeInTheDocument();
     expect(within(crumbs).getByRole('button', { name: /invoicer-api/ })).toBeInTheDocument();
     expect(within(crumbs).getByRole('link', { name: 'Runs' })).toHaveAttribute('href', '/o/acme/p/1/runs');
     expect(within(crumbs).getByText('Run 61')).toHaveAttribute('aria-current', 'page');
@@ -846,7 +848,8 @@ describe('RunDetail under the app bar (BR-46)', () => {
   it('the run bar has crumbs only: no Main tab list (TC-43.5)', () => {
     show('RunRunning', { org, run });
     expect(screen.getByRole('navigation', { name: 'Breadcrumb' })).toBeInTheDocument();
-    expect(screen.queryByRole('navigation', { name: 'Main' })).toBeNull();
+    expect(screen.queryByRole('navigation', { name: 'Organization sections' })).toBeNull();
+    expect(screen.queryByRole('navigation', { name: 'Project sections' })).toBeNull();
   });
 
   it('the project crumb opens the project switcher with projectMenu (TC-46.3)', async () => {

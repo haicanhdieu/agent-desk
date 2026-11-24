@@ -572,13 +572,13 @@ describe('BR-46 a non-admin has no create-org form', () => {
 describe('create organization under the app bar', () => {
   it('BR-43 shows the org crumb and no tabs', async () => {
     await open('platformAdminOneOrg');
-    expect(screen.getByRole('button', { name: /^Switch organization, currently/ })).toBeInTheDocument();
-    expect(screen.queryByRole('navigation', { name: 'Main' })).toBeNull();
+    expect(screen.getByRole('button', { name: /^Switch scope, currently/ })).toBeInTheDocument();
+    expect(screen.queryByRole('navigation', { name: 'Organization sections' })).toBeNull();
   });
 
   it('BR-43 a platform admin with no org sees "Switch organization" and no tabs', async () => {
     await open('platformAdminNoOrg');
-    expect(screen.getByRole('button', { name: /^Switch organization/ })).toHaveTextContent('No organization');
-    expect(screen.queryByRole('navigation', { name: 'Main' })).toBeNull();
+    expect(screen.getByRole('button', { name: /^Switch scope/ })).toHaveTextContent('No organization');
+    expect(screen.queryByRole('navigation', { name: 'Organization sections' })).toBeNull();
   });
 });

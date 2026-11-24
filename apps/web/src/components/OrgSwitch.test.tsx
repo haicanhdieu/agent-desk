@@ -15,17 +15,36 @@ function setup(data: keyof typeof orgSwitchFixtures, extra: Partial<OrgSwitchPro
   render(<OrgSwitch {...orgSwitchFixtures[data]} orgHref={orgHref} createHref={createHref} {...extra} />);
   return user;
 }
-const button = () => screen.getByRole('button', { name: /^Switch organization/ });
+const button = () => screen.getByRole('button', { name: /^Switch scope/ });
 const noOrgData = { current: null, orgs: [], platformAdmin: false };
 
 describe('OrgSwitch', () => {
+  it('names the button "Switch scope, currently organization Acme" for one org and for several', () => {
+    const { unmount } = render(<OrgSwitch {...orgSwitchFixtures.oneOrg} orgHref={orgHref} createHref={createHref} />);
+    expect(screen.getByRole('button', { name: 'Switch scope, currently organization Acme' })).toBeInTheDocument();
+    unmount();
+    setup('severalOrgs');
+    expect(screen.getByRole('button', { name: 'Switch scope, currently organization Acme' })).toBeInTheDocument();
+  });
+
+  it('names the menu dialog "Scope"', async () => {
+    const user = setup('severalOrgs');
+    await user.click(screen.getByRole('button', { name: /^Switch scope/ }));
+    expect(screen.getByRole('dialog', { name: 'Scope' })).toBeInTheDocument();
+  });
+
+  it('a platform admin with no org gets "Switch scope, currently no organization"', () => {
+    setup('platformAdminNoOrg');
+    expect(screen.getByRole('button', { name: 'Switch scope, currently no organization' })).toBeInTheDocument();
+  });
+
   it('BR-6: several orgs list both in the menu and mark the current one', async () => {
     const user = setup('severalOrgs');
-    expect(button()).toHaveAccessibleName('Switch organization, currently Acme');
+    expect(button()).toHaveAccessibleName('Switch scope, currently organization Acme');
     expect(button()).toHaveAttribute('aria-haspopup', 'dialog');
     expect(button()).toHaveAttribute('aria-expanded', 'false');
     await user.click(button());
-    const menu = screen.getByRole('dialog', { name: 'Organizations' });
+    const menu = screen.getByRole('dialog', { name: 'Scope' });
     const acme = within(menu).getByRole('link', { name: /Acme/ });
     expect(acme).toHaveAttribute('aria-current', 'true');
     expect(acme).toHaveAttribute('href', '/o/acme');
@@ -36,10 +55,10 @@ describe('OrgSwitch', () => {
 
   it('BR-44: one org shows an Organization menu button whose menu lists the name, Projects and Settings', async () => {
     const user = setup('oneOrg', { projectsHref, settingsHref });
-    const trigger = screen.getByRole('button', { name: 'Organization menu, Acme' });
+    const trigger = screen.getByRole('button', { name: 'Switch scope, currently organization Acme' });
     expect(trigger).toHaveAttribute('aria-haspopup', 'dialog');
     await user.click(trigger);
-    const menu = screen.getByRole('dialog', { name: 'Organizations' });
+    const menu = screen.getByRole('dialog', { name: 'Scope' });
     expect(within(menu).getByRole('heading', { name: 'Acme' })).toBeInTheDocument();
     const links = within(menu).getAllByRole('link');
     expect(links.map((l) => l.textContent?.trim())).toEqual(['Projects', 'Settings']);
@@ -50,7 +69,7 @@ describe('OrgSwitch', () => {
 
   it('BR-44: one org without settingsHref has no Settings item', async () => {
     const user = setup('oneOrg', { projectsHref });
-    await user.click(screen.getByRole('button', { name: 'Organization menu, Acme' }));
+    await user.click(screen.getByRole('button', { name: 'Switch scope, currently organization Acme' }));
     const menu = screen.getByRole('dialog');
     expect(within(menu).getByRole('link', { name: 'Projects' })).toBeInTheDocument();
     expect(within(menu).queryByRole('link', { name: 'Settings' })).toBeNull();
@@ -58,7 +77,7 @@ describe('OrgSwitch', () => {
 
   it('BR-44: one org with no current org still shows the button for the lone org', () => {
     render(<OrgSwitch {...orgSwitchFixtures.oneOrg} current={null} orgHref={orgHref} createHref={createHref} />);
-    expect(screen.getByRole('button', { name: 'Organization menu, Acme' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Switch scope, currently organization Acme' })).toBeInTheDocument();
   });
 
   it('BR-44: several orgs list Projects, Settings, then a Switch organization group with the current one checked', async () => {
@@ -117,7 +136,7 @@ describe('OrgSwitch', () => {
   it('BR-40: a platform admin with no org sees No organization and only Create organization', async () => {
     const user = setup('platformAdminNoOrg');
     expect(button()).toHaveTextContent('No organization');
-    expect(button()).toHaveAccessibleName('Switch organization');
+    expect(button()).toHaveAccessibleName('Switch scope, currently no organization');
     await user.click(button());
     const links = within(screen.getByRole('dialog')).getAllByRole('link');
     expect(links).toHaveLength(1);

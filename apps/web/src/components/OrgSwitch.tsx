@@ -41,11 +41,9 @@ function OrgSwitchMenu({
 }: OrgSwitchProps) {
   const shown = current ?? (orgs.length === 1 ? orgs[0] : undefined);
   const canSwitch = orgs.length > 1 || platformAdmin;
-  const buttonLabel = !shown
-    ? 'Switch organization'
-    : canSwitch
-      ? `Switch organization, currently ${shown.name}`
-      : `Organization menu, ${shown.name}`;
+  const buttonLabel = shown
+    ? `Switch scope, currently organization ${shown.name}`
+    : 'Switch scope, currently no organization';
   const [open, setOpen] = useState(false);
   const wrapRef = useRef<HTMLDivElement>(null);
   const menuId = useId();
@@ -87,7 +85,7 @@ function OrgSwitchMenu({
       </button>
       <Popover
         open={open}
-        label="Organizations"
+        label="Scope"
         onClose={close}
         style={{ top: 'calc(100% + 6px)', left: 0, padding: 0, gap: 0 }}
       >

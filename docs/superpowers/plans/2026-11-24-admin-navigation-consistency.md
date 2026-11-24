@@ -92,15 +92,15 @@ None. No new package, library, service, image, CI action or workspace package.
 **Interfaces:**
 - Produces: `export function SkipLink(): JSX.Element` (an `<a href="#main">` reading "Skip to main content").
 
-- [ ] **Step 1: Write the failing tests** in `SkipLink.test.tsx`:
+- [x] **Step 1: Write the failing tests** in `SkipLink.test.tsx`:
   - `it('is a link named "Skip to main content"')`.
   - `it('moves focus to main on activation')`: render `<><SkipLink /><main><h1>x</h1></main></>`, `await user.tab()`, expect the link focused, `await user.keyboard('{Enter}')`, expect `screen.getByRole('main')` to have focus and `tabIndex === -1`.
   - `it('does nothing when the page has no main')`: no throw, focus stays.
   - `apps/web/src/app/shell.test.tsx` (existing): `it('the skip link is the first focusable element')`: render a route, `user.tab()`, active element name "Skip to main content".
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/components/SkipLink.test.tsx src/app/shell.test.tsx`. Expected: FAIL (no module).
-- [ ] **Step 3: Implement** `SkipLink` (click handler `preventDefault`, find `document.querySelector('main')`, set `tabIndex = -1` if absent, `focus()`); CSS: off-screen until `:focus-visible`, then a token-styled pill at the top left (`var(--surface)`, `var(--text)`, `var(--radius-6)`, `--fs-13`; offsets copied from board ProjectsShellSkipLink). Render it first in `RootLayout`. Stories: `Default`, `Focused` (play function focuses it).
-- [ ] **Step 4: Run** Step 2's command plus `pnpm --filter @agentdesk/web exec vitest run src/test/stories.smoke.test.tsx`. Expected: PASS.
-- [ ] **Step 5: Commit** `feat(web): skip to main content link`.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/components/SkipLink.test.tsx src/app/shell.test.tsx`. Expected: FAIL (no module).
+- [x] **Step 3: Implement** `SkipLink` (click handler `preventDefault`, find `document.querySelector('main')`, set `tabIndex = -1` if absent, `focus()`); CSS: off-screen until `:focus-visible`, then a token-styled pill at the top left (`var(--surface)`, `var(--text)`, `var(--radius-6)`, `--fs-13`; offsets copied from board ProjectsShellSkipLink). Render it first in `RootLayout`. Stories: `Default`, `Focused` (play function focuses it).
+- [x] **Step 4: Run** Step 2's command plus `pnpm --filter @agentdesk/web exec vitest run src/test/stories.smoke.test.tsx`. Expected: PASS.
+- [x] **Step 5: Commit** `feat(web): skip to main content link`.
 
 ### Task 2: `useDocumentTitle` and `pageTitle`, titles on not-found and forbidden pages
 
@@ -123,14 +123,14 @@ export function pageTitle(input: { crumbs: readonly PageCrumb[]; scope?: string;
 export function useDocumentTitle(title: string): void; // sets on change, restores the previous title on unmount
 ```
 
-- [ ] **Step 1: Write the failing tests.**
+- [x] **Step 1: Write the failing tests.**
   - `pageTitle.test.ts`: `[{label:'Organizations',href:'/x'},{label:'Harbor Labs',href:'/y'},{label:'Members'}]`, scope `'Platform'` → `'Members · Platform · Agent Desk'`; `[{label:'Projects'}]`, `'Harbor Labs'` → `'Projects · Harbor Labs · Agent Desk'`; `[{label:'Runs',href:'/r'},{label:'Run 62'}]`, `'invoicer-api'` → `'Run 62 · invoicer-api · Agent Desk'`; last crumb loading → uses the previous label (`'Organizations · Platform · Agent Desk'`); `state:'notFound'` → `'Not found · Agent Desk'`; `state:'forbidden'` → `"You don't have access · Agent Desk"`; no crumbs and no scope → `'Agent Desk'`.
   - `useDocumentTitle.test.tsx`: sets `document.title`; a rerender with a new title updates it; unmount restores the title from before mount.
   - `apps/web/src/app/orgRoute.test.tsx` (existing file): `it('an unknown route sets the title "Not found · Agent Desk"')`.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/components/pageTitle.test.ts src/components/useDocumentTitle.test.tsx src/app/orgRoute.test.tsx`. Expected: FAIL.
-- [ ] **Step 3: Implement** both in the files above (`useEffect` with the previous title captured on mount); call `useDocumentTitle(pageTitle({ crumbs: NO_PAGE_CRUMBS, state }))` in `NotFound` (notFound) and `Forbidden` (forbidden). Agent call: `RouteError` gets no title (the spec names only not found and forbidden).
-- [ ] **Step 4: Run** Step 2's command. Expected: PASS.
-- [ ] **Step 5: Commit** `feat(web): page title helper and titles on not-found and forbidden pages`.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/components/pageTitle.test.ts src/components/useDocumentTitle.test.tsx src/app/orgRoute.test.tsx`. Expected: FAIL.
+- [x] **Step 3: Implement** both in the files above (`useEffect` with the previous title captured on mount); call `useDocumentTitle(pageTitle({ crumbs: NO_PAGE_CRUMBS, state }))` in `NotFound` (notFound) and `Forbidden` (forbidden). Agent call: `RouteError` gets no title (the spec names only not found and forbidden).
+- [x] **Step 4: Run** Step 2's command. Expected: PASS.
+- [x] **Step 5: Commit** `feat(web): page title helper and titles on not-found and forbidden pages`.
 
 ### Task 3: Distinct landmark names and the scope button label, plus e2e
 
@@ -145,12 +145,12 @@ export function useDocumentTitle(title: string): void; // sets on change, restor
 - Consumes: Tasks 1, 2.
 - Produces: button names `Switch scope, currently organization <name>` (org shown, whether or not the person can switch), `Switch scope, currently no organization` (no org shown, platform admin); dialog `Scope`; navs `Organization sections`, `Project sections`.
 
-- [ ] **Step 1: Write the failing tests.**
+- [x] **Step 1: Write the failing tests.**
   - `OrgSwitch.test.tsx`: `it('names the button "Switch scope, currently organization Harbor Labs"')` for `oneOrg` and for `twoOrgs`; `it('names the menu dialog "Scope"')`; `it('a platform admin with no org gets "Switch scope, currently no organization"')`.
   - `Chrome.test.tsx`: `it('no nav is named "Main" on any bar')` (org, project and run variants: `queryByRole('navigation', { name: 'Main' })` null); `it('the org tabs nav is "Organization sections" and the project tabs nav "Project sections"')`.
   - `e2e/mock/nav-shell.spec.ts` (`test.describe('accessibility')`, scenario `seedOnboarding(page, 'owner')`): `test('the first Tab focuses "Skip to main content" and Enter focuses main')`; `test('the org page has one banner, one main and no two navs with the same name')` (collect `aria-label` of every `nav`, expect unique and no "Main"); `test('an unknown route is titled "Not found · Agent Desk"')`.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/components/OrgSwitch.test.tsx src/components/Chrome.test.tsx src/components/OrgNav.test.tsx`. Expected: FAIL.
-- [ ] **Step 3: Implement** the labels, then update every selector found by:
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/components/OrgSwitch.test.tsx src/components/Chrome.test.tsx src/components/OrgNav.test.tsx`. Expected: FAIL.
+- [x] **Step 3: Implement** the labels, then update every selector found by:
 
 ```bash
 grep -rlnE "name: 'Main'|\"Main\"" apps/web/src apps/web/e2e
@@ -158,7 +158,7 @@ grep -rlnE "Switch organization|Organization menu|name: 'Organizations'" apps/we
 ```
 
 Replace with the new names (regex helpers become `/^Switch scope/`; the dialog becomes `'Scope'`). Keep the "Switch organization" group label inside the menu (it is still that group's name). Do not touch assertions other than the names.
-- [ ] **Step 4: Run** `pnpm --filter @agentdesk/web test` (the whole web unit suite, since selectors moved), then
+- [x] **Step 4: Run** `pnpm --filter @agentdesk/web test` (the whole web unit suite, since selectors moved), then
 
 ```bash
 pnpm --filter @agentdesk/web exec vite build --mode mock
@@ -167,7 +167,7 @@ pnpm --filter @agentdesk/web exec playwright test $(git diff --name-only main --
 ```
 
 Expected: PASS. Local specs whose selectors changed: run them with the stack up (`devbox run dev`): `pnpm --filter @agentdesk/web exec playwright test $(git diff --name-only main -- apps/web/e2e/local | grep spec | sed 's#apps/web/##')`.
-- [ ] **Step 5: Commit** `feat(web): distinct nav landmarks and a scope-named org switch`.
+- [x] **Step 5: Commit** `feat(web): distinct nav landmarks and a scope-named org switch`.
 
 ---
 

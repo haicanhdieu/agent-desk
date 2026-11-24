@@ -29,13 +29,13 @@ async function sessionOf(page: Page): Promise<unknown> {
   return res.json();
 }
 
-const orgSwitchButton = (page: Page) => page.getByRole('button', { name: /^Switch organization/ });
+const orgSwitchButton = (page: Page) => page.getByRole('button', { name: /^Switch scope/ });
 const cardOf = (page: Page, org: Org) => page.getByRole('listitem').filter({ hasText: `${org.name} invited you as` });
 
 /** Opens the org switcher and returns the names of the orgs it lists. */
 async function switcherOrgs(page: Page): Promise<string[]> {
   await orgSwitchButton(page).click();
-  const menu = page.getByRole('dialog', { name: 'Organizations' });
+  const menu = page.getByRole('dialog', { name: 'Scope' });
   await expect(menu).toBeVisible();
   return (await menu.getByRole('group', { name: 'Switch organization' }).getByRole('link').allInnerTexts()).map((t) =>
     t.trim(),

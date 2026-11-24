@@ -21,14 +21,14 @@ const layout = (props: Partial<Parameters<typeof SetupLayout>[0]>) => (
 describe('SetupLayout org bar', () => {
   it('marks Projects current and shows Settings with settingsHref', () => {
     render(layout({ org: org('/o/harbor-labs/settings') }));
-    const nav = screen.getByRole('navigation', { name: 'Main' });
+    const nav = screen.getByRole('navigation', { name: 'Organization sections' });
     expect(within(nav).getByRole('link', { name: /Projects/ })).toHaveAttribute('aria-current', 'page');
     expect(within(nav).getByRole('link', { name: /Settings/ })).toBeInTheDocument();
   });
 
   it('has no Settings tab without settingsHref', () => {
     render(layout({ org: org() }));
-    const nav = screen.getByRole('navigation', { name: 'Main' });
+    const nav = screen.getByRole('navigation', { name: 'Organization sections' });
     expect(within(nav).queryByRole('link', { name: /Settings/ })).not.toBeInTheDocument();
   });
 });

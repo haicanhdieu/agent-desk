@@ -18,9 +18,8 @@ async function open(page: Page, scenario: PlatformScenario, path: string): Promi
   await page.goto(path);
 }
 
-const orgMenuButton = (page: Page): Locator =>
-  page.getByRole('button', { name: /^(Switch organization|Organization menu)/ });
-const menu = (page: Page): Locator => page.getByRole('dialog', { name: 'Organizations' });
+const orgMenuButton = (page: Page): Locator => page.getByRole('button', { name: /^Switch scope/ });
+const menu = (page: Page): Locator => page.getByRole('dialog', { name: 'Scope' });
 const platformEntry = (page: Page): Locator => menu(page).getByRole('link', { name: 'Platform admin', exact: true });
 const createEntry = (page: Page): Locator => menu(page).getByRole('link', { name: 'Create organization', exact: true });
 

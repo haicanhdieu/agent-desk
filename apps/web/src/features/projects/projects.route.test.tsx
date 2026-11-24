@@ -416,7 +416,7 @@ describe('projects route controls by role', () => {
     expect(within(main).queryByRole('link', { name: /^(Settings|Invitations)$/ })).toBeNull();
     expect(within(main).queryByRole('button', { name: /^(Settings|Invitations)$/ })).toBeNull();
   };
-  const mainTabs = () => within(screen.getByRole('banner')).getByRole('navigation', { name: 'Main' });
+  const mainTabs = () => within(screen.getByRole('banner')).getByRole('navigation', { name: 'Organization sections' });
 
   it.each(['owner', 'orgAdmin', 'projectAdmin'] as const)(
     'TC-43.1, TC-49.1 to TC-49.3: a %s sees the Projects and Settings tabs, Projects active, and no header button',

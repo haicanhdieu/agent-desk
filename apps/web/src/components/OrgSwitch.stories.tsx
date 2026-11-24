@@ -26,9 +26,7 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 const openOnLoad: Story['play'] = async ({ canvasElement }) => {
-  await userEvent.click(
-    within(canvasElement).getByRole('button', { name: /^(Switch organization|Organization menu)/ }),
-  );
+  await userEvent.click(within(canvasElement).getByRole('button', { name: /^Switch scope/ }));
 };
 
 export const OneOrg: Story = { args: orgSwitchFixtures.oneOrg, play: openOnLoad };

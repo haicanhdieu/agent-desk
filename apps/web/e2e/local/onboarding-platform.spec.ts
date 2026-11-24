@@ -28,8 +28,8 @@ test.beforeAll(async ({ request }) => {
 const SLUG_FORMAT = /^[a-z0-9]+(-[a-z0-9]+)*$/;
 const WELCOME_HEADING = "You're not a member of any organization";
 
-const orgSwitchButton = (page: Page) => page.getByRole('button', { name: /^Switch organization/ });
-const switcherMenu = (page: Page) => page.getByRole('dialog', { name: 'Organizations' });
+const orgSwitchButton = (page: Page) => page.getByRole('button', { name: /^Switch scope/ });
+const switcherMenu = (page: Page) => page.getByRole('dialog', { name: 'Scope' });
 const createOrgControl = (page: Page) =>
   page
     .getByRole('link', { name: 'Create organization', exact: true })

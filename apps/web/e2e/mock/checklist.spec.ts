@@ -128,9 +128,9 @@ test.describe('BR-17: no checklist for project admin, member, viewer', () => {
 });
 
 test.describe('BR-20: member or viewer has no invite controls', () => {
-  // The org's Invitations page lives in Settings: the top bar's Settings tab (nav "Main") is its entry, never a
+  // The org's Invitations page lives in Settings: the top bar's Settings tab (nav "Organization sections") is its entry, never a
   // button in the Projects header (org-tenant-admin spec BR-43, BR-49).
-  const mainNav = (page: Page): Locator => page.getByRole('navigation', { name: 'Main' });
+  const mainNav = (page: Page): Locator => page.getByRole('navigation', { name: 'Organization sections' });
   const noInviteControls = async (page: Page): Promise<void> => {
     for (const role of ['link', 'button'] as const) {
       await expect(page.getByRole(role, { name: 'Invitations' })).toHaveCount(0);

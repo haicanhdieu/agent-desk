@@ -193,15 +193,15 @@ test.describe('BR-37: what a member of a suspended org sees', () => {
     ).toBeVisible();
 
     // Step 2: the org menu offers the other org and opens its pages.
-    await page.getByRole('button', { name: /^(Switch organization|Organization menu)/ }).click();
-    const menu = page.getByRole('dialog', { name: 'Organizations' });
+    await page.getByRole('button', { name: /^Switch scope/ }).click();
+    const menu = page.getByRole('dialog', { name: 'Scope' });
     await expect(menu).toBeVisible();
     await menu
       .getByRole('group', { name: 'Switch organization' })
       .getByRole('link', { name: new RegExp(`E2E B ${tag}`) })
       .click();
     await expect(page).toHaveURL(new RegExp(`/o/${bSlug}/projects$`));
-    await expect(page.getByRole('button', { name: `Switch organization, currently E2E B ${tag}` })).toBeVisible();
+    await expect(page.getByRole('button', { name: `Switch scope, currently organization E2E B ${tag}` })).toBeVisible();
     await expect(suspendedTitle(page)).toHaveCount(0);
   });
 });
@@ -348,8 +348,8 @@ test.describe('BR-51: a platform admin who is an owner of a suspended org', () =
     // The suspended org's page shows the message, and its org menu still offers "Platform admin".
     await mine.goto(`/o/${handle}/projects`);
     await expect(suspendedTitle(mine)).toBeVisible();
-    await mine.getByRole('button', { name: /^(Switch organization|Organization menu)/ }).click();
-    const menu = mine.getByRole('dialog', { name: 'Organizations' });
+    await mine.getByRole('button', { name: /^Switch scope/ }).click();
+    const menu = mine.getByRole('dialog', { name: 'Scope' });
     await expect(menu).toBeVisible();
     await menu.getByRole('link', { name: 'Platform admin' }).click();
     await expect(mine).toHaveURL(/\/platform(\/|$)/);

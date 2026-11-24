@@ -25,10 +25,11 @@ async function open(page: Page, scenario: TenantAdminScenario, path: string): Pr
   await page.goto(path);
 }
 
-const mainNav = (page: Page): Locator => page.getByRole('navigation', { name: 'Main' });
+const mainNav = (page: Page): Locator => page.getByRole('navigation', { name: 'Organization sections' });
 const tab = (page: Page, name: string): Locator => mainNav(page).getByRole('link', { name, exact: true });
 const sideMenu = (page: Page): Locator => page.getByRole('navigation', { name: 'Organization settings' });
-const crumb = (page: Page, name: string): Locator => page.getByRole('button', { name: `Organization menu, ${name}` });
+const crumb = (page: Page, name: string): Locator =>
+  page.getByRole('button', { name: `Switch scope, currently organization ${name}` });
 const h1 = (page: Page, name: string): Locator => page.getByRole('heading', { name, level: 1 });
 /** A heading of any level: the no-access state of a route error is not an h1 (the spec gives the text only). */
 const anyHeading = (page: Page, name: string): Locator => page.getByRole('heading', { name });
@@ -92,7 +93,7 @@ async function expectNoSettingsFor(page: Page, scenario: TenantAdminScenario): P
   await expect(mainNav(page).getByRole('link')).toHaveText(['Projects']);
   await expect(tab(page, 'Settings')).toHaveCount(0);
   await crumb(page, 'Alice').click();
-  const menu = page.getByRole('dialog', { name: 'Organizations' });
+  const menu = page.getByRole('dialog', { name: 'Scope' });
   await expect(menu.getByRole('link', { name: 'Projects' })).toBeVisible();
   await expect(menu.getByRole('link', { name: 'Settings' })).toHaveCount(0);
   for (const url of [GENERAL, MEMBERS, AUDIT]) {
@@ -178,7 +179,7 @@ test.describe('BR-13: reaching Settings and the old invitations link', () => {
     await expect(tab(page, 'Settings')).toBeVisible();
     await expect(mainNav(page).locator('[aria-current]')).toHaveCount(0);
     await crumb(page, 'Alice').click();
-    await page.getByRole('dialog', { name: 'Organizations' }).getByRole('link', { name: 'Settings' }).click();
+    await page.getByRole('dialog', { name: 'Scope' }).getByRole('link', { name: 'Settings' }).click();
     await expect(page).toHaveURL(new RegExp(`/o/${ORG}/settings/general$`));
     await expect(h1(page, 'General')).toBeVisible();
     await expectFullSideMenu(page, 'General');

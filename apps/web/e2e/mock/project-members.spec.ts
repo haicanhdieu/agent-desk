@@ -36,7 +36,7 @@ test.describe('BR-1: Members and Audit log in the side menu', () => {
     test(`${tc}: the ${role} sees Members and Audit log under Access in P's Settings`, async ({ page }) => {
       await seedProjectSpace(page, { role });
       await page.goto(`/o/${ORG}/p/${P}/runs`);
-      await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Settings' }).click();
+      await page.getByRole('navigation', { name: 'Project sections' }).getByRole('link', { name: 'Settings' }).click();
       const menu = sideMenu(page);
       for (const name of ['Routing rules', 'Skills', 'Workspace setup', 'Agent & settings']) {
         await expect(menu.getByRole('link', { name })).toBeVisible();
@@ -54,7 +54,7 @@ test.describe('BR-1: Members and Audit log in the side menu', () => {
     test(`${tc}: the ${role} has no Settings tab, so no Members or Audit log`, async ({ page }) => {
       await seedProjectSpace(page, { role });
       await page.goto(`/o/${ORG}/p/${P}/runs`);
-      const main = page.getByRole('navigation', { name: 'Main' });
+      const main = page.getByRole('navigation', { name: 'Project sections' });
       await expect(main.getByRole('link', { name: /^Runs/ })).toBeVisible();
       await expect(main.getByRole('link', { name: 'Settings' })).toHaveCount(0);
       await expect(page.getByRole('link', { name: 'Members' })).toHaveCount(0);

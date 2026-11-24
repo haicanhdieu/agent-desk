@@ -572,7 +572,7 @@ describe('setup screens pass the org to the top bar', () => {
     ],
   ])('%s shows the org bar', (_n, el) => {
     render(el);
-    const nav = screen.getByRole('navigation', { name: 'Main' });
+    const nav = screen.getByRole('navigation', { name: 'Organization sections' });
     expect(within(nav).getByRole('link', { name: /Projects/ })).toHaveAttribute('aria-current', 'page');
     expect(within(nav).getByRole('link', { name: /Settings/ })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Harbor Labs/ })).toBeInTheDocument();

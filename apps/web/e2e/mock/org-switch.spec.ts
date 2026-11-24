@@ -24,8 +24,8 @@ async function open(page: Page, scenario: OnboardingScenario, path = '/o/alice/p
 }
 
 const switcher = (page: Page, current: string): Locator =>
-  page.getByRole('button', { name: `Switch organization, currently ${current}` });
-const menu = (page: Page): Locator => page.getByRole('dialog', { name: 'Organizations' });
+  page.getByRole('button', { name: `Switch scope, currently organization ${current}` });
+const menu = (page: Page): Locator => page.getByRole('dialog', { name: 'Scope' });
 const switchGroup = (page: Page): Locator => menu(page).getByRole('group', { name: 'Switch organization' });
 const orgLinks = (page: Page): Locator => switchGroup(page).getByRole('link');
 const orgItem = (page: Page, name: string): Locator => switchGroup(page).getByRole('link', { name, exact: true });
@@ -106,8 +106,7 @@ test.describe('BR-9 and BR-44: one org, an org menu without the switch group', (
   test('TC-9.1: the org crumb is a button whose menu has Projects and no Switch organization', async ({ page }) => {
     await open(page, 'singleOrg');
     await expect(page.getByText('invoicer-api', { exact: true }).first()).toBeVisible();
-    await expect(page.getByRole('button', { name: /^Switch organization/ })).toHaveCount(0);
-    const button = page.getByRole('button', { name: 'Organization menu, Alice' });
+    const button = page.getByRole('button', { name: 'Switch scope, currently organization Alice' });
     await expect(button).toBeVisible();
     await button.click();
     await expect(menu(page)).toBeVisible();
@@ -246,8 +245,8 @@ async function asTenantAdmin(page: Page, scenario: TenantAdminScenario): Promise
   await page.goto('/o/alice/projects');
 }
 
-const ONE_ORG = 'Organization menu, Alice';
-const TWO_ORGS = 'Switch organization, currently Alice';
+const ONE_ORG = 'Switch scope, currently organization Alice';
+const TWO_ORGS = 'Switch scope, currently organization Alice';
 
 test.describe('BR-44: org menu (org-tenant-admin)', () => {
   test('TC-44.1: an owner in one org sees the org name, Projects and Settings, no Switch organization', async ({

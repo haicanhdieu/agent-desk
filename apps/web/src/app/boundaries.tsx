@@ -2,7 +2,15 @@ import { ApiError } from '@agentdesk/contracts/client';
 import { useQueryErrorResetBoundary } from '@tanstack/react-query';
 import { useRouter, useRouterState, type ErrorComponentProps } from '@tanstack/react-router';
 import { useEffect } from 'react';
-import { EmptyState, RouteLoadError, RouteSkeleton, TopBar } from '@/components';
+import {
+  EmptyState,
+  NO_PAGE_CRUMBS,
+  RouteLoadError,
+  RouteSkeleton,
+  TopBar,
+  pageTitle,
+  useDocumentTitle,
+} from '@/components';
 import { Button, type ToastInput } from '@/ds';
 import { ORG_SWITCHED_MESSAGE, isOrgMismatch } from '@/features/auth/orgResync';
 import { isOrgSuspendedError } from '@/features/auth/orgSuspended';
@@ -30,6 +38,7 @@ function ProjectsLink() {
 }
 
 export function NotFound() {
+  useDocumentTitle(pageTitle({ crumbs: NO_PAGE_CRUMBS, state: 'notFound' }));
   return (
     <div className={styles.page}>
       <EmptyState
@@ -42,6 +51,7 @@ export function NotFound() {
 }
 
 export function Forbidden() {
+  useDocumentTitle(pageTitle({ crumbs: NO_PAGE_CRUMBS, state: 'forbidden' }));
   return (
     <div className={styles.page}>
       <EmptyState

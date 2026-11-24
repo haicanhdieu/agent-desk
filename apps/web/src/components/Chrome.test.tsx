@@ -62,10 +62,34 @@ describe('Brand', () => {
   });
 });
 
+describe('nav landmark names', () => {
+  it('no nav is named "Main" on any bar', () => {
+    for (const bar of [
+      <TopBar key="o" variant="global" user={user} org={orgProps} tabs="org" active="projects" links={orgLinks} />,
+      <TopBar key="p" variant="project" user={user} project={project} active="runs" links={{ desk: '/desk' }} />,
+      <TopBar key="r" variant="run" user={user} project={project} />,
+    ]) {
+      const { unmount } = render(bar);
+      expect(screen.queryByRole('navigation', { name: 'Main' })).toBeNull();
+      unmount();
+    }
+  });
+  it('the org tabs nav is "Organization sections" and the project tabs nav "Project sections"', () => {
+    render(
+      <>
+        <OrgNav projectsHref="/projects" settingsHref="/settings" />
+        <ProjectNav deskHref="/rules" />
+      </>,
+    );
+    expect(screen.getByRole('navigation', { name: 'Organization sections' })).toBeInTheDocument();
+    expect(screen.getByRole('navigation', { name: 'Project sections' })).toBeInTheDocument();
+  });
+});
+
 describe('TopBar project', () => {
   it('marks the active tab with aria-current and class on', () => {
     render(<TopBar variant="project" user={user} project={project} active="runs" links={{ desk: '/desk' }} />);
-    const tabs = screen.getByRole('navigation', { name: 'Main' });
+    const tabs = screen.getByRole('navigation', { name: 'Project sections' });
     const runs = within(tabs).getByRole('link', { name: /Runs/ });
     expect(runs).toHaveAttribute('aria-current', 'page');
     expect(runs.className).toMatch(/\bon\b/);
@@ -73,7 +97,7 @@ describe('TopBar project', () => {
   });
   it('shows no Settings tab without a desk link (a member or viewer may not open the Desk)', () => {
     render(<TopBar variant="project" user={user} project={project} active="runs" />);
-    const tabs = screen.getByRole('navigation', { name: 'Main' });
+    const tabs = screen.getByRole('navigation', { name: 'Project sections' });
     expect(within(tabs).getByRole('link', { name: /Runs/ })).toBeInTheDocument();
     expect(within(tabs).queryByRole('link', { name: 'Settings' })).not.toBeInTheDocument();
   });
@@ -81,11 +105,11 @@ describe('TopBar project', () => {
     render(
       <>
         <OrgNav projectsHref="/projects" settingsHref="/settings" />
-        <ProjectNav deskHref="/rules" label="Project" />
+        <ProjectNav deskHref="/rules" />
       </>,
     );
-    const orgNav = screen.getByRole('navigation', { name: 'Main' });
-    const projectNav = screen.getByRole('navigation', { name: 'Project' });
+    const orgNav = screen.getByRole('navigation', { name: 'Organization sections' });
+    const projectNav = screen.getByRole('navigation', { name: 'Project sections' });
     const orgIcon = within(orgNav).getByRole('link', { name: 'Settings' }).querySelector('svg');
     const projectIcon = within(projectNav).getByRole('link', { name: 'Settings' }).querySelector('svg');
     expect(orgIcon).not.toBeNull();
@@ -135,8 +159,8 @@ const orgLinks = { projects: '/o/acme/projects' };
 describe('TopBar org level', () => {
   it('renders the org crumb and the Projects and Settings tabs, Projects current (BR-43)', () => {
     render(<TopBar variant="global" user={user} org={orgProps} tabs="org" active="projects" links={orgLinks} />);
-    expect(screen.getByRole('button', { name: /^Organization menu/ })).toBeInTheDocument();
-    const tabs = screen.getByRole('navigation', { name: 'Main' });
+    expect(screen.getByRole('button', { name: /^Switch scope/ })).toBeInTheDocument();
+    const tabs = screen.getByRole('navigation', { name: 'Organization sections' });
     expect(within(tabs).getByRole('link', { name: 'Projects' })).toHaveAttribute('aria-current', 'page');
     expect(within(tabs).getByRole('link', { name: 'Projects' })).toHaveAttribute('href', '/o/acme/projects');
     expect(within(tabs).getByRole('link', { name: 'Settings' })).toHaveAttribute('href', '/o/acme/settings');
@@ -154,17 +178,19 @@ describe('TopBar org level', () => {
         links={orgLinks}
       />,
     );
-    const tabs = screen.getByRole('navigation', { name: 'Main' });
+    const tabs = screen.getByRole('navigation', { name: 'Organization sections' });
     expect(within(tabs).getAllByRole('link')).toHaveLength(1);
   });
   it('tabs none renders no Main nav (BR-43)', () => {
     render(<TopBar variant="global" user={user} org={orgProps} tabs="none" />);
-    expect(screen.queryByRole('navigation', { name: 'Main' })).toBeNull();
-    expect(screen.getByRole('button', { name: /^Organization menu/ })).toBeInTheDocument();
+    expect(screen.queryByRole('navigation', { name: 'Organization sections' })).toBeNull();
+    expect(screen.queryByRole('navigation', { name: 'Project sections' })).toBeNull();
+    expect(screen.getByRole('button', { name: /^Switch scope/ })).toBeInTheDocument();
   });
   it('defaults to no tabs on the org level and keeps the brand link (BR-48)', () => {
     render(<TopBar variant="global" user={user} org={orgProps} />);
-    expect(screen.queryByRole('navigation', { name: 'Main' })).toBeNull();
+    expect(screen.queryByRole('navigation', { name: 'Organization sections' })).toBeNull();
+    expect(screen.queryByRole('navigation', { name: 'Project sections' })).toBeNull();
     expect(screen.getByRole('link', { name: 'Agent Desk, all projects' })).toBeInTheDocument();
   });
   it('a no-org person sees "No organization" and the bell (BR-43)', () => {
@@ -181,7 +207,8 @@ describe('TopBar org level', () => {
   });
   it('without org renders only the brand, the bell and the avatar', () => {
     render(<TopBar variant="global" user={user} />);
-    expect(screen.queryByRole('navigation', { name: 'Main' })).toBeNull();
+    expect(screen.queryByRole('navigation', { name: 'Organization sections' })).toBeNull();
+    expect(screen.queryByRole('navigation', { name: 'Project sections' })).toBeNull();
     expect(screen.queryByRole('button', { name: /^Switch project/ })).toBeNull();
     expect(screen.getByRole('img', { name: 'Agent Desk' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Notifications on' })).toBeInTheDocument();
@@ -200,11 +227,11 @@ describe('TopBar project level with the org crumb', () => {
         links={{ desk: '/desk' }}
       />,
     );
-    expect(screen.getByRole('button', { name: /^Organization menu/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^Switch scope/ })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Switch project, currently invoicer-api' })).toHaveTextContent(
       /^invoicer-api$/,
     );
-    const tabs = screen.getByRole('navigation', { name: 'Main' });
+    const tabs = screen.getByRole('navigation', { name: 'Project sections' });
     expect(within(tabs).getByRole('link', { name: 'Settings' })).toHaveAttribute('aria-current', 'page');
     expect(within(tabs).getByRole('link', { name: /Runs/ })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: /Repo on GitHub/ })).toHaveAttribute('href', project.repoUrl);
@@ -213,7 +240,7 @@ describe('TopBar project level with the org crumb', () => {
   it('shows no org text when no org crumb is given', () => {
     render(<TopBar variant="project" user={user} project={project} active="runs" />);
     expect(screen.queryByText('harbor-labs')).toBeNull();
-    expect(screen.queryByRole('button', { name: /^Organization menu/ })).toBeNull();
+    expect(screen.queryByRole('button', { name: /^Switch scope/ })).toBeNull();
     expect(screen.getByRole('button', { name: /^Switch project/ })).toBeInTheDocument();
   });
   it("the brand link goes to the org crumb's projects href when links.projects is omitted", () => {
@@ -245,13 +272,14 @@ describe('TopBar run', () => {
       </TopBar>,
     );
     const crumbs = screen.getByRole('navigation', { name: 'Breadcrumb' });
-    expect(within(crumbs).getByRole('button', { name: /^Organization menu/ })).toBeInTheDocument();
+    expect(within(crumbs).getByRole('button', { name: /^Switch scope/ })).toBeInTheDocument();
     expect(within(crumbs).getByRole('button', { name: /^Switch project/ })).toBeInTheDocument();
     expect(within(crumbs).getByRole('link', { name: 'Runs' })).toHaveAttribute('href', run.runsHref);
     const last = within(crumbs).getByText('Run 61');
     expect(last).toHaveAttribute('aria-current', 'page');
     expect(last.tagName).not.toBe('A');
-    expect(screen.queryByRole('navigation', { name: 'Main' })).toBeNull();
+    expect(screen.queryByRole('navigation', { name: 'Organization sections' })).toBeNull();
+    expect(screen.queryByRole('navigation', { name: 'Project sections' })).toBeNull();
     expect(screen.queryByRole('button', { name: 'Notifications on' })).toBeNull();
     expect(screen.getByText('Running pill')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Cancel run' })).toBeInTheDocument();

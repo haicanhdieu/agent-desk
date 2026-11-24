@@ -1,6 +1,6 @@
 import { ApiError } from '@agentdesk/contracts/client';
 import { createRoute } from '@tanstack/react-router';
-import { act, renderHook, screen } from '@testing-library/react';
+import { act, renderHook, screen, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { mockDb } from '@/mocks/msw/db';
 import { createTestRootRoute, renderRoute } from '@/test/renderRoute';
@@ -9,6 +9,13 @@ import { toastFromError } from './boundaries';
 import { useNow } from './useNow';
 
 describe('app shell', () => {
+  it('the skip link is the first focusable element', async () => {
+    const { user } = await renderRoute('/unknown');
+    await screen.findByRole('heading', { name: 'Page not found' });
+    await user.tab();
+    expect(document.activeElement).toBe(screen.getByRole('link', { name: 'Skip to main content' }));
+  });
+
   it('shows NotFound for an unknown path', async () => {
     await renderRoute('/unknown');
     expect(await screen.findByRole('heading', { name: 'Page not found' })).toBeInTheDocument();
@@ -63,6 +70,7 @@ describe('app shell', () => {
     await renderRoute('/o/alice/gone', { routeTree: root.addChildren([gone]) });
     expect(await screen.findByRole('heading', { name: 'Page not found' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Go to projects' })).toHaveAttribute('href', '/o/alice/projects');
+    await waitFor(() => expect(document.title).toBe('Not found · Agent Desk'));
   });
 
   it('maps a loader 403 to Forbidden', async () => {
@@ -77,6 +85,7 @@ describe('app shell', () => {
     });
     await renderRoute('/secret', { routeTree: root.addChildren([secret]) });
     expect(await screen.findByRole('heading', { name: "You don't have access" })).toBeInTheDocument();
+    await waitFor(() => expect(document.title).toBe("You don't have access · Agent Desk"));
   });
 
   it('shows RootErrorBoundary with the request id when rendering crashes', async () => {

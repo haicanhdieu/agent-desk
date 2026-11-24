@@ -32,9 +32,8 @@ const toast = (page: Page, text: string): Locator => page.getByRole('status').fi
 /** The title block of the detail header: the name and its slug and status. */
 const header = (page: Page): Locator => page.getByRole('heading', { level: 1 }).locator('xpath=..');
 const banner = (page: Page): Locator => page.getByText('This organization is suspended', { exact: true });
-const orgMenuButton = (page: Page): Locator =>
-  page.getByRole('button', { name: /^(Switch organization|Organization menu)/ });
-const menu = (page: Page): Locator => page.getByRole('dialog', { name: 'Organizations' });
+const orgMenuButton = (page: Page): Locator => page.getByRole('button', { name: /^Switch scope/ });
+const menu = (page: Page): Locator => page.getByRole('dialog', { name: 'Scope' });
 const switchGroup = (page: Page): Locator => menu(page).getByRole('group', { name: 'Switch organization' });
 const suspendedTitle = (page: Page): Locator =>
   page.getByRole('heading', { name: 'This organization is suspended', level: 1 });

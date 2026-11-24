@@ -625,7 +625,7 @@ describe('CreateOrg', () => {
 
   it('BR-43: Create organization shows no tabs', () => {
     render(<CreateOrg {...createProps(form())} org={settingsOrg} />);
-    expect(screen.queryByRole('navigation', { name: 'Main' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('navigation', { name: 'Organization sections' })).not.toBeInTheDocument();
   });
 
   it('BR-35: shows the h1, the labelled fields with the /o/ prefix described, the hint and Create organization', async () => {
@@ -837,7 +837,7 @@ describe('OrgInvitations inside the settings layout', () => {
         <p>Body</p>
       </OrgSettingsFrame>,
     );
-    const main = within(screen.getByRole('navigation', { name: 'Main' }));
+    const main = within(screen.getByRole('navigation', { name: 'Organization sections' }));
     expect(main.getByRole('link', { name: 'Settings' })).toHaveAttribute('aria-current', 'page');
     expect(tabNames()).toEqual(['General', 'Members', 'Invitations', 'Audit log']);
     const side = within(screen.getByRole('navigation', { name: 'Organization settings' }));
@@ -865,7 +865,7 @@ describe('OrgInvitations inside the settings layout', () => {
   });
 
   const noTabActive = () => {
-    const main = within(screen.getByRole('navigation', { name: 'Main' }));
+    const main = within(screen.getByRole('navigation', { name: 'Organization sections' }));
     expect(main.getByRole('link', { name: 'Projects' })).not.toHaveAttribute('aria-current');
     expect(main.getByRole('link', { name: 'Settings' })).not.toHaveAttribute('aria-current');
   };

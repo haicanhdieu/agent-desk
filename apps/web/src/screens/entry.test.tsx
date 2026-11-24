@@ -247,7 +247,7 @@ describe('Projects onboarding', () => {
         org={{ ...orgSwitchFixtures.severalOrgs, ...orgLinks }}
       />,
     );
-    expect(screen.getByRole('button', { name: 'Switch organization, currently Acme' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Switch scope, currently organization Acme' })).toBeInTheDocument();
   });
 });
 
@@ -315,14 +315,14 @@ describe('org bar on Projects and ProjectsEmpty', () => {
 
   it.each(cases)('%s: Main nav marks Projects current and shows Settings with settingsHref', (_n, make) => {
     render(make('/o/harbor-labs/settings'));
-    const nav = screen.getByRole('navigation', { name: 'Main' });
+    const nav = screen.getByRole('navigation', { name: 'Organization sections' });
     expect(within(nav).getByRole('link', { name: /Projects/ })).toHaveAttribute('aria-current', 'page');
     expect(within(nav).getByRole('link', { name: /Settings/ })).toHaveAttribute('href', '/o/harbor-labs/settings');
   });
 
   it.each(cases)('%s: header has no Settings or Invitations button when the Settings tab is shown', (_n, make) => {
     render(make('/o/harbor-labs/settings'));
-    const nav = screen.getByRole('navigation', { name: 'Main' });
+    const nav = screen.getByRole('navigation', { name: 'Organization sections' });
     const outsideNav = (role: 'link' | 'button', name: RegExp) =>
       screen.queryAllByRole(role, { name }).filter((el) => !nav.contains(el));
     expect(screen.queryByRole('link', { name: 'Invitations' })).not.toBeInTheDocument();
@@ -333,7 +333,7 @@ describe('org bar on Projects and ProjectsEmpty', () => {
 
   it.each(cases)('%s: no Settings tab without settingsHref', (_n, make) => {
     render(make());
-    const nav = screen.getByRole('navigation', { name: 'Main' });
+    const nav = screen.getByRole('navigation', { name: 'Organization sections' });
     expect(within(nav).getByRole('link', { name: /Projects/ })).toHaveAttribute('aria-current', 'page');
     expect(within(nav).queryByRole('link', { name: /Settings/ })).not.toBeInTheDocument();
   });

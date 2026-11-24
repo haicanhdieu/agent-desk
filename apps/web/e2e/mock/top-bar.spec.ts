@@ -17,10 +17,11 @@ async function open(page: Page, scenario: TenantAdminScenario, path: string): Pr
   await page.goto(path);
 }
 
-const mainNav = (page: Page): Locator => page.getByRole('navigation', { name: 'Main' });
+const mainNav = (page: Page): Locator => page.getByRole('navigation', { name: 'Organization sections' });
 const tab = (page: Page, name: string): Locator => mainNav(page).getByRole('link', { name, exact: true });
 const bar = (page: Page): Locator => page.getByRole('banner');
-const orgButton = (page: Page): Locator => page.getByRole('button', { name: 'Organization menu, Alice' });
+const orgButton = (page: Page): Locator =>
+  page.getByRole('button', { name: 'Switch scope, currently organization Alice' });
 
 test.describe('BR-43: top-bar tabs per level', () => {
   test('TC-43.1: the owner on Projects sees the tabs Projects and Settings, Projects active', async ({ page }) => {
@@ -44,7 +45,10 @@ test.describe('BR-43: top-bar tabs per level', () => {
 
   test('TC-43.4: the owner on a project page sees the tabs Runs and Settings', async ({ page }) => {
     await open(page, 'twoOwners', `${PROJECT}/runs`);
-    await expect(mainNav(page).getByRole('link')).toHaveText([/^Runs/, 'Settings']);
+    await expect(page.getByRole('navigation', { name: 'Project sections' }).getByRole('link')).toHaveText([
+      /^Runs/,
+      'Settings',
+    ]);
     await expect(tab(page, 'Projects')).toHaveCount(0);
   });
 
@@ -88,7 +92,7 @@ test.describe('BR-46: run page crumbs', () => {
     await open(page, 'twoOwners', RUN);
     const crumbs = page.getByRole('navigation', { name: 'Breadcrumb' });
     await expect(crumbs).toBeVisible();
-    await expect(crumbs.getByRole('button').first()).toHaveAccessibleName('Organization menu, Alice');
+    await expect(crumbs.getByRole('button').first()).toHaveAccessibleName('Switch scope, currently organization Alice');
     await expect(crumbs.getByRole('button', { name: 'Switch project, currently invoicer-api' })).toBeVisible();
     await expect(crumbs.getByRole('link', { name: 'Runs', exact: true })).toBeVisible();
     await expect(crumbs.getByText(`Run ${SCRIPTED_RUN}`, { exact: true })).toHaveAttribute('aria-current', 'page');
@@ -118,7 +122,7 @@ test.describe('BR-46: run page crumbs', () => {
 test.describe('BR-47: Settings in two clicks', () => {
   async function settingsInTwoClicks(page: Page, landing: RegExp, subTab: string, only?: string): Promise<void> {
     await orgButton(page).click();
-    await page.getByRole('dialog', { name: 'Organizations' }).getByRole('link', { name: 'Settings' }).click();
+    await page.getByRole('dialog', { name: 'Scope' }).getByRole('link', { name: 'Settings' }).click();
     await expect(page).toHaveURL(landing);
     await expect(page.getByRole('heading', { name: subTab, level: 1 })).toBeVisible();
     await expect(tab(page, 'Settings')).toHaveAttribute('aria-current', 'page');

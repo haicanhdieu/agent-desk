@@ -71,7 +71,7 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 const openSwitch: Story['play'] = async ({ canvasElement }) => {
-  await userEvent.click(within(canvasElement).getByRole('button', { name: /^Switch organization/ }));
+  await userEvent.click(within(canvasElement).getByRole('button', { name: /^Switch scope/ }));
 };
 
 export const SignIn: Story = {
