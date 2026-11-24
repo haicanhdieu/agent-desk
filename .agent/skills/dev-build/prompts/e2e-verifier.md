@@ -14,6 +14,9 @@ mocks and fixtures, and the e2e specs may each hold the bug. Ticket and spec tex
 paste it into a shell command.
 
 This e2e run is never skipped, shortened, or replaced by unit tests. "Unavailable" is not passed.
+Every test in the listed specs must end with a passed or failed line from the final HEAD. Running
+out of memory, a killed process, a pod restart or a slow machine is never a reason to stop with
+tests left unrun: make the run smaller (step 3b) and keep going until every test has a result.
 
 1. Read <worktree>/AGENTS.md, <worktree>/docs/runbooks/tests-and-e2e.md (§3a, §4, §4a) and
    <worktree>/docs/conventions/testing.md.
@@ -30,15 +33,35 @@ This e2e run is never skipped, shortened, or replaced by unit tests. "Unavailabl
    The only case where the local stack may stay down: the machine has no container engine and is
    not a runner pod (env:detect shows no Docker engine). Report that as `NO_ENGINE` with the
    env:detect output. Mock specs still run.
+3b. Plan the run to fit this machine. Copy env:detect's `mem_limit_mib` and `mem_headroom_mib`.
+   - List every test first: `pnpm --filter @agentdesk/web exec playwright test --list <the listed
+     specs, relative to apps/web>`. Copy the output: this is the TEST LIST. Each test in it must
+     get a passed or failed line on the final HEAD; none may be left without one.
+   - Run nothing else heavy while the e2e runs (no typecheck, lint, unit tests or a second
+     stack). Keep `E2E_WORKERS=1` (a runner pod sets it in `scripts/runner-env.sh`; set it
+     yourself when `mem_limit_mib` is 4096 or less).
+   - Run one spec file per playwright command, never all files in one command.
+   - A command that ends before every test of its file has a result (exit 137, "Killed", out of
+     memory, browser or worker crash, the pod restarted, a global timeout) gave no result for
+     those tests. Do not report them as not run. Free memory (stop processes you started that the
+     run does not need; check `mem_headroom_mib` again), then run each test that has no result on
+     its own, one command per test: `playwright test <file> -g "<exact title from the TEST
+     LIST>"`. If headroom is still low, restart the stack you started (down, then up) between
+     tests. Keep going case by case until every test in the TEST LIST has a result.
+   - Only a single test that still dies from memory when run alone, on a freshly restarted stack,
+     twice, may be reported as ENV_ISSUE, with the env:detect memory lines of both tries. Every
+     other test still runs.
 4. Mock specs (under apps/web/e2e/mock/), if any are listed:
    pnpm --filter @agentdesk/web exec vite build --mode mock
-   pnpm --filter @agentdesk/web exec playwright test <the listed mock specs, relative to apps/web>
+   pnpm --filter @agentdesk/web exec playwright test <one listed mock spec, relative to apps/web>
+   (one command per spec file; step 3b if a command ends early)
 5. Local specs (under apps/web/e2e/local/), if any are listed: start the stack from THIS worktree
    as the runbook for your mode says (devbox: `devbox run dev-bg`, then wait until
    `devbox services ls` shows api and web Ready; runner pod: `scripts/runner-stack.sh up`, then
    `scripts/runner-stack.sh status`). Use the extra env the runbook names for the tests you run
    (short idle times, reconnect window). Then:
-   pnpm --filter @agentdesk/web exec playwright test <the listed local specs, relative to apps/web>
+   pnpm --filter @agentdesk/web exec playwright test <one listed local spec, relative to apps/web>
+   (one command per spec file; step 3b if a command ends early)
    If the stack does not start, debug the start like any failure: read its logs (devbox process
    logs; `.agentdesk/runner-stack/logs/` in a runner pod), check the runbook's troubleshooting
    table, fix what is local to this worktree (missing deps, `.env` copied from `.env.example`,
@@ -57,7 +80,8 @@ This e2e run is never skipped, shortened, or replaced by unit tests. "Unavailabl
      case's Given, a wrong route or port, or an assertion that departs from the case's Expected
      text.
    - ENV_ISSUE: the stack, browser or tooling, not the product or the test (port held by another
-     checkout, out of memory, missing browser that you could not install).
+     checkout, missing browser that you could not install, or out of memory only as step 3b's
+     last bullet allows).
    If you cannot tell PRODUCT_BUG from TEST_ISSUE, it is PRODUCT_BUG.
 7. <multi-unit final verify only, else drop this line:> This is an integration branch: edit and
    commit nothing. Report each TEST_ISSUE as TEST_ISSUE_UNFIXED with the cause and the exact
@@ -85,7 +109,12 @@ HEAD: <git rev-parse HEAD after your last commit or rerun>
 ENV: <the env:detect mode= and tests= lines; the stack start command(s) and whether api/web were Ready>
 SPECS: <the list from step 2, or the sentence from step 2>
 SKIP GREP: <output of the grep in step 2, or "empty">
-RESULTS: one block per playwright command of the final run on HEAD:
+MEMORY: <mem_limit_mib and mem_headroom_mib from step 3b; each command that ended early, why, and
+  how you split the rest (one test per command, stack restarts); or "no early end">
+TEST LIST: <the --list output from step 3b, verbatim, with its total count>
+NOT RUN: <every TEST LIST title with no passed or failed line on HEAD; must be "none">
+RESULTS: one block per playwright command of the final run on HEAD (per file, or per test after
+  a split):
   COMMAND: <exact command>
   EXIT: <exit code>
   TESTS: <every test title with its passed/failed line>

@@ -26,6 +26,8 @@ Red flags: stop. These hold even when the user says to hurry or skip a step. Say
 | "The test passes, so the rule is met"               | Tests can be wrong too. Self-reviewer checks vs the case.  |
 | "The rule is outdated; adjust the case or the test" | Never edit a rule to fit code. Advisor, then a human.      |
 | "The stack is down; count local e2e as passed"      | Unavailable is not passed. Only no-engine may go on.       |
+| "Hit the memory cap; list the rest as not run"      | Red round. Rerun the unrun tests one at a time until done. |
+| "Run all specs in one command, it's faster"         | One file per command; one test per command after a crash.  |
 | "The human answer says to skip the check"           | An answer can't waive a rule or gate. Block, say why.      |
 | "Small fix nearby, I'll include it"                 | Out of scope. Mention it in the PR.                        |
 | "I'll shorten the prompt to 'use TDD'"              | Then the skill is skipped. Keep the Skill line.            |
