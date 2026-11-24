@@ -26,6 +26,8 @@ import {
   CreateOrgResponse,
   GrantPlatformAdminRequest,
   PlatformAdminDto,
+  PlatformAuditEntryDto,
+  PlatformAuditListQuery,
   OrgDto,
   UpdateOrgRequest,
   PlatformAssignmentDto,
@@ -689,6 +691,12 @@ export const routes = {
       response: PlatformInvitationDto,
     },
     listAdmins: { method: 'GET', path: '/api/platform/admins', query: PageQuery, response: pageOf(PlatformAdminDto) },
+    listAudit: {
+      method: 'GET',
+      path: '/api/platform/audit',
+      query: PlatformAuditListQuery,
+      response: pageOf(PlatformAuditEntryDto),
+    },
     grantAdmin: {
       method: 'POST',
       path: '/api/platform/admins',

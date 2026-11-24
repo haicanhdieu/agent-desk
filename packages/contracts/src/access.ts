@@ -55,6 +55,7 @@ const PLATFORM_PERMISSIONS = [
   'platform-admin:read',
   'platform-admin:create',
   'platform-admin:delete',
+  'platform-audit:read',
 ] as const;
 
 export const Permission = z.enum([...TENANT_PERMISSIONS, ...PLATFORM_PERMISSIONS]);

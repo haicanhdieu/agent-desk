@@ -37,7 +37,7 @@ import { freshStateDir, installFake, makeProject, wideFakeRepos } from './helper
  * Route keys whose controllers are added by later tasks of the RBAC plan. Each entry is asserted to be still
  * unregistered, so the task that adds the controller must delete its line here.
  */
-const NOT_REGISTERED_YET: RouteKey[] = [];
+const NOT_REGISTERED_YET: RouteKey[] = ['platform.listAudit'];
 
 /** Served through a WebSocket gateway, not a Nest HTTP controller. */
 const TERMINAL_KEYS: RouteKey[] = ['runs.terminal', 'setupTests.terminal'];
@@ -853,6 +853,7 @@ const DENIAL_TABLE: Record<HttpKey, Expected> = {
   'platform.resendInvitation': platformRoute(200),
   'platform.removeInvitation': platformRoute(204),
   'platform.listAdmins': platformRoute(200),
+  'platform.listAudit': platformRoute(200),
   'platform.grantAdmin': platformRoute(201),
   'platform.revokeAdmin': platformRoute(204),
 };

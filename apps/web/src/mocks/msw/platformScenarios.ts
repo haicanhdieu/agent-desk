@@ -6,6 +6,7 @@ import { mockDb } from './db';
 import { problemResponse, routeHandler } from './http';
 import { applyOnboardingScenario } from './onboardingScenarios';
 import { seedPlatformAdmins } from './platformAdmins';
+import { seedPlatformAudit } from './platformAudit';
 import { addPlatformOrg, seedPlatformOrgs, setPlatformOrgStatus } from './platformOrgs';
 
 // The platform-admin mock scenarios: one module for the route tests and the mocked e2e specs. A spec picks a scenario
@@ -196,6 +197,7 @@ const seeders: Record<PlatformScenario, () => void> = {
     applyOnboardingScenario('platformAdminOneOrg');
     seedPlatformAdmins([]);
     seedPlatformOrgs([]);
+    seedPlatformAudit([]);
   },
 };
 

@@ -8,6 +8,8 @@ import {
   OrgDto,
   OrgStatusChangeRequest,
   PlatformAuditAction,
+  PlatformAuditEntryDto,
+  PlatformAuditListQuery,
   PlatformAdminDto,
   ORG_SEARCH_MAX,
   PlatformMemberDto,
@@ -230,5 +232,56 @@ describe('PlatformAuditAction (BR-53)', () => {
     expect(PlatformAuditAction.options).toEqual(
       expect.arrayContaining(['org.suspended', 'org.reactivated', 'org.updated', 'platform_admin.granted']),
     );
+  });
+});
+
+describe('PlatformAuditEntryDto (BR-45, BR-50)', () => {
+  const entry = {
+    id: ID,
+    at: '2026-11-20T09:00:00.000Z',
+    actor: { userId: 'u1', name: 'Dev Admin', handle: 'dev-admin' },
+    action: 'org.updated',
+    target: { type: 'org', id: ID, label: 'Acme' },
+    org: { id: ID, name: 'Acme' },
+    reason: null,
+    changes: [{ field: 'name', from: 'Acme', to: 'Acme Inc' }],
+  };
+  it('accepts an entry and keeps exactly its keys', () => {
+    expect(Object.keys(PlatformAuditEntryDto.parse(entry)).sort()).toEqual([
+      'action',
+      'actor',
+      'at',
+      'changes',
+      'id',
+      'org',
+      'reason',
+      'target',
+    ]);
+  });
+  it('allows a gone actor, a gone org and a null handle or label', () => {
+    expect(PlatformAuditEntryDto.safeParse({ ...entry, actor: null, org: null }).success).toBe(true);
+    expect(
+      PlatformAuditEntryDto.safeParse({
+        ...entry,
+        actor: { userId: 'u1', name: 'X', handle: null },
+        target: { type: 'org', id: ID, label: null },
+      }).success,
+    ).toBe(true);
+  });
+  it('rejects an unknown action', () => {
+    expect(PlatformAuditEntryDto.safeParse({ ...entry, action: 'org.deleted' }).success).toBe(false);
+  });
+});
+
+describe('PlatformAuditListQuery (BR-45)', () => {
+  it('accepts no filter, an orgId, and each action', () => {
+    expect(PlatformAuditListQuery.safeParse({}).success).toBe(true);
+    expect(PlatformAuditListQuery.safeParse({ orgId: ID }).success).toBe(true);
+    for (const action of PlatformAuditAction.options) {
+      expect(PlatformAuditListQuery.safeParse({ action }).success).toBe(true);
+    }
+  });
+  it.each([{ orgId: 'not-a-uuid' }, { action: 'org.deleted' }])('rejects %j', (q) => {
+    expect(PlatformAuditListQuery.safeParse(q).success).toBe(false);
   });
 });

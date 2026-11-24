@@ -1,4 +1,4 @@
-import type { PlatformOrgDto } from '@agentdesk/contracts';
+import type { PlatformAuditEntryDto, PlatformOrgDto } from '@agentdesk/contracts';
 
 // Fixtures of the platform organizations directory: the cases its screens and e2e specs need.
 const uuid = (n: number) => `b8000000-0000-4000-8000-${String(n).padStart(12, '0')}`;
@@ -84,4 +84,80 @@ export const platformOrgDtoFixtures: PlatformOrgDto[] = [
     projectCount: 7,
     owner: owner(6, 'Lena Long', 'lena'),
   },
+];
+
+// The platform audit log: every action once, newest first in the real list (the handler sorts). One entry has a gone
+// actor, one a gone organization; suspend and reactivate carry reasons; one edit changes a name and a slug.
+const auditId = (n: number) => `ba000000-0000-4000-8000-${String(n).padStart(12, '0')}`;
+const adminActor = { userId: 'user-dev-admin', name: 'Dev Admin', handle: 'dev-admin' } as const;
+const acme = { id: uuid(1), name: 'Acme' } as const;
+const orbit = { id: uuid(3), name: 'Orbit Systems' } as const;
+const entry = (
+  n: number,
+  at: string,
+  action: PlatformAuditEntryDto['action'],
+  rest: Partial<PlatformAuditEntryDto> & Pick<PlatformAuditEntryDto, 'target'>,
+): PlatformAuditEntryDto => ({
+  id: auditId(n),
+  at,
+  actor: adminActor,
+  action,
+  org: acme,
+  reason: null,
+  changes: [],
+  ...rest,
+});
+
+export const platformAuditFixtures: PlatformAuditEntryDto[] = [
+  entry(1, '2026-11-19T10:00:00.000Z', 'platform_admin.granted', {
+    org: null,
+    target: { type: 'platform_admin', id: 'pat@example.com', label: 'pat@example.com' },
+  }),
+  entry(2, '2026-11-19T10:05:00.000Z', 'platform_admin.revoked', {
+    org: null,
+    target: { type: 'platform_admin', id: 'old@example.com', label: 'old@example.com' },
+  }),
+  entry(3, '2026-11-19T10:10:00.000Z', 'org.created', {
+    target: { type: 'org', id: acme.id, label: 'Acme' },
+  }),
+  entry(4, '2026-11-19T10:15:00.000Z', 'org.updated', {
+    target: { type: 'org', id: acme.id, label: 'Acme' },
+    changes: [
+      { field: 'name', from: 'Acme Labs', to: 'Acme' },
+      { field: 'slug', from: 'acme-labs', to: 'acme' },
+    ],
+  }),
+  entry(5, '2026-11-19T10:20:00.000Z', 'org.suspended', {
+    org: orbit,
+    target: { type: 'org', id: orbit.id, label: 'Orbit Systems' },
+    reason: 'Billing hold',
+    changes: [{ field: 'status', from: 'active', to: 'suspended' }],
+  }),
+  entry(6, '2026-11-19T10:25:00.000Z', 'org.reactivated', {
+    org: orbit,
+    target: { type: 'org', id: orbit.id, label: 'Orbit Systems' },
+    reason: 'Invoice paid',
+    changes: [{ field: 'status', from: 'suspended', to: 'active' }],
+  }),
+  entry(7, '2026-11-19T10:30:00.000Z', 'assignment.granted', {
+    target: { type: 'assignment', id: auditId(107), label: 'alice' },
+    changes: [{ field: 'role', from: null, to: 'owner' }],
+  }),
+  entry(8, '2026-11-19T10:35:00.000Z', 'assignment.revoked', {
+    actor: null,
+    target: { type: 'assignment', id: auditId(108), label: 'alice' },
+    changes: [{ field: 'role', from: 'owner', to: null }],
+  }),
+  entry(9, '2026-11-19T10:40:00.000Z', 'invitation.created', {
+    target: { type: 'invitation', id: auditId(109), label: 'new@example.com' },
+    changes: [{ field: 'role', from: null, to: 'admin' }],
+  }),
+  entry(10, '2026-11-19T10:45:00.000Z', 'invitation.resent', {
+    target: { type: 'invitation', id: auditId(109), label: 'new@example.com' },
+  }),
+  entry(11, '2026-11-19T10:50:00.000Z', 'invitation.revoked', {
+    // The organization was removed since: no org to link to.
+    org: null,
+    target: { type: 'invitation', id: auditId(109), label: 'new@example.com' },
+  }),
 ];

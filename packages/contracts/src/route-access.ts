@@ -111,6 +111,7 @@ export const routeAccess: Record<RouteKey, RouteAccess> = {
   'platform.listOrgs': platform('platform-org:read'),
   'platform.getOrg': platform('platform-org:read'),
   'platform.updateOrg': platform('platform-org:update'),
+  'platform.listAudit': platform('platform-audit:read'),
   'platform.suspendOrg': platform('platform-org:update'),
   'platform.reactivateOrg': platform('platform-org:update'),
   'platform.listProjects': platform('platform-project:read'),

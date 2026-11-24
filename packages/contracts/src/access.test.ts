@@ -182,9 +182,13 @@ describe('PERMISSION_LEVEL', () => {
       ].sort(),
     );
   });
-  it('has 35 tenant and 16 platform permissions', () => {
+  it('has 35 tenant and 17 platform permissions', () => {
     expect(TENANT).toHaveLength(35);
-    expect(Permission.options).toHaveLength(51);
+    expect(Permission.options).toHaveLength(52);
+  });
+  it('platform-audit:read is a platform permission the owner never holds (BR-45)', () => {
+    expect(PERMISSION_LEVEL['platform-audit:read']).toBe('platform');
+    expect(holdsAnywhere(access(org('owner', OWNER)), 'platform-audit:read')).toBe(false);
   });
   it('marks project-audit:read as project level, counted from a project grant only on that project', () => {
     expect(PERMISSION_LEVEL['project-audit:read']).toBe('project');
