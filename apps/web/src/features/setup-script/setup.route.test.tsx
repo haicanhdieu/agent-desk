@@ -479,7 +479,10 @@ describe('desk setup route', () => {
       const { user } = await renderRoute(env());
       expect(await screen.findByText('Loading variables')).toBeInTheDocument();
       expect(screen.getByText('Loading secrets')).toBeInTheDocument();
-      expect((await screen.findAllByText(/Could not load the environment\. Reload to try again\./)).length).toBe(2);
+      // The two lists are separate queries that each retry; findAllBy resolves on the first error, so wait for both.
+      await waitFor(() =>
+        expect(screen.getAllByText(/Could not load the environment\. Reload to try again\./)).toHaveLength(2),
+      );
       server.resetHandlers();
       await user.click(screen.getAllByRole('button', { name: 'Retry' })[0] as HTMLElement);
       expect(await screen.findByText('DB_HOST')).toBeInTheDocument();
