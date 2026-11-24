@@ -1,6 +1,7 @@
 import { useQuery, useQueryClient, useSuspenseQueries, useSuspenseQuery } from '@tanstack/react-query';
 import { can } from '@agentdesk/contracts';
 import { ApiError } from '@agentdesk/contracts/client';
+import { useRef } from 'react';
 import { createFileRoute, useNavigate, type ErrorComponentProps } from '@tanstack/react-router';
 import {
   PageSearch,
@@ -89,11 +90,19 @@ function ProjectsPage() {
   const remove = useDeleteProject(org);
   // Delete project is org-level (project:delete): a project-scoped admin, member or viewer gets no menu item, and the API refuses it anyway.
   const mayDelete = can(access, 'project:delete');
-  const onDeleteProject = (p: { id: string }) =>
+  // One request per project while its delete is in flight (a second confirm on the still-listed row is ignored).
+  const deleting = useRef(new Set<string>());
+  const onDeleteProject = (p: { id: string }) => {
+    if (deleting.current.has(p.id)) return;
+    deleting.current.add(p.id);
     remove.mutate(p.id, {
       onSuccess: () => forgetProject(qc, org, p.id),
       onError: (e) => toast.show(toastFromError(e)),
+      onSettled: () => {
+        deleting.current.delete(p.id);
+      },
     });
+  };
   const checklist = useChecklistState(org, bar.org.current?.id, can(access, 'project:create'));
   // A failed invitations list hides the banner; it never breaks the page.
   const { data: invitations } = useQuery(myInvitationsQuery);

@@ -11,7 +11,7 @@ import {
   type PaginationProps,
 } from '@/components';
 import type { Actor, Project } from '@/mocks/types';
-import { deleteBody } from './DeskAgent';
+import { deleteProjectBody } from './deleteProjectCopy';
 import { InvitationsBanner, type InvitationsBannerProps } from './InvitationsBanner';
 import { ProjectsEmpty } from './ProjectsEmpty';
 import styles from './Screens.module.css';
@@ -131,7 +131,7 @@ export function Projects({
           }
         >
           <p>
-            Delete <b>{confirming?.name}</b>? {deleteBody}
+            Delete <b>{confirming?.name}</b>? {deleteProjectBody}
           </p>
         </Dialog>
       </main>

@@ -204,7 +204,9 @@ describe('Projects onboarding', () => {
     const onDeleteProject = vi.fn();
     render(<Projects user={user} projects={projects} newHref="/new" onDeleteProject={onDeleteProject} />);
     await userEvent.click(screen.getByRole('button', { name: 'More for docs-site' }));
-    await userEvent.click(screen.getByRole('button', { name: 'Delete project' }));
+    const item = screen.getByRole('button', { name: 'Delete project' });
+    expect(item).toHaveClass('danger');
+    await userEvent.click(item);
     const dialog = screen.getByRole('dialog', { name: 'Delete project' });
     expect(dialog).toHaveTextContent('docs-site');
     expect(onDeleteProject).not.toHaveBeenCalled();

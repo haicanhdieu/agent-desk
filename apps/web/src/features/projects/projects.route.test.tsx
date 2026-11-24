@@ -84,6 +84,41 @@ describe('projects route', () => {
     expect(screen.getByRole('link', { name: 'invoicer-web' })).toBeInTheDocument();
   });
 
+  it('sends one delete request for a project while its delete is in flight', async () => {
+    let release: () => void = () => undefined;
+    const held = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    let calls = 0;
+    server.use(
+      http.delete('*/api/projects/*', async () => {
+        calls += 1;
+        await held;
+        return new Response(null, { status: 204 });
+      }),
+    );
+    await renderRoute('/o/alice/projects');
+    const confirmDelete = async () => {
+      await userEvent.click(await screen.findByRole('button', { name: 'More for invoicer-api' }));
+      await userEvent.click(
+        within(screen.getByRole('dialog', { name: 'Actions for invoicer-api' })).getByRole('button', {
+          name: 'Delete project',
+        }),
+      );
+      await userEvent.click(
+        within(await screen.findByRole('dialog', { name: 'Delete project' })).getByRole('button', {
+          name: 'Delete project',
+        }),
+      );
+    };
+    await confirmDelete();
+    await waitFor(() => expect(calls).toBe(1));
+    await confirmDelete();
+    release();
+    await waitFor(() => expect(screen.queryByRole('link', { name: 'invoicer-api' })).not.toBeInTheDocument());
+    expect(calls).toBe(1);
+  });
+
   it('keeps the row and shows the problem when deleting a project fails', async () => {
     scenarios.serverError('projects.remove');
     await renderRoute('/o/alice/projects');
