@@ -48,9 +48,30 @@
   };
   AD.settingsForbiddenLike = () => ({ header: 'global', h: 900, html: AD.forbiddenMain });
 
+  // Run token usage and estimated cost (run-token-usage-cost spec): its boards are listed first, in their own group.
+  const USAGE = /Usage/;
+  const USAGE_GROUP = 'Token usage and cost (new, click a run)';
+  const usageFirst = (names) => AD.snapGroup(names.filter((n) => USAGE.test(n)), USAGE_GROUP).concat(AD.snapGroup(names.filter((n) => !USAGE.test(n))));
+  // The Usage section and its Models table collapse with Show / Hide (same pattern as the Prompt section). Works on every usage board.
+  const CHEV = { down: '<path d="M6 9l6 6 6-6"/>', right: '<path d="M9 6l6 6-6 6"/>' };
+  AD.acts.disclose = (btn) => {
+    const body = document.getElementById(btn.getAttribute('aria-controls'));
+    if (!body) return;
+    const open = btn.getAttribute('aria-expanded') !== 'true';
+    btn.setAttribute('aria-expanded', String(open));
+    body.hidden = !open;
+    if (body.style.display) body.style.display = open ? 'flex' : 'none';
+    btn.firstChild.textContent = open ? 'Hide' : 'Show';
+    const svg = btn.querySelector('svg'); if (svg) svg.innerHTML = open ? CHEV.down : CHEV.right;
+  };
+  const baseEnhance = AD.enhanceBoard;
+  AD.enhanceBoard = function (root, name) {
+    baseEnhance(root, name);
+    if (name && USAGE.test(name)) AD.$$('button[aria-controls^="run-usage-"]', root).forEach((b) => b.setAttribute('data-act', 'disclose'));
+  };
   AD.screens.runs = {
     title: 'Runs',
-    snaps: () => AD.snapGroup(AD.boardNames(/^Runs/)),
+    snaps: () => usageFirst(AD.boardNames(/^Runs/)),
     render(ctx) {
       const g = projectGate(ctx); if (g && !AD.B[ctx.scen]) return g;
       return family(null, 'project', { empty: 'RunsEmpty', loading: 'RunsPageLoading', error: null }, { sample: true })(ctx, 'Runs');
@@ -58,7 +79,7 @@
   };
   AD.screens.run = {
     title: 'Run',
-    snaps: () => AD.snapGroup(AD.boardNames(/^Run[A-Z]/).filter((n) => AD.B[n].kind === 'run').concat(['RunTranscriptStates'])),
+    snaps: () => usageFirst(AD.boardNames(/^Run[A-Z]/).filter((n) => AD.B[n].kind === 'run').concat(['RunTranscriptStates'])),
     render(ctx) {
       const g = projectGate(ctx); if (g && !AD.B[ctx.scen]) return g;
       const name = AD.RUN_DEFAULT[ctx.params.n];

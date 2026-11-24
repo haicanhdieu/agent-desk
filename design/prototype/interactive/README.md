@@ -81,7 +81,7 @@ The Option A rules still hold: one bar on every page, the org crumb is always a 
 - Settings is a tab (org pages) and an org-menu item (every page). The Settings button on the Projects page header is gone by default (a proposal toggle brings it back). The avatar-menu Settings item and its toggle are dropped.
 - The run page crumb "invoicer-api" no longer leads to the all-projects list; the crumbs are now the org and project switchers followed by "Runs" (the project's Runs list).
 - The needs-you page has the bar. My invitations is reached from sign-in, not from the account menu. "Sign out" is now "Logout" everywhere (the code uses "Logout").
-- The static boards are still drawn inside the live bar: the bar of each board's header strip is replaced by the live one (198 org-level, 93 project-level, 21 run-level). Boards drawn without a bar and now given one: the needs-you explainer (org bar) and the page-crash and loading boards (bar of the current area). Boards that stay barless: Main (index), the two sign-in boards, Pagination and RunTranscriptStates (explainers). The check script counts the bars of every board: exactly one, never two.
+- The static boards are still drawn inside the live bar: the bar of each board's header strip is replaced by the live one (198 org-level, 95 project-level, 34 run-level). Boards drawn without a bar and now given one: the needs-you explainer (org bar) and the page-crash and loading boards (bar of the current area). Boards that stay barless: Main (index), the two sign-in boards, Pagination and RunTranscriptStates (explainers). The check script counts the bars of every board: exactly one, never two.
 - Board text changes done at display time (the boards stay untouched): "This list is one click away on the logo." reads "... on the Projects tab." on Projects boards, and the Settings or Invitations button in the head of the Projects boards is hidden unless the first proposal toggle is on.
 
 ### Proposals to review
@@ -118,6 +118,7 @@ The proposal's question 1 (is "Settings two clicks from inside a project" accept
 | `#/o/<org>/needs-you` | Needs you outside the run page (under the org bar) | NeedsYou* |
 | `#/o/<org>/p/<project>/runs` | Runs (grouped, flat, problems, linked) | Runs*, RunsShell |
 | `#/o/<org>/p/<project>/runs/<n>` | Run page (starting, running, idle, stopped, failed, ...) | Run* |
+| `#/o/<org>/p/<project>/runs?s=RunsUsage` | Run token usage and estimated cost (run-token-usage-cost spec): the Runs list with the Usage column; click Run 60, 55, 57 or 61 to open the run page with its Usage section (Runs crumb returns to this list). The detail note ends with its "Prices as of" date (a date range on RunSucceededUsagePriceRange, none when there is no cost) before "Your provider bill may differ." On every run usage board, Show / Hide on the Usage section and on its Models table collapses and expands them. Scenario group "Token usage and cost" on the Runs and Run screens lists every state | RunsUsage, RunsPageLoadingUsage, RunSucceededUsage* (incl. RunSucceededUsagePriceRange), RunRunningUsage* |
 | `#/o/<org>/p/<project>/desk/agent\|rules\|skills` | Desk (agent settings, routing rules, skills); a project admin gets Agent & settings without the Danger zone | DeskAgent*, DeskRules*, DeskSkill* |
 | `#/o/<org>/p/<project>/desk/members` | Project Settings > Members (project admin space): project roles, Add member, Invite people, Change role, Remove. Member and viewer get the Forbidden page. Reached from the Desk side menu's "Access" group (Members, Audit log), drawn on every Desk board and shown only to org owner, org admin and the admin of that project | DeskMembers* |
 | `#/o/<org>/p/<project>/desk/audit` | Project Settings > Audit log (project admin space). Member and viewer get the Forbidden page | DeskAudit* |
@@ -152,7 +153,7 @@ Faked or static:
 
 ## Coverage of every board
 
-There are 341 boards in `design/prototype/project/` (322 before the navigation-consistency boards, plus 19 `*Shell` boards). Every one is reproduced: each is reachable through the route in the table and also from the Scenario selector on its screen. "Live screen" means the default route is the working, stateful screen. "Board snapshot" means the route shows the board as drawn inside the live header and navigation. Where a board's states can be produced live, the last column says how. Routes assume `harbor-labs` and `invoicer-api`; the Screen map and the Scenario selector build them for the current org and project.
+There are 356 boards in `design/prototype/project/` (322 before the navigation-consistency boards, plus 19 `*Shell` boards and 15 token usage boards). Every one is reproduced: each is reachable through the route in the table and also from the Scenario selector on its screen. "Live screen" means the default route is the working, stateful screen. "Board snapshot" means the route shows the board as drawn inside the live header and navigation. Where a board's states can be produced live, the last column says how. Routes assume `harbor-labs` and `invoicer-api`; the Screen map and the Scenario selector build them for the current org and project.
 
 Three default routes depend on the role: CreateOrg (Platform admin; others see CreateOrgForbidden), MyInvitations (New user with invitations; others see the empty board) and InvitationAccept (New user with invitations; others see "not available"). Their other boards are reachable with `?s=`.
 
@@ -191,7 +192,7 @@ Boards not reproduced: none. Closest to not reproduced: `OrgInvitationsInviteTab
 | `index.html` | Entry; loads the CSS and scripts in order |
 | `board-styles.css` | Union of the boards' shared CSS (generated) |
 | `styles.css` | Prototype-only styles: sticky bar, name truncation in the bar, menus, toasts, controls panel, screen map (tokens only) |
-| `data/boards.js` | The 341 boards' markup (generated) |
+| `data/boards.js` | The 356 boards' markup (generated) |
 | `js/core.js` | Fake data, roles, permission rules, fake API |
 | `js/router.js` | Hash router |
 | `js/boards.js` | Board lookup, board-to-route mapping, generic states |
@@ -508,6 +509,8 @@ Boards not reproduced: none. Closest to not reproduced: `OrgInvitationsInviteTab
 | `RunRunning` | `#/o/harbor-labs/p/invoicer-api/runs/61` | Board snapshot, live header and navigation | Static board (not stateful in this prototype) |
 | `RunRunningAutoResume` | `#/o/harbor-labs/p/invoicer-api/runs/61?s=RunRunningAutoResume` | Board snapshot, live header and navigation | Static board (not stateful in this prototype) |
 | `RunRunningStop` | `#/o/harbor-labs/p/invoicer-api/runs/61?s=RunRunningStop` | Board snapshot, live header and navigation | Static board (not stateful in this prototype) |
+| `RunRunningUsage` | `#/o/harbor-labs/p/invoicer-api/runs/61?s=RunRunningUsage` | Board snapshot, live header and navigation | Token usage: active run, usage so far. Click Run 61 on RunsUsage |
+| `RunRunningUsageReconnecting` | `#/o/harbor-labs/p/invoicer-api/runs/61?s=RunRunningUsageReconnecting` | Board snapshot, live header and navigation | Token usage: reconnecting, the cached usage stays. Scenario selector on the Run screen |
 | `RunSetupFailed` | `#/o/harbor-labs/p/invoicer-api/runs/58` | Board snapshot, live header and navigation | Static board (not stateful in this prototype) |
 | `RunStarting` | `#/o/harbor-labs/p/invoicer-api/runs/63` | Board snapshot, live header and navigation | Static board (not stateful in this prototype) |
 | `RunStopped` | `#/o/harbor-labs/p/invoicer-api/runs/62?s=RunStopped` | Board snapshot, live header and navigation | Static board (not stateful in this prototype) |
@@ -519,6 +522,17 @@ Boards not reproduced: none. Closest to not reproduced: `OrgInvitationsInviteTab
 | `RunStoppedPodLostGaveUpOnce` | `#/o/harbor-labs/p/invoicer-api/runs/62?s=RunStoppedPodLostGaveUpOnce` | Board snapshot, live header and navigation | Static board (not stateful in this prototype) |
 | `RunSucceeded` | `#/o/harbor-labs/p/invoicer-api/runs/60` | Board snapshot, live header and navigation | Static board (not stateful in this prototype) |
 | `RunSucceededFinished` | `#/o/harbor-labs/p/invoicer-api/runs/62?s=RunSucceededFinished` | Board snapshot, live header and navigation | Static board (not stateful in this prototype) |
+| `RunSucceededUsage` | `#/o/harbor-labs/p/invoicer-api/runs/60?s=RunSucceededUsage` | Board snapshot, live header and navigation | Token usage: one model, no reasoning line. Click Run 60 on RunsUsage; Hide on Usage or Models collapses them |
+| `RunSucceededUsageCollapsed` | `#/o/harbor-labs/p/invoicer-api/runs/60?s=RunSucceededUsageCollapsed` | Board snapshot, live header and navigation | Token usage: Usage section collapsed (Show expands it). Live: Hide on the Usage section of any usage board |
+| `RunSucceededUsageMultiModel` | `#/o/harbor-labs/p/invoicer-api/runs/60?s=RunSucceededUsageMultiModel` | Board snapshot, live header and navigation | Token usage: two models. Scenario selector on the Run screen |
+| `RunSucceededUsageModelsCollapsed` | `#/o/harbor-labs/p/invoicer-api/runs/60?s=RunSucceededUsageModelsCollapsed` | Board snapshot, live header and navigation | Token usage: Usage open, Models table collapsed (Show expands it). Live: Hide next to Models on any usage board |
+| `RunSucceededUsageNone` | `#/o/harbor-labs/p/invoicer-api/runs/60?s=RunSucceededUsageNone` | Board snapshot, live header and navigation | Token usage: no usage data. Scenario selector on the Run screen |
+| `RunSucceededUsageNonePriced` | `#/o/harbor-labs/p/invoicer-api/runs/60?s=RunSucceededUsageNonePriced` | Board snapshot, live header and navigation | Token usage: no priced model, cost "—". Click Run 57 on RunsUsage |
+| `RunSucceededUsagePartial` | `#/o/harbor-labs/p/invoicer-api/runs/60?s=RunSucceededUsagePartial` | Board snapshot, live header and navigation | Token usage: partial (call cap reached), "at least". Scenario selector on the Run screen |
+| `RunSucceededUsagePriceRange` | `#/o/harbor-labs/p/invoicer-api/runs/60?s=RunSucceededUsagePriceRange` | Board snapshot, live header and navigation | Token usage: a run that spans a price change, "Prices as of 18 Nov 2026 to 21 Nov 2026." Scenario selector on the Run screen |
+| `RunSucceededUsageReasoning` | `#/o/harbor-labs/p/invoicer-api/runs/60?s=RunSucceededUsageReasoning` | Board snapshot, live header and navigation | Token usage: "of which reasoning" line shown. Scenario selector on the Run screen |
+| `RunSucceededUsageUnpriced` | `#/o/harbor-labs/p/invoicer-api/runs/60?s=RunSucceededUsageUnpriced` | Board snapshot, live header and navigation | Token usage: an unpriced model with a long name, "at least". Click Run 55 on RunsUsage |
+| `RunSucceededUsageZero` | `#/o/harbor-labs/p/invoicer-api/runs/60?s=RunSucceededUsageZero` | Board snapshot, live header and navigation | Token usage: zero usage shows 0. Scenario selector on the Run screen |
 | `RunTimedOut` | `#/o/harbor-labs/p/invoicer-api/runs/54` | Board snapshot, live header and navigation | Static board (not stateful in this prototype) |
 | `RunTranscriptStates` | `#/o/harbor-labs/p/invoicer-api/runs/62?s=RunTranscriptStates` | Board snapshot, live header and navigation | Static board (not stateful in this prototype) |
 | `Runs` | `#/o/harbor-labs/p/invoicer-api/runs` | Board snapshot, live header and navigation | Static board (not stateful in this prototype) |
@@ -531,12 +545,14 @@ Boards not reproduced: none. Closest to not reproduced: `OrgInvitationsInviteTab
 | `RunsLinkedSplitPr` | `#/o/harbor-labs/p/invoicer-api/runs?s=RunsLinkedSplitPr` | Board snapshot, live header and navigation | Static board (not stateful in this prototype) |
 | `RunsPageLoading` | `#/o/harbor-labs/p/invoicer-api/runs?s=RunsPageLoading` | Board snapshot, live header and navigation | Static board (not stateful in this prototype) |
 | `RunsPageLoadingLinked` | `#/o/harbor-labs/p/invoicer-api/runs?s=RunsPageLoadingLinked` | Board snapshot, live header and navigation | Static board (not stateful in this prototype) |
+| `RunsPageLoadingUsage` | `#/o/harbor-labs/p/invoicer-api/runs?s=RunsPageLoadingUsage` | Board snapshot, live header and navigation | Token usage: next page loading, the Usage column stays. Scenario selector on the Runs screen |
 | `RunsPaged` | `#/o/harbor-labs/p/invoicer-api/runs?s=RunsPaged` | Board snapshot, live header and navigation | Static board (not stateful in this prototype) |
 | `RunsPagedLinkedIssueOnly` | `#/o/harbor-labs/p/invoicer-api/runs?s=RunsPagedLinkedIssueOnly` | Board snapshot, live header and navigation | Static board (not stateful in this prototype) |
 | `RunsPagedLinkedPrOnly` | `#/o/harbor-labs/p/invoicer-api/runs?s=RunsPagedLinkedPrOnly` | Board snapshot, live header and navigation | Static board (not stateful in this prototype) |
 | `RunsProblems` | `#/o/harbor-labs/p/invoicer-api/runs?s=RunsProblems` | Board snapshot, live header and navigation | Static board (not stateful in this prototype) |
 | `RunsProblemsEmpty` | `#/o/harbor-labs/p/invoicer-api/runs?s=RunsProblemsEmpty` | Board snapshot, live header and navigation | Static board (not stateful in this prototype) |
 | `RunsProblemsPaged` | `#/o/harbor-labs/p/invoicer-api/runs?s=RunsProblemsPaged` | Board snapshot, live header and navigation | Static board (not stateful in this prototype) |
+| `RunsUsage` | `#/o/harbor-labs/p/invoicer-api/runs?s=RunsUsage` | Board snapshot, live header and navigation | Token usage: Usage column (value, partial "+", no cost, none "—"); Run 60, 55, 57, 61 open their usage boards |
 | `RunsShell` | `#/o/harbor-labs/p/invoicer-api/runs?s=RunsShell` | Board snapshot, live header and navigation (new) | Live: open a project |
 | `Setup1` | `#/o/harbor-labs/projects/new/1` | Board snapshot, live header and navigation | Static board (not stateful in this prototype) |
 | `Setup1Polling` | `#/o/harbor-labs/projects/new/1?s=Setup1Polling` | Board snapshot, live header and navigation | Static board (not stateful in this prototype) |
