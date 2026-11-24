@@ -1634,14 +1634,14 @@ export const platformAuditFixtures: PlatformAuditEntryDto[]; // every action, on
 - Consumes: `PlatformAuditListQuery`, `PlatformAuditEntryDto` (Task 41), rows written by Tasks 22, 35, 42.
 - Produces: `PlatformAuditService.list(q: PlatformAuditListQuery): Promise<Page<PlatformAuditEntryDto>>` (plain `db.orm`; left join `user` for the actor and `organization` for the org name, null when gone; `target.label` built on read from the payload: admin email, org name, member name or invitee email; `reason` only for `org.suspended`/`org.reactivated`; `changes` from `{ from, to }` for `org.updated`; never the raw payload).
 
-- [ ] **Step 1: Write the failing tests** in `platform-audit-list.int.test.ts` (rows made through the real routes):
+- [x] **Step 1: Write the failing tests** in `platform-audit-list.int.test.ts` (rows made through the real routes):
   - BR-45: order `created_at desc, id desc`; filter by org, by action, both; `total` matches the filter; actor and org null after the user is deleted (org rows of a never-created target org as well); `reason` on suspend and reactivate rows only; `changes` for an edit; no payload key leaks.
   - BR-46: 403 before lookup for owner, admin, project admin, member, viewer, another org's owner and a no-org user, with `?orgId=<unknown>` giving the same 403; 401 signed out; no tenant route (`audit.list` for that org) returns a platform row or its reason.
   - `authz.int.test.ts`: remove the key from `NOT_REGISTERED_YET`.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/api exec vitest run test/platform-audit-list.int.test.ts`. Expected: FAIL.
-- [ ] **Step 3: Implement** the service and controller, register them.
-- [ ] **Step 4: Run** Step 2's command, `pnpm --filter @agentdesk/api exec vitest run test/authz.int.test.ts test/audit.int.test.ts`, `pnpm --filter @agentdesk/api typecheck`. Expected: PASS.
-- [ ] **Step 5: Commit**: `feat(api): platform audit list with org and action filters`. Label `review:sensitive`.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/api exec vitest run test/platform-audit-list.int.test.ts`. Expected: FAIL.
+- [x] **Step 3: Implement** the service and controller, register them.
+- [x] **Step 4: Run** Step 2's command, `pnpm --filter @agentdesk/api exec vitest run test/authz.int.test.ts test/audit.int.test.ts`, `pnpm --filter @agentdesk/api typecheck`. Expected: PASS.
+- [x] **Step 5: Commit**: `feat(api): platform audit list with org and action filters`. Label `review:sensitive`.
 
 ---
 
