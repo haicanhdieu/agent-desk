@@ -78,18 +78,19 @@ describe('run detail route', () => {
   });
 
   describe('the run bar (BR-46, BR-47)', () => {
-    const orgButton = () => within(banner()).getByRole('button', { name: /^(Switch organization|Organization menu)/ });
+    const orgButton = () => within(banner()).getByRole('button', { name: /^Switch scope/ });
 
-    it("TC-46.1, TC-43.5: has crumbs only, org / project / Runs / Run 62 (TC-46.2: Runs links to the project's list), with no tabs and no bell", async () => {
+    it("TC-46.1, TC-43.5: has crumbs only, org / project / Runs / Run 62 (TC-46.2: Runs links to the project's list), with no tabs and the bell", async () => {
       await renderRoute(`${base}/runs/62`);
       await screen.findByText('The agent is waiting for your answer');
       const crumbs = within(banner()).getByRole('navigation', { name: 'Breadcrumb' });
-      expect(within(crumbs).getByRole('button', { name: /^(Switch organization|Organization menu)/ })).toBeVisible();
+      expect(within(crumbs).getByRole('button', { name: /^Switch scope/ })).toBeVisible();
       expect(within(crumbs).getByRole('button', { name: /^Switch project, currently/ })).toBeVisible();
       expect(within(crumbs).getByRole('link', { name: 'Runs' })).toHaveAttribute('href', `${base}/runs`);
       expect(within(crumbs).getByText('Run 62')).toHaveAttribute('aria-current', 'page');
-      expect(within(banner()).queryByRole('navigation', { name: 'Main' })).not.toBeInTheDocument();
-      expect(within(banner()).queryByRole('button', { name: 'Notifications on' })).not.toBeInTheDocument();
+      expect(within(banner()).queryByRole('navigation', { name: 'Organization sections' })).not.toBeInTheDocument();
+      expect(within(banner()).queryByRole('navigation', { name: 'Project sections' })).not.toBeInTheDocument();
+      expect(within(banner()).getByRole('button', { name: 'Notifications on' })).toBeInTheDocument();
     });
 
     it('TC-46.3: the project crumb opens the switcher with the org projects', async () => {
@@ -105,7 +106,7 @@ describe('run detail route', () => {
       const { user, router } = await renderRoute(`${base}/runs/62`);
       await screen.findByText('The agent is waiting for your answer');
       await user.click(orgButton());
-      await user.click(await screen.findByRole('link', { name: /^Settings/ }));
+      await user.click(await screen.findByRole('link', { name: /^Org settings/ }));
       await screen.findByRole('navigation', { name: 'Organization settings' });
       expect(router.state.location.pathname).toBe('/o/alice/settings/general');
     });
@@ -125,7 +126,7 @@ describe('run detail route', () => {
       });
       await screen.findByText('The agent is waiting for your answer');
       await user.click(orgButton());
-      await user.click(await screen.findByRole('link', { name: /^Settings/ }));
+      await user.click(await screen.findByRole('link', { name: /^Org settings/ }));
       const side = await screen.findByRole('navigation', { name: 'Organization settings' });
       expect(router.state.location.pathname).toBe('/o/acme/settings/invitations');
       expect(
@@ -142,7 +143,7 @@ describe('run detail route', () => {
       await screen.findByText('The agent is waiting for your answer');
       await user.click(orgButton());
       await screen.findByRole('link', { name: /^Projects/ });
-      expect(screen.queryByRole('link', { name: /^Settings/ })).not.toBeInTheDocument();
+      expect(screen.queryByRole('link', { name: /^Org settings/ })).not.toBeInTheDocument();
     });
   });
 

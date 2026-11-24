@@ -6,6 +6,7 @@ import {
   AppShell,
   ChangeRoleDialog,
   InviteDialog,
+  NO_PAGE_CRUMBS,
   TopBar,
   type AddProjectMemberDialogProps,
   type ChangeRoleDialogProps,
@@ -906,6 +907,8 @@ export const DeskMembersForbidden: Story = {
     <>
       <TopBar
         variant="project"
+        crumbs={NO_PAGE_CRUMBS}
+        state="forbidden"
         active="runs"
         user={MIRA}
         org={deskFrame.org}

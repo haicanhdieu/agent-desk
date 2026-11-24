@@ -229,8 +229,7 @@ const nameInput = (page: Page): Locator => page.getByRole('textbox', { name: /^N
 const slugInput = (page: Page): Locator => page.getByRole('textbox', { name: /^URL/ });
 const emailInput = (page: Page): Locator => page.getByRole('textbox', { name: /^First owner email/ });
 const submit = (page: Page): Locator => page.getByRole('button', { name: 'Create organization' });
-const orgMenuButton = (page: Page): Locator =>
-  page.getByRole('button', { name: /^(Switch organization|Organization menu)/ });
+const orgMenuButton = (page: Page): Locator => page.getByRole('button', { name: /^Switch scope/ });
 
 /** Counts the org-create POSTs this page sends. Call before the first goto. */
 function logOrgCreates(page: Page): () => number {
@@ -260,10 +259,7 @@ async function fill(page: Page, v: { name: string; slug: string }): Promise<void
 
 async function backToDirectory(page: Page): Promise<void> {
   await orgMenuButton(page).click();
-  await page
-    .getByRole('dialog', { name: 'Organizations' })
-    .getByRole('link', { name: 'Platform admin', exact: true })
-    .click();
+  await page.getByRole('dialog', { name: 'Scope' }).getByRole('link', { name: 'Platform admin', exact: true }).click();
   await expect(page).toHaveURL(/\/platform\/orgs$/);
   await expect(heading(page)).toBeVisible();
   await expect(bodyRows(page).first()).toBeVisible();

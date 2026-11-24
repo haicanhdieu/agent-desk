@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useSuspenseQuery } from '@tanstack/react-query';
 import { OrgStatusChangeRequest, type OrgStatus, type UpdateOrgRequest } from '@agentdesk/contracts';
 import { ApiError } from '@agentdesk/contracts/client';
 import { revalidateLogic, useField, useForm, useStore } from '@tanstack/react-form';
@@ -7,6 +7,8 @@ import { createFileRoute, Outlet, useNavigate } from '@tanstack/react-router';
 import { useNow } from '@/app/useNow';
 import { EditOrgDialog, SlugChangeConfirm, type SuspendOrgDialogProps } from '@/components';
 import { useToast } from '@/ds';
+import { openOrgHref } from '@/features/chrome/appBar';
+import { orgsQuery } from '@/features/auth/session';
 import { fieldErrorsFromProblem } from '@/features/desk/problem';
 import { generalProblem, useGeneralForm, type GeneralControls } from '@/features/orgSettings/general.form';
 import { toPlatformOrgOverview } from '@/features/platform/map';
@@ -188,6 +190,8 @@ function PlatformOrgLayout() {
   const focusEdit = useRef(false);
   const focusHeading = useRef(false);
   const detail = useQuery(platformOrgQuery(orgId));
+  const { data: memberships } = useSuspenseQuery(orgsQuery);
+  const openHref = openOrgHref(memberships, orgId);
 
   const form = useStatusForm(
     orgId,
@@ -250,6 +254,7 @@ function PlatformOrgLayout() {
         slug: data.slug,
         status: data.status,
         auditHref: `/platform/audit?org=${encodeURIComponent(data.id)}`,
+        ...(openHref !== undefined && { openHref }),
         onEdit: () => setEditing(true),
         onSuspend: () => open('suspended'),
         onReactivate: () => open('active'),

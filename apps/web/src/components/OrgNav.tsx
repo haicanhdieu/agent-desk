@@ -11,7 +11,7 @@ export interface OrgNavProps {
 /** Projects / Settings tabs of the org-level top bar. */
 export function OrgNav({ active, projectsHref, settingsHref }: OrgNavProps) {
   return (
-    <nav className={styles.tabs} aria-label="Main">
+    <nav className={styles.tabs} aria-label="Organization sections">
       <AppLink
         href={projectsHref}
         className={active === 'projects' ? styles.on : undefined}
@@ -27,7 +27,7 @@ export function OrgNav({ active, projectsHref, settingsHref }: OrgNavProps) {
           aria-current={active === 'settings' ? 'page' : undefined}
         >
           <Icon name="sliders" size={15} />
-          Settings
+          Org settings
         </AppLink>
       )}
     </nav>

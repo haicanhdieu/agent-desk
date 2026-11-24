@@ -218,8 +218,8 @@ test.describe('BR-15: revoking your own platform access', () => {
     // `/` hands over to the active org's projects, so the browser has left /platform.
     await expect(page).toHaveURL(/^[^?#]*?\/(o\/[^/]+\/projects)?$/);
     await expect(page).not.toHaveURL(/\/platform/);
-    await page.getByRole('button', { name: /^(Switch organization|Organization menu)/ }).click();
-    const orgs = page.getByRole('dialog', { name: 'Organizations' });
+    await page.getByRole('button', { name: /^Switch scope/ }).click();
+    const orgs = page.getByRole('dialog', { name: 'Scope' });
     await expect(orgs).toBeVisible();
     await expect(orgs.getByText('Platform admin')).toHaveCount(0);
 

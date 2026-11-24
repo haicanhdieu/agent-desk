@@ -3,6 +3,7 @@ export { DataTable, type DataTableColumn } from './DataTable';
 export { FilterChip, FilterChips, type FilterChipProps } from './FilterChip';
 export { RunRow, TicketGroupRow, type RunRowProps } from './RunRow';
 export { EmptyState, type EmptyStateProps } from './EmptyState';
+export { SkipLink } from './SkipLink';
 export { Brand, type BrandProps } from './Brand';
 export { Breadcrumb, type BreadcrumbProps } from './Breadcrumb';
 export {
@@ -14,6 +15,7 @@ export {
 } from './ProjectSwitch';
 export { OrgSwitch, type OrgSwitchProps } from './OrgSwitch';
 export { OrgNav, type OrgNavProps } from './OrgNav';
+export { PlatformNav, type PlatformNavProps } from './PlatformNav';
 export { OnboardingChecklist, type OnboardingChecklistState } from './OnboardingChecklist';
 export {
   AccountInfoProvider,
@@ -135,7 +137,7 @@ export { AddProjectMemberDialog, type AddProjectMemberDialogProps } from './AddP
 export { AuditRow, auditColumns } from './AuditRow';
 export { OrgSettingsLayout, type OrgSettingsLayoutProps } from './OrgSettingsLayout';
 export { InvitationCard, type InvitationCardProps } from './InvitationCard';
-export { PlatformLayout, type PlatformLayoutProps } from './PlatformLayout';
+export { PlatformLayout, type PlatformLayoutProps, type PlatformOrgGroup } from './PlatformLayout';
 export { PlatformAdminRow, platformAdminColumns, type PlatformAdminRowProps } from './PlatformAdminRow';
 export { PlatformOrgRow, platformOrgColumns } from './PlatformOrgRow';
 export { OrgStatus } from './OrgStatus';
@@ -147,3 +149,5 @@ export { AssignmentDialog, type AssignmentDialogProps, type AssignmentRoleKey } 
 export { EditOrgDialog, type EditOrgDialogProps } from './EditOrgDialog';
 export { PlatformProjectRow, platformProjectColumns } from './PlatformProjectRow';
 export { PlatformMemberRow, platformMemberColumns, type PlatformMemberRowProps } from './PlatformMemberRow';
+export { pageTitle, NO_PAGE_CRUMBS, ORG_SETTINGS_CRUMB, DESK_CRUMB, type PageCrumb, type PageState } from './pageTitle';
+export { useDocumentTitle } from './useDocumentTitle';

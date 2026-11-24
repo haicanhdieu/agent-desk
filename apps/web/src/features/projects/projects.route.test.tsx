@@ -413,17 +413,17 @@ describe('projects route controls by role', () => {
   /** The Projects header (h1 and its actions): no Settings or Invitations button, whatever the role. */
   const expectNoHeaderButtons = () => {
     const main = screen.getByRole('main');
-    expect(within(main).queryByRole('link', { name: /^(Settings|Invitations)$/ })).toBeNull();
-    expect(within(main).queryByRole('button', { name: /^(Settings|Invitations)$/ })).toBeNull();
+    expect(within(main).queryByRole('link', { name: /^(Org settings|Invitations)$/ })).toBeNull();
+    expect(within(main).queryByRole('button', { name: /^(Org settings|Invitations)$/ })).toBeNull();
   };
-  const mainTabs = () => within(screen.getByRole('banner')).getByRole('navigation', { name: 'Main' });
+  const mainTabs = () => within(screen.getByRole('banner')).getByRole('navigation', { name: 'Organization sections' });
 
   it.each(['owner', 'orgAdmin', 'projectAdmin'] as const)(
     'TC-43.1, TC-49.1 to TC-49.3: a %s sees the Projects and Settings tabs, Projects active, and no header button',
     async (name) => {
       await renderRoute('/o/acme/projects', { scenario: () => scenarios.onboarding(name) });
       await screen.findByRole('link', { name: 'invoicer-api' });
-      const settings = await within(mainTabs()).findByRole('link', { name: 'Settings' });
+      const settings = await within(mainTabs()).findByRole('link', { name: 'Org settings' });
       expect(settings).toHaveAttribute('href', '/o/acme/settings');
       expect(within(mainTabs()).getAllByRole('link')).toHaveLength(2);
       expect(within(mainTabs()).getByRole('link', { name: 'Projects' })).toHaveAttribute('aria-current', 'page');
@@ -438,7 +438,7 @@ describe('projects route controls by role', () => {
       await screen.findByRole('link', { name: 'invoicer-api' });
       expect(within(mainTabs()).getAllByRole('link')).toHaveLength(1);
       expect(within(mainTabs()).getByRole('link', { name: 'Projects' })).toHaveAttribute('aria-current', 'page');
-      expect(screen.queryByRole('link', { name: /^(Settings|Invitations)$/ })).toBeNull();
+      expect(screen.queryByRole('link', { name: /^(Org settings|Invitations)$/ })).toBeNull();
       expect(screen.queryByRole('link', { name: /New project/ })).toBeNull();
     },
   );
@@ -446,8 +446,8 @@ describe('projects route controls by role', () => {
   it('TC-49.6: an owner of an org with no projects sees no Settings or Invitations button', async () => {
     await renderRoute('/o/acme/projects', { scenario: () => scenarios.onboarding('checklistNoProject') });
     await screen.findByRole('heading', { name: 'Create your first project' });
-    await within(mainTabs()).findByRole('link', { name: 'Settings' });
-    expect(within(screen.getByRole('main')).queryByRole('link', { name: /^(Settings|Invitations)$/ })).toBeNull();
+    await within(mainTabs()).findByRole('link', { name: 'Org settings' });
+    expect(within(screen.getByRole('main')).queryByRole('link', { name: /^(Org settings|Invitations)$/ })).toBeNull();
     expect(screen.getByRole('link', { name: /Create project/ })).toBeVisible();
   });
 

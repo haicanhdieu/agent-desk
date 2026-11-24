@@ -1,3 +1,4 @@
+import { z } from 'zod';
 import { expect, test, type Browser, type BrowserContext, type Page } from '@playwright/test';
 import { API, acceptViaApi, inviteAndSignIn, inviteViaApi, signInAs, PLATFORM_ADMIN_HANDLE } from './helpers';
 import { withScope, type Scope } from './onboarding-scope';
@@ -28,8 +29,8 @@ test.beforeAll(async ({ request }) => {
 const SLUG_FORMAT = /^[a-z0-9]+(-[a-z0-9]+)*$/;
 const WELCOME_HEADING = "You're not a member of any organization";
 
-const orgSwitchButton = (page: Page) => page.getByRole('button', { name: /^Switch organization/ });
-const switcherMenu = (page: Page) => page.getByRole('dialog', { name: 'Organizations' });
+const orgSwitchButton = (page: Page) => page.getByRole('button', { name: /^Switch scope/ });
+const switcherMenu = (page: Page) => page.getByRole('dialog', { name: 'Scope' });
 const createOrgControl = (page: Page) =>
   page
     .getByRole('link', { name: 'Create organization', exact: true })
@@ -136,13 +137,21 @@ test('TC-35.2: an edited URL becomes the org URL the first owner lands on after 
   });
 });
 
-test('TC-35.3: pressing Done on the created card goes to /', async ({ browser }) => {
+test("TC-35.3: pressing Done on the created card goes to the new org's platform page", async ({ browser }) => {
   await withScope(async (scope) => {
     const page = await adminOnWelcome(scope, browser);
     await openCreateForm(page);
-    await nameField(page).fill(`E2E Done ${scope.tag}`);
+    const name = `E2E Done ${scope.tag}`;
+    await nameField(page).fill(name);
     await emailField(page).fill(scope.email('owner'));
     await submitAndWaitCreated(page);
+
+    // The new org's id, from the platform directory (the page is signed in as the platform admin).
+    const res = await page.request.get(`/api/platform/orgs?pageSize=100&q=${encodeURIComponent(name)}`);
+    const body: unknown = await res.json();
+    const items = z.object({ items: z.array(z.object({ id: z.string(), name: z.string() })) }).parse(body).items;
+    const org = items.find((o) => o.name === name);
+    expect(org, `org ${name} is not in the platform directory`).toBeTruthy();
 
     // Every URL the page goes through after the press (client-side navigations included).
     const visited: string[] = [];
@@ -150,9 +159,8 @@ test('TC-35.3: pressing Done on the created card goes to /', async ({ browser })
       if (frame === page.mainFrame()) visited.push(new URL(frame.url()).pathname);
     });
     await page.getByRole('button', { name: 'Done', exact: true }).click();
-    // `/` of a person with no org shows the welcome page.
-    await expect(page.getByRole('heading', { level: 1, name: WELCOME_HEADING })).toBeVisible();
-    expect(visited[0], `Done went to /, then ${visited.join(' -> ')}`).toBe('/');
+    await expect(page.getByRole('heading', { level: 1, name })).toBeVisible();
+    expect(visited[0], `Done went to the org page, then ${visited.join(' -> ')}`).toBe(`/platform/orgs/${org?.id}`);
   });
 });
 
@@ -206,7 +214,7 @@ test('TC-38.1: the first owner opens the copied link, signs in, accepts, and lan
   );
 });
 
-test('TC-40.2: a platform admin with no org opens "/", and the switcher reads "No organization" and holds only Create organization', async ({
+test('TC-40.2: a platform admin with no org opens "/", and the switcher reads "No organization", holds the Platform group and Create organization, and no org', async ({
   browser,
 }) => {
   await withScope(async (scope) => {
@@ -217,9 +225,14 @@ test('TC-40.2: a platform admin with no org opens "/", and the switcher reads "N
     await button.click();
     const menu = switcherMenu(page);
     await expect(menu).toBeVisible();
-    await expect(menu.getByRole('link')).toHaveCount(1);
+    await expect(menu.getByRole('link')).toHaveCount(2);
+    await expect(
+      menu.getByRole('group', { name: 'Platform' }).getByRole('link', { name: 'Platform admin', exact: true }),
+    ).toBeVisible();
     await expect(menu.getByRole('link', { name: 'Create organization', exact: true })).toBeVisible();
-    await expect(menu.getByRole('separator')).toHaveCount(0);
+    await expect(menu.getByRole('group', { name: 'Switch organization' })).toHaveCount(0);
+    // One divider: between the Platform group and Create organization.
+    await expect(menu.getByRole('separator')).toHaveCount(1);
   });
 });
 

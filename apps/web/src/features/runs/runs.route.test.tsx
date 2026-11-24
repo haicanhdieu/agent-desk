@@ -293,19 +293,19 @@ describe('runs route', () => {
     await renderRoute(`${base}/runs`);
     await screen.findByRole('heading', { level: 1, name: 'Runs' });
     const bar = screen.getByRole('banner');
-    expect(within(bar).getByRole('button', { name: /^(Switch organization|Organization menu)/ })).toBeVisible();
+    expect(within(bar).getByRole('button', { name: /^Switch scope/ })).toBeVisible();
     expect(within(bar).getByRole('button', { name: /^Switch project, currently/ })).toBeVisible();
-    const tabs = within(bar).getByRole('navigation', { name: 'Main' });
+    const tabs = within(bar).getByRole('navigation', { name: 'Project sections' });
     expect(within(tabs).getByRole('link', { name: /^Runs/ })).toHaveAttribute('aria-current', 'page');
-    expect(within(tabs).getByRole('link', { name: 'Settings' })).toBeVisible();
+    expect(within(tabs).getByRole('link', { name: 'Project settings' })).toBeVisible();
     expect(within(bar).getAllByRole('link', { name: /Agent Desk/ })[0]).toHaveAttribute('href', '/o/alice/projects');
   });
 
   it('the Settings tab opens Routing rules, not Skills', async () => {
     await renderRoute(`${base}/runs`);
     await screen.findByRole('heading', { level: 1, name: 'Runs' });
-    const tabs = screen.getByRole('navigation', { name: 'Main' });
-    expect(within(tabs).getByRole('link', { name: 'Settings' })).toHaveAttribute('href', `${base}/desk/rules`);
+    const tabs = screen.getByRole('navigation', { name: 'Project sections' });
+    expect(within(tabs).getByRole('link', { name: 'Project settings' })).toHaveAttribute('href', `${base}/desk/rules`);
   });
 
   it('clicking a filter chip gives a clean URL that the route reads back', async () => {
@@ -872,13 +872,13 @@ describe('needs-you route', () => {
     await renderRoute(`${base}/needs-you`);
     await screen.findByRole('link', { name: 'Open run 62 in Agent Desk' });
     const bar = screen.getByRole('banner');
-    const tabs = within(bar).getByRole('navigation', { name: 'Main' });
+    const tabs = within(bar).getByRole('navigation', { name: 'Organization sections' });
     expect(within(tabs).getByRole('link', { name: 'Projects' })).toHaveAttribute('href', '/o/alice/projects');
     expect(within(tabs).queryByRole('link', { current: 'page' })).not.toBeInTheDocument();
     expect(within(tabs).queryByRole('link', { name: /^Runs/ })).not.toBeInTheDocument();
     expect(within(bar).queryByRole('button', { name: /^Switch project/ })).not.toBeInTheDocument();
     expect(within(bar).getAllByRole('link', { name: /Agent Desk/ })[0]).toHaveAttribute('href', '/o/alice/projects');
-    expect(screen.getAllByRole('navigation', { name: 'Main' })).toHaveLength(1);
+    expect(screen.getAllByRole('navigation', { name: 'Organization sections' })).toHaveLength(1);
   });
 
   it('lists idle runs linking to /runs/<number>', async () => {

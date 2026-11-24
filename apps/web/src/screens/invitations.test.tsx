@@ -599,7 +599,6 @@ describe('CreateOrg', () => {
     email: 'maria.chen@northwind.example',
   };
   const createProps = (state: CreateOrgState) => ({
-    user,
     state,
     onChange: vi.fn(),
     onSubmit: vi.fn(),
@@ -621,11 +620,6 @@ describe('CreateOrg', () => {
     title: 'Internal server error',
     retrying: false,
     ...over,
-  });
-
-  it('BR-43: Create organization shows no tabs', () => {
-    render(<CreateOrg {...createProps(form())} org={settingsOrg} />);
-    expect(screen.queryByRole('navigation', { name: 'Main' })).not.toBeInTheDocument();
   });
 
   it('BR-35: shows the h1, the labelled fields with the /o/ prefix described, the hint and Create organization', async () => {
@@ -771,6 +765,7 @@ describe('CreateOrg', () => {
   it('BR-35: the created state focuses its heading and shows the owner link, Copy link and Done', async () => {
     const p = createProps({
       kind: 'created',
+      orgId: 'org_northwind',
       email: 'maria.chen@northwind.example',
       expiresOn: '23 Nov, 14:05',
       link: 'https://agentdesk.example/invitations/7f3c',
@@ -802,7 +797,7 @@ describe('CreateOrg', () => {
   it('renders names as text, never as markup', () => {
     render(<CreateOrg {...createProps(form({ values: { ...values, name: '<b>x</b>' } }))} />);
     expect(screen.getByLabelText('Name')).toHaveValue('<b>x</b>');
-    expect(document.querySelector('b')).toBeNull();
+    expect(document.querySelector('main b')).toBeNull();
   });
 });
 
@@ -837,8 +832,8 @@ describe('OrgInvitations inside the settings layout', () => {
         <p>Body</p>
       </OrgSettingsFrame>,
     );
-    const main = within(screen.getByRole('navigation', { name: 'Main' }));
-    expect(main.getByRole('link', { name: 'Settings' })).toHaveAttribute('aria-current', 'page');
+    const main = within(screen.getByRole('navigation', { name: 'Organization sections' }));
+    expect(main.getByRole('link', { name: 'Org settings' })).toHaveAttribute('aria-current', 'page');
     expect(tabNames()).toEqual(['General', 'Members', 'Invitations', 'Audit log']);
     const side = within(screen.getByRole('navigation', { name: 'Organization settings' }));
     expect(side.getByRole('link', { name: 'Invitations' })).toHaveAttribute('aria-current', 'page');
@@ -859,15 +854,15 @@ describe('OrgInvitations inside the settings layout', () => {
         <p>Body</p>
       </OrgSettingsFrame>,
     );
-    expect(screen.queryByRole('link', { name: 'Settings' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Org settings' })).not.toBeInTheDocument();
     expect(screen.queryByRole('navigation', { name: 'Organization settings' })).not.toBeInTheDocument();
     expect(screen.getByText('Body')).toBeInTheDocument();
   });
 
   const noTabActive = () => {
-    const main = within(screen.getByRole('navigation', { name: 'Main' }));
+    const main = within(screen.getByRole('navigation', { name: 'Organization sections' }));
     expect(main.getByRole('link', { name: 'Projects' })).not.toHaveAttribute('aria-current');
-    expect(main.getByRole('link', { name: 'Settings' })).not.toHaveAttribute('aria-current');
+    expect(main.getByRole('link', { name: 'Org settings' })).not.toHaveAttribute('aria-current');
   };
 
   it('BR-43: My invitations shows the org bar with no tab active', () => {

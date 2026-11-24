@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import { userEvent, within } from 'storybook/test';
-import { AppShell, RouteSkeleton, TopBar, type OrgSwitchProps } from '@/components';
+import { AppShell, NO_PAGE_CRUMBS, RouteSkeleton, TopBar, type OrgSwitchProps } from '@/components';
 import { checklistSteps, pagedProjects, projects, user } from '@/mocks';
 import type { Actor, OrgOption, Project } from '@/mocks/types';
 import { SignIn as SignInScreen, SignInNoInvitationError } from './SignIn';
@@ -19,7 +19,7 @@ const riverside: OrgOption = {
   slug: 'riverside',
   name: 'Riverside Municipal Water and Power Utilities Digital Services',
 };
-const links = { orgHref: (o: OrgOption) => `/o/${o.slug}/projects`, createHref: '/orgs/new' };
+const links = { orgHref: (o: OrgOption) => `/o/${o.slug}/projects`, createHref: '/platform/orgs/new' };
 const orgOf = (current: OrgOption | null, orgs: OrgOption[], platformAdmin = false): OrgSwitchProps => ({
   current,
   orgs,
@@ -71,7 +71,7 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 const openSwitch: Story['play'] = async ({ canvasElement }) => {
-  await userEvent.click(within(canvasElement).getByRole('button', { name: /^Switch organization/ }));
+  await userEvent.click(within(canvasElement).getByRole('button', { name: /^Switch scope/ }));
 };
 
 export const SignIn: Story = {
@@ -241,7 +241,13 @@ export const ProjectsNoAccess: Story = {
   name: 'Projects, no access',
   render: () => (
     <>
-      <TopBar variant="global" user={sam} org={orgOf(northwind, [northwind, harbor])} />
+      <TopBar
+        variant="global"
+        crumbs={[{ label: 'Projects' }]}
+        state="forbidden"
+        user={sam}
+        org={orgOf(northwind, [northwind, harbor])}
+      />
       <main className={styles.emptyNotice}>
         <div className={styles.emptyNoticeCol}>
           <h1>You don&apos;t have access</h1>
@@ -293,7 +299,12 @@ export const ProjectsSwitching: Story = {
   name: 'Projects, switching org',
   render: () => (
     <>
-      <TopBar variant="global" user={user} org={orgOf(northwind, [harbor, northwind])} />
+      <TopBar
+        variant="global"
+        crumbs={[{ label: 'Projects' }]}
+        user={user}
+        org={orgOf(northwind, [harbor, northwind])}
+      />
       <main className={styles.listMain}>
         <RouteSkeleton />
       </main>
@@ -311,7 +322,7 @@ const suspendedOrg = { ...harbor, suspended: true };
 const suspendedOrgs: OrgOption[] = [suspendedOrg, northwind, riverside];
 const suspended = (user: Actor, org: OrgSwitchProps) => (
   <>
-    <TopBar variant="global" user={user} org={org} tabs="none" />
+    <TopBar variant="global" crumbs={NO_PAGE_CRUMBS} user={user} org={org} tabs="none" />
     <OrgSuspendedScreen orgName={harbor.name} />
   </>
 );

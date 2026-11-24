@@ -1,7 +1,6 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import { PlatformLayout } from './PlatformLayout';
 
-const links = { orgs: '/platform/orgs', admins: '/platform/admins', audit: '/platform/audit' };
 const base = '/platform/orgs/org-1';
 
 const meta = {
@@ -21,21 +20,37 @@ type Story = StoryObj<typeof meta>;
 
 const body = <div style={{ padding: 24 }}>Page content</div>;
 
-export const Default: Story = { args: { active: 'orgs', links, children: body } };
+export const Default: Story = { args: { children: body } };
 export const OrgGroup: Story = {
   args: {
     active: 'overview',
-    links,
-    org: { name: 'Acme', links: { overview: base } },
+    org: { state: 'ready', name: 'Acme', links: { overview: base } },
     children: body,
   },
 };
 export const OrgGroupAllTabs: Story = {
   args: {
     active: 'members',
-    links,
     org: {
+      state: 'ready',
       name: 'Harbor Labs International Holdings of the North Atlantic',
+      links: {
+        overview: base,
+        projects: `${base}/projects`,
+        members: `${base}/members`,
+        invitations: `${base}/invitations`,
+      },
+    },
+    children: body,
+  },
+};
+export const OrgGroupLoading: Story = { args: { org: { state: 'loading' }, children: body } };
+export const OrgGroupError: Story = {
+  args: {
+    active: 'members',
+    org: {
+      state: 'error',
+      name: 'Organization',
       links: {
         overview: base,
         projects: `${base}/projects`,

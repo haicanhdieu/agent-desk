@@ -2,8 +2,8 @@ import { Fragment, type ReactNode } from 'react';
 import { AppLink } from '@/ds';
 import styles from './Chrome.module.css';
 
-/** A text crumb (a link when it has an href, unless it is the last), or a control such as a switch button, rendered as is. */
-export type BreadcrumbItem = { label: ReactNode; href?: string } | { control: ReactNode };
+/** A text crumb (a link when it has an href, unless it is the last), a control such as a switch button, rendered as is, or a loading placeholder (a status with this name and no text). */
+export type BreadcrumbItem = { label: ReactNode; href?: string } | { control: ReactNode } | { loading: string };
 
 export interface BreadcrumbProps {
   items: BreadcrumbItem[];
@@ -21,7 +21,9 @@ export function Breadcrumb({ items }: BreadcrumbProps) {
                 /
               </span>
             )}
-            {'control' in item ? (
+            {'loading' in item ? (
+              <span className={styles.crumbSkeleton} role="status" aria-label={item.loading} />
+            ) : 'control' in item ? (
               <span className={styles.crumbControl}>{item.control}</span>
             ) : last || !item.href ? (
               <b

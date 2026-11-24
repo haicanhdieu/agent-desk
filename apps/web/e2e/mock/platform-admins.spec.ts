@@ -298,8 +298,8 @@ test.describe('BR-15: revoking your own platform access with another working adm
 
     // Home: `/` hands over to the active org's projects, so the browser has left /platform for the org.
     await expect(page).toHaveURL(new RegExp(`/o/${ORG}/projects`));
-    await page.getByRole('button', { name: /^(Switch organization|Organization menu)/ }).click();
-    const orgs = page.getByRole('dialog', { name: 'Organizations' });
+    await page.getByRole('button', { name: /^Switch scope/ }).click();
+    const orgs = page.getByRole('dialog', { name: 'Scope' });
     await expect(orgs).toBeVisible();
     await expect(orgs.getByText('Platform admin')).toHaveCount(0);
 

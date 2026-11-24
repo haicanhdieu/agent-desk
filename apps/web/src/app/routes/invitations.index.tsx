@@ -66,7 +66,7 @@ function WelcomePage() {
   } else if (access.data === undefined) {
     state = { kind: 'loading' };
   } else {
-    state = { kind: 'empty', email, platformAdmin, createHref: '/orgs/new' };
+    state = { kind: 'empty', email, platformAdmin, createHref: '/platform/orgs/new' };
   }
 
   const declineBusy = decline.isPending;

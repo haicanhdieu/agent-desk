@@ -27,3 +27,5 @@ type Story = StoryObj<typeof meta>;
 export const Active: Story = {};
 export const Suspended: Story = { args: { status: 'suspended' } };
 export const WithEdit: Story = { args: { onEdit: fn() } };
+export const WithOpenLink: Story = { args: { openHref: '/o/acme/projects' } };
+export const WithoutOpenLink: Story = {};

@@ -110,9 +110,11 @@ describe('welcome page without invitations', () => {
     await renderRoute('/', { scenario: () => scenarios.onboarding('platformAdminNoOrg') });
     expect(await screen.findByRole('heading', { name: "You're not a member of any organization" })).toBeInTheDocument();
     expect(screen.getByText('Create an organization and invite its first owner.')).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Create organization' })).toHaveAttribute('href', '/orgs/new');
+    expect(screen.getByRole('link', { name: 'Create organization' })).toHaveAttribute('href', '/platform/orgs/new');
     expect(screen.getByRole('button', { name: 'Sign out' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Switch organization' })).toHaveTextContent('No organization');
+    expect(screen.getByRole('button', { name: 'Switch scope, currently no organization' })).toHaveTextContent(
+      'No organization',
+    );
   });
 
   it('shows the error state when the access check fails, instead of hiding Create organization', async () => {
@@ -235,18 +237,18 @@ const ownerWithInvitations = () => {
   mockDb.state.auth = { signedIn: true, activeOrganizationId: ids.org.alice };
 };
 
-const mainNav = () => screen.queryByRole('navigation', { name: 'Main' });
+const mainNav = () => screen.queryByRole('navigation', { name: 'Organization sections' });
 
 describe('welcome page under the app bar', () => {
   it('BR-43 / BR-13 an owner sees the org bar with no tab active and Settings in the org menu', async () => {
     const { user } = await renderRoute('/invitations', { scenario: ownerWithInvitations });
     await screen.findByRole('heading', { level: 1, name: 'Invitations' });
-    const nav = await screen.findByRole('navigation', { name: 'Main' });
+    const nav = await screen.findByRole('navigation', { name: 'Organization sections' });
     expect(within(nav).getByRole('link', { name: 'Projects' })).not.toHaveAttribute('aria-current');
-    expect(await within(nav).findByRole('link', { name: 'Settings' })).not.toHaveAttribute('aria-current');
-    await user.click(screen.getByRole('button', { name: /^Organization menu/ }));
-    const menu = await screen.findByRole('dialog', { name: 'Organizations' });
-    expect(within(menu).getByRole('link', { name: 'Settings' })).toHaveAttribute('href', '/o/alice/settings');
+    expect(await within(nav).findByRole('link', { name: 'Org settings' })).not.toHaveAttribute('aria-current');
+    await user.click(screen.getByRole('button', { name: /^Switch scope/ }));
+    const menu = await screen.findByRole('dialog', { name: 'Scope' });
+    expect(within(menu).getByRole('link', { name: 'Org settings' })).toHaveAttribute('href', '/o/alice/settings');
   });
 
   it('BR-43 a person with no org sees "No organization", the bell and no tabs', async () => {

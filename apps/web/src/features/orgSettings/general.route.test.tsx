@@ -17,7 +17,8 @@ const noAccess = () => screen.findByText("You don't have access");
 const nameInput = () => screen.getByLabelText('Name');
 const urlInput = () => screen.getByLabelText('URL');
 const save = () => screen.getByRole('button', { name: 'Save' });
-const orgButton = (name: string) => screen.getByRole('button', { name: `Organization menu, ${name}` });
+const orgButton = (name: string) =>
+  screen.getByRole('button', { name: `Switch scope, currently organization ${name}` });
 const orgPath = `/api/orgs/${ids.org.alice}`;
 const patches = () => mockDb.requests('PATCH', orgPath);
 

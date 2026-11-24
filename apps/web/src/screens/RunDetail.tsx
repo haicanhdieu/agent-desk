@@ -217,7 +217,10 @@ export function RunDetail({
           org={org}
           // The run bar shows the name only; the repo link belongs to the project bar.
           project={{ name: projectName }}
-          run={runCrumb ?? { runsHref: links?.runs ?? '/runs', label: `Run ${run.id}` }}
+          crumbs={[
+            { label: 'Runs', href: runCrumb?.runsHref ?? links?.runs ?? '/runs' },
+            { label: runCrumb?.label ?? `Run ${run.id}` },
+          ]}
           actions={actions}
         >
           {reopened ? (

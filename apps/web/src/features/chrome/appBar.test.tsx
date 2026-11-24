@@ -7,7 +7,7 @@ import { tenantAccessFixtures } from '@/mocks/dto/access';
 import { accessKeys } from '../access/keys';
 import { setActiveOrganization, type Session } from '../auth/session';
 import { toAccess } from '../access/queries';
-import { canOpenSettings, firstSettingsTab, orgSettingsTabs, useAppBar } from './appBar';
+import { canOpenSettings, firstSettingsTab, openOrgHref, orgSettingsTabs, useAppBar } from './appBar';
 
 const apiMock = vi.hoisted(() => ({ access: vi.fn(), listInvitations: vi.fn(), platform: vi.fn() }));
 vi.mock('@/features/api', () => ({ api: { me: apiMock } }));
@@ -136,7 +136,7 @@ describe('useAppBar', () => {
     expect(result.current.org.current?.slug).toBe('acme');
     expect(result.current.org.orgs).toHaveLength(2);
     expect(result.current.org.orgHref({ id: 'org-b', slug: 'beta', name: 'Beta' })).toBe('/o/beta/projects');
-    expect(result.current.org.createHref).toBe('/orgs/new');
+    expect(result.current.org.createHref).toBe('/platform/orgs/new');
   });
 
   it('personal pages (null slug) use the session access and the active org', async () => {
@@ -178,6 +178,34 @@ describe('useAppBar', () => {
     expect(personal.result.current.org.platformAdmin).toBe(true);
   });
 
+  it('the logo of a platform admin with no org goes to Platform > Organizations', async () => {
+    apiMock.access.mockResolvedValue(tenantAccessFixtures.noRole);
+    apiMock.platform.mockResolvedValue({ platformAdmin: true });
+    const client = makeClient();
+    client.setQueryData(['session', 'orgs'], []);
+    client.setQueryData(['session'], { ...session, activeOrganizationId: null });
+    const { result } = renderHook(() => useAppBar(null), { wrapper: setup(client) });
+    await waitFor(() => expect(result.current.org.projectsHref).toBe('/platform/orgs'));
+  });
+
+  it('the logo of a platform admin who has an org keeps the org projects target', async () => {
+    apiMock.access.mockResolvedValue(tenantAccessFixtures.member);
+    apiMock.platform.mockResolvedValue({ platformAdmin: true });
+    const { result } = renderHook(() => useAppBar(null), { wrapper: setup() });
+    await waitFor(() => expect(result.current.org.platformAdmin).toBe(true));
+    expect(result.current.org.projectsHref).toBe('/o/beta/projects');
+  });
+
+  it('the logo of a person with no org who is not a platform admin keeps today target', async () => {
+    const client = makeClient();
+    client.setQueryData(['session', 'orgs'], []);
+    client.setQueryData(['session'], { ...session, activeOrganizationId: null });
+    apiMock.platform.mockResolvedValue({ platformAdmin: false });
+    const { result } = renderHook(() => useAppBar(null), { wrapper: setup(client) });
+    await settled(client, accessKeys.platform());
+    expect(result.current.org.projectsHref).toBeUndefined();
+  });
+
   it('BR-1: a person who is not a platform admin gets no platformHref', async () => {
     apiMock.access.mockResolvedValue(tenantAccessFixtures.owner);
     const client = makeClient();
@@ -195,5 +223,46 @@ describe('useAppBar', () => {
     await settled(client, accessKeys.platform());
     expect(client.getQueryState(accessKeys.platform())?.status).toBe('error');
     expect(result.current.org.platformHref).toBeUndefined();
+  });
+
+  it('a platform admin gets manageHref for the current org, matched by id', async () => {
+    apiMock.access.mockResolvedValue(tenantAccessFixtures.member);
+    apiMock.platform.mockResolvedValue({ platformAdmin: true });
+    const { result } = renderHook(() => useAppBar('acme'), { wrapper: setup() });
+    await waitFor(() => expect(result.current.org.manageHref).toBe('/platform/orgs/org-a'));
+  });
+
+  it('a person who is not a platform admin gets no manageHref', async () => {
+    apiMock.access.mockResolvedValue(tenantAccessFixtures.owner);
+    const client = makeClient();
+    const { result } = renderHook(() => useAppBar('acme'), { wrapper: setup(client) });
+    await settled(client, accessKeys.platform());
+    expect(result.current.org.manageHref).toBeUndefined();
+  });
+
+  it('a platform admin with no current org gets no manageHref', async () => {
+    apiMock.platform.mockResolvedValue({ platformAdmin: true });
+    const client = makeClient();
+    client.setQueryData(['session', 'orgs'], []);
+    client.setQueryData(['session'], { ...session, activeOrganizationId: null });
+    const { result } = renderHook(() => useAppBar(null), { wrapper: setup(client) });
+    await waitFor(() => expect(result.current.org.platformAdmin).toBe(true));
+    expect(result.current.org.manageHref).toBeUndefined();
+  });
+});
+
+describe('openOrgHref', () => {
+  const memberships = [
+    { id: 'org-a', slug: 'acme' },
+    { id: 'org-b', slug: 'beta' },
+  ];
+  it('returns the projects page of the membership with that id', () => {
+    expect(openOrgHref(memberships, 'org-b')).toBe('/o/beta/projects');
+  });
+  it('returns undefined for an id that is not a membership', () => {
+    expect(openOrgHref(memberships, 'org-z')).toBeUndefined();
+  });
+  it('matches ids, never slugs', () => {
+    expect(openOrgHref(memberships, 'acme')).toBeUndefined();
   });
 });

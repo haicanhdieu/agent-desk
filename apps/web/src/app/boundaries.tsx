@@ -2,7 +2,15 @@ import { ApiError } from '@agentdesk/contracts/client';
 import { useQueryErrorResetBoundary } from '@tanstack/react-query';
 import { useRouter, useRouterState, type ErrorComponentProps } from '@tanstack/react-router';
 import { useEffect } from 'react';
-import { EmptyState, RouteLoadError, RouteSkeleton, TopBar } from '@/components';
+import {
+  EmptyState,
+  NO_PAGE_CRUMBS,
+  RouteLoadError,
+  RouteSkeleton,
+  TopBar,
+  pageTitle,
+  useDocumentTitle,
+} from '@/components';
 import { Button, type ToastInput } from '@/ds';
 import { ORG_SWITCHED_MESSAGE, isOrgMismatch } from '@/features/auth/orgResync';
 import { isOrgSuspendedError } from '@/features/auth/orgSuspended';
@@ -30,6 +38,7 @@ function ProjectsLink() {
 }
 
 export function NotFound() {
+  useDocumentTitle(pageTitle({ crumbs: NO_PAGE_CRUMBS, state: 'notFound' }));
   return (
     <div className={styles.page}>
       <EmptyState
@@ -41,7 +50,9 @@ export function NotFound() {
   );
 }
 
-export function Forbidden() {
+/** `titled={false}` when a TopBar rendered beside it already owns the page title (one title source per page). */
+export function Forbidden({ titled = true }: { titled?: boolean } = {}) {
+  useDocumentTitle(titled ? pageTitle({ crumbs: NO_PAGE_CRUMBS, state: 'forbidden' }) : undefined);
   return (
     <div className={styles.page}>
       <EmptyState
@@ -58,10 +69,11 @@ export function PlatformForbidden() {
   const bar = useAppBar(null);
   return (
     <>
-      <TopBar variant="global" user={bar.user} org={bar.org} tabs="org" />
+      <TopBar variant="global" crumbs={NO_PAGE_CRUMBS} state="forbidden" user={bar.user} org={bar.org} tabs="org" />
       <div className={styles.page}>
         <EmptyState
           title="You don't have access"
+          headingLevel={1}
           body="This area is for platform admins."
           action={
             <Button href="/projects" variant="primary">
@@ -84,7 +96,7 @@ export function SuspendedOrgPage() {
   const name = bar.org.orgs.find((o) => o.slug === slug)?.name ?? 'this organization';
   return (
     <>
-      <TopBar variant="global" user={bar.user} org={bar.org} tabs="org" />
+      <TopBar variant="global" crumbs={NO_PAGE_CRUMBS} user={bar.user} org={bar.org} tabs="org" />
       <OrgSuspended orgName={name} />
     </>
   );

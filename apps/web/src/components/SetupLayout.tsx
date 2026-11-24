@@ -49,9 +49,17 @@ export function SetupLayout({
   aside,
   footer,
 }: SetupLayoutProps) {
+  const projectsHref = org?.projectsHref ?? '/projects';
   return (
     <>
-      <TopBar variant="global" user={user} org={org} tabs="org" active="projects" />
+      <TopBar
+        variant="global"
+        crumbs={[{ label: 'Projects', href: projectsHref }, { label: 'New project' }]}
+        user={user}
+        org={org}
+        tabs="org"
+        active="projects"
+      />
       <div className={styles.setup}>
         <aside className={styles.setupLeft} aria-label="Setup progress">
           <div className={styles.setupHead}>

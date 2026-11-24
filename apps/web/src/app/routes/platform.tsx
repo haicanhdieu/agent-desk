@@ -2,13 +2,14 @@ import { ApiError } from '@agentdesk/contracts/client';
 import { useQuery } from '@tanstack/react-query';
 import { createFileRoute, Outlet, useMatch, useRouterState, type ErrorComponentProps } from '@tanstack/react-router';
 import { PlatformForbidden, RouteError } from '@/app/boundaries';
-import { PlatformLayout, TopBar, type OrgSwitchProps, type PlatformLayoutProps } from '@/components';
+import { PlatformLayout, TopBar, type PlatformLayoutProps, type PlatformOrgGroup } from '@/components';
 import { platformAdminQuery } from '@/features/access/queries';
 import { orgsQuery, sessionQuery } from '@/features/auth/session';
 import { useAppBar } from '@/features/chrome/appBar';
+import { platformCrumbs, type PlatformOrgCrumb } from '@/features/platform/crumbs';
 import { platformOrgQuery } from '@/features/platform/queries';
 
-// The platform area, outside any org: its own bar ("No organization", no tabs) and the side menu. Whether the caller
+// The platform area, outside any org: its own bar (scope "Platform", page crumbs, Platform sections tabs) and, inside one org, a side menu with the org group. Whether the caller
 // is a platform admin is read before any child loads (`GET /api/me/platform`); anyone else gets the forbidden state and no
 // platform request is sent. A 403 from a child platform query shows the same state. UI only: the API is the authority.
 export const Route = createFileRoute('/platform')({
@@ -34,51 +35,66 @@ function PlatformError(props: ErrorComponentProps) {
 
 const LINKS = { orgs: '/platform/orgs', admins: '/platform/admins', audit: '/platform/audit' };
 
-/** The platform area has no organization: the bar reads "No organization" and offers no org menu. */
-const NO_ORG: OrgSwitchProps = {
-  current: null,
-  orgs: [],
-  platformAdmin: false,
-  orgHref: (o) => `/o/${encodeURIComponent(o.slug)}/projects`,
-  createHref: '/orgs/new',
-};
-
 function useActive(): PlatformLayoutProps['active'] {
-  const segment = useRouterState({ select: (s) => /^\/platform\/([^/]+)/.exec(s.location.pathname)?.[1] });
   const orgPage = useRouterState({ select: (s) => /^\/platform\/orgs\/[^/]+(?:\/([^/]+))?/.exec(s.location.pathname) });
-  if (orgPage) {
-    const section = orgPage[1];
-    return section === 'projects' || section === 'members' || section === 'invitations' ? section : 'overview';
-  }
-  return segment === 'orgs' || segment === 'audit' ? segment : 'admins';
+  if (!orgPage) return undefined;
+  const section = orgPage[1];
+  return section === 'projects' || section === 'members' || section === 'invitations' ? section : 'overview';
 }
 
-/** Inside one org the side menu adds the group "<org name>". The org is the page's own query, so it is read once. */
-function useOrgGroup(): PlatformLayoutProps['org'] {
+/**
+ * Inside one org the side menu holds the org group and the bar names the org. The org is the page's own query, so it
+ * is read once for both. The links come from the URL id, so a failed read still links.
+ */
+function useOrgGroup(): { org: PlatformOrgGroup | undefined; crumb: PlatformOrgCrumb } {
   const match = useMatch({ from: '/platform/orgs/$orgId', shouldThrow: false });
   const orgId = match?.params.orgId ?? '';
-  const { data } = useQuery({ ...platformOrgQuery(orgId), enabled: match !== undefined });
-  if (match === undefined || data === undefined) return undefined;
-  const base = `/platform/orgs/${encodeURIComponent(data.id)}`;
-  return {
-    name: data.name,
-    links: {
+  const { data, isPending, error } = useQuery({ ...platformOrgQuery(orgId), enabled: match !== undefined });
+  if (match === undefined) return { org: undefined, crumb: { state: 'none' } };
+  const linksFor = (id: string) => {
+    const base = `/platform/orgs/${encodeURIComponent(id)}`;
+    return {
       overview: base,
       projects: `${base}/projects`,
       members: `${base}/members`,
       invitations: `${base}/invitations`,
-    },
+    };
+  };
+  if (data === undefined) {
+    if (error instanceof ApiError && error.status === 404) return { org: undefined, crumb: { state: 'notFound' } };
+    if (error) {
+      return {
+        org: { state: 'error', name: 'Organization', links: linksFor(orgId) },
+        crumb: { state: 'error', id: orgId },
+      };
+    }
+    return isPending
+      ? { org: { state: 'loading' }, crumb: { state: 'loading' } }
+      : { org: undefined, crumb: { state: 'none' } };
+  }
+  return {
+    org: { state: 'ready', name: data.name, links: linksFor(data.id) },
+    crumb: { state: 'ready', id: data.id, name: data.name },
   };
 }
 
 function PlatformShell() {
   const bar = useAppBar(null);
   const active = useActive();
-  const org = useOrgGroup();
+  const { org, crumb } = useOrgGroup();
+  const pathname = useRouterState({ select: (st) => st.location.pathname });
+  const { crumbs, state, tab } = platformCrumbs(pathname, crumb);
   return (
     <>
-      <TopBar variant="global" user={bar.user} org={NO_ORG} tabs="none" />
-      <PlatformLayout active={active} links={LINKS} org={org}>
+      <TopBar
+        variant="platform"
+        crumbs={crumbs}
+        state={state}
+        user={bar.user}
+        org={{ ...bar.org, scope: 'platform' }}
+        platformTabs={{ active: tab, links: LINKS }}
+      />
+      <PlatformLayout active={active} org={org}>
         <Outlet />
       </PlatformLayout>
     </>

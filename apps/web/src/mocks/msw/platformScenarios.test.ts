@@ -42,7 +42,15 @@ describe('platform scenarios', () => {
       'manyAudit',
       'platformOrgTabsEmpty',
       'platformOrgFewProjects',
+      'platformAdminMemberOrg',
     ]);
+  });
+
+  it('platformAdminMemberOrg: the directory lists the org the admin belongs to, with the same id as the membership', async () => {
+    scenarios.platform('platformAdminMemberOrg');
+    const org = await api.platform.getOrg({ params: { orgId: ids.org.alice } });
+    expect(org.slug).toBe('alice');
+    expect(mockDb.state.memberships.map((m) => m.orgId)).toContain(org.id);
   });
 
   it('parsePlatformScenario rejects unknown names', () => {

@@ -62,10 +62,12 @@ for (const role of ['member', 'viewer'] as const) {
 
     test('has no Settings tab on the runs page and no Desk data is requested there', async ({ page }) => {
       const seen = await open(page, role, `/o/acme/p/${P1}/runs`);
-      await expect(page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: /^Runs/ })).toBeVisible();
-      await expect(page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Settings' })).toHaveCount(
-        0,
-      );
+      await expect(
+        page.getByRole('navigation', { name: 'Project sections' }).getByRole('link', { name: /^Runs/ }),
+      ).toBeVisible();
+      await expect(
+        page.getByRole('navigation', { name: 'Project sections' }).getByRole('link', { name: 'Project settings' }),
+      ).toHaveCount(0);
       expect(seen.filter((p) => DESK_DATA.test(p))).toEqual([]);
     });
 
@@ -90,7 +92,7 @@ test.describe('an admin', () => {
     test(`opens the Desk ${tab} page by direct URL`, async ({ page }) => {
       await open(page, 'orgAdmin', `/o/acme/p/${P1}/desk/${tab}`);
       await expect(
-        page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Settings' }),
+        page.getByRole('navigation', { name: 'Project sections' }).getByRole('link', { name: 'Project settings' }),
       ).toBeVisible();
       await expect(forbidden(page)).toHaveCount(0);
     });

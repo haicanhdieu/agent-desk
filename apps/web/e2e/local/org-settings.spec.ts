@@ -91,11 +91,12 @@ async function orgAsOwnerSees(w: World): Promise<{ name: string; slug: string }>
 const generalUrl = (slug: string): string => `/o/${slug}/settings/general`;
 const projectsUrl = (slug: string): string => `/o/${slug}/projects`;
 const membersUrl = (slug: string): string => `/o/${slug}/settings/members`;
-const mainNav = (page: Page): Locator => page.getByRole('navigation', { name: 'Main' });
-const settingsTab = (page: Page): Locator => mainNav(page).getByRole('link', { name: 'Settings', exact: true });
+const mainNav = (page: Page): Locator => page.getByRole('navigation', { name: 'Organization sections' });
+const settingsTab = (page: Page): Locator => mainNav(page).getByRole('link', { name: 'Org settings', exact: true });
 const sideMenu = (page: Page): Locator => page.getByRole('navigation', { name: 'Organization settings' });
-const crumb = (page: Page, name: string): Locator => page.getByRole('button', { name: `Organization menu, ${name}` });
-const orgMenu = (page: Page): Locator => page.getByRole('dialog', { name: 'Organizations' });
+const crumb = (page: Page, name: string): Locator =>
+  page.getByRole('button', { name: `Switch scope, currently organization ${name}` });
+const orgMenu = (page: Page): Locator => page.getByRole('dialog', { name: 'Scope' });
 const h1 = (page: Page, name: string): Locator => page.getByRole('heading', { level: 1, name });
 const nameInput = (page: Page): Locator => page.getByLabel('Name', { exact: true });
 const slugInput = (page: Page): Locator => page.getByLabel('URL', { exact: true });
@@ -137,7 +138,7 @@ test('TC-2.4: member B and viewer V see no Settings tab or item, and the typed m
       await expect(mainNav(page).getByRole('link', { name: 'Projects', exact: true })).toBeVisible();
       await expect(settingsTab(page)).toHaveCount(0);
       const menu = await openOrgMenu(page, w.org.name);
-      await expect(menu.getByRole('link', { name: 'Settings' })).toHaveCount(0);
+      await expect(menu.getByRole('link', { name: 'Org settings' })).toHaveCount(0);
       await page.keyboard.press('Escape');
 
       await page.goto(membersUrl(w.org.slug));

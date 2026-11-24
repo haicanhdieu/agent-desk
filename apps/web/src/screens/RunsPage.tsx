@@ -80,6 +80,7 @@ export function RunsPage({
     <>
       <TopBar
         variant="project"
+        crumbs={[{ label: 'Runs' }]}
         active="runs"
         user={user}
         org={org}

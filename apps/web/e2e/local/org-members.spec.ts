@@ -183,7 +183,9 @@ const roleDialog = (page: Page, name: string): Locator =>
 const card = (scope: Locator, role: string): Locator => scope.getByRole('radio', { name: new RegExp(`^${role}`) });
 const okToast = (page: Page, title: string): Locator => page.getByRole('status').filter({ hasText: title });
 const settingsTab = (page: Page): Locator =>
-  page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Settings', exact: true });
+  page
+    .getByRole('navigation', { name: 'Organization sections' })
+    .getByRole('link', { name: 'Org settings', exact: true });
 
 async function openMembers(page: Page, w: World): Promise<void> {
   await page.goto(membersUrl(w));
@@ -478,9 +480,9 @@ test('TC-6.2: after B is removed, B reloads: the removed org is not in the org m
     await b.page.goto(projectsUrl(w));
     await expect(b.page.getByRole('heading', { level: 1, name: 'Projects' })).toBeVisible();
     // Before: both orgs are in the menu.
-    const menuButtonOf = b.page.getByRole('button', { name: /^(Switch organization|Organization menu)/ });
+    const menuButtonOf = b.page.getByRole('button', { name: /^Switch scope/ });
     await menuButtonOf.click();
-    const menuBefore = b.page.getByRole('dialog', { name: 'Organizations' });
+    const menuBefore = b.page.getByRole('dialog', { name: 'Scope' });
     await expect(menuBefore).toContainText(w.org.name);
     await expect(menuBefore).toContainText(second.name);
     await b.page.keyboard.press('Escape');
@@ -492,7 +494,7 @@ test('TC-6.2: after B is removed, B reloads: the removed org is not in the org m
     await b.page.reload();
     await expect(b.page.getByRole('heading', { level: 1, name: 'Projects' })).toBeVisible();
     await menuButtonOf.click();
-    const menu = b.page.getByRole('dialog', { name: 'Organizations' });
+    const menu = b.page.getByRole('dialog', { name: 'Scope' });
     await expect(menu).toBeVisible();
     await expect(menu).toContainText(second.name);
     await expect(menu).not.toContainText(w.org.name);
@@ -635,8 +637,12 @@ test('TC-10.1: O invites B again as Viewer; B accepts and is listed with Viewer,
     await b.page.goto(runsUrl(w));
     await b.page.reload();
     await expect(b.page).toHaveURL(new RegExp(`/o/${w.org.slug}/p/${w.projectId}/runs$`));
-    await expect(b.page.getByRole('navigation', { name: 'Main' })).toBeVisible();
-    await expect(settingsTab(b.page)).toHaveCount(0);
+    await expect(b.page.getByRole('navigation', { name: 'Project sections' })).toBeVisible();
+    await expect(
+      b.page
+        .getByRole('navigation', { name: 'Project sections' })
+        .getByRole('link', { name: 'Project settings', exact: true }),
+    ).toHaveCount(0);
     const access = AccessDto.parse(await ok(await b.api.get('/api/me/access'), 200, 'B access'));
     const permissions = access.assignments.flatMap((a) => a.permissions.map((p) => p.permission));
     expect(permissions, 'B can read the project').toContain('project:read');

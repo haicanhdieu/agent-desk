@@ -48,8 +48,8 @@ function ProjectsForbidden() {
   const bar = useAppBar(org);
   return (
     <>
-      <TopBar variant="global" user={bar.user} org={bar.org} />
-      <Forbidden />
+      <TopBar variant="global" crumbs={[{ label: 'Projects' }]} state="forbidden" user={bar.user} org={bar.org} />
+      <Forbidden titled={false} />
     </>
   );
 }

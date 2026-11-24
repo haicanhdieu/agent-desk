@@ -53,7 +53,10 @@ const runsUrl = (): string => `/o/${cast.slug}/p/${cast.p1}/runs`;
 /** Opens P1 → Settings → Members through the Settings tab and the Desk side menu. */
 async function openMembers(who: Actor): Promise<void> {
   await who.page.goto(runsUrl());
-  await who.page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Settings', exact: true }).click();
+  await who.page
+    .getByRole('navigation', { name: 'Project sections' })
+    .getByRole('link', { name: 'Project settings', exact: true })
+    .click();
   await who.page.getByRole('navigation', { name: 'Desk' }).getByRole('link', { name: 'Members' }).click();
   await expect(membersHeading(who.page)).toBeVisible();
 }
@@ -323,8 +326,8 @@ test.describe('BR-5: A adds an org member to P1', () => {
 
       await d.page.goto(runsUrl());
       await d.page
-        .getByRole('navigation', { name: 'Main' })
-        .getByRole('link', { name: 'Settings', exact: true })
+        .getByRole('navigation', { name: 'Project sections' })
+        .getByRole('link', { name: 'Project settings', exact: true })
         .click();
       const menu = d.page.getByRole('navigation', { name: 'Desk' });
       await expect(menu.getByRole('link', { name: 'Members' })).toBeVisible();

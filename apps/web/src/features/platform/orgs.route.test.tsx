@@ -31,6 +31,14 @@ const withOrgs = (orgs: PlatformOrgDto[]) => () => {
 };
 
 describe('Organizations directory', () => {
+  it('has the Platform sections tabs with Organizations current and no side menu', async () => {
+    await renderRoute('/platform/orgs', { scenario: withOrgs([org(1)]) });
+    await ready();
+    const tabs = screen.getByRole('navigation', { name: 'Platform sections' });
+    expect(within(tabs).getByRole('link', { name: 'Organizations' })).toHaveAttribute('aria-current', 'page');
+    expect(screen.queryByRole('navigation', { name: 'Platform admin' })).toBeNull();
+  });
+
   it('BR-18: lists the orgs newest first with the columns', async () => {
     await renderRoute('/platform/orgs', { scenario: withOrgs([org(1), org(3), org(2)]) });
     await ready();
@@ -117,10 +125,10 @@ describe('Organizations directory', () => {
     expect(screen.getByRole('combobox', { name: 'Status' })).toHaveValue('all');
   });
 
-  it('BR-21: "Create organization" goes to /orgs/new', async () => {
+  it('BR-21: "Create organization" goes to /platform/orgs/new', async () => {
     await renderRoute('/platform/orgs', { scenario: asAdmin });
     await ready();
-    expect(screen.getByRole('link', { name: 'Create organization' })).toHaveAttribute('href', '/orgs/new');
+    expect(screen.getByRole('link', { name: 'Create organization' })).toHaveAttribute('href', '/platform/orgs/new');
   });
 
   it('BR-4: shows the empty state', async () => {

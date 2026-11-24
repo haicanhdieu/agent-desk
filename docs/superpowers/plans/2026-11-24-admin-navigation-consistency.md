@@ -92,15 +92,15 @@ None. No new package, library, service, image, CI action or workspace package.
 **Interfaces:**
 - Produces: `export function SkipLink(): JSX.Element` (an `<a href="#main">` reading "Skip to main content").
 
-- [ ] **Step 1: Write the failing tests** in `SkipLink.test.tsx`:
+- [x] **Step 1: Write the failing tests** in `SkipLink.test.tsx`:
   - `it('is a link named "Skip to main content"')`.
   - `it('moves focus to main on activation')`: render `<><SkipLink /><main><h1>x</h1></main></>`, `await user.tab()`, expect the link focused, `await user.keyboard('{Enter}')`, expect `screen.getByRole('main')` to have focus and `tabIndex === -1`.
   - `it('does nothing when the page has no main')`: no throw, focus stays.
   - `apps/web/src/app/shell.test.tsx` (existing): `it('the skip link is the first focusable element')`: render a route, `user.tab()`, active element name "Skip to main content".
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/components/SkipLink.test.tsx src/app/shell.test.tsx`. Expected: FAIL (no module).
-- [ ] **Step 3: Implement** `SkipLink` (click handler `preventDefault`, find `document.querySelector('main')`, set `tabIndex = -1` if absent, `focus()`); CSS: off-screen until `:focus-visible`, then a token-styled pill at the top left (`var(--surface)`, `var(--text)`, `var(--radius-6)`, `--fs-13`; offsets copied from board ProjectsShellSkipLink). Render it first in `RootLayout`. Stories: `Default`, `Focused` (play function focuses it).
-- [ ] **Step 4: Run** Step 2's command plus `pnpm --filter @agentdesk/web exec vitest run src/test/stories.smoke.test.tsx`. Expected: PASS.
-- [ ] **Step 5: Commit** `feat(web): skip to main content link`.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/components/SkipLink.test.tsx src/app/shell.test.tsx`. Expected: FAIL (no module).
+- [x] **Step 3: Implement** `SkipLink` (click handler `preventDefault`, find `document.querySelector('main')`, set `tabIndex = -1` if absent, `focus()`); CSS: off-screen until `:focus-visible`, then a token-styled pill at the top left (`var(--surface)`, `var(--text)`, `var(--radius-6)`, `--fs-13`; offsets copied from board ProjectsShellSkipLink). Render it first in `RootLayout`. Stories: `Default`, `Focused` (play function focuses it).
+- [x] **Step 4: Run** Step 2's command plus `pnpm --filter @agentdesk/web exec vitest run src/test/stories.smoke.test.tsx`. Expected: PASS.
+- [x] **Step 5: Commit** `feat(web): skip to main content link`.
 
 ### Task 2: `useDocumentTitle` and `pageTitle`, titles on not-found and forbidden pages
 
@@ -123,14 +123,14 @@ export function pageTitle(input: { crumbs: readonly PageCrumb[]; scope?: string;
 export function useDocumentTitle(title: string): void; // sets on change, restores the previous title on unmount
 ```
 
-- [ ] **Step 1: Write the failing tests.**
+- [x] **Step 1: Write the failing tests.**
   - `pageTitle.test.ts`: `[{label:'Organizations',href:'/x'},{label:'Harbor Labs',href:'/y'},{label:'Members'}]`, scope `'Platform'` → `'Members · Platform · Agent Desk'`; `[{label:'Projects'}]`, `'Harbor Labs'` → `'Projects · Harbor Labs · Agent Desk'`; `[{label:'Runs',href:'/r'},{label:'Run 62'}]`, `'invoicer-api'` → `'Run 62 · invoicer-api · Agent Desk'`; last crumb loading → uses the previous label (`'Organizations · Platform · Agent Desk'`); `state:'notFound'` → `'Not found · Agent Desk'`; `state:'forbidden'` → `"You don't have access · Agent Desk"`; no crumbs and no scope → `'Agent Desk'`.
   - `useDocumentTitle.test.tsx`: sets `document.title`; a rerender with a new title updates it; unmount restores the title from before mount.
   - `apps/web/src/app/orgRoute.test.tsx` (existing file): `it('an unknown route sets the title "Not found · Agent Desk"')`.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/components/pageTitle.test.ts src/components/useDocumentTitle.test.tsx src/app/orgRoute.test.tsx`. Expected: FAIL.
-- [ ] **Step 3: Implement** both in the files above (`useEffect` with the previous title captured on mount); call `useDocumentTitle(pageTitle({ crumbs: NO_PAGE_CRUMBS, state }))` in `NotFound` (notFound) and `Forbidden` (forbidden). Agent call: `RouteError` gets no title (the spec names only not found and forbidden).
-- [ ] **Step 4: Run** Step 2's command. Expected: PASS.
-- [ ] **Step 5: Commit** `feat(web): page title helper and titles on not-found and forbidden pages`.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/components/pageTitle.test.ts src/components/useDocumentTitle.test.tsx src/app/orgRoute.test.tsx`. Expected: FAIL.
+- [x] **Step 3: Implement** both in the files above (`useEffect` with the previous title captured on mount); call `useDocumentTitle(pageTitle({ crumbs: NO_PAGE_CRUMBS, state }))` in `NotFound` (notFound) and `Forbidden` (forbidden). Agent call: `RouteError` gets no title (the spec names only not found and forbidden).
+- [x] **Step 4: Run** Step 2's command. Expected: PASS.
+- [x] **Step 5: Commit** `feat(web): page title helper and titles on not-found and forbidden pages`.
 
 ### Task 3: Distinct landmark names and the scope button label, plus e2e
 
@@ -145,12 +145,12 @@ export function useDocumentTitle(title: string): void; // sets on change, restor
 - Consumes: Tasks 1, 2.
 - Produces: button names `Switch scope, currently organization <name>` (org shown, whether or not the person can switch), `Switch scope, currently no organization` (no org shown, platform admin); dialog `Scope`; navs `Organization sections`, `Project sections`.
 
-- [ ] **Step 1: Write the failing tests.**
+- [x] **Step 1: Write the failing tests.**
   - `OrgSwitch.test.tsx`: `it('names the button "Switch scope, currently organization Harbor Labs"')` for `oneOrg` and for `twoOrgs`; `it('names the menu dialog "Scope"')`; `it('a platform admin with no org gets "Switch scope, currently no organization"')`.
   - `Chrome.test.tsx`: `it('no nav is named "Main" on any bar')` (org, project and run variants: `queryByRole('navigation', { name: 'Main' })` null); `it('the org tabs nav is "Organization sections" and the project tabs nav "Project sections"')`.
   - `e2e/mock/nav-shell.spec.ts` (`test.describe('accessibility')`, scenario `seedOnboarding(page, 'owner')`): `test('the first Tab focuses "Skip to main content" and Enter focuses main')`; `test('the org page has one banner, one main and no two navs with the same name')` (collect `aria-label` of every `nav`, expect unique and no "Main"); `test('an unknown route is titled "Not found · Agent Desk"')`.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/components/OrgSwitch.test.tsx src/components/Chrome.test.tsx src/components/OrgNav.test.tsx`. Expected: FAIL.
-- [ ] **Step 3: Implement** the labels, then update every selector found by:
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/components/OrgSwitch.test.tsx src/components/Chrome.test.tsx src/components/OrgNav.test.tsx`. Expected: FAIL.
+- [x] **Step 3: Implement** the labels, then update every selector found by:
 
 ```bash
 grep -rlnE "name: 'Main'|\"Main\"" apps/web/src apps/web/e2e
@@ -158,7 +158,7 @@ grep -rlnE "Switch organization|Organization menu|name: 'Organizations'" apps/we
 ```
 
 Replace with the new names (regex helpers become `/^Switch scope/`; the dialog becomes `'Scope'`). Keep the "Switch organization" group label inside the menu (it is still that group's name). Do not touch assertions other than the names.
-- [ ] **Step 4: Run** `pnpm --filter @agentdesk/web test` (the whole web unit suite, since selectors moved), then
+- [x] **Step 4: Run** `pnpm --filter @agentdesk/web test` (the whole web unit suite, since selectors moved), then
 
 ```bash
 pnpm --filter @agentdesk/web exec vite build --mode mock
@@ -167,7 +167,7 @@ pnpm --filter @agentdesk/web exec playwright test $(git diff --name-only main --
 ```
 
 Expected: PASS. Local specs whose selectors changed: run them with the stack up (`devbox run dev`): `pnpm --filter @agentdesk/web exec playwright test $(git diff --name-only main -- apps/web/e2e/local | grep spec | sed 's#apps/web/##')`.
-- [ ] **Step 5: Commit** `feat(web): distinct nav landmarks and a scope-named org switch`.
+- [x] **Step 5: Commit** `feat(web): distinct nav landmarks and a scope-named org switch`.
 
 ---
 
@@ -200,7 +200,7 @@ export interface TopBarProps {
 export type BreadcrumbItem = { label: ReactNode; href?: string } | { control: ReactNode } | { loading: string };
 ```
 
-- [ ] **Step 1: Write the failing tests** in `Chrome.test.tsx`:
+- [x] **Step 1: Write the failing tests** in `Chrome.test.tsx`:
   - `it('every variant renders exactly one Breadcrumb nav')` (global with org, project, run).
   - `it('the project bar has no slash outside the Breadcrumb')` (no `aria-hidden` "/" sibling of the org crumb).
   - `it('page crumbs follow the scope and project crumbs; only the last has aria-current="page"')`: project variant, crumbs `[{label:'Project settings',href:'/d'},{label:'Skills'}]` → link "Project settings", `b[aria-current=page]` "Skills".
@@ -209,10 +209,10 @@ export type BreadcrumbItem = { label: ReactNode; href?: string } | { control: Re
   - `it('the run bar has no tabs and one bell')` (replaces the BR-46 "no bell" case; Agent call above).
   - `it('a 60-character org and project name keep ellipsis and title')`.
   - `// @ts-expect-error crumbs is required` on a `<TopBar variant="global" user={u} />` line inside a test.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/components/Chrome.test.tsx`. Expected: FAIL.
-- [ ] **Step 3: Implement**: build `items = [orgCrumb?, projectCrumb?, ...crumbs.map(toItem)]`, render `<Breadcrumb>` when non-empty on every variant; scope for the title is `project.name` on project/run variants, `org.current?.name` on global; bell in the run branch before `actions`. Stories: update every existing story with `crumbs`; add `RunLevelCrumbs`, `LoadingCrumb`, `LongNames`, `ForbiddenPage`.
-- [ ] **Step 4: Run** Step 2's command plus `src/test/stories.smoke.test.tsx`. Expected: PASS (typecheck fails at call sites until Task 5; do Task 5 before the commit if `devbox run fix` blocks, and commit both together).
-- [ ] **Step 5: Commit** (with Task 5) `feat(web): top bar renders one breadcrumb with page crumbs`.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/components/Chrome.test.tsx`. Expected: FAIL.
+- [x] **Step 3: Implement**: build `items = [orgCrumb?, projectCrumb?, ...crumbs.map(toItem)]`, render `<Breadcrumb>` when non-empty on every variant; scope for the title is `project.name` on project/run variants, `org.current?.name` on global; bell in the run branch before `actions`. Stories: update every existing story with `crumbs`; add `RunLevelCrumbs`, `LoadingCrumb`, `LongNames`, `ForbiddenPage`.
+- [x] **Step 4: Run** Step 2's command plus `src/test/stories.smoke.test.tsx`. Expected: PASS (typecheck fails at call sites until Task 5; do Task 5 before the commit if `devbox run fix` blocks, and commit both together).
+- [x] **Step 5: Commit** (with Task 5) `feat(web): top bar renders one breadcrumb with page crumbs`.
 
 ### Task 5: Every call site passes crumbs, guarded by a call-site inventory test
 
@@ -264,17 +264,17 @@ export function platformCrumbs(pathname: string, org: PlatformOrgCrumb): {
 export const TOP_BAR_CALL_SITES: Record<string, number>; // path under src → count, the 16 files above
 ```
 
-- [ ] **Step 1: Write the failing tests.**
+- [x] **Step 1: Write the failing tests.**
   - `topBarCallSites.test.ts` (reads files with `readdirSync(src, { recursive: true })` + `readFileSync`, like `coverage.test.ts`; skips `*.stories.tsx`, `*.test.tsx`; pattern `/<TopBar(?=[\s>])/g`):
     - `it('TopBar is rendered exactly at the listed call sites')`: map of file → count equals `TOP_BAR_CALL_SITES`. A new bar fails here until it is added to the list, which a reviewer sees.
     - `it('every call site passes crumbs and none passes a literal empty list')`: for each match take the JSX element text (from the match to the first `/>` at the element's own indentation, or the end of a one-line element), expect `/\bcrumbs=\{/` and not `/crumbs=\{\[\]\}/`.
   - `crumbs.test.ts`: `/platform/orgs` → `[Organizations]`, tab orgs; `/platform/orgs/abc` ready "Harbor Labs" → `[Organizations(href /platform/orgs), Harbor Labs]`; `/platform/orgs/abc/members` → `[Organizations, Harbor Labs(href /platform/orgs/abc), Members]`; loading → middle crumb `{loading:true, what:'organization'}`; error → label "Organization"; notFound → `[Organizations(href), Not found]`, `state:'notFound'`; `/platform/admins` → `[Platform admins]`, tab admins; `/platform/audit` → `[Audit log]`, tab audit; `/platform/orgs/new` → `[Organizations(href), Create organization]`, tab orgs.
   - `screens/runDetail.test.tsx`: `it('the bar reads Runs / Run 62 and the title never holds the ticket title')` (fixture ticket title with `<b>` markup).
   - `features/orgSettings/layout.route.test.tsx`: crumbs `Org settings / Members` on `/o/alice/settings/members`.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/test/topBarCallSites.test.ts src/features/platform/crumbs.test.ts src/screens/runDetail.test.tsx src/features/orgSettings/layout.route.test.tsx`. Expected: FAIL.
-- [ ] **Step 3: Implement**: pass crumbs at each call site per the table; in `platform.tsx` build `PlatformOrgCrumb` from the existing `useOrgGroup` query (`isPending` → loading, `ApiError` 404 → notFound, other error → error) and pass `platformCrumbs(pathname, org)`; the bar keeps `NO_ORG` until Task 8. Boundary components that now render a `TopBar` with `state` drop their own `useDocumentTitle` call (one title source per page). Register board `RunIdleShell` (story export `RunIdleShell` in `screens/shell.stories.tsx`, layout fullscreen, board viewport). Add the parity-notes entry (Agent call). Regenerate the interactive prototype: `node design/prototype/interactive/_tools/build-boards.mjs && node design/prototype/interactive/_checks/nav-check.mjs` (expect no diff beyond what the design commit already has).
-- [ ] **Step 4: Run** `pnpm --filter @agentdesk/web typecheck && pnpm --filter @agentdesk/web test`. Expected: PASS. Re-run the grep above: still 18 lines in 16 files.
-- [ ] **Step 5: Commit** `feat(web): every top bar passes its page crumbs` (with Task 4 if not committed).
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/test/topBarCallSites.test.ts src/features/platform/crumbs.test.ts src/screens/runDetail.test.tsx src/features/orgSettings/layout.route.test.tsx`. Expected: FAIL.
+- [x] **Step 3: Implement**: pass crumbs at each call site per the table; in `platform.tsx` build `PlatformOrgCrumb` from the existing `useOrgGroup` query (`isPending` → loading, `ApiError` 404 → notFound, other error → error) and pass `platformCrumbs(pathname, org)`; the bar keeps `NO_ORG` until Task 8. Boundary components that now render a `TopBar` with `state` drop their own `useDocumentTitle` call (one title source per page). Register board `RunIdleShell` (story export `RunIdleShell` in `screens/shell.stories.tsx`, layout fullscreen, board viewport). Add the parity-notes entry (Agent call). Regenerate the interactive prototype: `node design/prototype/interactive/_tools/build-boards.mjs && node design/prototype/interactive/_checks/nav-check.mjs` (expect no diff beyond what the design commit already has).
+- [x] **Step 4: Run** `pnpm --filter @agentdesk/web typecheck && pnpm --filter @agentdesk/web test`. Expected: PASS. Re-run the grep above: still 18 lines in 16 files.
+- [x] **Step 5: Commit** `feat(web): every top bar passes its page crumbs` (with Task 4 if not committed).
 
 ### Task 6: e2e for crumbs and titles
 
@@ -283,13 +283,13 @@ export const TOP_BAR_CALL_SITES: Record<string, number>; // path under src → c
 **Files:**
 - Modify: `apps/web/e2e/mock/nav-shell.spec.ts`; `apps/web/e2e/mock/top-bar.spec.ts` and `run-detail-layout.spec.ts` only where they asserted the old project-bar slash or no run bell
 
-- [ ] **Step 1: Write the tests** in `nav-shell.spec.ts` (`test.describe('breadcrumb and title')`, scenario `owner` for org/project/run, `platformAdminOrgs` via `seedPlatform` for platform):
+- [x] **Step 1: Write the tests** in `nav-shell.spec.ts` (`test.describe('breadcrumb and title')`, scenario `owner` for org/project/run, `platformAdminOrgs` via `seedPlatform` for platform):
   - `test('the org Projects page reads Projects and is titled "Projects · Alice · Agent Desk"')` (org name from the scenario).
   - `test('a run page reads Runs / Run N with Runs linking to the project runs')`; then click "Runs": title becomes `Runs · <project> · Agent Desk` (Review Focus 2).
   - `test('a Desk page reads Project settings / Skills')`.
   - `test('a platform org members page reads Organizations / <org> / Members and every crumb but the last is a link')`.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/web exec vite build --mode mock && pnpm --filter @agentdesk/web exec playwright test e2e/mock/nav-shell.spec.ts e2e/mock/top-bar.spec.ts e2e/mock/run-detail-layout.spec.ts`. Expected: PASS.
-- [ ] **Step 3: Commit** `test(web): breadcrumb and title e2e on org, project, run and platform pages`.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/web exec vite build --mode mock && pnpm --filter @agentdesk/web exec playwright test e2e/mock/nav-shell.spec.ts e2e/mock/top-bar.spec.ts e2e/mock/run-detail-layout.spec.ts`. Expected: PASS.
+- [x] **Step 3: Commit** `test(web): breadcrumb and title e2e on org, project, run and platform pages`.
 
 ---
 
@@ -313,14 +313,14 @@ OrgSwitchProps: + scope?: 'org' | 'platform' // default 'org'
 TopBarProps: variant + 'platform'; + platformTabs?: PlatformNavProps // rendered on the platform variant; scope for the title "Platform"
 ```
 
-- [ ] **Step 1: Write the failing tests.**
+- [x] **Step 1: Write the failing tests.**
   - `PlatformNav.test.tsx`: three links in order; `active` sets `aria-current="page"` and class `on`; nav name "Platform sections".
   - `OrgSwitch.test.tsx`: `it('in platform scope the button reads "Platform" and is named "Switch scope, currently Platform"')`; `it('the Platform group is the first group and holds "Platform admin"')` (index of "Platform admin" < first org item < "Create organization"); `it('in platform scope "Platform admin" has aria-current="true" and no org is checked')`; `it('a platform admin with no membership sees no "Switch organization" group')`; `it('without platformAdmin and platformHref there is no Platform group')`; `it('in org scope with one membership there is no "Switch organization" group')`.
   - `Chrome.test.tsx`: `it('the platform bar has the scope crumb, page crumbs, Platform sections tabs and the bell')`.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/components/PlatformNav.test.tsx src/components/OrgSwitch.test.tsx src/components/Chrome.test.tsx`. Expected: FAIL.
-- [ ] **Step 3: Implement**: reorder `OrgSwitchMenu` groups to Platform (heading "Platform", role group named "Platform"), current org, Switch organization, Create; `PlatformNav` mirrors `OrgNav`. Stories: `PlatformNav` Default/AdminsActive; `OrgSwitch` PlatformScope, PlatformScopeNoMembership, DualRole, MemberOnly; `TopBar` PlatformLevel, PlatformOrgLoading.
-- [ ] **Step 4: Run** Step 2's command plus `src/test/stories.smoke.test.tsx`. Expected: PASS.
-- [ ] **Step 5: Commit** `feat(web): platform scope in the scope switch and platform tabs`.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/components/PlatformNav.test.tsx src/components/OrgSwitch.test.tsx src/components/Chrome.test.tsx`. Expected: FAIL.
+- [x] **Step 3: Implement**: reorder `OrgSwitchMenu` groups to Platform (heading "Platform", role group named "Platform"), current org, Switch organization, Create; `PlatformNav` mirrors `OrgNav`. Stories: `PlatformNav` Default/AdminsActive; `OrgSwitch` PlatformScope, PlatformScopeNoMembership, DualRole, MemberOnly; `TopBar` PlatformLevel, PlatformOrgLoading.
+- [x] **Step 4: Run** Step 2's command plus `src/test/stories.smoke.test.tsx`. Expected: PASS.
+- [x] **Step 5: Commit** `feat(web): platform scope in the scope switch and platform tabs`.
 
 ### Task 8: Platform shell uses the platform bar; side menu holds only the org group
 
@@ -347,13 +347,13 @@ export interface PlatformLayoutProps {
 }
 ```
 
-- [ ] **Step 1: Write the failing tests.**
+- [x] **Step 1: Write the failing tests.**
   - `PlatformLayout.test.tsx`: no org → no `navigation` named "Platform admin"; ready → the org name is a link to `links.overview`, then Overview, Projects, Members, Invitations; loading → two statuses named "Loading organization" and the group's height equals the ready group's (`getComputedStyle` min-height class present); error → name "Organization".
   - `shell.route.test.tsx`: `it('the platform bar reads Platform with tabs and no "No organization"')`; `it('an unknown org id shows Organizations / Not found, no side menu, title "Not found · Agent Desk"')` (MSW `platform.getOrg` 404); `it('a failed org read labels the crumb and side menu "Organization"')` (500); `it('a non-admin still gets "You don\'t have access" and no platform request')` (unchanged access case, must keep passing).
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/components/PlatformLayout.test.tsx src/features/platform`. Expected: FAIL.
-- [ ] **Step 3: Implement**: `useOrgGroup` returns `PlatformOrgGroup | undefined` (links built from the URL `orgId`, so the error state still links); `PlatformLayout` renders `SubNav` only with `org`; loading placeholder uses `Skeleton` in fixed-height rows copied from board PlatformOrgMembersShellLoading. Register the 8 boards; regenerate the interactive prototype (command in Task 5).
-- [ ] **Step 4: Run** `pnpm --filter @agentdesk/web typecheck && pnpm --filter @agentdesk/web test`. Expected: PASS.
-- [ ] **Step 5: Commit** `feat(web): platform shell with the platform bar and an org-only side menu`.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/components/PlatformLayout.test.tsx src/features/platform`. Expected: FAIL.
+- [x] **Step 3: Implement**: `useOrgGroup` returns `PlatformOrgGroup | undefined` (links built from the URL `orgId`, so the error state still links); `PlatformLayout` renders `SubNav` only with `org`; loading placeholder uses `Skeleton` in fixed-height rows copied from board PlatformOrgMembersShellLoading. Register the 8 boards; regenerate the interactive prototype (command in Task 5).
+- [x] **Step 4: Run** `pnpm --filter @agentdesk/web typecheck && pnpm --filter @agentdesk/web test`. Expected: PASS.
+- [x] **Step 5: Commit** `feat(web): platform shell with the platform bar and an org-only side menu`.
 
 ### Task 9: e2e for the platform scope
 
@@ -362,11 +362,11 @@ export interface PlatformLayoutProps {
 **Files:**
 - Modify: `apps/web/e2e/mock/platform-shell.spec.ts`, `apps/web/e2e/mock/org-switch.spec.ts`; selector updates in other `e2e/mock/platform-*.spec.ts` and `e2e/local/platform-*.spec.ts` that click side-menu sections
 
-- [ ] **Step 1: Write the tests.**
+- [x] **Step 1: Write the tests.**
   - `platform-shell.spec.ts` (`platformAdminOrgs`): `test('the platform bar reads Platform and shows the Organizations, Platform admins and Audit log tabs')`; `test('a platform org members page reads Platform / Organizations / <org> / Members')`; `test('the org name in the side menu opens Overview')`; `test('a platform admin with no membership sees no "Switch organization" group')` (`platformAdminNoOrg`).
   - `org-switch.spec.ts`: `test('a platform admin sees the Platform group first in the scope menu')` (box y of "Platform admin" < first org link).
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/web exec vite build --mode mock && pnpm --filter @agentdesk/web exec playwright test e2e/mock/platform-shell.spec.ts e2e/mock/org-switch.spec.ts $(git diff --name-only main -- apps/web/e2e/mock | sed 's#apps/web/##')`; with the stack up, the changed local specs: `pnpm --filter @agentdesk/web exec playwright test $(git diff --name-only main -- apps/web/e2e/local | grep spec | sed 's#apps/web/##')`. Expected: PASS.
-- [ ] **Step 3: Commit** `test(web): platform scope e2e`.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/web exec vite build --mode mock && pnpm --filter @agentdesk/web exec playwright test e2e/mock/platform-shell.spec.ts e2e/mock/org-switch.spec.ts $(git diff --name-only main -- apps/web/e2e/mock | sed 's#apps/web/##')`; with the stack up, the changed local specs: `pnpm --filter @agentdesk/web exec playwright test $(git diff --name-only main -- apps/web/e2e/local | grep spec | sed 's#apps/web/##')`. Expected: PASS.
+- [x] **Step 3: Commit** `test(web): platform scope e2e`.
 
 ---
 
@@ -380,11 +380,11 @@ export interface PlatformLayoutProps {
 - Modify: `components/OrgNav.tsx`, `ProjectNav.tsx`, `OrgSwitch.tsx` (item "Org settings"), their tests and stories, `Chrome.test.tsx`
 - Modify (selectors): files from `grep -rlnE "name: 'Settings'|name: /\^?Settings/|'Settings' \}" apps/web/src apps/web/e2e` (34 files on `main`); replace with `'Org settings'` or `'Project settings'` by context, never with a looser regex
 
-- [ ] **Step 1: Write the failing tests**: `OrgNav.test.tsx` `it('the settings tab reads "Org settings"')`; `Chrome.test.tsx` `it('the project settings tab reads "Project settings"')`; `OrgSwitch.test.tsx` `it('the current org group lists "Projects" and "Org settings"')`.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/components/OrgNav.test.tsx src/components/Chrome.test.tsx src/components/OrgSwitch.test.tsx`. Expected: FAIL.
-- [ ] **Step 3: Implement** the three labels; update selectors from the grep.
-- [ ] **Step 4: Run** `pnpm --filter @agentdesk/web test`. Expected: PASS.
-- [ ] **Step 5: Commit** `feat(web): Org settings and Project settings tab names`.
+- [x] **Step 1: Write the failing tests**: `OrgNav.test.tsx` `it('the settings tab reads "Org settings"')`; `Chrome.test.tsx` `it('the project settings tab reads "Project settings"')`; `OrgSwitch.test.tsx` `it('the current org group lists "Projects" and "Org settings"')`.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/components/OrgNav.test.tsx src/components/Chrome.test.tsx src/components/OrgSwitch.test.tsx`. Expected: FAIL.
+- [x] **Step 3: Implement** the three labels; update selectors from the grep.
+- [x] **Step 4: Run** `pnpm --filter @agentdesk/web test`. Expected: PASS.
+- [x] **Step 5: Commit** `feat(web): Org settings and Project settings tab names`.
 
 ### Task 11: "Open organization" and "Manage this org in Platform"
 
@@ -405,15 +405,15 @@ OrgSwitchProps: + manageHref?: string // "Manage this org in Platform" in the Pl
 PlatformOrgHeaderProps: + openHref?: string
 ```
 
-- [ ] **Step 1: Write the failing tests.**
+- [x] **Step 1: Write the failing tests.**
   - `appBar.test.tsx`: `openOrgHref` returns the href for a membership id and `undefined` for another id; ids are matched, never slugs.
   - `appBar.route.test.tsx`: `it('a platform admin gets manageHref for the current org')`; `it('an org admin without the platform role gets no manageHref')`; `it('a failed GET /api/me/platform gives no Platform group and no manageHref')` (MSW 500; Review Focus 4).
   - `OrgSwitch.test.tsx`: the item shows only with `manageHref` and only in org scope.
   - `PlatformOrgHeader.test.tsx`: link "Open organization" only with `openHref`, after "View audit log".
   - `features/platform/orgDetail.route.test.tsx`: member org shows the link to `/o/alice/projects`; non-member org shows none.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/features/chrome src/components/OrgSwitch.test.tsx src/components/PlatformOrgHeader.test.tsx src/features/platform/orgDetail.route.test.tsx`. Expected: FAIL.
-- [ ] **Step 3: Implement**: the route reads `useSuspenseQuery(orgsQuery)` (already ensured by the platform `beforeLoad`) and passes `openOrgHref(orgs, orgId)`. Stories: header WithOpenLink / WithoutOpenLink; OrgSwitch DualRoleManage. Register the 9 boards; regenerate the interactive prototype.
-- [ ] **Step 4: Run** `pnpm --filter @agentdesk/web typecheck && pnpm --filter @agentdesk/web test`. Expected: PASS.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/features/chrome src/components/OrgSwitch.test.tsx src/components/PlatformOrgHeader.test.tsx src/features/platform/orgDetail.route.test.tsx`. Expected: FAIL.
+- [x] **Step 3: Implement**: the route reads `useSuspenseQuery(orgsQuery)` (already ensured by the platform `beforeLoad`) and passes `openOrgHref(orgs, orgId)`. Stories: header WithOpenLink / WithoutOpenLink; OrgSwitch DualRoleManage. The 9-board registration is deferred to the follow-up `test(web): navigation shell boards` PR (Agent call, unit over about 850 lines).
+- [x] **Step 4: Run** `pnpm --filter @agentdesk/web typecheck && pnpm --filter @agentdesk/web test`. Expected: PASS.
 - [ ] **Step 5: Commit** `feat(web): Open organization and Manage this org in Platform links`.
 
 ### Task 12: e2e for cross-scope links, tab names and roles
@@ -423,13 +423,13 @@ PlatformOrgHeaderProps: + openHref?: string
 **Files:**
 - Modify: `apps/web/e2e/mock/nav-shell.spec.ts`, `platform-org-detail.spec.ts`, `org-switch.spec.ts`; `apps/web/e2e/local/platform-access.spec.ts`
 
-- [ ] **Step 1: Write the tests.**
+- [x] **Step 1: Write the tests.**
   - `nav-shell.spec.ts` (`test.describe('tab names')`, `owner`): `test('the org tabs read Projects and Org settings, the project tabs Runs and Project settings')`.
   - `nav-shell.spec.ts` (`test.describe('roles')`, the role-based case): `test('an org admin without the platform role sees no Platform group and no "Manage this org in Platform"')` (`seedOnboarding(page, 'orgAdmin')`); `test('a project admin sees no Platform group and the Org settings tab opens Invitations only')` (`'projectAdmin'`: tab "Org settings" visible; side menu `Organization settings` holds "Invitations" and none of "General", "Members", "Audit log").
   - `platform-org-detail.spec.ts` (`platformAdminOrgs`): `test('"Open organization" on a member org lands on /o/<slug>/projects')`; `test('a non-member org has no "Open organization"')`. Agent call: if the scenario has no platform org the admin is not a member of, add one to `platformScenarios.ts` in this task.
   - `org-switch.spec.ts`: `test('"Manage this org in Platform" opens /platform/orgs/<id>')`.
   - `platform-access.spec.ts` (local): `test('a dual-role user clicks "Open organization" and lands on the org with it active')` (fresh user via `freshUser`, `grantPlatformAdmin(pa, …)`, owner of org A via `signInAndCreateProject`; open `/platform/orgs/<A id>`, click, expect `/o/<A slug>/projects` and the scope button names org A); `test('a platform admin who is a member of org A sees no "Open organization" on org B and /o/<b-slug> stays not found')` (org B via `createOrg(pa, …)`; cross-tenant).
-- [ ] **Step 2: Run**
+- [x] **Step 2: Run**
 
 ```bash
 pnpm --filter @agentdesk/web exec vite build --mode mock
@@ -439,7 +439,7 @@ pnpm --filter @agentdesk/web exec playwright test e2e/local/platform-access.spec
 ```
 
 Plus the changed specs from Task 10's selector updates (`git diff --name-only main -- apps/web/e2e`). Expected: PASS. If the stack cannot start, say so in the PR and list the local tests as written but not run.
-- [ ] **Step 3: Commit** `test(web): cross-scope links, tab names and role e2e`.
+- [x] **Step 3: Commit** `test(web): cross-scope links, tab names and role e2e`.
 
 ---
 
@@ -458,11 +458,11 @@ Plus the changed specs from Task 10's selector updates (`git diff --name-only ma
 - Consumes: Task 5 `platformCrumbs` (`/platform/orgs/new`), Task 8 `PlatformLayout` without `org`.
 - Produces: `CreateOrgProps` without `user`/`org`; `CreateOrgState` `created` adds `orgId: string`.
 
-- [ ] **Step 1: Write the failing tests** in `createOrg.route.test.tsx`: `it('/orgs/new redirects to /platform/orgs/new')`; `it('the page renders inside the platform shell: Platform bar, crumbs Organizations / Create organization, Organizations tab current')`; `it('a non-admin gets the platform forbidden state and no create request')` (the layout check replaces the page check; keeps the denied case); `it('Done opens the new org platform page')`; `it('/platform/orgs/new is not read as an org id')` (no `platform.getOrg` request).
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/features/orgs/createOrg.route.test.tsx src/test/topBarCallSites.test.ts`. Expected: FAIL.
-- [ ] **Step 3: Implement** the route (no own platform check; loader ensures session and orgs as today), the redirect, the screen change, `onDone` → `navigate({ to: '/platform/orgs/$orgId', params: { orgId } })`. Register the board; regenerate the interactive prototype.
-- [ ] **Step 4: Run** `pnpm --filter @agentdesk/web typecheck && pnpm --filter @agentdesk/web test`. Expected: PASS.
-- [ ] **Step 5: Commit** `feat(web): create organization inside the platform shell`.
+- [x] **Step 1: Write the failing tests** in `createOrg.route.test.tsx`: `it('/orgs/new redirects to /platform/orgs/new')`; `it('the page renders inside the platform shell: Platform bar, crumbs Organizations / Create organization, Organizations tab current')`; `it('a non-admin gets the platform forbidden state and no create request')` (the layout check replaces the page check; keeps the denied case); `it('Done opens the new org platform page')`; `it('/platform/orgs/new is not read as an org id')` (no `platform.getOrg` request).
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/features/orgs/createOrg.route.test.tsx src/test/topBarCallSites.test.ts`. Expected: FAIL.
+- [x] **Step 3: Implement** the route (no own platform check; loader ensures session and orgs as today), the redirect, the screen change, `onDone` → `navigate({ to: '/platform/orgs/$orgId', params: { orgId } })`. Register the board; regenerate the interactive prototype.
+- [x] **Step 4: Run** `pnpm --filter @agentdesk/web typecheck && pnpm --filter @agentdesk/web test`. Expected: PASS.
+- [x] **Step 5: Commit** `feat(web): create organization inside the platform shell`.
 
 ### Task 14: e2e for the moved create page
 
@@ -471,9 +471,9 @@ Plus the changed specs from Task 10's selector updates (`git diff --name-only ma
 **Files:**
 - Modify: `apps/web/e2e/mock/create-org.spec.ts` (existing tests open `/platform/orgs/new`; add the redirect case); `apps/web/e2e/local/onboarding-platform.spec.ts` only if it opens `/orgs/new` and asserts the URL
 
-- [ ] **Step 1: Write the tests**: `test('/orgs/new redirects to /platform/orgs/new inside the platform shell')` (URL, scope button "Platform", tab "Organizations" current, crumb "Create organization").
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/web exec vite build --mode mock && pnpm --filter @agentdesk/web exec playwright test e2e/mock/create-org.spec.ts`; if the local spec changed, run it with the stack up. Expected: PASS.
-- [ ] **Step 3: Commit** `test(web): create organization e2e in the platform shell`.
+- [x] **Step 1: Write the tests**: `test('/orgs/new redirects to /platform/orgs/new inside the platform shell')` (URL, scope button "Platform", tab "Organizations" current, crumb "Create organization").
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/web exec vite build --mode mock && pnpm --filter @agentdesk/web exec playwright test e2e/mock/create-org.spec.ts`; if the local spec changed, run it with the stack up. Expected: PASS.
+- [x] **Step 3: Commit** `test(web): create organization e2e in the platform shell`.
 
 ---
 

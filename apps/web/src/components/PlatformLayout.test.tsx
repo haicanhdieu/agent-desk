@@ -2,60 +2,86 @@ import { render, screen, within } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import { PlatformLayout } from './PlatformLayout';
 
-const links = { orgs: '/platform/orgs', admins: '/platform/admins', audit: '/platform/audit' };
+const links = {
+  overview: '/platform/orgs/1',
+  projects: '/platform/orgs/1/projects',
+  members: '/platform/orgs/1/members',
+  invitations: '/platform/orgs/1/invitations',
+};
 
 describe('PlatformLayout', () => {
-  it('lists Organizations, Platform admins and Audit log in a "Platform admin" nav', () => {
+  it('without an org there is no side menu', () => {
     render(
-      <PlatformLayout active="orgs" links={links}>
+      <PlatformLayout>
         <p>Body</p>
       </PlatformLayout>,
     );
-    const nav = screen.getByRole('navigation', { name: 'Platform admin' });
-    expect(
-      within(nav)
-        .getAllByRole('link')
-        .map((a) => a.textContent),
-    ).toEqual(['Organizations', 'Platform admins', 'Audit log']);
-    expect(within(nav).getByRole('link', { name: 'Platform admins' })).toHaveAttribute('href', links.admins);
+    expect(screen.queryByRole('navigation', { name: 'Platform admin' })).toBeNull();
     expect(screen.getByText('Body')).toBeInTheDocument();
   });
 
-  it('marks the active item with aria-current="page"', () => {
+  it('a ready org shows its name as a link to Overview, then Overview, Projects, Members, Invitations', () => {
     render(
-      <PlatformLayout active="admins" links={links}>
-        <p>Body</p>
-      </PlatformLayout>,
-    );
-    expect(screen.getByRole('link', { name: 'Platform admins' })).toHaveAttribute('aria-current', 'page');
-    expect(screen.getByRole('link', { name: 'Organizations' })).not.toHaveAttribute('aria-current');
-  });
-
-  it('inside an org adds a group headed by the org name with Overview and only the given links', () => {
-    render(
-      <PlatformLayout
-        active="members"
-        links={links}
-        org={{ name: 'Acme', links: { overview: '/platform/orgs/1', members: '/platform/orgs/1/members' } }}
-      >
+      <PlatformLayout active="members" org={{ state: 'ready', name: 'Acme', links }}>
         <p>Body</p>
       </PlatformLayout>,
     );
     const nav = screen.getByRole('navigation', { name: 'Platform admin' });
-    expect(within(nav).getByText('Acme')).toBeInTheDocument();
-    expect(within(nav).getByRole('link', { name: 'Overview' })).toHaveAttribute('href', '/platform/orgs/1');
+    const all = within(nav).getAllByRole('link');
+    expect(all.map((a) => a.textContent)).toEqual(['Acme', 'Overview', 'Projects', 'Members', 'Invitations']);
+    expect(all[0]).toHaveAttribute('href', links.overview);
     expect(within(nav).getByRole('link', { name: 'Members' })).toHaveAttribute('aria-current', 'page');
-    expect(within(nav).queryByRole('link', { name: 'Projects' })).toBeNull();
-    expect(within(nav).queryByRole('link', { name: 'Invitations' })).toBeNull();
+    expect(within(nav).getByRole('link', { name: 'Overview' })).not.toHaveAttribute('aria-current');
+  });
+
+  it('an absent link hides its item', () => {
+    render(
+      <PlatformLayout active="overview" org={{ state: 'ready', name: 'Acme', links: { overview: links.overview } }}>
+        <p>Body</p>
+      </PlatformLayout>,
+    );
+    const nav = screen.getByRole('navigation', { name: 'Platform admin' });
+    expect(within(nav).queryByRole('link', { name: 'Members' })).toBeNull();
   });
 
   it('renders a long org name as text with a title', () => {
     const name = 'A very long organization name '.repeat(6).trim();
     render(
-      <PlatformLayout active="overview" links={links} org={{ name, links: { overview: '/platform/orgs/1' } }}>
+      <PlatformLayout active="overview" org={{ state: 'ready', name, links }}>
         <p>Body</p>
       </PlatformLayout>,
     );
     expect(screen.getByTitle(name)).toHaveTextContent(name);
+  });
+
+  it('loading shows two placeholders named "Loading organization" in a group as tall as the ready one', () => {
+    const { rerender } = render(
+      <PlatformLayout org={{ state: 'loading' }}>
+        <p>Body</p>
+      </PlatformLayout>,
+    );
+    const nav = screen.getByRole('navigation', { name: 'Platform admin' });
+    expect(within(nav).getAllByRole('status', { name: 'Loading organization' })).toHaveLength(2);
+    expect(within(nav).queryAllByRole('link')).toEqual([]);
+    const loadingClass = nav.querySelector('[data-org-group]')?.className;
+    expect(loadingClass).toBeTruthy();
+    rerender(
+      <PlatformLayout active="overview" org={{ state: 'ready', name: 'Acme', links }}>
+        <p>Body</p>
+      </PlatformLayout>,
+    );
+    expect(
+      screen.getByRole('navigation', { name: 'Platform admin' }).querySelector('[data-org-group]')?.className,
+    ).toBe(loadingClass);
+  });
+
+  it('an error group names the org "Organization" and still links', () => {
+    render(
+      <PlatformLayout active="members" org={{ state: 'error', name: 'Organization', links }}>
+        <p>Body</p>
+      </PlatformLayout>,
+    );
+    const nav = screen.getByRole('navigation', { name: 'Platform admin' });
+    expect(within(nav).getByRole('link', { name: 'Organization' })).toHaveAttribute('href', links.overview);
   });
 });

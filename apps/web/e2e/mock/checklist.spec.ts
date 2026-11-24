@@ -128,13 +128,13 @@ test.describe('BR-17: no checklist for project admin, member, viewer', () => {
 });
 
 test.describe('BR-20: member or viewer has no invite controls', () => {
-  // The org's Invitations page lives in Settings: the top bar's Settings tab (nav "Main") is its entry, never a
+  // The org's Invitations page lives in Settings: the top bar's Settings tab (nav "Organization sections") is its entry, never a
   // button in the Projects header (org-tenant-admin spec BR-43, BR-49).
-  const mainNav = (page: Page): Locator => page.getByRole('navigation', { name: 'Main' });
+  const mainNav = (page: Page): Locator => page.getByRole('navigation', { name: 'Organization sections' });
   const noInviteControls = async (page: Page): Promise<void> => {
     for (const role of ['link', 'button'] as const) {
       await expect(page.getByRole(role, { name: 'Invitations' })).toHaveCount(0);
-      await expect(page.getByRole(role, { name: 'Settings' })).toHaveCount(0);
+      await expect(page.getByRole(role, { name: 'Org settings' })).toHaveCount(0);
       await expect(page.getByRole(role, { name: /invite/i })).toHaveCount(0);
     }
     await expect(page.getByText(/invite people/i)).toHaveCount(0);
@@ -164,9 +164,9 @@ test.describe('BR-20: member or viewer has no invite controls', () => {
   }) => {
     await open(page, 'checklistNoProject');
     await expect(page.getByRole('heading', { name: 'Create your first project' })).toBeVisible();
-    await expect(mainNav(page).getByRole('link', { name: 'Settings' })).toBeVisible();
-    await expect(page.getByRole('main').getByRole('link', { name: /^(Settings|Invitations)$/ })).toHaveCount(0);
-    await expect(page.getByRole('main').getByRole('button', { name: /^(Settings|Invitations)$/ })).toHaveCount(0);
+    await expect(mainNav(page).getByRole('link', { name: 'Org settings' })).toBeVisible();
+    await expect(page.getByRole('main').getByRole('link', { name: /^(Org settings|Invitations)$/ })).toHaveCount(0);
+    await expect(page.getByRole('main').getByRole('button', { name: /^(Org settings|Invitations)$/ })).toHaveCount(0);
   });
 
   // Positive control: the absence checks above mean something only if the same entry shows for an owner, org admin and
@@ -174,11 +174,11 @@ test.describe('BR-20: member or viewer has no invite controls', () => {
   async function expectSettingsTabNotHeaderButton(page: Page, scenario: OnboardingScenario): Promise<void> {
     await open(page, scenario);
     await expect(page.getByRole('heading', { level: 1, name: 'Projects' })).toBeVisible();
-    await expect(mainNav(page).getByRole('link', { name: 'Settings' })).toBeVisible();
-    await expect(page.getByRole('main').getByRole('link', { name: /^(Settings|Invitations)$/ })).toHaveCount(0);
-    await expect(page.getByRole('main').getByRole('button', { name: /^(Settings|Invitations)$/ })).toHaveCount(0);
+    await expect(mainNav(page).getByRole('link', { name: 'Org settings' })).toBeVisible();
+    await expect(page.getByRole('main').getByRole('link', { name: /^(Org settings|Invitations)$/ })).toHaveCount(0);
+    await expect(page.getByRole('main').getByRole('button', { name: /^(Org settings|Invitations)$/ })).toHaveCount(0);
     if (scenario === 'owner') await expect(page.getByRole('link', { name: 'New project' })).toBeVisible();
-    await mainNav(page).getByRole('link', { name: 'Settings' }).click();
+    await mainNav(page).getByRole('link', { name: 'Org settings' }).click();
     // Settings opens the first page the role may open: General for owner and admin, Invitations for a project admin.
     await expect(page).toHaveURL(
       new RegExp(`/o/acme/settings/${scenario === 'projectAdmin' ? 'invitations' : 'general'}$`),

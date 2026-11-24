@@ -213,7 +213,7 @@ const orgs = (over: Partial<PlatformOrgsProps> = {}) => (
       onSearch={noop}
       onStatus={noop}
       onClearFilters={noop}
-      createHref="/orgs/new"
+      createHref="/platform/orgs/new"
       {...over}
     />
   </PlatformFrame>
@@ -256,7 +256,7 @@ export const PlatformOrgsPaged: Story = {
     }),
 };
 
-const orgNav = { name: 'Acme', links: { overview: '/platform/orgs/org_acme' } };
+const orgNav = { state: 'ready' as const, name: 'Acme', links: { overview: '/platform/orgs/org_acme' } };
 const header = {
   name: 'Acme',
   slug: 'acme',
@@ -479,6 +479,7 @@ export const PlatformAuditOrgChipUnknown: Story = {
 };
 
 const tabNav = {
+  state: 'ready' as const,
   name: 'Acme',
   links: {
     overview: '/platform/orgs/org_acme',

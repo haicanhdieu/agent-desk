@@ -1,7 +1,7 @@
 import { useSuspenseQuery } from '@tanstack/react-query';
 import { createFileRoute, Outlet, useRouterState } from '@tanstack/react-router';
 import { Forbidden, NotFound } from '@/app/boundaries';
-import { OrgSettingsLayout, TopBar } from '@/components';
+import { NO_PAGE_CRUMBS, ORG_SETTINGS_CRUMB, OrgSettingsLayout, TopBar } from '@/components';
 import { orgAccessQuery, toAccess } from '@/features/access/queries';
 import { orgSettingsTabs, useAppBar } from '@/features/chrome/appBar';
 import type { OrgSettingsTabKey } from '@/mocks/types';
@@ -32,6 +32,15 @@ function SettingsLayout() {
     <>
       <TopBar
         variant="global"
+        crumbs={
+          hasTabs
+            ? [
+                { label: 'Org settings', href: `/o/${encodeURIComponent(org)}/settings` },
+                ...(active ? [{ label: ORG_SETTINGS_CRUMB[active] }] : []),
+              ]
+            : NO_PAGE_CRUMBS
+        }
+        {...(!hasTabs && { state: 'forbidden' as const })}
         user={bar.user}
         org={bar.org}
         tabs="org"
@@ -43,7 +52,7 @@ function SettingsLayout() {
           <Outlet />
         </OrgSettingsLayout>
       ) : (
-        <Forbidden />
+        <Forbidden titled={false} />
       )}
     </>
   );

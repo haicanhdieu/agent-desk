@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { OrgSettingsLayout, TopBar, type OrgSwitchProps } from '@/components';
+import { NO_PAGE_CRUMBS, ORG_SETTINGS_CRUMB, OrgSettingsLayout, TopBar, type OrgSwitchProps } from '@/components';
 import { orgSettingsFixtures } from '@/mocks';
 import type { Actor, OrgSettingsTabKey } from '@/mocks/types';
 
@@ -37,7 +37,7 @@ export function OrgSettingsFrame({
     orgs: [current],
     platformAdmin: false,
     orgHref: (o) => `/o/${o.slug}/projects`,
-    createHref: '/orgs/new',
+    createHref: '/platform/orgs/new',
     projectsHref: `${base}/projects`,
     ...(keys.length > 0 && { settingsHref: `${base}/settings/${keys[0]}` }),
   };
@@ -46,6 +46,12 @@ export function OrgSettingsFrame({
     <>
       <TopBar
         variant="global"
+        crumbs={
+          keys.length > 0 && active
+            ? [{ label: 'Org settings', href: `${base}/settings` }, { label: ORG_SETTINGS_CRUMB[active] }]
+            : NO_PAGE_CRUMBS
+        }
+        {...(keys.length === 0 && { state: 'forbidden' as const })}
         user={kim}
         org={org}
         tabs="org"

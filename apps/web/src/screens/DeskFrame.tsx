@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { DeskLayout, TopBar, type OrgSwitchProps, type ProjectSwitchMenu } from '@/components';
+import { DESK_CRUMB, DeskLayout, TopBar, type OrgSwitchProps, type ProjectSwitchMenu } from '@/components';
 import { Banner, Button, Icon } from '@/ds';
 import type { Actor, ConnectionStatus } from '@/mocks/types';
 import styles from './Screens.module.css';
@@ -60,6 +60,7 @@ export function DeskFrame({
     <>
       <TopBar
         variant="project"
+        crumbs={[{ label: 'Project settings', href: links?.desk }, { label: DESK_CRUMB[active] }]}
         active="desk"
         user={user}
         org={org}

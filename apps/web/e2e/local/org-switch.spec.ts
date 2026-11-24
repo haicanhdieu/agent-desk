@@ -42,7 +42,7 @@ interface Person {
 
 const projectsHeading = (page: Page) => page.getByRole('heading', { level: 1, name: 'Projects' });
 const projectLink = (page: Page, o: OrgSetup) => page.locator(`a[href="/o/${o.org.slug}/p/${o.projectId}/runs"]`);
-const switchButton = (page: Page) => page.getByRole('button', { name: /^Switch organization/ });
+const switchButton = (page: Page) => page.getByRole('button', { name: /^Switch scope/ });
 
 /** A project on `repoPath` and one prompt rule in the org the signed-in `api` has active. */
 async function projectWithRule(
@@ -89,7 +89,7 @@ async function personInTwoOrgs(scope: Scope, browser: Browser): Promise<Person> 
   await acceptViaApi(page, second.id);
   // Accepting does not change the session's active org: open B (the URL org becomes active) to create its project.
   await page.goto(`/o/${b.slug}/projects`);
-  await expect(page.getByRole('button', { name: `Switch organization, currently ${b.name}` })).toBeVisible(
+  await expect(page.getByRole('button', { name: `Switch scope, currently organization ${b.name}` })).toBeVisible(
     FIRST_HEADING,
   );
   const inB = await projectWithRule(ctx.request, b, REPO_P2, 'b', scope.tag);
@@ -111,7 +111,7 @@ async function expectOnlyProjectsOf(page: Page, shown: OrgSetup, hidden: OrgSetu
 /** Picks `org` in the open-able org switcher. */
 async function pickOrg(page: Page, org: Org) {
   await switchButton(page).click();
-  const menu = page.getByRole('dialog', { name: 'Organizations' });
+  const menu = page.getByRole('dialog', { name: 'Scope' });
   await expect(menu).toBeVisible();
   await menu
     .getByRole('group', { name: 'Switch organization' })

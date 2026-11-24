@@ -304,3 +304,11 @@
   font-size: var(--fs-13);
   color: var(--muted);
 }
+.crumbs .crumbSkeleton {
+  display: block;
+  flex: 0 0 auto;
+  width: 96px;
+  height: 14px;
+  border-radius: 4px;
+  background: var(--line);
+}

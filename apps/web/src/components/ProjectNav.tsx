@@ -14,7 +14,13 @@ export interface ProjectNavProps {
 }
 
 /** Runs / Settings tabs of the project top bar (the Settings tab opens the project's Desk pages). */
-export function ProjectNav({ active, needsYou, runsHref = '/runs', deskHref, label = 'Main' }: ProjectNavProps) {
+export function ProjectNav({
+  active,
+  needsYou,
+  runsHref = '/runs',
+  deskHref,
+  label = 'Project sections',
+}: ProjectNavProps) {
   return (
     <nav className={styles.tabs} aria-label={label}>
       <AppLink
@@ -37,7 +43,7 @@ export function ProjectNav({ active, needsYou, runsHref = '/runs', deskHref, lab
           aria-current={active === 'desk' ? 'page' : undefined}
         >
           <Icon name="sliders" size={15} />
-          Settings
+          Project settings
         </AppLink>
       )}
     </nav>

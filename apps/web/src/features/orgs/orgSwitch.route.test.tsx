@@ -4,13 +4,14 @@ import { mockDb } from '@/mocks/msw/db';
 import { scenarios } from '@/mocks/msw/scenarios';
 import { renderRoute } from '@/test/renderRoute';
 
-const switchButton = (name: string) => screen.findByRole('button', { name: `Switch organization, currently ${name}` });
+const switchButton = (name: string) =>
+  screen.findByRole('button', { name: `Switch scope, currently organization ${name}` });
 
 describe('org switcher on the Projects page', () => {
   it('BR-6: lists both orgs in a menu named Organizations and marks the current one', async () => {
     const { user } = await renderRoute('/o/alice/projects', { scenario: () => scenarios.onboarding('twoOrgs') });
     await user.click(await switchButton('Alice'));
-    const menu = await screen.findByRole('dialog', { name: 'Organizations' });
+    const menu = await screen.findByRole('dialog', { name: 'Scope' });
     const orgs = within(menu).getByRole('group', { name: 'Switch organization' });
     const alice = within(orgs).getByRole('link', { name: 'Alice' });
     const acme = within(orgs).getByRole('link', { name: 'Acme' });
@@ -45,7 +46,7 @@ describe('org switcher on the Projects page', () => {
     });
     expect(await screen.findByText('You have 1 pending invitation.')).toBeInTheDocument();
     await user.click(await switchButton('Alice'));
-    const menu = await screen.findByRole('dialog', { name: 'Organizations' });
+    const menu = await screen.findByRole('dialog', { name: 'Scope' });
     expect(within(menu).getByRole('link', { name: 'Alice' })).toBeInTheDocument();
     expect(within(menu).getByRole('link', { name: 'Acme' })).toBeInTheDocument();
     expect(within(menu).queryByRole('link', { name: 'Other' })).toBeNull();
@@ -66,9 +67,8 @@ describe('org switcher on the Projects page', () => {
   it('BR-9: one org shows a button whose menu has Projects and no Switch organization', async () => {
     const { user } = await renderRoute('/o/alice/projects', { scenario: () => scenarios.onboarding('singleOrg') });
     await screen.findByRole('link', { name: 'invoicer-api' });
-    expect(screen.queryByRole('button', { name: /^Switch organization/ })).toBeNull();
-    await user.click(screen.getByRole('button', { name: 'Organization menu, Alice' }));
-    const menu = await screen.findByRole('dialog', { name: 'Organizations' });
+    await user.click(screen.getByRole('button', { name: 'Switch scope, currently organization Alice' }));
+    const menu = await screen.findByRole('dialog', { name: 'Scope' });
     expect(within(menu).getByRole('link', { name: 'Projects' })).toBeInTheDocument();
     expect(within(menu).queryByText('Switch organization')).toBeNull();
   });
@@ -93,19 +93,22 @@ describe('org switcher on the Projects page', () => {
     expect(await screen.findByRole('heading', { name: 'Page not found' })).toBeInTheDocument();
   });
 
-  it('BR-40: a platform admin of one org is offered Create organization, linking to /orgs/new', async () => {
+  it('BR-40: a platform admin of one org is offered Create organization, linking to /platform/orgs/new', async () => {
     const { user } = await renderRoute('/o/alice/projects', {
       scenario: () => scenarios.onboarding('platformAdminOneOrg'),
     });
     await user.click(await switchButton('Alice'));
-    const menu = await screen.findByRole('dialog', { name: 'Organizations' });
-    expect(within(menu).getByRole('link', { name: 'Create organization' })).toHaveAttribute('href', '/orgs/new');
+    const menu = await screen.findByRole('dialog', { name: 'Scope' });
+    expect(within(menu).getByRole('link', { name: 'Create organization' })).toHaveAttribute(
+      'href',
+      '/platform/orgs/new',
+    );
   });
 
   it('BR-46: an owner who is not a platform admin sees no Create organization', async () => {
     const { user } = await renderRoute('/o/alice/projects', { scenario: () => scenarios.onboarding('twoOrgs') });
     await user.click(await switchButton('Alice'));
-    const menu = await screen.findByRole('dialog', { name: 'Organizations' });
+    const menu = await screen.findByRole('dialog', { name: 'Scope' });
     expect(within(menu).queryByRole('link', { name: 'Create organization' })).toBeNull();
   });
 
@@ -120,7 +123,7 @@ describe('org switcher on the Projects page', () => {
     expect(router.state.location.pathname).toBe('/o/acme/projects');
     expect(screen.queryByRole('link', { name: 'invoicer-api' })).toBeNull();
     await user.click(await switchButton('Acme'));
-    expect(await screen.findByRole('dialog', { name: 'Organizations' })).toBeInTheDocument();
+    expect(await screen.findByRole('dialog', { name: 'Scope' })).toBeInTheDocument();
   });
 
   it('BR-44: a no-role org shows the no-access state with the switcher still switching back', async () => {
@@ -138,22 +141,22 @@ describe('org switcher on the Projects page', () => {
     const { user } = await renderRoute('/o/alice/projects', {
       scenario: () => scenarios.platform('platformAdminOrgs'),
     });
-    await user.click(await screen.findByRole('button', { name: /^Switch organization/ }));
-    const menu = await screen.findByRole('dialog', { name: 'Organizations' });
+    await user.click(await screen.findByRole('button', { name: /^Switch scope/ }));
+    const menu = await screen.findByRole('dialog', { name: 'Scope' });
     expect(within(menu).getByRole('link', { name: 'Platform admin' })).toHaveAttribute('href', '/platform');
   });
 
   it('BR-1: a platform admin with no org sees Platform admin in the no-org menu', async () => {
-    const { user } = await renderRoute('/orgs/new', { scenario: () => scenarios.platform('platformAdminNoOrg') });
-    await user.click(await screen.findByRole('button', { name: 'Switch organization' }));
-    const menu = await screen.findByRole('dialog', { name: 'Organizations' });
+    const { user } = await renderRoute('/invitations', { scenario: () => scenarios.platform('platformAdminNoOrg') });
+    await user.click(await screen.findByRole('button', { name: 'Switch scope, currently no organization' }));
+    const menu = await screen.findByRole('dialog', { name: 'Scope' });
     expect(within(menu).getByRole('link', { name: 'Platform admin' })).toHaveAttribute('href', '/platform');
   });
 
   it('BR-1: an owner who is not a platform admin never sees Platform admin', async () => {
     const { user } = await renderRoute('/o/alice/projects', { scenario: () => scenarios.platform('ownerNoPlatform') });
-    await user.click(await screen.findByRole('button', { name: 'Organization menu, Alice' }));
-    const menu = await screen.findByRole('dialog', { name: 'Organizations' });
+    await user.click(await screen.findByRole('button', { name: 'Switch scope, currently organization Alice' }));
+    const menu = await screen.findByRole('dialog', { name: 'Scope' });
     expect(within(menu).queryByRole('link', { name: 'Platform admin' })).toBeNull();
   });
 
@@ -165,8 +168,8 @@ describe('org switcher on the Projects page', () => {
       },
     });
     await screen.findByRole('link', { name: 'invoicer-api' });
-    await user.click(await screen.findByRole('button', { name: /^(Switch organization|Organization menu)/ }));
-    const menu = await screen.findByRole('dialog', { name: 'Organizations' });
+    await user.click(await screen.findByRole('button', { name: /^Switch scope/ }));
+    const menu = await screen.findByRole('dialog', { name: 'Scope' });
     expect(within(menu).queryByRole('link', { name: 'Platform admin' })).toBeNull();
   });
 });
@@ -177,7 +180,7 @@ describe('org switcher with a suspended organization (BR-48, BR-37)', () => {
       scenario: () => scenarios.platform('suspendedMember'),
     });
     await user.click(await switchButton('Alice'));
-    const menu = await screen.findByRole('dialog', { name: 'Organizations' });
+    const menu = await screen.findByRole('dialog', { name: 'Scope' });
     expect(within(menu).getByRole('link', { name: /Alice/ })).toHaveTextContent('Suspended');
     const acme = within(menu).getByRole('link', { name: 'Acme' });
     expect(acme).not.toHaveTextContent('Suspended');

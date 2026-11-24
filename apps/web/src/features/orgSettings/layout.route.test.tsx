@@ -13,8 +13,18 @@ const sideItems = () =>
   within(screen.getByRole('navigation', { name: 'Organization settings' }))
     .getAllByRole('link')
     .map((a) => a.textContent);
-const mainNav = () => within(screen.getByRole('navigation', { name: 'Main' }));
+const mainNav = () => within(screen.getByRole('navigation', { name: 'Organization sections' }));
 const noAccess = () => screen.findByText("You don't have access");
+
+describe('settings layout: breadcrumb', () => {
+  it('the bar reads Org settings / Members on the Members tab', async () => {
+    await renderRoute('/o/alice/settings/members', { scenario: asRole('soleOwner') });
+    await screen.findByRole('navigation', { name: 'Organization settings' });
+    const crumbs = within(screen.getByRole('navigation', { name: 'Breadcrumb' }));
+    expect(crumbs.getByRole('link', { name: 'Org settings' })).toHaveAttribute('href', '/o/alice/settings');
+    expect(crumbs.getByText('Members')).toHaveAttribute('aria-current', 'page');
+  });
+});
 
 describe('settings layout: who lands where', () => {
   it.each<[TenantAdminScenario]>([['soleOwner'], ['admin']])(
@@ -24,7 +34,7 @@ describe('settings layout: who lands where', () => {
       await screen.findByRole('navigation', { name: 'Organization settings' });
       expect(router.state.location.pathname).toBe('/o/alice/settings/general');
       expect(sideItems()).toEqual(['General', 'Members', 'Invitations', 'Audit log']);
-      expect(mainNav().getByRole('link', { name: 'Settings' })).toHaveAttribute('aria-current', 'page');
+      expect(mainNav().getByRole('link', { name: 'Org settings' })).toHaveAttribute('aria-current', 'page');
       expect(mainNav().getByRole('link', { name: 'Projects' })).not.toHaveAttribute('aria-current');
     },
   );
@@ -34,7 +44,7 @@ describe('settings layout: who lands where', () => {
     await screen.findByRole('heading', { level: 1, name: 'Invitations' });
     expect(router.state.location.pathname).toBe('/o/alice/settings/invitations');
     expect(sideItems()).toEqual(['Invitations']);
-    expect(mainNav().getByRole('link', { name: 'Settings' })).toHaveAttribute('aria-current', 'page');
+    expect(mainNav().getByRole('link', { name: 'Org settings' })).toHaveAttribute('aria-current', 'page');
   });
 
   it('BR-2: a project admin never gets General, Members or Audit from the project grant', async () => {
@@ -51,7 +61,7 @@ describe('settings layout: who lands where', () => {
       expect(router.state.location.pathname).toBe('/o/alice/settings');
       expect(screen.getByRole('banner')).toBeInTheDocument();
       expect(sideMenu()).not.toBeInTheDocument();
-      expect(screen.queryByRole('link', { name: 'Settings' })).not.toBeInTheDocument();
+      expect(screen.queryByRole('link', { name: 'Org settings' })).not.toBeInTheDocument();
       expect(mainNav().getByRole('link', { name: 'Projects' })).toBeInTheDocument();
     },
   );
@@ -67,7 +77,7 @@ describe('settings layout: who lands where', () => {
     await renderRoute('/o/acme/settings', { scenario: () => scenarios.onboarding('twoOrgsNoRoleInSecond') });
     await noAccess();
     expect(sideMenu()).not.toBeInTheDocument();
-    expect(screen.queryByRole('link', { name: 'Settings' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Org settings' })).not.toBeInTheDocument();
   });
 
   it("BR-25: another org's settings URL shows not found, never its content", async () => {

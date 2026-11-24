@@ -87,7 +87,7 @@ async function orgWithInvitation(
 
 const linkOf = (id: string) => `/invitations/${id}`;
 const mainButtons = (page: Page) => page.getByRole('main').getByRole('button');
-const orgSwitchButton = (page: Page) => page.getByRole('button', { name: /^Switch organization/ });
+const orgSwitchButton = (page: Page) => page.getByRole('button', { name: /^Switch scope/ });
 
 /** The accept page for the invitee, signed in through dev-login with the link as the redirect. */
 async function inviteeOnAcceptPage(
@@ -158,7 +158,7 @@ async function revokeAsOwner(s: Setup): Promise<void> {
 
 async function switcherOrgs(page: Page): Promise<string[]> {
   await orgSwitchButton(page).click();
-  const menu = page.getByRole('dialog', { name: 'Organizations' });
+  const menu = page.getByRole('dialog', { name: 'Scope' });
   await expect(menu).toBeVisible();
   return (await menu.getByRole('group', { name: 'Switch organization' }).getByRole('link').allInnerTexts()).map((t) =>
     t.trim(),

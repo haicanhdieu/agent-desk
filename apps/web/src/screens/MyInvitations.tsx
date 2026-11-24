@@ -22,7 +22,13 @@ export interface MyInvitationsProps {
 export function MyInvitations({ user, org, state, onAccept, onDecline, onSignOut }: MyInvitationsProps) {
   return (
     <>
-      <TopBar variant="global" user={user} org={org} tabs={org?.current ? 'org' : 'none'} />
+      <TopBar
+        variant="global"
+        crumbs={[{ label: 'Invitations' }]}
+        user={user}
+        org={org}
+        tabs={org?.current ? 'org' : 'none'}
+      />
       <main className={styles.emptyMain}>{body(state, onAccept, onDecline, onSignOut)}</main>
     </>
   );

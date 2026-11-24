@@ -55,10 +55,13 @@ describe('setup flow', () => {
     await renderRoute(`${base}/repo`);
     await screen.findByRole('heading', { level: 1, name: 'Connect a repository' });
     const bar = screen.getByRole('banner');
-    const tabs = within(bar).getByRole('navigation', { name: 'Main' });
+    const tabs = within(bar).getByRole('navigation', { name: 'Organization sections' });
     expect(within(tabs).getByRole('link', { name: 'Projects' })).toHaveAttribute('aria-current', 'page');
-    expect(await within(tabs).findByRole('link', { name: 'Settings' })).toHaveAttribute('href', '/o/alice/settings');
-    expect(within(bar).getByRole('button', { name: /^(Switch organization|Organization menu)/ })).toBeVisible();
+    expect(await within(tabs).findByRole('link', { name: 'Org settings' })).toHaveAttribute(
+      'href',
+      '/o/alice/settings',
+    );
+    expect(within(bar).getByRole('button', { name: /^Switch scope/ })).toBeVisible();
   });
 
   it('saves each step on Continue and moves on with the project in the URL', async () => {

@@ -5,7 +5,7 @@ import { OrgSwitch } from './OrgSwitch';
 
 const links = {
   orgHref: (o: { slug: string }) => `/o/${o.slug}`,
-  createHref: '/orgs/new',
+  createHref: '/platform/orgs/new',
   projectsHref: '/o/acme/projects',
   settingsHref: '/o/acme/settings',
 };
@@ -26,9 +26,7 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 const openOnLoad: Story['play'] = async ({ canvasElement }) => {
-  await userEvent.click(
-    within(canvasElement).getByRole('button', { name: /^(Switch organization|Organization menu)/ }),
-  );
+  await userEvent.click(within(canvasElement).getByRole('button', { name: /^Switch scope/ }));
 };
 
 export const OneOrg: Story = { args: orgSwitchFixtures.oneOrg, play: openOnLoad };
@@ -55,5 +53,24 @@ export const WithSuspendedOrg: Story = {
     ...orgSwitchFixtures.severalOrgs,
     orgs: orgSwitchFixtures.severalOrgs.orgs.map((o, i) => (i === 1 ? { ...o, suspended: true } : o)),
   },
+  play: openOnLoad,
+};
+
+const platformLinks = { platformHref: '/platform/orgs' };
+export const PlatformScope: Story = {
+  args: { ...orgSwitchFixtures.platformAdmin, ...platformLinks, scope: 'platform' },
+  play: openOnLoad,
+};
+export const PlatformScopeNoMembership: Story = {
+  args: { ...orgSwitchFixtures.platformAdminNoOrg, ...platformLinks, scope: 'platform' },
+  play: openOnLoad,
+};
+export const DualRole: Story = {
+  args: { ...orgSwitchFixtures.platformAdminSettings, ...platformLinks },
+  play: openOnLoad,
+};
+export const MemberOnly: Story = { args: orgSwitchFixtures.oneOrgSettings, play: openOnLoad };
+export const DualRoleManage: Story = {
+  args: { ...orgSwitchFixtures.platformAdminSettings, ...platformLinks, manageHref: '/platform/orgs/acme' },
   play: openOnLoad,
 };

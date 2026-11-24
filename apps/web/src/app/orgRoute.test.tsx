@@ -87,3 +87,11 @@ describe('org layout route for a suspended organization (BR-37, BR-38, BR-49)', 
     expect(screen.queryByText(/Billing hold/)).not.toBeInTheDocument();
   });
 });
+
+describe('org layout route titles', () => {
+  it('an unknown route sets the title "Not found · Agent Desk"', async () => {
+    await renderRoute('/o/alice/no-such-page');
+    await screen.findByText('Page not found');
+    expect(document.title).toBe('Not found · Agent Desk');
+  });
+});

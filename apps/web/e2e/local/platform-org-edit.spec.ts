@@ -147,7 +147,7 @@ test.describe('BR-58: what a slug or name change does for members', () => {
 
     await page.goto(`/o/${newSlug}/projects`);
     await expect(page).toHaveURL(new RegExp(`/o/${newSlug}/projects$`));
-    await expect(page.getByRole('button', { name: `Organization menu, ${org.name}` })).toBeVisible();
+    await expect(page.getByRole('button', { name: `Switch scope, currently organization ${org.name}` })).toBeVisible();
     await expect(page.getByRole('heading', { name: 'Create your first project', level: 1 })).toBeVisible();
   });
 
@@ -164,13 +164,13 @@ test.describe('BR-58: what a slug or name change does for members', () => {
     const org = await freshOrg();
     await inviteAndSignIn(page, pa, org.id, org.slug, 'owner', { type: 'org' });
     await page.goto(`/o/${org.slug}/projects`);
-    await expect(page.getByRole('button', { name: `Organization menu, ${org.name}` })).toBeVisible();
+    await expect(page.getByRole('button', { name: `Switch scope, currently organization ${org.name}` })).toBeVisible();
 
     const newName = `E2E renamed ${tagOf()}`;
     await patchOrg(org.id, { name: newName });
     await page.reload();
 
-    await expect(page.getByRole('button', { name: `Organization menu, ${newName}` })).toBeVisible();
+    await expect(page.getByRole('button', { name: `Switch scope, currently organization ${newName}` })).toBeVisible();
     await expect(page.getByText(org.name, { exact: true })).toHaveCount(0);
   });
 });

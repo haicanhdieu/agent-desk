@@ -218,6 +218,14 @@
    "title": "Run 61 \u2014 running, stop session confirmation open",
    "expand": "fill"
   },
+  "RunIdleShell.dc.html": {
+   "x": 16720,
+   "y": 5220,
+   "w": 1440,
+   "h": 900,
+   "title": "Run 62 \u2014 the run bar: org / project / Runs / Run 62 with the bell, no tabs",
+   "expand": "fill"
+  },
   "RunIdleEnding.dc.html": {
    "x": 7600,
    "y": 5220,
@@ -2585,6 +2593,78 @@
    "h": 900,
    "title": "Organization detail \u2014 Invitations: copy link blocked by the browser",
    "expand": "fill"
+  },
+  "PlatformOrgsShell.dc.html": {
+   "x": 0,
+   "y": 79920,
+   "w": 1440,
+   "h": 900,
+   "title": "Platform \u2014 Organizations in the one shell: scope crumb \"Platform\", platform tabs, no side menu",
+   "expand": "fill"
+  },
+  "PlatformAdminsShell.dc.html": {
+   "x": 1520,
+   "y": 79920,
+   "w": 1440,
+   "h": 900,
+   "title": "Platform \u2014 Platform admins tab in the one shell (no side menu)",
+   "expand": "fill"
+  },
+  "PlatformAuditShell.dc.html": {
+   "x": 3040,
+   "y": 79920,
+   "w": 1440,
+   "h": 900,
+   "title": "Platform \u2014 Audit log tab in the one shell (no side menu)",
+   "expand": "fill"
+  },
+  "PlatformOrgsShellScopeMenu.dc.html": {
+   "x": 4560,
+   "y": 79920,
+   "w": 1440,
+   "h": 900,
+   "title": "Platform \u2014 scope switch open for a platform admin with no membership: Platform group, Create organization, no org list (empty)",
+   "expand": "fill"
+  },
+  "PlatformOrgMembersShellLoading.dc.html": {
+   "x": 6080,
+   "y": 79920,
+   "w": 1440,
+   "h": 900,
+   "title": "Platform \u2014 org loading: fixed-width crumb skeleton and fixed-height side menu placeholder (no jump)",
+   "expand": "fill"
+  },
+  "PlatformOrgMembersShellError.dc.html": {
+   "x": 7600,
+   "y": 79920,
+   "w": 1440,
+   "h": 900,
+   "title": "Platform \u2014 org read failed: the crumb and the side menu group read \"Organization\"; error banner with Retry",
+   "expand": "fill"
+  },
+  "PlatformOrgMembersShellNonMember.dc.html": {
+   "x": 9120,
+   "y": 79920,
+   "w": 1440,
+   "h": 900,
+   "title": "Platform \u2014 the same page for a platform admin who is not a member: no \"Open organization\" link",
+   "expand": "fill"
+  },
+  "PlatformOrgOverviewShellNotFound.dc.html": {
+   "x": 10640,
+   "y": 79920,
+   "w": 1440,
+   "h": 900,
+   "title": "Platform \u2014 Organizations / Not found: \"Back to organizations\" kept; title \"Not found \u00b7 Agent Desk\"",
+   "expand": "fill"
+  },
+  "CreateOrgPlatformShell.dc.html": {
+   "x": 12160,
+   "y": 79920,
+   "w": 1440,
+   "h": 900,
+   "title": "Platform \u2014 Create organization at /platform/orgs/new inside the platform shell: Organizations / Create organization",
+   "expand": "fill"
   }
  },
  "order": [
@@ -2606,6 +2686,16 @@
   "RunStarting.dc.html",
   "RunRunning.dc.html",
   "RunIdle.dc.html",
+  "RunIdleShell.dc.html",
+  "PlatformOrgsShell.dc.html",
+  "PlatformAdminsShell.dc.html",
+  "PlatformAuditShell.dc.html",
+  "PlatformOrgsShellScopeMenu.dc.html",
+  "PlatformOrgMembersShellLoading.dc.html",
+  "PlatformOrgMembersShellError.dc.html",
+  "PlatformOrgMembersShellNonMember.dc.html",
+  "PlatformOrgOverviewShellNotFound.dc.html",
+  "CreateOrgPlatformShell.dc.html",
   "RunReconnect.dc.html",
   "RunSucceeded.dc.html",
   "RunPrompt.dc.html",

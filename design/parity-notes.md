@@ -594,3 +594,21 @@ item reads "Change access".
   two stories. The help copy is the prototype's own ("This list refreshes on its own."); the list now also reads again when the tab
   gets focus back, which makes that sentence true. No copy was changed.
 - Not compared by browser: the two new stories were not rendered against a board (no board has the button).
+
+## Navigation shell: page crumbs on every top bar (#274)
+
+- Agent call: board `RunIdleShell` (the run bar: org / project / Runs / Run 62 with the bell, no tabs) was a prototype file not yet on the
+  canvas. It is now registered in `canvas.json` (after `RunIdle`), `storyIds.ts` and `parity.mjs`, and its story is `Screens/Shell`
+  `RunIdleShell`. It renders the same screen as the `RunIdle` story, whose bar already reads org / project / Runs / Run 62.
+- Every top bar now passes its page crumbs (Task 5 of the plan); the stories' bars use the same crumbs as their routes.
+- Not compared by browser: the new board and story were not rendered side by side in this change.
+
+## Navigation shell: platform shell with the platform bar (#274)
+
+- Agent call: the eight platform `*Shell` boards (`PlatformOrgsShell`, `PlatformAdminsShell`, `PlatformAuditShell`, `PlatformOrgsShellScopeMenu`,
+  `PlatformOrgMembersShellLoading`, `PlatformOrgMembersShellError`, `PlatformOrgMembersShellNonMember`, `PlatformOrgOverviewShellNotFound`) are
+  registered in `canvas.json` (after `RunIdleShell`, on a new row at the bottom of the canvas), `storyIds.ts` and `parity.mjs`; their stories are in
+  `Screens/Shell`.
+- The platform bar reads the scope "Platform", the page crumbs, the Platform sections tabs and the bell. The side menu is only the org group
+  (the org name linking to Overview, then Overview, Projects, Members, Invitations) and shows only inside one org.
+- Not compared by browser: the new boards and stories were not rendered side by side in this change.

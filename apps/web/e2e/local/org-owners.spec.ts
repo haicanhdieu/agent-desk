@@ -101,7 +101,9 @@ const card = (scope: Locator, role: string): Locator => scope.getByRole('radio',
 const toastOf = (page: Page, title: string): Locator =>
   page.getByRole('status').or(page.getByRole('alert')).filter({ hasText: title });
 const settingsTab = (page: Page): Locator =>
-  page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Settings', exact: true });
+  page
+    .getByRole('navigation', { name: 'Organization sections' })
+    .getByRole('link', { name: 'Org settings', exact: true });
 const OWNER_NOTE = 'Owners can change or remove every member, including other owners.';
 
 async function openMembers(page: Page, w: World): Promise<void> {
