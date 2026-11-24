@@ -111,6 +111,22 @@ export const ConfigSchema = z
     ENABLE_FAKE_PROVIDER: blankDefault(bool.default(false)),
     /** Where an agent's model list comes from: the provider's live list, or only the built-in names (local stack, e2e). */
     AGENT_MODELS_SOURCE: blankDefault(z.enum(['live', 'builtin']).default('live')),
+    /** Where model list prices come from: `fake` (local stack, e2e, tests; not in production) or `off` (no sync, nothing priced). */
+    MODEL_PRICES_SOURCE: blankDefault(z.enum(['litellm', 'fake', 'off']).default('litellm')),
+    /** Replaces the selected price source's default URL: https only, no credentials, no fragment. Not a secret. */
+    MODEL_PRICES_URL: optional(
+      z
+        .string()
+        .max(2048)
+        .refine((v) => {
+          try {
+            const u = new URL(v);
+            return u.protocol === 'https:' && u.username === '' && u.password === '' && !v.includes('#');
+          } catch {
+            return false;
+          }
+        }, 'must be an https URL without credentials or a fragment, at most 2048 characters'),
+    ),
     AUTH_DEV_LOGIN: blankDefault(bool.default(false)),
     SSE_SAFETY_TICK_MS: blankDefault(z.coerce.number().int().min(10).default(30000)),
     SSE_DRAIN_TIMEOUT_MS: blankDefault(z.coerce.number().int().min(10).default(30000)),
@@ -158,6 +174,9 @@ export const ConfigSchema = z
       }
       if (cfg.ENABLE_FAKE_PROVIDER) {
         ctx.addIssue({ code: 'custom', path: ['ENABLE_FAKE_PROVIDER'], message: 'must not be true in production' });
+      }
+      if (cfg.MODEL_PRICES_SOURCE === 'fake') {
+        ctx.addIssue({ code: 'custom', path: ['MODEL_PRICES_SOURCE'], message: 'must not be fake in production' });
       }
       if (cfg.KUBE_MODE === 'fake') {
         ctx.addIssue({

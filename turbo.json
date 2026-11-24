@@ -27,6 +27,8 @@
         "FAKE_*",
         "ENABLE_FAKE_PROVIDER",
         "AGENT_MODELS_SOURCE",
+        "MODEL_PRICES_SOURCE",
+        "MODEL_PRICES_URL",
         "SSE_*",
         "TERMINAL_*",
         "POLL_*",
