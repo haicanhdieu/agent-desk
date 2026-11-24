@@ -313,14 +313,14 @@ OrgSwitchProps: + scope?: 'org' | 'platform' // default 'org'
 TopBarProps: variant + 'platform'; + platformTabs?: PlatformNavProps // rendered on the platform variant; scope for the title "Platform"
 ```
 
-- [ ] **Step 1: Write the failing tests.**
+- [x] **Step 1: Write the failing tests.**
   - `PlatformNav.test.tsx`: three links in order; `active` sets `aria-current="page"` and class `on`; nav name "Platform sections".
   - `OrgSwitch.test.tsx`: `it('in platform scope the button reads "Platform" and is named "Switch scope, currently Platform"')`; `it('the Platform group is the first group and holds "Platform admin"')` (index of "Platform admin" < first org item < "Create organization"); `it('in platform scope "Platform admin" has aria-current="true" and no org is checked')`; `it('a platform admin with no membership sees no "Switch organization" group')`; `it('without platformAdmin and platformHref there is no Platform group')`; `it('in org scope with one membership there is no "Switch organization" group')`.
   - `Chrome.test.tsx`: `it('the platform bar has the scope crumb, page crumbs, Platform sections tabs and the bell')`.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/components/PlatformNav.test.tsx src/components/OrgSwitch.test.tsx src/components/Chrome.test.tsx`. Expected: FAIL.
-- [ ] **Step 3: Implement**: reorder `OrgSwitchMenu` groups to Platform (heading "Platform", role group named "Platform"), current org, Switch organization, Create; `PlatformNav` mirrors `OrgNav`. Stories: `PlatformNav` Default/AdminsActive; `OrgSwitch` PlatformScope, PlatformScopeNoMembership, DualRole, MemberOnly; `TopBar` PlatformLevel, PlatformOrgLoading.
-- [ ] **Step 4: Run** Step 2's command plus `src/test/stories.smoke.test.tsx`. Expected: PASS.
-- [ ] **Step 5: Commit** `feat(web): platform scope in the scope switch and platform tabs`.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/components/PlatformNav.test.tsx src/components/OrgSwitch.test.tsx src/components/Chrome.test.tsx`. Expected: FAIL.
+- [x] **Step 3: Implement**: reorder `OrgSwitchMenu` groups to Platform (heading "Platform", role group named "Platform"), current org, Switch organization, Create; `PlatformNav` mirrors `OrgNav`. Stories: `PlatformNav` Default/AdminsActive; `OrgSwitch` PlatformScope, PlatformScopeNoMembership, DualRole, MemberOnly; `TopBar` PlatformLevel, PlatformOrgLoading.
+- [x] **Step 4: Run** Step 2's command plus `src/test/stories.smoke.test.tsx`. Expected: PASS.
+- [x] **Step 5: Commit** `feat(web): platform scope in the scope switch and platform tabs`.
 
 ### Task 8: Platform shell uses the platform bar; side menu holds only the org group
 
@@ -347,13 +347,13 @@ export interface PlatformLayoutProps {
 }
 ```
 
-- [ ] **Step 1: Write the failing tests.**
+- [x] **Step 1: Write the failing tests.**
   - `PlatformLayout.test.tsx`: no org → no `navigation` named "Platform admin"; ready → the org name is a link to `links.overview`, then Overview, Projects, Members, Invitations; loading → two statuses named "Loading organization" and the group's height equals the ready group's (`getComputedStyle` min-height class present); error → name "Organization".
   - `shell.route.test.tsx`: `it('the platform bar reads Platform with tabs and no "No organization"')`; `it('an unknown org id shows Organizations / Not found, no side menu, title "Not found · Agent Desk"')` (MSW `platform.getOrg` 404); `it('a failed org read labels the crumb and side menu "Organization"')` (500); `it('a non-admin still gets "You don\'t have access" and no platform request')` (unchanged access case, must keep passing).
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/components/PlatformLayout.test.tsx src/features/platform`. Expected: FAIL.
-- [ ] **Step 3: Implement**: `useOrgGroup` returns `PlatformOrgGroup | undefined` (links built from the URL `orgId`, so the error state still links); `PlatformLayout` renders `SubNav` only with `org`; loading placeholder uses `Skeleton` in fixed-height rows copied from board PlatformOrgMembersShellLoading. Register the 8 boards; regenerate the interactive prototype (command in Task 5).
-- [ ] **Step 4: Run** `pnpm --filter @agentdesk/web typecheck && pnpm --filter @agentdesk/web test`. Expected: PASS.
-- [ ] **Step 5: Commit** `feat(web): platform shell with the platform bar and an org-only side menu`.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/components/PlatformLayout.test.tsx src/features/platform`. Expected: FAIL.
+- [x] **Step 3: Implement**: `useOrgGroup` returns `PlatformOrgGroup | undefined` (links built from the URL `orgId`, so the error state still links); `PlatformLayout` renders `SubNav` only with `org`; loading placeholder uses `Skeleton` in fixed-height rows copied from board PlatformOrgMembersShellLoading. Register the 8 boards; regenerate the interactive prototype (command in Task 5).
+- [x] **Step 4: Run** `pnpm --filter @agentdesk/web typecheck && pnpm --filter @agentdesk/web test`. Expected: PASS.
+- [x] **Step 5: Commit** `feat(web): platform shell with the platform bar and an org-only side menu`.
 
 ### Task 9: e2e for the platform scope
 
@@ -362,11 +362,11 @@ export interface PlatformLayoutProps {
 **Files:**
 - Modify: `apps/web/e2e/mock/platform-shell.spec.ts`, `apps/web/e2e/mock/org-switch.spec.ts`; selector updates in other `e2e/mock/platform-*.spec.ts` and `e2e/local/platform-*.spec.ts` that click side-menu sections
 
-- [ ] **Step 1: Write the tests.**
+- [x] **Step 1: Write the tests.**
   - `platform-shell.spec.ts` (`platformAdminOrgs`): `test('the platform bar reads Platform and shows the Organizations, Platform admins and Audit log tabs')`; `test('a platform org members page reads Platform / Organizations / <org> / Members')`; `test('the org name in the side menu opens Overview')`; `test('a platform admin with no membership sees no "Switch organization" group')` (`platformAdminNoOrg`).
   - `org-switch.spec.ts`: `test('a platform admin sees the Platform group first in the scope menu')` (box y of "Platform admin" < first org link).
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/web exec vite build --mode mock && pnpm --filter @agentdesk/web exec playwright test e2e/mock/platform-shell.spec.ts e2e/mock/org-switch.spec.ts $(git diff --name-only main -- apps/web/e2e/mock | sed 's#apps/web/##')`; with the stack up, the changed local specs: `pnpm --filter @agentdesk/web exec playwright test $(git diff --name-only main -- apps/web/e2e/local | grep spec | sed 's#apps/web/##')`. Expected: PASS.
-- [ ] **Step 3: Commit** `test(web): platform scope e2e`.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/web exec vite build --mode mock && pnpm --filter @agentdesk/web exec playwright test e2e/mock/platform-shell.spec.ts e2e/mock/org-switch.spec.ts $(git diff --name-only main -- apps/web/e2e/mock | sed 's#apps/web/##')`; with the stack up, the changed local specs: `pnpm --filter @agentdesk/web exec playwright test $(git diff --name-only main -- apps/web/e2e/local | grep spec | sed 's#apps/web/##')`. Expected: PASS.
+- [x] **Step 3: Commit** `test(web): platform scope e2e`.
 
 ---
 

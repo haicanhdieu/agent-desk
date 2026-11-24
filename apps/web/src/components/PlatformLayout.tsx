@@ -1,47 +1,74 @@
 import type { ReactNode } from 'react';
-import { SubNav } from './SubNav';
+import { AppLink, Skeleton } from '@/ds';
+import chrome from './Chrome.module.css';
 import styles from './PlatformLayout.module.css';
 
+export type PlatformOrgGroup =
+  | { state: 'loading' }
+  | {
+      state: 'ready' | 'error';
+      name: string;
+      links: { overview: string; projects?: string; members?: string; invitations?: string };
+    };
+
 export interface PlatformLayoutProps {
-  active: 'orgs' | 'admins' | 'audit' | 'overview' | 'projects' | 'members' | 'invitations';
-  links: { orgs: string; admins: string; audit: string };
-  /** Present inside an org: group "<org name>"; an absent link hides its item. */
-  org?: { name: string; links: { overview: string; projects?: string; members?: string; invitations?: string } };
+  active?: 'overview' | 'projects' | 'members' | 'invitations';
+  /** Absent: no side menu (directory, admins, audit, not found, create). */
+  org?: PlatformOrgGroup;
   children: ReactNode;
 }
 
-/** The platform area: a fixed-width side menu and the scrolling page next to it. */
-export function PlatformLayout({ active, links, org, children }: PlatformLayoutProps) {
-  const groups: Parameters<typeof SubNav>[0]['groups'] = [
-    {
-      items: [
-        { label: 'Organizations', href: links.orgs, active: active === 'orgs' },
-        { label: 'Platform admins', href: links.admins, active: active === 'admins' },
-        { label: 'Audit log', href: links.audit, active: active === 'audit' },
-      ],
-    },
-  ];
-  if (org) {
-    const orgItems = [
-      { key: 'overview', label: 'Overview', href: org.links.overview },
-      { key: 'projects', label: 'Projects', href: org.links.projects },
-      { key: 'members', label: 'Members', href: org.links.members },
-      { key: 'invitations', label: 'Invitations', href: org.links.invitations },
-    ].flatMap((it) => (it.href === undefined ? [] : [{ label: it.label, href: it.href, active: active === it.key }]));
-    groups.push(
-      {
-        content: (
-          <span className={styles.orgName} title={org.name}>
-            {org.name}
-          </span>
-        ),
-      },
-      { items: orgItems },
+function OrgGroup({ org, active }: { org: PlatformOrgGroup; active: PlatformLayoutProps['active'] }) {
+  if (org.state === 'loading') {
+    return (
+      <div data-org-group className={styles.orgGroup}>
+        <span role="status" aria-label="Loading organization" className={styles.nameRow}>
+          <Skeleton variant="block" width="70%" height={16} />
+        </span>
+        <span role="status" aria-label="Loading organization" className={styles.itemsRow}>
+          <Skeleton variant="block" width="100%" height="100%" />
+        </span>
+      </div>
     );
   }
+  const items = [
+    { key: 'overview', label: 'Overview', href: org.links.overview },
+    { key: 'projects', label: 'Projects', href: org.links.projects },
+    { key: 'members', label: 'Members', href: org.links.members },
+    { key: 'invitations', label: 'Invitations', href: org.links.invitations },
+  ];
+  return (
+    <div data-org-group className={styles.orgGroup}>
+      <AppLink href={org.links.overview} className={styles.nameRow} title={org.name}>
+        <span className={styles.orgName}>{org.name}</span>
+      </AppLink>
+      <div className={styles.itemsRow}>
+        {items.map((it) =>
+          it.href === undefined ? null : (
+            <AppLink
+              key={it.key}
+              href={it.href}
+              className={active === it.key ? chrome.on : undefined}
+              aria-current={active === it.key ? 'page' : undefined}
+            >
+              {it.label}
+            </AppLink>
+          ),
+        )}
+      </div>
+    </div>
+  );
+}
+
+/** The platform area: the page, with a fixed-width side menu only inside one org. */
+export function PlatformLayout({ active, org, children }: PlatformLayoutProps) {
   return (
     <div className={styles.body}>
-      <SubNav aria-label="Platform admin" groups={groups} />
+      {org && (
+        <nav className={chrome.subnav} aria-label="Platform admin">
+          <OrgGroup org={org} active={active} />
+        </nav>
+      )}
       <div className={styles.main}>{children}</div>
     </div>
   );

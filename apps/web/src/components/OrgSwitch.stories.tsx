@@ -55,3 +55,18 @@ export const WithSuspendedOrg: Story = {
   },
   play: openOnLoad,
 };
+
+const platformLinks = { platformHref: '/platform/orgs' };
+export const PlatformScope: Story = {
+  args: { ...orgSwitchFixtures.platformAdmin, ...platformLinks, scope: 'platform' },
+  play: openOnLoad,
+};
+export const PlatformScopeNoMembership: Story = {
+  args: { ...orgSwitchFixtures.platformAdminNoOrg, ...platformLinks, scope: 'platform' },
+  play: openOnLoad,
+};
+export const DualRole: Story = {
+  args: { ...orgSwitchFixtures.platformAdminSettings, ...platformLinks },
+  play: openOnLoad,
+};
+export const MemberOnly: Story = { args: orgSwitchFixtures.oneOrgSettings, play: openOnLoad };

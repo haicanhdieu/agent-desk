@@ -67,6 +67,8 @@ export function useAppBar(orgSlug: string | null): AppBarData {
       createHref: '/orgs/new',
       ...(platformAdmin && { platformHref: '/platform' }),
       ...(base !== undefined && { projectsHref: `${base}/projects` }),
+      // A platform admin who belongs to no org has no org page to land on: the logo opens Platform > Organizations.
+      ...(base === undefined && platformAdmin && orgs.length === 0 && { projectsHref: '/platform/orgs' }),
       ...(showSettings && { settingsHref: `${base}/settings` }),
     },
   };

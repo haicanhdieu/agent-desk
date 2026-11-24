@@ -148,12 +148,73 @@ describe('OrgSwitch', () => {
     expect(screen.getAllByTitle(orgSwitchFixtures.longName.current?.name ?? '')[0]).toBeInTheDocument();
   });
 
-  it('BR-1: platformHref adds "Platform admin" above "Create organization"', async () => {
+  it('BR-1: platformHref puts "Platform admin" first, before the orgs and "Create organization"', async () => {
     const user = setup('platformAdmin', { platformHref: '/platform/orgs' });
     await user.click(button());
     const links = within(screen.getByRole('dialog')).getAllByRole('link');
-    expect(links.map((l) => l.textContent?.trim()).slice(-2)).toEqual(['Platform admin', 'Create organization']);
+    expect(links.map((l) => l.textContent?.trim())).toEqual([
+      'Platform admin',
+      expect.stringContaining('Acme'),
+      expect.stringContaining('Beta'),
+      'Create organization',
+    ]);
     expect(screen.getByRole('link', { name: 'Platform admin' })).toHaveAttribute('href', '/platform/orgs');
+  });
+
+  it('the Platform group is the first group and holds "Platform admin"', async () => {
+    const user = setup('platformAdmin', { platformHref: '/platform/orgs', projectsHref, settingsHref });
+    await user.click(button());
+    const menu = screen.getByRole('dialog');
+    const groups = within(menu).getAllByRole('group');
+    expect(groups[0]).toHaveAccessibleName('Platform');
+    expect(within(groups[0] as HTMLElement).getByRole('link', { name: 'Platform admin' })).toBeInTheDocument();
+    const labels = within(menu)
+      .getAllByRole('link')
+      .map((l) => l.textContent?.trim() ?? '');
+    expect(labels[0]).toBe('Platform admin');
+    expect(labels.indexOf('Platform admin')).toBeLessThan(labels.indexOf('Projects'));
+    expect(labels[labels.length - 1]).toBe('Create organization');
+  });
+
+  it('in platform scope the button reads "Platform" and is named "Switch scope, currently Platform"', () => {
+    setup('platformAdmin', { scope: 'platform', platformHref: '/platform/orgs' });
+    expect(screen.getByRole('button', { name: 'Switch scope, currently Platform' })).toHaveTextContent('Platform');
+  });
+
+  it('in platform scope "Platform admin" has aria-current="true" and no org is checked', async () => {
+    const user = setup('platformAdmin', { scope: 'platform', platformHref: '/platform/orgs', projectsHref });
+    await user.click(button());
+    const menu = screen.getByRole('dialog');
+    expect(within(menu).getByRole('link', { name: 'Platform admin' })).toHaveAttribute('aria-current', 'true');
+    for (const name of [/Acme/, /Beta/]) {
+      expect(within(menu).getByRole('link', { name })).not.toHaveAttribute('aria-current');
+    }
+    expect(within(menu).queryByRole('link', { name: 'Projects' })).toBeNull();
+  });
+
+  it('in org scope "Platform admin" is not marked current', async () => {
+    const user = setup('platformAdmin', { platformHref: '/platform/orgs' });
+    await user.click(button());
+    expect(screen.getByRole('link', { name: 'Platform admin' })).not.toHaveAttribute('aria-current');
+  });
+
+  it('a platform admin with no membership sees no "Switch organization" group', async () => {
+    const user = setup('platformAdminNoOrg', { scope: 'platform', platformHref: '/platform/orgs' });
+    expect(button()).toHaveAccessibleName('Switch scope, currently Platform');
+    await user.click(button());
+    expect(within(screen.getByRole('dialog')).queryByRole('group', { name: 'Switch organization' })).toBeNull();
+  });
+
+  it('without platformAdmin and platformHref there is no Platform group', async () => {
+    const user = setup('severalOrgs');
+    await user.click(button());
+    expect(within(screen.getByRole('dialog')).queryByRole('group', { name: 'Platform' })).toBeNull();
+  });
+
+  it('in org scope with one membership there is no "Switch organization" group', async () => {
+    const user = setup('oneOrg', { projectsHref });
+    await user.click(button());
+    expect(within(screen.getByRole('dialog')).queryByRole('group', { name: 'Switch organization' })).toBeNull();
   });
 
   it('BR-1: platformHref shows the item with no orgs and no current org', async () => {

@@ -178,6 +178,34 @@ describe('useAppBar', () => {
     expect(personal.result.current.org.platformAdmin).toBe(true);
   });
 
+  it('the logo of a platform admin with no org goes to Platform > Organizations', async () => {
+    apiMock.access.mockResolvedValue(tenantAccessFixtures.noRole);
+    apiMock.platform.mockResolvedValue({ platformAdmin: true });
+    const client = makeClient();
+    client.setQueryData(['session', 'orgs'], []);
+    client.setQueryData(['session'], { ...session, activeOrganizationId: null });
+    const { result } = renderHook(() => useAppBar(null), { wrapper: setup(client) });
+    await waitFor(() => expect(result.current.org.projectsHref).toBe('/platform/orgs'));
+  });
+
+  it('the logo of a platform admin who has an org keeps the org projects target', async () => {
+    apiMock.access.mockResolvedValue(tenantAccessFixtures.member);
+    apiMock.platform.mockResolvedValue({ platformAdmin: true });
+    const { result } = renderHook(() => useAppBar(null), { wrapper: setup() });
+    await waitFor(() => expect(result.current.org.platformAdmin).toBe(true));
+    expect(result.current.org.projectsHref).toBe('/o/beta/projects');
+  });
+
+  it('the logo of a person with no org who is not a platform admin keeps today target', async () => {
+    const client = makeClient();
+    client.setQueryData(['session', 'orgs'], []);
+    client.setQueryData(['session'], { ...session, activeOrganizationId: null });
+    apiMock.platform.mockResolvedValue({ platformAdmin: false });
+    const { result } = renderHook(() => useAppBar(null), { wrapper: setup(client) });
+    await settled(client, accessKeys.platform());
+    expect(result.current.org.projectsHref).toBeUndefined();
+  });
+
   it('BR-1: a person who is not a platform admin gets no platformHref', async () => {
     apiMock.access.mockResolvedValue(tenantAccessFixtures.owner);
     const client = makeClient();

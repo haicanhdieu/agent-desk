@@ -15,6 +15,7 @@ export {
 } from './ProjectSwitch';
 export { OrgSwitch, type OrgSwitchProps } from './OrgSwitch';
 export { OrgNav, type OrgNavProps } from './OrgNav';
+export { PlatformNav, type PlatformNavProps } from './PlatformNav';
 export { OnboardingChecklist, type OnboardingChecklistState } from './OnboardingChecklist';
 export {
   AccountInfoProvider,
@@ -136,7 +137,7 @@ export { AddProjectMemberDialog, type AddProjectMemberDialogProps } from './AddP
 export { AuditRow, auditColumns } from './AuditRow';
 export { OrgSettingsLayout, type OrgSettingsLayoutProps } from './OrgSettingsLayout';
 export { InvitationCard, type InvitationCardProps } from './InvitationCard';
-export { PlatformLayout, type PlatformLayoutProps } from './PlatformLayout';
+export { PlatformLayout, type PlatformLayoutProps, type PlatformOrgGroup } from './PlatformLayout';
 export { PlatformAdminRow, platformAdminColumns, type PlatformAdminRowProps } from './PlatformAdminRow';
 export { PlatformOrgRow, platformOrgColumns } from './PlatformOrgRow';
 export { OrgStatus } from './OrgStatus';

@@ -13,11 +13,13 @@ export interface OrgSwitchProps extends OrgSwitchData {
   settingsHref?: string;
   /** Present for a platform admin: the "Platform admin" item above "Create organization". */
   platformHref?: string;
+  /** Where the bar sits: the button names Platform in the platform scope. Default 'org'. */
+  scope?: 'org' | 'platform';
 }
 
 const onMenuKeyDown = menuKeyDown('a[href]');
 
-/** The org crumb of the top bar: always a menu button (org name, Projects, Settings, switch group, Create), except plain text for no org and no platform admin. */
+/** The scope crumb of the top bar: always a menu button (Platform group, org name, Projects, Settings, switch group, Create), except plain text for no org and no platform admin. */
 export function OrgSwitch(props: OrgSwitchProps) {
   if (props.orgs.length === 0 && !props.current && !props.platformAdmin && props.platformHref === undefined) {
     return (
@@ -38,12 +40,18 @@ function OrgSwitchMenu({
   projectsHref,
   settingsHref,
   platformHref,
+  scope = 'org',
 }: OrgSwitchProps) {
+  const inPlatform = scope === 'platform';
   const shown = current ?? (orgs.length === 1 ? orgs[0] : undefined);
+  const orgShown = inPlatform ? undefined : shown;
+  const orgLinks = orgShown !== undefined && (projectsHref !== undefined || settingsHref !== undefined);
   const canSwitch = orgs.length > 1 || platformAdmin;
-  const buttonLabel = shown
-    ? `Switch scope, currently organization ${shown.name}`
-    : 'Switch scope, currently no organization';
+  const buttonLabel = inPlatform
+    ? 'Switch scope, currently Platform'
+    : shown
+      ? `Switch scope, currently organization ${shown.name}`
+      : 'Switch scope, currently no organization';
   const [open, setOpen] = useState(false);
   const wrapRef = useRef<HTMLDivElement>(null);
   const menuId = useId();
@@ -78,8 +86,8 @@ function OrgSwitchMenu({
         onClick={() => setOpen((o) => !o)}
         onKeyDown={onButtonKeyDown}
       >
-        <span className={styles.name} title={shown?.name}>
-          {shown ? shown.name : 'No organization'}
+        <span className={styles.name} title={inPlatform ? undefined : shown?.name}>
+          {inPlatform ? 'Platform' : shown ? shown.name : 'No organization'}
         </span>
         <Icon name="chevron-down" />
       </button>
@@ -91,34 +99,55 @@ function OrgSwitchMenu({
       >
         {/* The Popover is the dialog; this wrapper carries the id and the arrow-key handling. */}
         <div id={menuId} className={styles.menu} onKeyDown={onMenuKeyDown}>
-          {shown && (
-            <div role="heading" aria-level={2} className={styles.heading} title={shown.name}>
-              {shown.name}
+          {platformHref !== undefined && (
+            <div role="group" aria-label="Platform" className={styles.group}>
+              <div className={styles.groupLabel} aria-hidden="true">
+                Platform
+              </div>
+              <AppLink
+                href={platformHref}
+                className={`${styles.item} ${inPlatform ? styles.current : ''}`}
+                aria-current={inPlatform ? 'true' : undefined}
+                onClick={close}
+              >
+                <span className={styles.itemName}>Platform admin</span>
+                {inPlatform && (
+                  <span className={styles.check}>
+                    <Icon name="check" size={14} />
+                  </span>
+                )}
+              </AppLink>
             </div>
           )}
-          {shown && projectsHref !== undefined && (
-            <AppLink href={projectsHref} className={styles.item} onClick={close}>
-              <Icon name="grid" size={15} />
-              <span className={styles.itemName}>Projects</span>
-            </AppLink>
-          )}
-          {shown && settingsHref !== undefined && (
-            <AppLink href={settingsHref} className={styles.item} onClick={close}>
-              <Icon name="sliders" size={15} />
-              <span className={styles.itemName}>Settings</span>
-            </AppLink>
+          {orgShown && (
+            <>
+              {platformHref !== undefined && <div className={styles.divider} role="separator" />}
+              <div role="heading" aria-level={2} className={styles.heading} title={orgShown.name}>
+                {orgShown.name}
+              </div>
+              {projectsHref !== undefined && (
+                <AppLink href={projectsHref} className={styles.item} onClick={close}>
+                  <Icon name="grid" size={15} />
+                  <span className={styles.itemName}>Projects</span>
+                </AppLink>
+              )}
+              {settingsHref !== undefined && (
+                <AppLink href={settingsHref} className={styles.item} onClick={close}>
+                  <Icon name="sliders" size={15} />
+                  <span className={styles.itemName}>Settings</span>
+                </AppLink>
+              )}
+            </>
           )}
           {canSwitch && orgs.length > 0 && (
             <>
-              {shown && (projectsHref !== undefined || settingsHref !== undefined) && (
-                <div className={styles.divider} role="separator" />
-              )}
+              {(platformHref !== undefined || orgLinks) && <div className={styles.divider} role="separator" />}
               <div role="group" aria-label="Switch organization" className={styles.group}>
                 <div className={styles.groupLabel} aria-hidden="true">
                   Switch organization
                 </div>
                 {orgs.map((org) => {
-                  const isCurrent = org.id === current?.id;
+                  const isCurrent = !inPlatform && org.id === current?.id;
                   return (
                     <AppLink
                       key={org.id}
@@ -142,19 +171,14 @@ function OrgSwitchMenu({
               </div>
             </>
           )}
-          {(platformAdmin || platformHref !== undefined) && (
+          {platformAdmin && (
             <>
-              {(shown || orgs.length > 0) && <div className={styles.divider} role="separator" />}
-              {platformHref !== undefined && (
-                <AppLink href={platformHref} className={styles.item} onClick={close}>
-                  <span className={styles.itemName}>Platform admin</span>
-                </AppLink>
+              {(platformHref !== undefined || orgShown !== undefined || orgs.length > 0) && (
+                <div className={styles.divider} role="separator" />
               )}
-              {platformAdmin && (
-                <AppLink href={createHref} className={styles.item} onClick={close}>
-                  <span className={styles.itemName}>Create organization</span>
-                </AppLink>
-              )}
+              <AppLink href={createHref} className={styles.item} onClick={close}>
+                <span className={styles.itemName}>Create organization</span>
+              </AppLink>
             </>
           )}
         </div>

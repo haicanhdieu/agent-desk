@@ -271,6 +271,31 @@ describe('TopBar org level', () => {
   });
 });
 
+describe('TopBar platform', () => {
+  it('the platform bar has the scope crumb, page crumbs, Platform sections tabs and the bell', () => {
+    render(
+      <TopBar
+        variant="platform"
+        user={user}
+        org={{ ...orgProps, scope: 'platform' }}
+        crumbs={[{ label: 'Organizations', href: '/platform/orgs' }, { label: 'Harbor Labs' }]}
+        platformTabs={{
+          active: 'orgs',
+          links: { orgs: '/platform/orgs', admins: '/platform/admins', audit: '/platform/audit' },
+        }}
+      />,
+    );
+    expect(screen.getByRole('button', { name: 'Switch scope, currently Platform' })).toBeInTheDocument();
+    const crumbs = screen.getByRole('navigation', { name: 'Breadcrumb' });
+    expect(within(crumbs).getByRole('link', { name: 'Organizations' })).toHaveAttribute('href', '/platform/orgs');
+    expect(within(crumbs).getByText('Harbor Labs')).toBeInTheDocument();
+    const tabs = screen.getByRole('navigation', { name: 'Platform sections' });
+    expect(within(tabs).getByRole('link', { name: 'Organizations' })).toHaveAttribute('aria-current', 'page');
+    expect(screen.getByRole('button', { name: 'Notifications on' })).toBeInTheDocument();
+    expect(document.title).toContain('Platform');
+  });
+});
+
 describe('TopBar project level with the org crumb', () => {
   it('renders org crumb, project crumb, Runs and Settings tabs, repo link and bell (BR-43)', () => {
     render(

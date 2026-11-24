@@ -40,7 +40,7 @@ async function open(
 const sideMenu = (page: Page): Locator => page.getByRole('navigation', { name: 'Platform admin' });
 const bodyRows = (page: Page): Locator => page.locator('tbody tr');
 const rowOf = (page: Page, text: string): Locator => bodyRows(page).filter({ hasText: text });
-const loading = (page: Page): Locator => page.getByRole('status', { name: 'Loading' });
+const loading = (page: Page): Locator => page.getByRole('status', { name: 'Loading', exact: true });
 const tabHeading = (page: Page, name: string): Locator => page.getByRole('heading', { name, level: 2 });
 const toast = (page: Page, text: string): Locator => page.getByRole('status').filter({ hasText: text });
 const pagination = (page: Page): Locator => page.getByRole('navigation', { name: 'Pagination' });

@@ -73,10 +73,10 @@ describe('Platform org detail', () => {
     await ready();
   });
 
-  it('an unknown id shows the not-found state inside the platform layout', async () => {
+  it('an unknown id shows the not-found state without the org side menu', async () => {
     await renderRoute(`/platform/orgs/${UNKNOWN}`, { scenario: asAdmin });
     expect(await screen.findByText('This organization does not exist.')).toBeInTheDocument();
-    expect(screen.getByRole('navigation', { name: 'Platform admin' })).toBeInTheDocument();
+    expect(screen.queryByRole('navigation', { name: 'Platform admin' })).toBeNull();
     expect(screen.getByRole('link', { name: 'Back to organizations' })).toHaveAttribute('href', '/platform/orgs');
   });
 
@@ -210,7 +210,9 @@ describe('Platform org detail', () => {
     expect(queryClient.getQueryData(platformKeys.org(ACME))).toMatchObject({ status: 'suspended' });
     // The directory's cached pages are stale: opening it shows the new status.
     await user.click(
-      within(screen.getByRole('navigation', { name: 'Platform admin' })).getByRole('link', { name: 'Organizations' }),
+      within(screen.getByRole('navigation', { name: 'Platform sections' })).getByRole('link', {
+        name: 'Organizations',
+      }),
     );
     const row = (await screen.findByRole('link', { name: 'Acme' })).closest('tr');
     if (!row) throw new Error('no row for Acme');

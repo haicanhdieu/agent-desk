@@ -602,3 +602,13 @@ item reads "Change access".
   `RunIdleShell`. It renders the same screen as the `RunIdle` story, whose bar already reads org / project / Runs / Run 62.
 - Every top bar now passes its page crumbs (Task 5 of the plan); the stories' bars use the same crumbs as their routes.
 - Not compared by browser: the new board and story were not rendered side by side in this change.
+
+## Navigation shell: platform shell with the platform bar (#274)
+
+- Agent call: the eight platform `*Shell` boards (`PlatformOrgsShell`, `PlatformAdminsShell`, `PlatformAuditShell`, `PlatformOrgsShellScopeMenu`,
+  `PlatformOrgMembersShellLoading`, `PlatformOrgMembersShellError`, `PlatformOrgMembersShellNonMember`, `PlatformOrgOverviewShellNotFound`) are
+  registered in `canvas.json` (after `RunIdleShell`, on a new row at the bottom of the canvas), `storyIds.ts` and `parity.mjs`; their stories are in
+  `Screens/Shell`.
+- The platform bar reads the scope "Platform", the page crumbs, the Platform sections tabs and the bell. The side menu is only the org group
+  (the org name linking to Overview, then Overview, Projects, Members, Invitations) and shows only inside one org.
+- Not compared by browser: the new boards and stories were not rendered side by side in this change.

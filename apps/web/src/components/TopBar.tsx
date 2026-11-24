@@ -7,14 +7,15 @@ import { OrgSwitch, type OrgSwitchProps } from './OrgSwitch';
 import { OrgNav } from './OrgNav';
 import { ProjectSwitch, type ProjectSwitchMenu } from './ProjectSwitch';
 import { Breadcrumb, type BreadcrumbItem } from './Breadcrumb';
+import { PlatformNav, type PlatformNavProps } from './PlatformNav';
 import { ProjectNav } from './ProjectNav';
 import { pageTitle, type PageCrumb, type PageState } from './pageTitle';
 import { useDocumentTitle } from './useDocumentTitle';
 import styles from './Chrome.module.css';
 
 export interface TopBarProps {
-  /** global = org level; project; run. */
-  variant: 'global' | 'project' | 'run';
+  /** global = org level; project; run; platform. */
+  variant: 'global' | 'project' | 'run' | 'platform';
   user: Actor;
   /** Page crumbs after the scope and project crumbs; NO_PAGE_CRUMBS when the page has none. */
   crumbs: readonly PageCrumb[];
@@ -29,6 +30,8 @@ export interface TopBarProps {
   project?: { name: string; repoUrl?: string };
   /** The project menu behind the switcher button; without it the button does nothing. */
   projectMenu?: ProjectSwitchMenu;
+  /** The Platform sections tabs, drawn on the platform variant. */
+  platformTabs?: PlatformNavProps;
   needsYou?: number;
   children?: ReactNode;
   actions?: ReactNode;
@@ -56,6 +59,7 @@ export function TopBar({
   active,
   project,
   projectMenu,
+  platformTabs,
   needsYou,
   children,
   actions,
@@ -72,7 +76,7 @@ export function TopBar({
   if (orgCrumb) items.push({ control: orgCrumb });
   if (projectCrumb) items.push({ control: projectCrumb });
   items.push(...crumbs.map(toItem));
-  const scope = variant === 'global' ? org?.current?.name : project?.name;
+  const scope = variant === 'platform' ? 'Platform' : variant === 'global' ? org?.current?.name : project?.name;
   useDocumentTitle(pageTitle({ crumbs, scope, state }));
   const breadcrumb = items.length > 0 && <Breadcrumb items={items} />;
 
@@ -106,6 +110,24 @@ export function TopBar({
         deskHref={links?.desk}
       />
     ) : null;
+
+  if (variant === 'platform') {
+    return (
+      <header className={styles.top}>
+        <Brand href={projectsHref} />
+        {breadcrumb && (
+          <>
+            <span className={styles.sep} />
+            {breadcrumb}
+          </>
+        )}
+        {platformTabs && <PlatformNav {...platformTabs} />}
+        <span className={styles.grow} />
+        {bell}
+        {avatar}
+      </header>
+    );
+  }
 
   if (variant === 'global') {
     return (

@@ -162,3 +162,32 @@ export const LongNames: Story = {
 export const ForbiddenPage: Story = {
   args: { variant: 'global', user, org: orgWithSettings, crumbs: NO_PAGE_CRUMBS, state: 'forbidden' },
 };
+
+const platformOrg = {
+  ...orgBase,
+  ...orgSwitchFixtures.platformAdmin,
+  scope: 'platform' as const,
+  platformHref: '#platform',
+};
+const platformTabs = { links: { orgs: '#orgs', admins: '#admins', audit: '#audit' } };
+export const PlatformLevel: Story = {
+  args: {
+    variant: 'platform',
+    user,
+    org: platformOrg,
+    crumbs: [{ label: 'Organizations', href: '#orgs' }, { label: 'Harbor Labs' }],
+    platformTabs: { ...platformTabs, active: 'orgs' },
+  },
+};
+export const PlatformOrgLoading: Story = {
+  args: {
+    variant: 'platform',
+    user,
+    org: platformOrg,
+    crumbs: [
+      { label: 'Organizations', href: '#orgs' },
+      { label: '', loading: true, what: 'organization' },
+    ],
+    platformTabs: { ...platformTabs, active: 'orgs' },
+  },
+};

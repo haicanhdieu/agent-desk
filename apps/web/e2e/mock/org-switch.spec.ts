@@ -1,7 +1,7 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
 import type { OnboardingScenario } from '../../src/mocks/msw/onboardingScenarios';
 import type { TenantAdminScenario } from '../../src/mocks/msw/tenantAdminScenarios';
-import { seedOnboarding, seedTenantAdmin } from './mock';
+import { seedOnboarding, seedPlatform, seedTenantAdmin } from './mock';
 
 /*
  * The org switcher in the top bar (spec 2026-11-21-org-onboarding-design.md "E2E requirements": TC-6.1, TC-6.2,
@@ -333,5 +333,24 @@ test.describe('BR-44: org menu (org-tenant-admin)', () => {
     await expect(menu(page)).toHaveCount(0);
     await expect(button).toHaveAttribute('aria-expanded', 'false');
     await expect(button).toBeFocused();
+  });
+});
+
+test.describe('the Platform group in the scope menu', () => {
+  test('a platform admin sees the Platform group first in the scope menu', async ({ page }) => {
+    await seedPlatform(page, 'platformAdminOrgs');
+    await page.goto('/o/alice/projects');
+    await expect(page.getByText('invoicer-api', { exact: true }).first()).toBeVisible();
+
+    await page.getByRole('button', { name: /^Switch scope/ }).click();
+
+    const platform = await menu(page).getByRole('link', { name: 'Platform admin', exact: true }).boundingBox();
+    const firstOrg = await menu(page)
+      .getByRole('group', { name: 'Switch organization' })
+      .getByRole('link')
+      .first()
+      .boundingBox();
+    if (!platform || !firstOrg) throw new Error('the menu entries have no box');
+    expect(platform.y).toBeLessThan(firstOrg.y);
   });
 });
