@@ -1,25 +1,55 @@
+import type { ReactNode } from 'react';
 import type { Meta, StoryObj } from '@storybook/react-vite';
-import { AppShell, type EditOrgDialogProps, type SuspendOrgDialogProps } from '@/components';
+import { expect, userEvent, within } from 'storybook/test';
+import { Button, Dialog } from '@/ds';
+import {
+  AppShell,
+  InviteDialog,
+  InviteLink,
+  type InviteDialogStep,
+  type EditOrgDialogProps,
+  type SuspendOrgDialogProps,
+} from '@/components';
 import {
   activeOrgOverview,
+  assignmentProjects,
+  assignmentRoles,
   editOrgDirtyValues,
   editOrgFieldErrors,
   editOrgFormError,
   editOrgSlugTaken,
   editOrgValues,
+  invitationLink,
+  inviteProjectOptions,
+  inviteRoleOptions,
+  orgInvitationRows,
+  pagedInvitationRows,
   pagedPlatformAdminRows,
+  pagedPlatformMemberRows,
+  pagedPlatformProjectRows,
   pagedPlatformAuditRows,
   pagedPlatformOrgRows,
   platformAdminRows,
   platformAuditActions,
   platformAuditRows,
+  platformMemberRows,
+  platformProjectRows,
   platformOrgRows,
   suspendedOrgOverview,
+  type OrgInvitationRowView,
   type PlatformAdminRowView,
+  type PlatformMemberRowView,
+  type PlatformProjectRowView,
 } from '@/mocks';
 import { PlatformAudit as PlatformAuditScreen, type PlatformAuditProps } from './PlatformAudit';
 import { PlatformAdmins as PlatformAdminsScreen, type PlatformAdminsProps } from './PlatformAdmins';
 import { PlatformOrgDetail as PlatformOrgDetailScreen, type PlatformOrgDetailProps } from './PlatformOrgDetail';
+import {
+  PlatformOrgInvitations as PlatformOrgInvitationsScreen,
+  type PlatformOrgInvitationsProps,
+} from './PlatformOrgInvitations';
+import { PlatformOrgMembers as PlatformOrgMembersScreen, type PlatformOrgMembersProps } from './PlatformOrgMembers';
+import { PlatformOrgProjects as PlatformOrgProjectsScreen, type ListView } from './PlatformOrgProjects';
 import { PlatformOrgs as PlatformOrgsScreen, type PlatformOrgsProps } from './PlatformOrgs';
 import { PlatformFrame } from './platformFrame';
 import { viewport } from './viewports';
@@ -446,4 +476,240 @@ export const PlatformAuditOrgChipUnknown: Story = {
       orgChip: { label: 'Unknown organization', onRemove: noop },
       filtered: true,
     }),
+};
+
+const tabNav = {
+  name: 'Acme',
+  links: {
+    overview: '/platform/orgs/org_acme',
+    projects: '/platform/orgs/org_acme/projects',
+    members: '/platform/orgs/org_acme/members',
+    invitations: '/platform/orgs/org_acme/invitations',
+  },
+};
+const tabHeader = { ...header, status: 'active' as const, onEdit: noop };
+const tabPagination = { ...pagination, total: 3 };
+const tabPage = (active: 'projects' | 'members' | 'invitations', children: ReactNode) => (
+  <PlatformFrame active={active} org={tabNav}>
+    <PlatformOrgDetailScreen view={{ kind: 'ready', header: tabHeader, overview: activeOrgOverview }}>
+      {children}
+    </PlatformOrgDetailScreen>
+  </PlatformFrame>
+);
+const listError = {
+  kind: 'error' as const,
+  title: 'Internal server error',
+  requestId: 'req_01JDP8C5N6WY',
+  onRetry: noop,
+};
+
+const projects = (view: ListView<PlatformProjectRowView> = readyProjects) =>
+  tabPage('projects', <PlatformOrgProjectsScreen view={view} />);
+const readyProjects: ListView<PlatformProjectRowView> = {
+  kind: 'ready',
+  rows: platformProjectRows,
+  pagination: tabPagination,
+};
+
+export const PlatformOrgProjects: Story = {
+  name: 'Organization detail, Projects: id and name only',
+  render: () => projects(),
+};
+export const PlatformOrgProjectsLoading: Story = {
+  name: 'Organization detail, Projects: loading',
+  render: () => projects({ kind: 'loading' }),
+};
+export const PlatformOrgProjectsEmpty: Story = {
+  name: 'Organization detail, Projects: none',
+  render: () => projects({ kind: 'ready', rows: [], pagination: { ...tabPagination, total: 0 } }),
+};
+export const PlatformOrgProjectsError: Story = {
+  name: 'Organization detail, Projects: failed to load',
+  render: () => projects(listError),
+};
+export const PlatformOrgProjectsPaged: Story = {
+  name: 'Organization detail, Projects: page 2 of 2',
+  render: () =>
+    projects({
+      kind: 'ready',
+      rows: pagedPlatformProjectRows.slice(20),
+      pagination: { ...tabPagination, page: 2, total: 25 },
+    }),
+};
+
+const memberRows: ListView<PlatformMemberRowView> = {
+  kind: 'ready',
+  rows: platformMemberRows,
+  pagination: { ...tabPagination, total: platformMemberRows.length },
+};
+const members = (over: Partial<PlatformOrgMembersProps> = {}) =>
+  tabPage('members', <PlatformOrgMembersScreen view={memberRows} onAdd={noop} onRemove={noop} {...over} />);
+const cleo = platformMemberRows.find((r) => r.handle === 'cleo');
+if (!cleo?.assignments[0]) throw new Error('platform member fixtures lost cleo');
+const cleoRole = cleo.assignments[0];
+const removeConfirm = (busy: boolean): NonNullable<PlatformOrgMembersProps['removeConfirm']> => ({
+  roleLabel: 'Admin',
+  personName: 'Cleo Martin',
+  busy,
+  onConfirm: noop,
+  onCancel: noop,
+});
+
+export const PlatformOrgMembers: Story = {
+  name: 'Organization detail, Members: names, emails, roles with scopes',
+  render: () => members(),
+};
+export const PlatformOrgMembersLoading: Story = {
+  name: 'Organization detail, Members: loading',
+  render: () => members({ view: { kind: 'loading' } }),
+};
+export const PlatformOrgMembersEmpty: Story = {
+  name: 'Organization detail, Members: none',
+  render: () => members({ view: { kind: 'ready', rows: [], pagination: { ...tabPagination, total: 0 } } }),
+};
+export const PlatformOrgMembersError: Story = {
+  name: 'Organization detail, Members: failed to load',
+  render: () => members({ view: listError }),
+};
+export const PlatformOrgMembersPaged: Story = {
+  name: 'Organization detail, Members: page 2 of 2',
+  render: () =>
+    members({
+      view: {
+        kind: 'ready',
+        rows: pagedPlatformMemberRows.slice(20),
+        pagination: { ...tabPagination, page: 2, total: 25 },
+      },
+    }),
+};
+export const PlatformOrgMembersRowMenu: Story = {
+  name: 'Organization detail, Members: row menu (Add assignment, remove one assignment)',
+  render: () => members(),
+  play: async ({ canvasElement }) => {
+    await userEvent.click(within(canvasElement).getByRole('button', { name: 'Actions for Cleo Martin' }));
+    await expect(within(document.body).getByRole('button', { name: 'Add assignment' })).toBeInTheDocument();
+    await expect(within(document.body).getByRole('button', { name: `Remove ${cleoRole.label}` })).toBeInTheDocument();
+  },
+};
+export const PlatformOrgMembersAddAssignment: Story = {
+  name: 'Organization detail, Members: Add assignment dialog (whole organization: Owner, Admin, Member, Viewer)',
+  render: () =>
+    members({
+      assignmentDialog: {
+        open: true,
+        person: { name: cleo.name, handle: cleo.handle },
+        roles: assignmentRoles,
+        projects: assignmentProjects,
+        values: { access: 'org', roleKey: '', projectId: '' },
+        errors: {},
+        saving: false,
+        onChange: noop,
+        onSubmit: noop,
+        onClose: noop,
+      },
+    }),
+};
+export const PlatformOrgMembersRemoveConfirm: Story = {
+  name: 'Organization detail, Members: remove an assignment (confirm)',
+  render: () => members({ removeConfirm: removeConfirm(false) }),
+};
+export const PlatformOrgMembersRemoving: Story = {
+  name: 'Organization detail, Members: removing an assignment (busy)',
+  render: () => members({ removeConfirm: removeConfirm(true), busyUserId: cleo.userId }),
+};
+
+const pendingInvites = orgInvitationRows.filter((r) => r.status === 'pending');
+const inviteRows: ListView<OrgInvitationRowView> = {
+  kind: 'ready',
+  rows: pendingInvites,
+  pagination: { ...tabPagination, total: pendingInvites.length },
+};
+const invitations = (over: Partial<PlatformOrgInvitationsProps> = {}) =>
+  tabPage(
+    'invitations',
+    <PlatformOrgInvitationsScreen
+      view={inviteRows}
+      status="pending"
+      onStatus={noop}
+      onInvite={noop}
+      rowActions={() => ({ onCopy: noop, onResend: noop, onRevoke: noop })}
+      {...over}
+    />,
+  );
+const inviteStep: InviteDialogStep = {
+  kind: 'form',
+  values: { email: 'ruth.okafor@harborlabs.dev', roleId: 'owner', scope: 'org', projectIds: [] },
+  errors: {},
+  saving: false,
+};
+const linkDialog = (
+  <Dialog
+    open
+    title="Invitation link"
+    width={520}
+    onClose={noop}
+    footer={
+      <Button variant="primary" onClick={noop}>
+        Done
+      </Button>
+    }
+  >
+    <InviteLink link={invitationLink} onCopy={noop} copyFailed />
+  </Dialog>
+);
+
+export const PlatformOrgInvitations: Story = {
+  name: 'Organization detail, Invitations: pending by default',
+  render: () => invitations(),
+};
+export const PlatformOrgInvitationsLoading: Story = {
+  name: 'Organization detail, Invitations: loading',
+  render: () => invitations({ view: { kind: 'loading' } }),
+};
+export const PlatformOrgInvitationsEmpty: Story = {
+  name: 'Organization detail, Invitations: none',
+  render: () => invitations({ view: { kind: 'ready', rows: [], pagination: { ...tabPagination, total: 0 } } }),
+};
+export const PlatformOrgInvitationsError: Story = {
+  name: 'Organization detail, Invitations: failed to load',
+  render: () => invitations({ view: listError }),
+};
+export const PlatformOrgInvitationsPaged: Story = {
+  name: 'Organization detail, Invitations: page 2 of 2',
+  render: () =>
+    invitations({
+      view: {
+        kind: 'ready',
+        rows: pagedInvitationRows(2),
+        pagination: { ...tabPagination, page: 2, total: 22 },
+      },
+    }),
+};
+export const PlatformOrgInvitationsInvite: Story = {
+  name: 'Organization detail, Invitations: invite dialog (a platform admin may invite an owner)',
+  render: () =>
+    invitations({
+      inviteDialog: (
+        <InviteDialog
+          open
+          step={inviteStep}
+          roles={inviteRoleOptions.owner}
+          projects={inviteProjectOptions}
+          projectsOnly={false}
+          onChange={noop}
+          onSubmit={noop}
+          onCancel={noop}
+          onCopy={noop}
+          onDone={noop}
+        />
+      ),
+    }),
+};
+export const PlatformOrgInvitationsResending: Story = {
+  name: 'Organization detail, Invitations: resending (row busy)',
+  render: () => invitations({ resendingId: pendingInvites[1]?.id }),
+};
+export const PlatformOrgInvitationsCopyFailed: Story = {
+  name: 'Organization detail, Invitations: copy link blocked by the browser',
+  render: () => invitations({ linkDialog, copyFailed: true }),
 };

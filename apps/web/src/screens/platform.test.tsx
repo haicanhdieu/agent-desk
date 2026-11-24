@@ -2,6 +2,14 @@ import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import {
   activeOrgOverview,
+  assignmentProjects,
+  assignmentRoles,
+  pagedPlatformMemberRows,
+  pagedPlatformProjectRows,
+  orgInvitationRows,
+  pagedInvitationRows,
+  platformMemberRows,
+  platformProjectRows,
   editOrgDirtyValues,
   editOrgValues,
   pagedPlatformAuditRows,
@@ -16,6 +24,9 @@ import {
 import { PlatformAudit, type PlatformAuditProps } from './PlatformAudit';
 import { PlatformAdmins, type PlatformAdminsProps } from './PlatformAdmins';
 import { PlatformOrgDetail, type PlatformOrgDetailView } from './PlatformOrgDetail';
+import { PlatformOrgInvitations, type PlatformOrgInvitationsProps } from './PlatformOrgInvitations';
+import { PlatformOrgMembers, type PlatformOrgMembersProps } from './PlatformOrgMembers';
+import { PlatformOrgProjects } from './PlatformOrgProjects';
 import { PlatformOrgs, type PlatformOrgsProps } from './PlatformOrgs';
 
 const noop = () => {};
@@ -589,5 +600,321 @@ describe('PlatformAudit', () => {
     expect(screen.getByText('Request ID: req_01JDP4A7K2QX')).toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: 'Retry' }));
     expect(onRetry).toHaveBeenCalledTimes(1);
+  });
+});
+
+const tabPagination = { ...pagination, total: 3 };
+
+describe('PlatformOrgProjects', () => {
+  it('ready: section heading "Projects" and the Id and Name columns', () => {
+    render(<PlatformOrgProjects view={{ kind: 'ready', rows: platformProjectRows, pagination: tabPagination }} />);
+    expect(screen.getByRole('heading', { level: 2, name: 'Projects' })).toBeInTheDocument();
+    expect(screen.getAllByRole('columnheader').map((h) => h.textContent)).toEqual(['Id', 'Name']);
+    expect(screen.getByText('Billing jobs')).toBeInTheDocument();
+  });
+
+  it('empty rows show "No projects" and no table', () => {
+    render(<PlatformOrgProjects view={{ kind: 'ready', rows: [], pagination: { ...tabPagination, total: 0 } }} />);
+    expect(screen.getByRole('heading', { name: 'No projects' })).toBeInTheDocument();
+    expect(screen.queryByRole('table')).not.toBeInTheDocument();
+  });
+
+  it('paged: the second page shows its range', () => {
+    render(
+      <PlatformOrgProjects
+        view={{
+          kind: 'ready',
+          rows: pagedPlatformProjectRows.slice(20),
+          pagination: { ...tabPagination, page: 2, total: 25 },
+        }}
+      />,
+    );
+    expect(screen.getByText('21–25')).toBeInTheDocument();
+  });
+
+  it('loading is a busy status', () => {
+    render(<PlatformOrgProjects view={{ kind: 'loading' }} />);
+    expect(screen.getByRole('status', { name: 'Loading' })).toHaveAttribute('aria-busy', 'true');
+  });
+
+  it('error shows the request id and Retry calls onRetry', async () => {
+    const onRetry = vi.fn();
+    render(
+      <PlatformOrgProjects
+        view={{ kind: 'error', title: 'Internal server error', requestId: 'req_01JDP4A7K2QX', onRetry }}
+      />,
+    );
+    expect(screen.getByText('Request ID: req_01JDP4A7K2QX')).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Retry' }));
+    expect(onRetry).toHaveBeenCalledTimes(1);
+  });
+});
+
+const membersProps = (over: Partial<PlatformOrgMembersProps> = {}): PlatformOrgMembersProps => ({
+  view: { kind: 'ready', rows: platformMemberRows, pagination: { ...tabPagination, total: 4 } },
+  onAdd: vi.fn(),
+  onRemove: vi.fn(),
+  ...over,
+});
+
+describe('PlatformOrgMembers', () => {
+  it('ready: section heading "Members", the platform-view note and the four columns', () => {
+    render(<PlatformOrgMembers {...membersProps()} />);
+    expect(screen.getByRole('heading', { level: 2, name: 'Members' })).toBeInTheDocument();
+    expect(
+      screen.getByText('Platform view: names and emails only. Tickets, runs and secrets are never shown here.'),
+    ).toHaveClass('muted');
+    expect(screen.getAllByRole('columnheader').map((h) => h.textContent)).toEqual([
+      'Name',
+      'Email',
+      'Roles',
+      'Actions',
+    ]);
+  });
+
+  it('empty rows show "No members" and keep the note', () => {
+    render(
+      <PlatformOrgMembers
+        {...membersProps({ view: { kind: 'ready', rows: [], pagination: { ...tabPagination, total: 0 } } })}
+      />,
+    );
+    expect(screen.getByRole('heading', { name: 'No members' })).toBeInTheDocument();
+    expect(screen.getByText(/Platform view: names and emails only/)).toBeInTheDocument();
+    expect(screen.queryByRole('table')).not.toBeInTheDocument();
+  });
+
+  it('loading is a busy status and error offers Retry', async () => {
+    const { rerender } = render(<PlatformOrgMembers {...membersProps({ view: { kind: 'loading' } })} />);
+    expect(screen.getByRole('status', { name: 'Loading' })).toHaveAttribute('aria-busy', 'true');
+    const onRetry = vi.fn();
+    rerender(
+      <PlatformOrgMembers {...membersProps({ view: { kind: 'error', title: 'Internal server error', onRetry } })} />,
+    );
+    await userEvent.click(screen.getByRole('button', { name: 'Retry' }));
+    expect(onRetry).toHaveBeenCalledTimes(1);
+  });
+
+  it('paged: the second page shows its range', () => {
+    render(
+      <PlatformOrgMembers
+        {...membersProps({
+          view: {
+            kind: 'ready',
+            rows: pagedPlatformMemberRows.slice(20),
+            pagination: { ...tabPagination, page: 2, total: 25 },
+          },
+        })}
+      />,
+    );
+    expect(screen.getByText('21–25')).toBeInTheDocument();
+  });
+
+  it('the row menu calls onAdd and onRemove with the row and the assignment', async () => {
+    const onAdd = vi.fn();
+    const onRemove = vi.fn();
+    render(<PlatformOrgMembers {...membersProps({ onAdd, onRemove })} />);
+    const cleo = platformMemberRows[1]!;
+    await userEvent.click(screen.getByRole('button', { name: 'Actions for Cleo Martin' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Add assignment' }));
+    expect(onAdd).toHaveBeenCalledWith(cleo);
+    await userEvent.click(screen.getByRole('button', { name: 'Actions for Cleo Martin' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Remove Member (Alpha)' }));
+    expect(onRemove).toHaveBeenCalledWith(cleo, cleo.assignments[1]);
+  });
+
+  it('busyUserId disables only that row menu', () => {
+    render(<PlatformOrgMembers {...membersProps({ busyUserId: platformMemberRows[0]!.userId })} />);
+    expect(screen.getByRole('button', { name: 'Actions for Lee Park' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Actions for Cleo Martin' })).toBeEnabled();
+  });
+
+  it('remove confirm reads "Remove <role> from <name>?" with Cancel and Remove', async () => {
+    const onConfirm = vi.fn();
+    const onCancel = vi.fn();
+    render(
+      <PlatformOrgMembers
+        {...membersProps({
+          removeConfirm: { roleLabel: 'Owner', personName: 'Lee Park', busy: false, onConfirm, onCancel },
+        })}
+      />,
+    );
+    const dialog = screen.getByRole('dialog', { name: 'Remove Owner from Lee Park?' });
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Remove' }));
+    expect(onConfirm).toHaveBeenCalledTimes(1);
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }));
+    expect(onCancel).toHaveBeenCalledTimes(1);
+  });
+
+  it('remove confirm busy shows "Removing…", disables both buttons and cannot be closed', async () => {
+    const onCancel = vi.fn();
+    render(
+      <PlatformOrgMembers
+        {...membersProps({
+          removeConfirm: { roleLabel: 'Owner', personName: 'Lee Park', busy: true, onConfirm: vi.fn(), onCancel },
+        })}
+      />,
+    );
+    const dialog = screen.getByRole('dialog', { name: 'Remove Owner from Lee Park?' });
+    expect(within(dialog).getByRole('button', { name: 'Removing…' })).toBeDisabled();
+    expect(within(dialog).getByRole('button', { name: 'Cancel' })).toBeDisabled();
+    await userEvent.keyboard('{Escape}');
+    expect(onCancel).not.toHaveBeenCalled();
+  });
+
+  it('shows the assignment dialog when given', () => {
+    render(
+      <PlatformOrgMembers
+        {...membersProps({
+          assignmentDialog: {
+            open: true,
+            person: { name: 'Cleo Martin', handle: 'cleo' },
+            roles: assignmentRoles,
+            projects: assignmentProjects,
+            values: { access: 'org', roleKey: '', projectId: '' },
+            errors: {},
+            saving: false,
+            onChange: vi.fn(),
+            onSubmit: vi.fn(),
+            onClose: vi.fn(),
+          },
+        })}
+      />,
+    );
+    expect(screen.getByRole('dialog', { name: 'Add assignment' })).toBeInTheDocument();
+  });
+});
+
+const pendingInvites = orgInvitationRows.filter((r) => r.status === 'pending');
+const invitationsProps = (over: Partial<PlatformOrgInvitationsProps> = {}): PlatformOrgInvitationsProps => ({
+  view: { kind: 'ready', rows: pendingInvites, pagination: { ...tabPagination, total: pendingInvites.length } },
+  status: 'pending',
+  onStatus: vi.fn(),
+  onInvite: vi.fn(),
+  rowActions: () => ({ onCopy: vi.fn(), onResend: vi.fn(), onRevoke: vi.fn() }),
+  ...over,
+});
+
+describe('PlatformOrgInvitations', () => {
+  it('ready: heading, Invite people, the platform note and the seven columns', () => {
+    render(<PlatformOrgInvitations {...invitationsProps()} />);
+    expect(screen.getByRole('heading', { level: 2, name: 'Invitations' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Invite people' })).toBeInTheDocument();
+    expect(
+      screen.getByText('Platform view: names and emails only. Tickets, runs and secrets are never shown here.'),
+    ).toHaveClass('muted');
+    expect(screen.getAllByRole('columnheader').map((h) => h.textContent)).toEqual([
+      'Email',
+      'Role',
+      'Access',
+      'Status',
+      'Expires',
+      'Invited by',
+      'Actions',
+    ]);
+  });
+
+  it('Invite people calls onInvite', async () => {
+    const onInvite = vi.fn();
+    render(<PlatformOrgInvitations {...invitationsProps({ onInvite })} />);
+    await userEvent.click(screen.getByRole('button', { name: 'Invite people' }));
+    expect(onInvite).toHaveBeenCalledTimes(1);
+  });
+
+  it('status filter: Pending is on, the six chips read in order and a pick calls onStatus', async () => {
+    const onStatus = vi.fn();
+    render(<PlatformOrgInvitations {...invitationsProps({ onStatus })} />);
+    const group = screen.getByRole('group', { name: 'Filter by status' });
+    const chips = within(group).getAllByRole('button');
+    expect(chips.map((c) => c.textContent)).toEqual(['Pending', 'Accepted', 'Declined', 'Revoked', 'Expired', 'All']);
+    expect(chips.map((c) => c.getAttribute('aria-pressed'))).toEqual([
+      'true',
+      'false',
+      'false',
+      'false',
+      'false',
+      'false',
+    ]);
+    await userEvent.click(within(group).getByRole('button', { name: 'Revoked' }));
+    expect(onStatus).toHaveBeenCalledWith('revoked');
+  });
+
+  it('empty rows show "No invitations" with Invite people and keep the note', async () => {
+    const onInvite = vi.fn();
+    render(
+      <PlatformOrgInvitations
+        {...invitationsProps({
+          onInvite,
+          view: { kind: 'ready', rows: [], pagination: { ...tabPagination, total: 0 } },
+        })}
+      />,
+    );
+    expect(screen.getByRole('heading', { name: 'No invitations' })).toBeInTheDocument();
+    expect(screen.getByText(/Platform view: names and emails only/)).toBeInTheDocument();
+    const buttons = screen.getAllByRole('button', { name: 'Invite people' });
+    expect(buttons).toHaveLength(2);
+    await userEvent.click(buttons[1]!);
+    expect(onInvite).toHaveBeenCalledTimes(1);
+  });
+
+  it('loading is a busy status and error offers Retry', async () => {
+    const { rerender } = render(<PlatformOrgInvitations {...invitationsProps({ view: { kind: 'loading' } })} />);
+    expect(screen.getByRole('status', { name: 'Loading' })).toHaveAttribute('aria-busy', 'true');
+    const onRetry = vi.fn();
+    rerender(
+      <PlatformOrgInvitations
+        {...invitationsProps({ view: { kind: 'error', title: 'Internal server error', onRetry } })}
+      />,
+    );
+    await userEvent.click(screen.getByRole('button', { name: 'Retry' }));
+    expect(onRetry).toHaveBeenCalledTimes(1);
+  });
+
+  it('paged: the second page shows its range', () => {
+    render(
+      <PlatformOrgInvitations
+        {...invitationsProps({
+          view: {
+            kind: 'ready',
+            rows: pagedInvitationRows(2),
+            pagination: { ...tabPagination, page: 2, total: 22 },
+          },
+        })}
+      />,
+    );
+    expect(screen.getByRole('navigation', { name: 'Pagination' })).toHaveTextContent('21–22');
+  });
+
+  it('resending disables only that row menu', () => {
+    render(<PlatformOrgInvitations {...invitationsProps({ resendingId: pendingInvites[0]!.id })} />);
+    expect(screen.getByRole('button', { name: `Actions for ${pendingInvites[0]!.email}` })).toBeDisabled();
+    expect(screen.getByRole('button', { name: `Actions for ${pendingInvites[1]!.email}` })).toBeEnabled();
+  });
+
+  it('row menu runs the handlers of rowActions for that row', async () => {
+    const onResend = vi.fn();
+    const rowActions = vi.fn(() => ({ onCopy: vi.fn(), onResend, onRevoke: vi.fn() }));
+    render(<PlatformOrgInvitations {...invitationsProps({ rowActions })} />);
+    await userEvent.click(screen.getByRole('button', { name: `Actions for ${pendingInvites[0]!.email}` }));
+    await userEvent.click(screen.getByRole('button', { name: 'Resend' }));
+    expect(onResend).toHaveBeenCalledTimes(1);
+    expect(rowActions).toHaveBeenCalledWith(pendingInvites[0]);
+  });
+
+  it('shows the invite and link dialogs when given', () => {
+    render(
+      <PlatformOrgInvitations
+        {...invitationsProps({
+          inviteDialog: <div role="dialog" aria-label="Invite people" />,
+          linkDialog: <div role="dialog" aria-label="Invitation link" />,
+        })}
+      />,
+    );
+    expect(screen.getByRole('dialog', { name: 'Invite people' })).toBeInTheDocument();
+    expect(screen.getByRole('dialog', { name: 'Invitation link' })).toBeInTheDocument();
+  });
+
+  it('copy failed shows the by-hand message as an alert', () => {
+    render(<PlatformOrgInvitations {...invitationsProps({ copyFailed: true })} />);
+    expect(screen.getByText('Could not copy. Select the link and copy it.')).toBeInTheDocument();
   });
 });

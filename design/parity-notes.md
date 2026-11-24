@@ -481,6 +481,41 @@ story `AuditRow/WithNote`.
   run unedited with `PW_CORE_DIR` set to the repo's `playwright-core` and a temporary `HOME` (outside the repo) whose
   macOS-style path symlinks to the installed Linux headless shell. Its screenshots under `_checks/nav/` were discarded.
 
+## Platform admin: org Projects and Members boards
+
+Spec: `docs/superpowers/specs/2026-11-23-platform-admin-dashboard-design.md` (UI and Storybook). Fourteen boards added, so
+`coverage.test.ts` counts 291 (277 before this task): PlatformOrgProjects, …Loading, …Empty, …Error, …Paged and PlatformOrgMembers,
+…Loading, …Empty, …Error, …Paged, …RowMenu, …AddAssignment, …RemoveConfirm, …Removing (`Screens/Platform`). The boards were missing
+from `canvas.json`; the entries are added after PlatformAuditOrgChipUnknown (the titles come from `interactive/data/boards.js`).
+
+- Screens: `PlatformOrgProjects` (h2 "Projects", Id and Name table, "No projects") and `PlatformOrgMembers` (h2 "Members", the muted
+  "Platform view: names and emails only. Tickets, runs and secrets are never shown here.", the row menu, "No members", the
+  `AssignmentDialog` and the remove confirm "Remove <role> from <name>?" with Cancel and Remove/Removing…). Both render inside
+  `PlatformOrgDetail` as its children, under the org header, and share `ListView` (loading, error with Retry, ready with paging).
+- The remove confirm has no body text, as in the boards. Stories use the Acme fixtures (`platformProjectRows`, `platformMemberRows`), not
+  the boards' Harbor Labs rows.
+- Verification: `platform.test.tsx`, `coverage.test.ts` and `stories.smoke.test.tsx` (platform stories, with axe) passed;
+  `_tools/build-boards.mjs` left `design/prototype/interactive/` unchanged (it already had these boards). `build-storybook`,
+  `parity.mjs` and the side-by-side comparison were not run here, so no board is claimed to match pixel for pixel.
+
+## Platform admin: org Invitations boards
+
+Spec: `docs/superpowers/specs/2026-11-23-platform-admin-dashboard-design.md` (UI and Storybook). Eight boards added, so
+`coverage.test.ts` counts 299 (291 before this task): PlatformOrgInvitations, …Loading, …Empty, …Error, …Paged, …Invite, …Resending,
+…CopyFailed (`Screens/Platform`). The boards were missing from `canvas.json`; the entries are added after PlatformOrgMembersRemoving
+(the titles come from `interactive/data/boards.js`).
+
+- Screen: `PlatformOrgInvitations` (h2 "Invitations" with "Invite people", the muted platform-view note, the status chips Pending,
+  Accepted, Declined, Revoked, Expired, All, the seven-column table of `InvitationRow`, "No invitations" with "Invite people",
+  paging) renders inside `PlatformOrgDetail` as its children and shares `ListView`. The invite dialog and the "Invitation link" dialog
+  are slots (`inviteDialog`, `linkDialog`); `copyFailed` shows the error toast "Could not copy. Select the link and copy it.".
+- `rowActions(row)` returns the `onCopy`, `onResend` and `onRevoke` handlers of one row, because `InvitationRow` owns its menu.
+- Stories use the Acme fixtures (`orgInvitationRows`, `pagedInvitationRows`), not the boards' Harbor Labs rows. The Invite story offers
+  Owner (`inviteRoleOptions.owner`), as the board does.
+- Verification: `platform.test.tsx`, `coverage.test.ts` and `stories.smoke.test.tsx` (platform stories, with axe) passed;
+  `_tools/build-boards.mjs` left `design/prototype/interactive/` unchanged. `build-storybook`, `parity.mjs` and the side-by-side
+  comparison were not run here, so no board is claimed to match pixel for pixel.
+
 ## Project admin space: Desk side menu and DeskAgentProjectAdmin
 
 Spec: `docs/superpowers/specs/2026-11-23-rbac-project-admin-space-design.md` (UI and Storybook). One board added, so

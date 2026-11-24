@@ -1869,11 +1869,11 @@ export interface PlatformOrgMembersProps {
 export function PlatformOrgMembers(props: PlatformOrgMembersProps): JSX.Element;
 ```
 
-- [ ] **Step 1: Write the failing tests** in `platform.test.tsx`: section headings "Projects" and "Members"; empty "No projects" and "No members"; the muted note "Platform view: names and emails only. Tickets, runs and secrets are never shown here." on Members; remove confirm "Remove <role> from <name>?" with "Cancel", "Remove"/"Removing…".
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/screens/platform.test.tsx`. Expected: FAIL.
-- [ ] **Step 3: Implement** both screens and stories `PlatformOrgProjects`, `…Loading`, `…Empty`, `…Error`, `…Paged`, `PlatformOrgMembers`, `…Loading`, `…Empty`, `…Error`, `…Paged`, `…RowMenu`, `…AddAssignment`, `…RemoveConfirm`, `…Removing` (org group with all four items); barrel lines for Tasks 49 and 50; register the 14 boards; coverage 240 to 254; regenerate the interactive prototype; parity notes.
+- [x] **Step 1: Write the failing tests** in `platform.test.tsx`: section headings "Projects" and "Members"; empty "No projects" and "No members"; the muted note "Platform view: names and emails only. Tickets, runs and secrets are never shown here." on Members; remove confirm "Remove <role> from <name>?" with "Cancel", "Remove"/"Removing…".
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/screens/platform.test.tsx`. Expected: FAIL.
+- [x] **Step 3: Implement** both screens and stories `PlatformOrgProjects`, `…Loading`, `…Empty`, `…Error`, `…Paged`, `PlatformOrgMembers`, `…Loading`, `…Empty`, `…Error`, `…Paged`, `…RowMenu`, `…AddAssignment`, `…RemoveConfirm`, `…Removing` (org group with all four items); barrel lines for Tasks 49 and 50; register the 14 boards; coverage 240 to 254; regenerate the interactive prototype; parity notes.
 - [ ] **Step 4: Run** the same commands as Task 5 Step 4 for these 14 boards. Expected: PASS.
-- [ ] **Step 5: Commit**: `feat(web): platform org projects and members boards in Storybook`.
+- [x] **Step 5: Commit**: `feat(web): platform org projects and members boards in Storybook`.
 
 ---
 
@@ -1891,11 +1891,11 @@ export function PlatformOrgMembers(props: PlatformOrgMembersProps): JSX.Element;
 
 - Produces: `export function PlatformOrgInvitations(props: { view: ListView<OrgInvitationRowView>; status: InvitationStatusView | 'all'; onStatus: (s) => void; onInvite: () => void; resendingId?: string; inviteDialog?: ReactNode; linkDialog?: ReactNode; copyFailed?: boolean; rowActions: (row: OrgInvitationRowView) => ReactNode }): JSX.Element;` reusing `InvitationRow`, the invitation status filter and `InviteDialog`.
 
-- [ ] **Step 1: Write the failing tests** in `platform.test.tsx`: heading "Invitations", "Invite people", the status filter Pending (default), Accepted, Declined, Revoked, Expired, All; columns Email, Role, Access, Status, Expires, Invited by, Actions; empty "No invitations" with "Invite people"; copy failed "Could not copy. Select the link and copy it."; the platform note.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/screens/platform.test.tsx`. Expected: FAIL.
-- [ ] **Step 3: Implement** the screen and stories `PlatformOrgInvitations`, `…Loading`, `…Empty`, `…Error`, `…Paged`, `…Invite`, `…Resending`, `…CopyFailed`; register the 8 boards; coverage 254 to 262; regenerate the interactive prototype; parity notes.
-- [ ] **Step 4: Run** the same commands as Task 5 Step 4 for these 8 boards. Expected: PASS.
-- [ ] **Step 5: Commit**: `feat(web): platform org invitations boards in Storybook`.
+- [x] **Step 1: Write the failing tests** in `platform.test.tsx`: heading "Invitations", "Invite people", the status filter Pending (default), Accepted, Declined, Revoked, Expired, All; columns Email, Role, Access, Status, Expires, Invited by, Actions; empty "No invitations" with "Invite people"; copy failed "Could not copy. Select the link and copy it."; the platform note.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/screens/platform.test.tsx`. Expected: FAIL.
+- [x] **Step 3: Implement** the screen and stories `PlatformOrgInvitations`, `…Loading`, `…Empty`, `…Error`, `…Paged`, `…Invite`, `…Resending`, `…CopyFailed`; register the 8 boards; coverage 254 to 262; regenerate the interactive prototype; parity notes.
+- [x] **Step 4: Run** the same commands as Task 5 Step 4 for these 8 boards. Expected: PASS.
+- [x] **Step 5: Commit**: `feat(web): platform org invitations boards in Storybook`.
 
 ---
 
