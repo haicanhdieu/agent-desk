@@ -4,12 +4,16 @@ import {
   activeOrgOverview,
   editOrgDirtyValues,
   editOrgValues,
+  pagedPlatformAuditRows,
   pagedPlatformOrgRows,
+  platformAuditActions,
+  platformAuditRows,
   platformAdminRows,
   platformOrgRows,
   suspendedOrgOverview,
   type PlatformOrgOverviewView,
 } from '@/mocks';
+import { PlatformAudit, type PlatformAuditProps } from './PlatformAudit';
 import { PlatformAdmins, type PlatformAdminsProps } from './PlatformAdmins';
 import { PlatformOrgDetail, type PlatformOrgDetailView } from './PlatformOrgDetail';
 import { PlatformOrgs, type PlatformOrgsProps } from './PlatformOrgs';
@@ -481,6 +485,105 @@ describe('PlatformOrgDetail', () => {
     render(
       <PlatformOrgDetail
         view={{ kind: 'error', title: 'Internal server error', requestId: 'req_01JDP4A7K2QX', onRetry }}
+      />,
+    );
+    expect(screen.getByText('Request ID: req_01JDP4A7K2QX')).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Retry' }));
+    expect(onRetry).toHaveBeenCalledTimes(1);
+  });
+});
+
+const auditProps = (over: Partial<PlatformAuditProps> = {}): PlatformAuditProps => ({
+  view: { kind: 'ready', rows: platformAuditRows, pagination },
+  action: 'all',
+  actions: platformAuditActions,
+  onAction: vi.fn(),
+  filtered: false,
+  onClearFilters: vi.fn(),
+  ...over,
+});
+
+describe('PlatformAudit', () => {
+  it('ready: h1 "Audit log", the columns When, Who, What and one row per entry', () => {
+    render(<PlatformAudit {...auditProps()} />);
+    expect(screen.getByRole('heading', { level: 1, name: 'Audit log' })).toHaveAttribute('tabindex', '-1');
+    expect(screen.getAllByRole('columnheader').map((h) => h.textContent)).toEqual(['When', 'Who', 'What']);
+    expect(screen.getAllByRole('row')).toHaveLength(platformAuditRows.length + 1);
+  });
+
+  it('shows the reason as a note under suspend and reactivate rows', () => {
+    render(<PlatformAudit {...auditProps()} />);
+    expect(screen.getAllByText(/^Reason: /).length).toBeGreaterThan(0);
+  });
+
+  it('Action select starts at "All actions" and reports the chosen action', async () => {
+    const onAction = vi.fn();
+    render(<PlatformAudit {...auditProps({ onAction })} />);
+    const select = screen.getByRole('combobox', { name: 'Action' });
+    expect(select).toHaveValue('all');
+    expect(within(select).getByRole('option', { name: 'All actions' })).toBeInTheDocument();
+    await userEvent.selectOptions(select, 'Organization suspended');
+    expect(onAction).toHaveBeenCalledWith('org.suspended');
+  });
+
+  it('shows the org chip with a remove button named after it', async () => {
+    const onRemove = vi.fn();
+    render(<PlatformAudit {...auditProps({ orgChip: { label: 'Organization: Bluefin Health', onRemove } })} />);
+    expect(screen.getByText('Organization: Bluefin Health')).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Remove filter Organization: Bluefin Health' }));
+    expect(onRemove).toHaveBeenCalledTimes(1);
+  });
+
+  it('has no chip without an org filter', () => {
+    render(<PlatformAudit {...auditProps()} />);
+    expect(screen.queryByRole('button', { name: /^Remove filter/ })).not.toBeInTheDocument();
+  });
+
+  it('empty: "No audit entries"', () => {
+    render(<PlatformAudit {...auditProps({ view: { kind: 'ready', rows: [], pagination } })} />);
+    expect(screen.getByRole('heading', { level: 2, name: 'No audit entries' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Clear filters' })).not.toBeInTheDocument();
+  });
+
+  it('empty with filters: "No audit entries match" and Clear filters', async () => {
+    const onClearFilters = vi.fn();
+    render(
+      <PlatformAudit
+        {...auditProps({ view: { kind: 'ready', rows: [], pagination }, filtered: true, onClearFilters })}
+      />,
+    );
+    expect(screen.getByRole('heading', { level: 2, name: 'No audit entries match' })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Clear filters' }));
+    expect(onClearFilters).toHaveBeenCalledTimes(1);
+  });
+
+  it('paged: shows the range of the second page', () => {
+    render(
+      <PlatformAudit
+        {...auditProps({
+          view: {
+            kind: 'ready',
+            rows: pagedPlatformAuditRows.slice(20),
+            pagination: { ...pagination, page: 2, total: 25 },
+          },
+        })}
+      />,
+    );
+    expect(screen.getByText('21–25')).toBeInTheDocument();
+  });
+
+  it('loading is a busy status', () => {
+    render(<PlatformAudit {...auditProps({ view: { kind: 'loading' } })} />);
+    expect(screen.getByRole('status', { name: 'Loading' })).toHaveAttribute('aria-busy', 'true');
+  });
+
+  it('error shows the request id and Retry calls onRetry', async () => {
+    const onRetry = vi.fn();
+    render(
+      <PlatformAudit
+        {...auditProps({
+          view: { kind: 'error', title: 'Internal server error', requestId: 'req_01JDP4A7K2QX', onRetry },
+        })}
       />,
     );
     expect(screen.getByText('Request ID: req_01JDP4A7K2QX')).toBeInTheDocument();

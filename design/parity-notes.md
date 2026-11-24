@@ -449,6 +449,38 @@ PlatformOrgEditError (`Screens/Platform`), and OrgAuditPlatformEdit (`Screens/Or
   `playwright-core` and a temporary `HOME` whose macOS-style path symlinks to the installed Linux headless shell. Its
   screenshots under `_checks/nav/` were discarded, not committed.
 
+## Platform admin: Audit log boards
+
+Spec: `docs/superpowers/specs/2026-11-23-platform-admin-dashboard-design.md` (UI and Storybook). Eight boards added, so
+`coverage.test.ts` counts 277 (the plan's 232 to 240 counted from a stale base; the repo had 269 before this task):
+PlatformAudit, PlatformAuditLoading, PlatformAuditEmpty, PlatformAuditEmptyFiltered, PlatformAuditError, PlatformAuditPaged,
+PlatformAuditOrgChip and PlatformAuditOrgChipUnknown (`Screens/Platform`). The boards were missing from `canvas.json`; the
+entries are added after OrgAuditPlatformEdit. `AuditRow` gained an optional `note` (muted "Reason: <text>" under the sentence);
+story `AuditRow/WithNote`.
+
+- Screen: `PlatformAudit` with the Action select ("All actions" plus the eleven labels), a removable org chip (button
+  "Remove filter <chip text>"), the shared `AuditRow` table, "No audit entries" and "No audit entries match" with "Clear filters",
+  loading, error with Retry, and paging. Stories use `platformAuditRows`, `pagedPlatformAuditRows` and `platformAuditActions`.
+- Verification (runner pod, headless Chromium from `scripts/runner-env.sh`): `build-storybook` passed; `coverage.test.ts`,
+  `stories.smoke.test.tsx`, `platform.test.tsx` and `AuditRow.test.tsx` passed; `pnpm typecheck` passed. `parity.mjs` prints
+  only "N pairs written", so the pairs were compared by eye. A temporary copy of the script (not committed) ran the 8 boards
+  and the 10 `OrgAudit*` boards (18 pairs written); the copy also rewrote `screens-org-settings--` to `screens-orgsettings--`,
+  because the unmodified script builds the id `screens-org-settings--...` for `Screens/OrgSettings` stories while Storybook's
+  id is `screens-orgsettings--...`, so the unmodified script times out on those boards. The tool is not changed here.
+- Result: none of the 8 pairs matches pixel for pixel, so none is claimed to match. I looked at PlatformAudit, PlatformAuditOrgChip
+  and PlatformAuditEmptyFiltered side by side: same rows, order, copy, Reason notes, chip and Clear filters. Differences: the
+  frame (the left menu has no icons and no "Platform admin" heading, the top bar has no org switcher box), the When and Who
+  column widths (the shared `AuditRow` uses fixed widths, the board 14% and 20%), the URLs in the edit sentence are bold text,
+  not mono (`AuditTextPart` has no mono flag), so the long edit row is not cut off with an ellipsis where the board cuts it, the chip's
+  close button is a little larger and the note has slightly less space above it. The other five boards were generated but not inspected.
+- Interactive prototype: `_tools/build-boards.mjs` was run and `design/prototype/interactive/` came out unchanged (it already
+  had these boards). `_checks/nav-check.mjs` was run
+  afterwards and passed: "boards checked: 319", "passed 179, failed 0", "console errors: none" (exit 0). The 319 boards are all
+  those in `canvas.json`, so the 8 PlatformAudit* boards are included; `js/boards.js` routes every `PlatformAudit*` name to the
+  `/platform/audit` view. The script hardcodes a macOS browser path and a `playwright-core` path, so on this Linux runner it was
+  run unedited with `PW_CORE_DIR` set to the repo's `playwright-core` and a temporary `HOME` (outside the repo) whose
+  macOS-style path symlinks to the installed Linux headless shell. Its screenshots under `_checks/nav/` were discarded.
+
 ## Project admin space: Desk side menu and DeskAgentProjectAdmin
 
 Spec: `docs/superpowers/specs/2026-11-23-rbac-project-admin-space-design.md` (UI and Storybook). One board added, so

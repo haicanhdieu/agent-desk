@@ -1,6 +1,6 @@
 import { render, screen, within } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
-import { auditRows } from '@/mocks';
+import { auditRows, platformAuditRows } from '@/mocks';
 import type { AuditRowView } from '@/mocks/types';
 import { AuditRow, auditColumns } from './AuditRow';
 
@@ -103,5 +103,20 @@ describe('AuditRow', () => {
     const second = renderRow(mail);
     expect(second.container.querySelector('a')).toBeNull();
     expect(second.container).toHaveTextContent('sam.reyes@contractor.io');
+  });
+
+  it('renders the note muted under the sentence', () => {
+    const row = platformAuditRows.find((r) => r.note);
+    if (!row?.note) throw new Error('no platform audit row with a note');
+    renderRow(row);
+    const what = screen.getAllByRole('cell')[2] as HTMLElement;
+    const note = within(what).getByText(row.note);
+    expect(note).toHaveAttribute('title', row.note);
+    expect(note.tagName).toBe('SPAN');
+  });
+
+  it('renders nothing extra without a note', () => {
+    renderRow(rowAt(0));
+    expect(screen.queryByText(/^Reason: /)).not.toBeInTheDocument();
   });
 });

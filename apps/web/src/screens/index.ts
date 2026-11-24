@@ -36,6 +36,7 @@ export { OrgMembers, type OrgMembersProps } from './OrgMembers';
 export { CreateOrg, type CreateOrgProps, type CreateOrgState, type CreateOrgValues } from './CreateOrg';
 export { PlatformAdmins, type PlatformAdminsProps, type PlatformAdminsView } from './PlatformAdmins';
 export { PlatformOrgs, type PlatformOrgsProps, type PlatformOrgsView } from './PlatformOrgs';
+export { PlatformAudit, type PlatformAuditProps } from './PlatformAudit';
 export {
   PlatformOrgDetail,
   PlatformOrgOverview,

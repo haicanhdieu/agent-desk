@@ -8,12 +8,16 @@ import {
   editOrgSlugTaken,
   editOrgValues,
   pagedPlatformAdminRows,
+  pagedPlatformAuditRows,
   pagedPlatformOrgRows,
   platformAdminRows,
+  platformAuditActions,
+  platformAuditRows,
   platformOrgRows,
   suspendedOrgOverview,
   type PlatformAdminRowView,
 } from '@/mocks';
+import { PlatformAudit as PlatformAuditScreen, type PlatformAuditProps } from './PlatformAudit';
 import { PlatformAdmins as PlatformAdminsScreen, type PlatformAdminsProps } from './PlatformAdmins';
 import { PlatformOrgDetail as PlatformOrgDetailScreen, type PlatformOrgDetailProps } from './PlatformOrgDetail';
 import { PlatformOrgs as PlatformOrgsScreen, type PlatformOrgsProps } from './PlatformOrgs';
@@ -367,5 +371,79 @@ export const PlatformOrgEditError: Story = {
         dirty: true,
         formError: { ...editOrgFormError, requestId: 'req_01JDP6H2K9TS' },
       }),
+    }),
+};
+
+const auditPagination = { ...pagination, total: platformAuditRows.length };
+const audit = (over: Partial<PlatformAuditProps> = {}) => (
+  <PlatformFrame active="audit">
+    <PlatformAuditScreen
+      view={{ kind: 'ready', rows: platformAuditRows, pagination: auditPagination }}
+      action="all"
+      actions={platformAuditActions}
+      onAction={noop}
+      filtered={false}
+      onClearFilters={noop}
+      {...over}
+    />
+  </PlatformFrame>
+);
+const bluefinRows = platformAuditRows.filter((r) => r.what.kind === 'sentence' && r.what.title.includes('Bluefin'));
+
+export const PlatformAudit: Story = {
+  name: 'Platform audit log, newest first, reason on suspend and reactivate',
+  render: () => audit(),
+};
+export const PlatformAuditLoading: Story = {
+  name: 'Platform audit log, loading',
+  render: () => audit({ view: { kind: 'loading' } }),
+};
+export const PlatformAuditEmpty: Story = {
+  name: 'Platform audit log, no entries',
+  render: () => audit({ view: { kind: 'ready', rows: [], pagination: { ...pagination, total: 0 } } }),
+};
+export const PlatformAuditEmptyFiltered: Story = {
+  name: 'Platform audit log, action filter matches nothing',
+  render: () =>
+    audit({
+      view: { kind: 'ready', rows: [], pagination: { ...pagination, total: 0 } },
+      action: 'invitation.resent',
+      filtered: true,
+    }),
+};
+export const PlatformAuditError: Story = {
+  name: 'Platform audit log, failed to load',
+  render: () =>
+    audit({
+      view: { kind: 'error', title: 'Internal server error', requestId: 'req_01JDP7B3M4VX', onRetry: noop },
+    }),
+};
+export const PlatformAuditPaged: Story = {
+  name: 'Platform audit log, page 2 of 2',
+  render: () =>
+    audit({
+      view: {
+        kind: 'ready',
+        rows: pagedPlatformAuditRows.slice(20),
+        pagination: { ...pagination, page: 2, total: 25 },
+      },
+    }),
+};
+export const PlatformAuditOrgChip: Story = {
+  name: 'Platform audit log, from "View audit log": filtered to one org, removable chip',
+  render: () =>
+    audit({
+      view: { kind: 'ready', rows: bluefinRows, pagination: { ...pagination, total: bluefinRows.length } },
+      orgChip: { label: 'Organization: Bluefin Health', onRemove: noop },
+      filtered: true,
+    }),
+};
+export const PlatformAuditOrgChipUnknown: Story = {
+  name: 'Platform audit log, org filter with an unknown id',
+  render: () =>
+    audit({
+      view: { kind: 'ready', rows: [], pagination: { ...pagination, total: 0 } },
+      orgChip: { label: 'Unknown organization', onRemove: noop },
+      filtered: true,
     }),
 };
