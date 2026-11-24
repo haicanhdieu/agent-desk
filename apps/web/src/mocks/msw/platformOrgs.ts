@@ -150,7 +150,7 @@ export function listPlatformMembers(orgId: string, q: PageQuery): Page<PlatformM
 
 export function listPlatformRoles(orgId: string): PlatformRoleDto[] {
   tabsOf(orgId);
-  return structuredClone(roleFixtures);
+  return structuredClone(roleFixtures.filter((r) => r.builtIn));
 }
 
 const invalidAt = (title: string, pointer: string, detail: string) =>

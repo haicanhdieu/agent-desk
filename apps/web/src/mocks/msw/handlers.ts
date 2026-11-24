@@ -187,10 +187,6 @@ function requireRouteAccess(key: RouteKey, user: MockUser): void {
 
 type Answer<T> = T | WithStatus<T>;
 
-const never = (what: string): never => {
-  throw new Error(`${what} fixture missing`);
-};
-
 // Invitations follow the API rules: lists by effective status, one pending row per (org, email), a 2 day lifetime, and
 // an invitee who is not the invited email sees a 404.
 
