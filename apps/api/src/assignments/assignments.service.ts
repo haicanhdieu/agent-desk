@@ -20,6 +20,7 @@ import { actorUserId, type Actor } from '../access/actor';
 import { FORBIDDEN_DETAIL } from '../access/authorize';
 import { checkTenantAssign } from '../access/grant-rules';
 import { writeAuditEntry } from '../audit/audit-entry';
+import { writePlatformAuditEntry } from '../audit/platform-audit-entry';
 import { ConflictProblemException, UnprocessableProblemException } from '../common/zod-validation';
 import { DB } from '../db/db.module';
 import { OrgsService } from '../orgs/orgs.service';
@@ -165,6 +166,18 @@ export class AssignmentsService {
           payload: { to: { roleId: role.id, roleKey: role.key, scope: auditScope(req.scope) } },
           projectIds: projectId === null ? [] : [projectId],
         });
+        if (actor.kind === 'platform_admin') {
+          const [made] = inserted;
+          if (!made) throw new Error('assignment insert returned no row');
+          await writePlatformAuditEntry(tx, {
+            actorUserId: actor.userId,
+            action: 'assignment.granted',
+            targetType: 'assignment',
+            targetId: made.id,
+            targetOrgId: orgId,
+            payload: { userId: req.userId, roleKey: role.key, scope: auditScope(req.scope) },
+          });
+        }
       }
       const [row] = await tx
         .select(assignmentColumns)
@@ -261,6 +274,16 @@ export class AssignmentsService {
         payload: { from: { roleId: role.id, roleKey: role.key, scope: auditScope(dto.scope) } },
         projectIds: dto.scope.type === 'project' ? [dto.scope.projectId] : [],
       });
+      if (actor.kind === 'platform_admin') {
+        await writePlatformAuditEntry(tx, {
+          actorUserId: actor.userId,
+          action: 'assignment.revoked',
+          targetType: 'assignment',
+          targetId: row.id,
+          targetOrgId: orgId,
+          payload: { userId: row.userId, roleKey: role.key, scope: auditScope(dto.scope) },
+        });
+      }
     });
   }
 

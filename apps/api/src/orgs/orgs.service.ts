@@ -69,8 +69,8 @@ export class OrgsService {
   ) {}
 
   /**
-   * One withOrg(newId) tx: the organization row (id = uuid), the built-in roles copied from the templates and the
-   * `org.created` audit entry. The slug is caught on the unique index, not read-then-insert, so two creates at the
+   * One withOrg(newId) tx: the organization row (id = uuid), the built-in roles copied from the templates, the
+   * `org.created` tenant audit entry and the `org.created` platform audit entry (the only caller is a platform admin). The slug is caught on the unique index, not read-then-insert, so two creates at the
    * same moment give one 201 and one 409.
    */
   async createOrg(actorUserId: string, req: CreateOrgRequest): Promise<CreateOrgResponse> {
@@ -86,6 +86,14 @@ export class OrgsService {
           action: 'org.created',
           targetType: 'org',
           targetId: orgId,
+          payload: { name: req.name, slug: req.slug },
+        });
+        await writePlatformAuditEntry(tx, {
+          actorUserId,
+          action: 'org.created',
+          targetType: 'org',
+          targetId: orgId,
+          targetOrgId: orgId,
           payload: { name: req.name, slug: req.slug },
         });
       });
