@@ -1,25 +1,18 @@
 # Phase 1: Brainstorm with parallel area analysts
 
-Four **Analysts** (prompt: [prompts/analyst.md](../prompts/analyst.md)) explore the requirement at once, one per area. You triage what they ask and relay it to the human. Ends when every active analyst has replied `STATUS: design`.
+Four **Analysts** explore the requirement at once, one per area: `business`, `architecture`, `ui-ux`, `testing` (deep-dive lists in [prompts/areas/](../prompts/areas/); each owns one spec section). You triage what they ask and relay it to the human. Ends when every active analyst has replied `STATUS: design`.
 
-| Area           | Deep-dive list                                                    | Owns the spec section |
-| -------------- | ----------------------------------------------------------------- | --------------------- |
-| `business`     | [prompts/areas/business.md](../prompts/areas/business.md)         | `## Business rules`   |
-| `architecture` | [prompts/areas/architecture.md](../prompts/areas/architecture.md) | `## Architecture`     |
-| `ui-ux`        | [prompts/areas/ui-ux.md](../prompts/areas/ui-ux.md)               | `## UI and Storybook` |
-| `testing`      | [prompts/areas/testing.md](../prompts/areas/testing.md)           | `## Testing`          |
-
-Each analyst applies `superpowers:brainstorming` to its own area, with its questions routed through you instead of to the human. It decides what the project's constraints settle (`Follows:`), decides what it is confident about (`Agent call:`), and asks the human only what it is not confident about or where options are about equally good. It keeps its findings in `<workdir>/areas/<area>.md`.
+Each analyst decides what the project's constraints settle (`Follows:`), decides what it is confident about (`Agent call:`), and asks the human, through you, only what it is not confident about or where options are about equally good. It keeps its findings in `<workdir>/areas/<area>.md`.
 
 ## 1. Spawn
 
-Create `<workdir>/areas/`. Spawn the four analysts **in one message**, each with tier `--brainstorm-tier` (the `Models: brainstorm=` model from `answers.md`, passed as the Agent tool's `model`) and effort `high`, the prompt filled with its `<area>`.
+Create `<workdir>/areas/`. Spawn the four analysts **in one message**, each with its `AREA`.
 
 ## 2. A round
 
-A round ends when every active analyst has replied. An analyst that replies `STATUS: not-applicable` is inactive from then on and is never resumed. An analyst that replied `STATUS: design` stays active: the next round's answers may change its design.
+A round ends when every analyst you spawned or resumed for it has replied. An analyst that replies `STATUS: not-applicable` is inactive from then on and is never resumed. An analyst that replied `STATUS: design` stays active: a later answer may change its design.
 
-When every active analyst replied `STATUS: design` and no reply has a `CONFLICTS:` line other than `none`, go to [Ready](#4-ready). Otherwise triage.
+When every active analyst's last reply is `STATUS: design` and no reply has a `CONFLICTS:` line other than `none`, go to [Ready](#4-ready). Otherwise triage.
 
 ## 3. Triage and relay
 
@@ -27,13 +20,17 @@ When every active analyst replied `STATUS: design` and no reply has a `CONFLICTS
 2. Order the `ask` rows: a question others `DEPENDS ON` first, business before the areas that depend on it, then by how much the answer changes what gets built.
 3. Ask the human each `ask` row, one message each, in the shape of [templates/asks.md › Relaying a question](../templates/asks.md#relaying-a-question). Do not answer for them, drop a question, or merge two that are not the same decision.
 4. Append each question and the human's answer, word for word, to `<workdir>/answers.md`.
-5. When the round is answered, resume **every active analyst** in one message per analyst, sent together, with the whole round's answers, the hand-offs that concern it, and the other areas' findings files ([prompts/analyst.md › Resume, each round](../prompts/analyst.md#resume-each-round)). That starts the next round.
+5. When the round is answered, resume the analysts, all in one turn, with the whole round's answers, the hand-offs that concern each, and the other areas' findings files ([prompts/resumes.md › Analyst, each round](../prompts/resumes.md#analyst-each-round)). That starts the next round. Whom to resume:
+   - every analyst that replied `STATUS: questions`;
+   - an analyst already at `STATUS: design` only when an answer, a hand-off or a conflict of this round touches its area; `testing` whenever a business answer changed or added a rule; **all of them when unsure**.
+
+   An analyst left out keeps its design; the Spec writer's `OPEN` lines catch a gap between areas.
 
 **Cap: 3 rounds of questions.** When you send the answers to the third, say that no more questions are possible; whatever is still open, each analyst decides and marks `Agent call:`. A conflict still open after the cap is listed under `Unresolved conflicts` at gate AR for the human to settle there.
 
 ## 4. Ready
 
-Every active analyst has replied `STATUS: design`. Check:
+Every active analyst's last reply is `STATUS: design`. Check:
 
 - each reply has every design field of its area file, and `<workdir>/areas/<area>.md` exists for each;
 - no `CONFLICTS:` line is left, except one still open after the cap, which you list for gate AR.

@@ -47,22 +47,24 @@ For `OPTIONS: open`, `Solutions:` has the single line `1. Answer in your own wor
 
 Append each question and the human's answer, word for word, to `<workdir>/answers.md` as `Round <k> T<n> (<areas>): <question>` and `Answer: <answer>`.
 
-## Gate asks
+## File links
 
-Send the results first (paths, `rev`, `hash`, agent calls), then the ask, then stop. Keep the wording; fill the slots.
-
-<a id="file-links"></a>**File links.** Report the spec and the plan as a full clickable link, never a repo-relative path like `docs/superpowers/specs/<file>.md`. Before the PR exists: `file://` plus the absolute path of the file in the worktree, one per line, so the human can click or paste it to open it:
+Report the spec, the plan and each board as a full clickable link, never a repo-relative path, a bare file name, or a path that starts at the worktree. Before the PR exists: `file://` plus the absolute path of the file in the worktree, one per line:
 
 ```text
 Spec: file://<absolute path of the spec in the worktree> (rev <rev>, <hash>)
 Plan: file://<absolute path of the plan in the worktree> (rev <rev>, <hash>)
 ```
 
-After the PR exists (phase 7 report): the PR URL, and the GitHub `blob` URL of each file at the PR's head commit (`https://github.com/<repo>/blob/<sha>/<path>`). Never a relative path, a bare file name, or a path that starts at the worktree.
+After the PR exists (phase 7 report): the PR URL, and the GitHub `blob` URL of each file at the PR's head commit (`https://github.com/<repo>/blob/<sha>/<path>`).
 
-**AR, the design** (before the spec is written)
+## Gate asks
 
-<a id="design-results"></a>Results, sent before the ask, from each active analyst's `STATUS: design` fields, in plain words. An area that replied `not-applicable` is one line with its `REASON`.
+Send the results first (links, `rev`, `hash`, agent calls), then the ask, then stop. Keep the wording; fill the slots.
+
+### Design results
+
+**AR, the design** (before the spec is written). Results, sent before the ask, from each active analyst's `STATUS: design` fields, in plain words. An area that replied `not-applicable` is one line with its `REASON`. `FOLLOWS:` lines are not listed one by one; say how many decisions followed the project's rules, per area.
 
 ```text
 Design for <topic>:
@@ -101,8 +103,6 @@ Decided for you (all areas): <every AGENT CALLS line, prefixed by its area>
 Unresolved conflicts: <CONFLICTS left after the question cap; or "none">
 ```
 
-`FOLLOWS:` lines are not listed one by one; say how many decisions followed the project's rules, per area.
-
 ```text
 Problem: The design for <topic> is ready (above). It needs your confirmation before the spec is written from it.
 Solutions:
@@ -112,9 +112,9 @@ Solutions:
 Suggestion: <1, or 2 with the one thing you would change and why>
 ```
 
-<a id="coverage-gap"></a>**Coverage gap** (after the spec is written; one message per `GAP R<n>` from the Coverage checker)
+### Coverage gap
 
-Result line, sent once before the first gap: `Coverage check: <ITEMS line>.`
+After the spec is written; one message per `GAP R<n>` from the Coverage checker. Result line, sent once before the first gap: `Coverage check: <ITEMS line>.`
 
 ```text
 Problem: The spec does not fully cover this part of the requirement: "<the requirement's words>". <MISSING>
@@ -126,7 +126,9 @@ Solutions:
 Suggestion: 1, the requirement asks for it and no answer so far drops it.
 ```
 
-**P1, review a UI prototype?** (only when the Spec writer's `UI:` is `yes`)
+### P1, review a UI prototype?
+
+Only when the Spec writer's `UI:` is `yes`.
 
 ```text
 Problem: The spec for <topic> changes what people see (<screens, short>). I can have a prototype drawn for you to review and approve before the spec is final.
@@ -136,9 +138,9 @@ Solutions:
 Suggestion: <1 when a new screen or a layout change is involved; 2 when it is a small text or state change, with the reason>
 ```
 
-**P2, the prototype**
+### Prototype results
 
-<a id="prototype-results"></a>Results, sent before the ask, one line per new or changed board:
+**P2, the prototype.** Results, sent before the ask, one line per new or changed board:
 
 ```text
 Prototype boards to review (open each link in a browser):
@@ -158,9 +160,7 @@ Solutions:
 Suggestion: <1, or 2 with the one thing you would change and why>
 ```
 
-"Drop the prototype": delete the boards from the worktree, record `Prototype: no` in `answers.md`, revert its changes under `design/prototype/interactive/`, and continue as for a no at P1.
-
-**A, the spec**
+### A, the spec
 
 ```text
 Problem: The spec for <topic> is written (rev <rev>, <hash>) and needs your approval before anything is planned from it.
@@ -171,7 +171,7 @@ Solutions:
 Suggestion: <1, or 2 with the one thing you would change and why>
 ```
 
-**B, e2e test plan**
+### B, e2e test plan
 
 ```text
 Problem: The spec is approved with <r> user-visible rules (<e> sent to e2e). I can add an e2e section with the test cases for each of them, which the plan then has to cover.
@@ -181,7 +181,7 @@ Solutions:
 Suggestion: <1 when the change is visible to a user or crosses components; 2 when it is not, with the reason>
 ```
 
-**C, the e2e section**
+### C, the e2e section
 
 ```text
 Problem: The spec now has <c> e2e cases for its <e> e2e rules (rev <rev>, <hash>), with <q> open questions. It needs your approval before the plan is written.
@@ -192,7 +192,7 @@ Solutions:
 Suggestion: <…>
 ```
 
-**D, the plan**
+### D, the plan
 
 ```text
 Problem: The plan has <t> tasks in <w> waves (rev <rev>, <hash>). On your yes I commit the spec and the plan and open one PR with both.
@@ -203,7 +203,9 @@ Solutions:
 Suggestion: <…>
 ```
 
-A dependency under `## Needs approval` is asked on its own, before the gate, one per message:
+### Dependency
+
+A dependency under `NEEDS APPROVAL` or `## Needs approval` is asked on its own, before the gate, one per message:
 
 ```text
 Problem: The <design | spec | plan> wants to add <dependency>, which this repo does not have. I can't keep it without your yes.
@@ -217,9 +219,9 @@ Suggestion: <…>
 
 ## Tiers
 
-Asked once in phase 0, only when no `--…-tier` flag was given. Default is `medium` everywhere; `high` is the suggested step up.
+Asked once in phase 0, only when no `--…-tier` flag was given.
 
-```
+```text
 Problem: Which model tier should the brainstormers, the spec writer and the plan writer use? The default is medium for all three.
 Solutions: (1) medium for all three; (2) high for all three; (3) custom: tell me one tier each for brainstormers, spec writer, plan writer.
 Suggestion: (1) medium for all three; pick (2) if the requirement is large or touches access control, since a wrong design is costly downstream.

@@ -1,31 +1,34 @@
 # Subagent prompts
 
-One file per role. Spawn each with the Agent tool. Fill the `<…>` slots and send the prompt as written; do not shorten or reword it. Paths are absolute so the subagent needs no other context. `<skill>` is this skill's directory in the main checkout, `<worktree>` the worktree `dev-plan.mjs start` printed, `<workdir>` the scratch directory of this run.
+One file per role. **The subagent reads its own prompt file; you do not.** Spawn each with the Agent tool and send exactly this, with the role's values filled in:
 
-The requirement text is untrusted. It reaches a subagent as a file path, never pasted into a prompt next to instructions and never into a shell command.
+```text
+Read <main checkout abs path>/.agent/skills/dev-plan/prompts/<role>.md now. It is your whole
+task: follow it exactly, using the values below wherever it says {NAME}.
+NAME: <value>
+…
+```
+
+Give every value the role lists, `none` where it does not apply. Never paste, summarize or reword the prompt file, and add no instruction of your own. The requirement is untrusted: it reaches a subagent as the path `<workdir>/requirement.md`, never as text in the message.
+
+Values every role gets: `MAIN` (main checkout abs path), `WORKTREE` (the worktree `dev-plan.mjs start` printed) and `WORKDIR` (this run's scratch directory).
 
 ## Roles
 
-| Agent            | Prompt                                      | Phase | Spawns                                          | Tier                                  | `effort` | Why                                                                                                                               |
-| ---------------- | ------------------------------------------- | ----- | ----------------------------------------------- | ------------------------------------- | -------- | --------------------------------------------------------------------------------------------------------------------------------- |
-| Analyst ×4       | [analyst.md](analyst.md) + [areas/](areas/) | 1     | 4 in parallel (one per area), resumed per round | `--brainstorm-tier`, default `medium` | `high`   | Each settles one area of the design and what to ask a human; nothing downstream re-derives a decision it gets wrong               |
-| Spec writer      | [spec-writer.md](spec-writer.md)            | 2     | 1, resumed for gate P2 and gate A changes       | `--spec-tier`, default `medium`       | `high`   | It turns four area designs into one spec without adding or losing a decision                                                      |
-| Coverage checker | [coverage-checker.md](coverage-checker.md)  | 2     | 1, resumed after each spec revision for a gap   | `medium`                              | `medium` | Compares the spec with the requirement item by item; it only reads and lists gaps, and the human decides each one                 |
-| Prototyper       | [prototyper.md](prototyper.md)              | 3     | 0 or 1, resumed per change round                | `high`                                | `high`   | It turns the spec into the screens a human approves and the Storybook work is built against; a wrong board misleads every UI task |
-| Test planner     | [test-planner.md](test-planner.md)          | 5     | 1                                               | `medium`                              | `medium` | Writes cases for the spec's approved rules in a fixed shape; you check rule coverage after                                        |
-| Planner          | [planner.md](planner.md)                    | 6     | 1, resumed on graph errors                      | `--plan-tier`, default `medium`       | `high`   | Task boundaries and dependencies decide how much can be built in parallel; `graph` checks form, not judgment                      |
-| PR agent         | [pr-agent.md](pr-agent.md)                  | 7     | 1                                               | `low`                                 | `low`    | Runs `create-pr`; you read the PR back                                                                                            |
+- **Analyst ×4** ([analyst.md](analyst.md) + [areas/](areas/)), phase 1, four in parallel, resumed per round; tier `--brainstorm-tier`, effort `high`. Values: `AREA` (`business`, `architecture`, `ui-ux` or `testing`), `SPEC` (update mode: the existing spec path; else `none`), `CHANGED` (what changed, in the human's words; else `none`), `FRESH` (`no`; `lost` for a fresh spawn after a lost agent; `resumed-run` for one in a new session with no area file).
+- **Spec writer** ([spec-writer.md](spec-writer.md)), phase 2, one, resumed for changes; tier `--spec-tier`, effort `high`. Values: `AREAS` (the areas whose analyst replied `STATUS: design`), `SOURCE` (`issue #<n>`, `file` or `text`), `SPEC` (`new: <slug>`, or the existing spec path to revise in place).
+- **Coverage checker** ([coverage-checker.md](coverage-checker.md)), phase 2, one, resumed after each spec revision for a gap; tier `medium`, effort `medium`. Values: `SPEC`.
+- **Prototyper** ([prototyper.md](prototyper.md)), phase 3, none or one, resumed per change round; tier `high`, effort `high`. Values: `SPEC`.
+- **Test planner** ([test-planner.md](test-planner.md)), phase 5, one (a fresh one per gate C change); tier `medium`, effort `medium`. Values: `SPEC`, `CHANGES` (the human's gate C changes, word for word; else `none`).
+- **Planner** ([planner.md](planner.md)), phase 6, one, resumed on graph errors and changes; tier `--plan-tier`, effort `high`. Values: `SPEC`, `PLAN` (`new: <slug>`, or the existing plan path to update in place), `APPROVED_DEPS` (from `answers.md`, or `none`).
+- **PR agent** ([pr-agent.md](pr-agent.md)), phase 7, one; tier `low`, effort `low`. Values: `REPO`, `SLUG`, `ACTION` (`add` or `update`), `OPEN_PR` (a number or `none`), `ISSUE` (a number or `none`), `SPEC` and `PLAN` (path, rev, hash), `BOARDS` (paths or `none`), `SUMMARY`, `HEAD` (the sha `check` and `graph` printed clean on), `JUDGMENT_CALLS`, `SENSITIVE` (`no`, or the sensitive path the planned work touches).
 
-The four areas: [business](areas/business.md), [architecture](areas/architecture.md), [ui-ux](areas/ui-ux.md), [testing](areas/testing.md). Each area file lists the items its analyst must deep-dive and the design fields it replies with.
+## Model and effort
 
-## Tier and effort
-
-Pass a tier's model and an effort on every spawn. Map the tier to a model with [`.agent/models.json`](../../../models.json) (`tiers.<tier>`); never hardcode a model name, and do not let a subagent inherit the session model. Every Agent call must carry a `model` field; a call without one runs on the session model and the human's tier choice has no effect. For the three tiers the human chose, the value is the `Models:` line phase 0 wrote in `<workdir>/answers.md`; for the fixed roles it is `tiers.<the role's tier>`. Before each spawn, check the `model` you pass equals `tiers.<the role's tier>`, and if it does not, fix it before sending. Resuming (SendMessage) keeps the model of the first spawn.
-
-The user sets the three `--…-tier` flags (or answers the tier ask in phase 0); pass exactly what they chose. The other roles are fixed.
+Every Agent call must carry a `model` field and the role's effort; a call without `model` runs on the session model and the human's tier choice has no effect. For the three tiers the human chose, the model is in the `Models:` line phase 0 wrote in `<workdir>/answers.md`; for the fixed roles it is `tiers.<the role's tier>` in [`.agent/models.json`](../../../models.json). Never pass a model name of your own. Resuming (SendMessage) keeps the model of the first spawn.
 
 ## Resuming
 
-Resume an Analyst, the Spec writer, the Coverage checker, the Prototyper or the Planner with SendMessage so it keeps what it read. If it can no longer be resumed, spawn a fresh one with the prompt's `<fresh spawn …>` line, which adds `<workdir>/answers.md` (and, for an Analyst, its `<workdir>/areas/<area>.md`) to its reading list. On a resumed run in a new session those files do not exist: an Analyst gets the `<fresh spawn in a resumed run …>` line instead, which rebuilds its area file from the spec's section, and `answers.md` starts empty.
+Resume an Analyst, the Spec writer, the Coverage checker, the Prototyper or the Planner with SendMessage so it keeps what it read; the messages are in [resumes.md](resumes.md). If it can no longer be resumed, spawn a fresh one (an Analyst with `FRESH: lost`, or `resumed-run` when its area file does not exist; then `answers.md` starts empty).
 
-In another harness, use its closest equivalent. If it cannot choose a model per subagent, spawn with its default. If it cannot resume a subagent, spawn a fresh one as above. If it cannot run subagents in parallel, run the four Analysts one after another; a round still ends when all active ones have replied.
+In another harness, use its closest equivalent. If it cannot choose a model per subagent, spawn with its default. If it cannot resume a subagent, spawn a fresh one as above. If it cannot run subagents in parallel, run the four Analysts one after another; a round still ends when all of them have replied. With no Skill tool, add a line telling the subagent to read each named skill's `SKILL.md` instead.
