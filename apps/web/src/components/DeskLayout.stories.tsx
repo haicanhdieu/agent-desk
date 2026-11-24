@@ -26,6 +26,7 @@ export const Skills: Story = {
       topBar={
         <TopBar
           variant="project"
+          crumbs={[{ label: 'Project settings', href: '#desk' }, { label: 'Skills' }]}
           user={{ login: 'kim-hale', initials: 'KH' }}
           project={{ name: 'invoicer-api', repoUrl: '#' }}
           org={{ ...orgSwitchFixtures.severalOrgsSettings, orgHref: (o) => `#${o.slug}`, createHref: '#new-org' }}

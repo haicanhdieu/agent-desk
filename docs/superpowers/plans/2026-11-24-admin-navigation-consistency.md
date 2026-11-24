@@ -200,7 +200,7 @@ export interface TopBarProps {
 export type BreadcrumbItem = { label: ReactNode; href?: string } | { control: ReactNode } | { loading: string };
 ```
 
-- [ ] **Step 1: Write the failing tests** in `Chrome.test.tsx`:
+- [x] **Step 1: Write the failing tests** in `Chrome.test.tsx`:
   - `it('every variant renders exactly one Breadcrumb nav')` (global with org, project, run).
   - `it('the project bar has no slash outside the Breadcrumb')` (no `aria-hidden` "/" sibling of the org crumb).
   - `it('page crumbs follow the scope and project crumbs; only the last has aria-current="page"')`: project variant, crumbs `[{label:'Project settings',href:'/d'},{label:'Skills'}]` → link "Project settings", `b[aria-current=page]` "Skills".
@@ -209,10 +209,10 @@ export type BreadcrumbItem = { label: ReactNode; href?: string } | { control: Re
   - `it('the run bar has no tabs and one bell')` (replaces the BR-46 "no bell" case; Agent call above).
   - `it('a 60-character org and project name keep ellipsis and title')`.
   - `// @ts-expect-error crumbs is required` on a `<TopBar variant="global" user={u} />` line inside a test.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/components/Chrome.test.tsx`. Expected: FAIL.
-- [ ] **Step 3: Implement**: build `items = [orgCrumb?, projectCrumb?, ...crumbs.map(toItem)]`, render `<Breadcrumb>` when non-empty on every variant; scope for the title is `project.name` on project/run variants, `org.current?.name` on global; bell in the run branch before `actions`. Stories: update every existing story with `crumbs`; add `RunLevelCrumbs`, `LoadingCrumb`, `LongNames`, `ForbiddenPage`.
-- [ ] **Step 4: Run** Step 2's command plus `src/test/stories.smoke.test.tsx`. Expected: PASS (typecheck fails at call sites until Task 5; do Task 5 before the commit if `devbox run fix` blocks, and commit both together).
-- [ ] **Step 5: Commit** (with Task 5) `feat(web): top bar renders one breadcrumb with page crumbs`.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/components/Chrome.test.tsx`. Expected: FAIL.
+- [x] **Step 3: Implement**: build `items = [orgCrumb?, projectCrumb?, ...crumbs.map(toItem)]`, render `<Breadcrumb>` when non-empty on every variant; scope for the title is `project.name` on project/run variants, `org.current?.name` on global; bell in the run branch before `actions`. Stories: update every existing story with `crumbs`; add `RunLevelCrumbs`, `LoadingCrumb`, `LongNames`, `ForbiddenPage`.
+- [x] **Step 4: Run** Step 2's command plus `src/test/stories.smoke.test.tsx`. Expected: PASS (typecheck fails at call sites until Task 5; do Task 5 before the commit if `devbox run fix` blocks, and commit both together).
+- [x] **Step 5: Commit** (with Task 5) `feat(web): top bar renders one breadcrumb with page crumbs`.
 
 ### Task 5: Every call site passes crumbs, guarded by a call-site inventory test
 
@@ -264,17 +264,17 @@ export function platformCrumbs(pathname: string, org: PlatformOrgCrumb): {
 export const TOP_BAR_CALL_SITES: Record<string, number>; // path under src → count, the 16 files above
 ```
 
-- [ ] **Step 1: Write the failing tests.**
+- [x] **Step 1: Write the failing tests.**
   - `topBarCallSites.test.ts` (reads files with `readdirSync(src, { recursive: true })` + `readFileSync`, like `coverage.test.ts`; skips `*.stories.tsx`, `*.test.tsx`; pattern `/<TopBar(?=[\s>])/g`):
     - `it('TopBar is rendered exactly at the listed call sites')`: map of file → count equals `TOP_BAR_CALL_SITES`. A new bar fails here until it is added to the list, which a reviewer sees.
     - `it('every call site passes crumbs and none passes a literal empty list')`: for each match take the JSX element text (from the match to the first `/>` at the element's own indentation, or the end of a one-line element), expect `/\bcrumbs=\{/` and not `/crumbs=\{\[\]\}/`.
   - `crumbs.test.ts`: `/platform/orgs` → `[Organizations]`, tab orgs; `/platform/orgs/abc` ready "Harbor Labs" → `[Organizations(href /platform/orgs), Harbor Labs]`; `/platform/orgs/abc/members` → `[Organizations, Harbor Labs(href /platform/orgs/abc), Members]`; loading → middle crumb `{loading:true, what:'organization'}`; error → label "Organization"; notFound → `[Organizations(href), Not found]`, `state:'notFound'`; `/platform/admins` → `[Platform admins]`, tab admins; `/platform/audit` → `[Audit log]`, tab audit; `/platform/orgs/new` → `[Organizations(href), Create organization]`, tab orgs.
   - `screens/runDetail.test.tsx`: `it('the bar reads Runs / Run 62 and the title never holds the ticket title')` (fixture ticket title with `<b>` markup).
   - `features/orgSettings/layout.route.test.tsx`: crumbs `Org settings / Members` on `/o/alice/settings/members`.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/test/topBarCallSites.test.ts src/features/platform/crumbs.test.ts src/screens/runDetail.test.tsx src/features/orgSettings/layout.route.test.tsx`. Expected: FAIL.
-- [ ] **Step 3: Implement**: pass crumbs at each call site per the table; in `platform.tsx` build `PlatformOrgCrumb` from the existing `useOrgGroup` query (`isPending` → loading, `ApiError` 404 → notFound, other error → error) and pass `platformCrumbs(pathname, org)`; the bar keeps `NO_ORG` until Task 8. Boundary components that now render a `TopBar` with `state` drop their own `useDocumentTitle` call (one title source per page). Register board `RunIdleShell` (story export `RunIdleShell` in `screens/shell.stories.tsx`, layout fullscreen, board viewport). Add the parity-notes entry (Agent call). Regenerate the interactive prototype: `node design/prototype/interactive/_tools/build-boards.mjs && node design/prototype/interactive/_checks/nav-check.mjs` (expect no diff beyond what the design commit already has).
-- [ ] **Step 4: Run** `pnpm --filter @agentdesk/web typecheck && pnpm --filter @agentdesk/web test`. Expected: PASS. Re-run the grep above: still 18 lines in 16 files.
-- [ ] **Step 5: Commit** `feat(web): every top bar passes its page crumbs` (with Task 4 if not committed).
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/test/topBarCallSites.test.ts src/features/platform/crumbs.test.ts src/screens/runDetail.test.tsx src/features/orgSettings/layout.route.test.tsx`. Expected: FAIL.
+- [x] **Step 3: Implement**: pass crumbs at each call site per the table; in `platform.tsx` build `PlatformOrgCrumb` from the existing `useOrgGroup` query (`isPending` → loading, `ApiError` 404 → notFound, other error → error) and pass `platformCrumbs(pathname, org)`; the bar keeps `NO_ORG` until Task 8. Boundary components that now render a `TopBar` with `state` drop their own `useDocumentTitle` call (one title source per page). Register board `RunIdleShell` (story export `RunIdleShell` in `screens/shell.stories.tsx`, layout fullscreen, board viewport). Add the parity-notes entry (Agent call). Regenerate the interactive prototype: `node design/prototype/interactive/_tools/build-boards.mjs && node design/prototype/interactive/_checks/nav-check.mjs` (expect no diff beyond what the design commit already has).
+- [x] **Step 4: Run** `pnpm --filter @agentdesk/web typecheck && pnpm --filter @agentdesk/web test`. Expected: PASS. Re-run the grep above: still 18 lines in 16 files.
+- [x] **Step 5: Commit** `feat(web): every top bar passes its page crumbs` (with Task 4 if not committed).
 
 ### Task 6: e2e for crumbs and titles
 
@@ -283,13 +283,13 @@ export const TOP_BAR_CALL_SITES: Record<string, number>; // path under src → c
 **Files:**
 - Modify: `apps/web/e2e/mock/nav-shell.spec.ts`; `apps/web/e2e/mock/top-bar.spec.ts` and `run-detail-layout.spec.ts` only where they asserted the old project-bar slash or no run bell
 
-- [ ] **Step 1: Write the tests** in `nav-shell.spec.ts` (`test.describe('breadcrumb and title')`, scenario `owner` for org/project/run, `platformAdminOrgs` via `seedPlatform` for platform):
+- [x] **Step 1: Write the tests** in `nav-shell.spec.ts` (`test.describe('breadcrumb and title')`, scenario `owner` for org/project/run, `platformAdminOrgs` via `seedPlatform` for platform):
   - `test('the org Projects page reads Projects and is titled "Projects · Alice · Agent Desk"')` (org name from the scenario).
   - `test('a run page reads Runs / Run N with Runs linking to the project runs')`; then click "Runs": title becomes `Runs · <project> · Agent Desk` (Review Focus 2).
   - `test('a Desk page reads Project settings / Skills')`.
   - `test('a platform org members page reads Organizations / <org> / Members and every crumb but the last is a link')`.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/web exec vite build --mode mock && pnpm --filter @agentdesk/web exec playwright test e2e/mock/nav-shell.spec.ts e2e/mock/top-bar.spec.ts e2e/mock/run-detail-layout.spec.ts`. Expected: PASS.
-- [ ] **Step 3: Commit** `test(web): breadcrumb and title e2e on org, project, run and platform pages`.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/web exec vite build --mode mock && pnpm --filter @agentdesk/web exec playwright test e2e/mock/nav-shell.spec.ts e2e/mock/top-bar.spec.ts e2e/mock/run-detail-layout.spec.ts`. Expected: PASS.
+- [x] **Step 3: Commit** `test(web): breadcrumb and title e2e on org, project, run and platform pages`.
 
 ---
 

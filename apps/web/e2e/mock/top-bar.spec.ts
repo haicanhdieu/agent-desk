@@ -81,7 +81,8 @@ test.describe('BR-43: top-bar tabs per level', () => {
     await expect(page.getByRole('heading', { name: 'Create an organization', level: 1 })).toBeVisible();
     await expect(bar(page)).toBeVisible();
     await expect(mainNav(page)).toHaveCount(0);
-    await expect(bar(page).getByRole('navigation')).toHaveCount(0);
+    await expect(bar(page).getByRole('navigation')).toHaveCount(1);
+    await expect(bar(page).getByRole('navigation')).toHaveAccessibleName('Breadcrumb');
     await expect(bar(page).getByRole('link', { name: 'Projects', exact: true })).toHaveCount(0);
     await expect(bar(page).getByRole('link', { name: 'Settings', exact: true })).toHaveCount(0);
   });

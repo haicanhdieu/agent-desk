@@ -6,6 +6,7 @@ import { PlatformLayout, TopBar, type OrgSwitchProps, type PlatformLayoutProps }
 import { platformAdminQuery } from '@/features/access/queries';
 import { orgsQuery, sessionQuery } from '@/features/auth/session';
 import { useAppBar } from '@/features/chrome/appBar';
+import { platformCrumbs, type PlatformOrgCrumb } from '@/features/platform/crumbs';
 import { platformOrgQuery } from '@/features/platform/queries';
 
 // The platform area, outside any org: its own bar ("No organization", no tabs) and the side menu. Whether the caller
@@ -53,31 +54,44 @@ function useActive(): PlatformLayoutProps['active'] {
   return segment === 'orgs' || segment === 'audit' ? segment : 'admins';
 }
 
-/** Inside one org the side menu adds the group "<org name>". The org is the page's own query, so it is read once. */
-function useOrgGroup(): PlatformLayoutProps['org'] {
+/**
+ * Inside one org the side menu adds the group "<org name>" and the bar names the org. The org is the page's own
+ * query, so it is read once for both.
+ */
+function useOrgGroup(): { org: PlatformLayoutProps['org']; crumb: PlatformOrgCrumb } {
   const match = useMatch({ from: '/platform/orgs/$orgId', shouldThrow: false });
   const orgId = match?.params.orgId ?? '';
-  const { data } = useQuery({ ...platformOrgQuery(orgId), enabled: match !== undefined });
-  if (match === undefined || data === undefined) return undefined;
+  const { data, isPending, error } = useQuery({ ...platformOrgQuery(orgId), enabled: match !== undefined });
+  if (match === undefined) return { org: undefined, crumb: { state: 'none' } };
+  if (data === undefined) {
+    if (error instanceof ApiError && error.status === 404) return { org: undefined, crumb: { state: 'notFound' } };
+    if (error) return { org: undefined, crumb: { state: 'error', id: orgId } };
+    return { org: undefined, crumb: isPending ? { state: 'loading' } : { state: 'none' } };
+  }
   const base = `/platform/orgs/${encodeURIComponent(data.id)}`;
   return {
-    name: data.name,
-    links: {
-      overview: base,
-      projects: `${base}/projects`,
-      members: `${base}/members`,
-      invitations: `${base}/invitations`,
+    org: {
+      name: data.name,
+      links: {
+        overview: base,
+        projects: `${base}/projects`,
+        members: `${base}/members`,
+        invitations: `${base}/invitations`,
+      },
     },
+    crumb: { state: 'ready', id: data.id, name: data.name },
   };
 }
 
 function PlatformShell() {
   const bar = useAppBar(null);
   const active = useActive();
-  const org = useOrgGroup();
+  const { org, crumb } = useOrgGroup();
+  const pathname = useRouterState({ select: (st) => st.location.pathname });
+  const { crumbs, state } = platformCrumbs(pathname, crumb);
   return (
     <>
-      <TopBar variant="global" user={bar.user} org={NO_ORG} tabs="none" />
+      <TopBar variant="global" crumbs={crumbs} state={state} user={bar.user} org={NO_ORG} tabs="none" />
       <PlatformLayout active={active} links={LINKS} org={org}>
         <Outlet />
       </PlatformLayout>

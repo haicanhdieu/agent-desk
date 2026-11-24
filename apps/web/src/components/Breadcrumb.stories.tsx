@@ -40,3 +40,7 @@ export const WithSwitches: Story = {
     ],
   },
 };
+/** A crumb still loading: a fixed-width placeholder named for a screen reader, no text. */
+export const LoadingCrumb: Story = {
+  args: { items: [{ label: 'Projects', href: '#' }, { loading: 'Loading organization' }] },
+};

@@ -16,6 +16,16 @@ const sideItems = () =>
 const mainNav = () => within(screen.getByRole('navigation', { name: 'Organization sections' }));
 const noAccess = () => screen.findByText("You don't have access");
 
+describe('settings layout: breadcrumb', () => {
+  it('the bar reads Org settings / Members on the Members tab', async () => {
+    await renderRoute('/o/alice/settings/members', { scenario: asRole('soleOwner') });
+    await screen.findByRole('navigation', { name: 'Organization settings' });
+    const crumbs = within(screen.getByRole('navigation', { name: 'Breadcrumb' }));
+    expect(crumbs.getByRole('link', { name: 'Org settings' })).toHaveAttribute('href', '/o/alice/settings');
+    expect(crumbs.getByText('Members')).toHaveAttribute('aria-current', 'page');
+  });
+});
+
 describe('settings layout: who lands where', () => {
   it.each<[TenantAdminScenario]>([['soleOwner'], ['admin']])(
     'BR-13 (%s): /settings lands on General with the four side-menu items and Settings current in Main',

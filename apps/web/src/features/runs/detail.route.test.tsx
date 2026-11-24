@@ -80,7 +80,7 @@ describe('run detail route', () => {
   describe('the run bar (BR-46, BR-47)', () => {
     const orgButton = () => within(banner()).getByRole('button', { name: /^Switch scope/ });
 
-    it("TC-46.1, TC-43.5: has crumbs only, org / project / Runs / Run 62 (TC-46.2: Runs links to the project's list), with no tabs and no bell", async () => {
+    it("TC-46.1, TC-43.5: has crumbs only, org / project / Runs / Run 62 (TC-46.2: Runs links to the project's list), with no tabs and the bell", async () => {
       await renderRoute(`${base}/runs/62`);
       await screen.findByText('The agent is waiting for your answer');
       const crumbs = within(banner()).getByRole('navigation', { name: 'Breadcrumb' });
@@ -90,7 +90,7 @@ describe('run detail route', () => {
       expect(within(crumbs).getByText('Run 62')).toHaveAttribute('aria-current', 'page');
       expect(within(banner()).queryByRole('navigation', { name: 'Organization sections' })).not.toBeInTheDocument();
       expect(within(banner()).queryByRole('navigation', { name: 'Project sections' })).not.toBeInTheDocument();
-      expect(within(banner()).queryByRole('button', { name: 'Notifications on' })).not.toBeInTheDocument();
+      expect(within(banner()).getByRole('button', { name: 'Notifications on' })).toBeInTheDocument();
     });
 
     it('TC-46.3: the project crumb opens the switcher with the org projects', async () => {

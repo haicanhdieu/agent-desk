@@ -42,6 +42,7 @@ const stories = {
   SetupReady: ['Screens/Setup', 'SetupReady'],
   Runs: ['Screens/Runs', 'Runs'],
   RunsProblems: ['Screens/Runs', 'RunsProblems'],
+  RunIdleShell: ['Screens/Shell', 'RunIdleShell'],
   Pagination: ['Components/Pagination', 'Board'],
   RunsPaged: ['Screens/Runs', 'RunsPaged'],
   RunsFlatPaged: ['Screens/Runs', 'RunsFlatPaged'],

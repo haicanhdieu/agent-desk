@@ -189,7 +189,7 @@ export function NeedsYou({
   if (!topBar) return main;
   return (
     <>
-      <TopBar variant="global" tabs="org" user={topBar.user} org={topBar.org} />
+      <TopBar variant="global" crumbs={[{ label: 'Needs you' }]} tabs="org" user={topBar.user} org={topBar.org} />
       {main}
     </>
   );

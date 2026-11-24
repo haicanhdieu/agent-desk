@@ -35,6 +35,7 @@ export const boardStories = {
   RunStarting: { title: detail, exportName: 'RunStarting' },
   RunRunning: { title: detail, exportName: 'RunRunning' },
   RunIdle: { title: detail, exportName: 'RunIdle' },
+  RunIdleShell: { title: 'Screens/Shell', exportName: 'RunIdleShell' },
   RunReconnect: { title: detail, exportName: 'RunReconnect' },
   RunSucceeded: { title: detail, exportName: 'RunSucceeded' },
   RunPrompt: { title: detail, exportName: 'RunPrompt' },

@@ -50,8 +50,9 @@ export function NotFound() {
   );
 }
 
-export function Forbidden() {
-  useDocumentTitle(pageTitle({ crumbs: NO_PAGE_CRUMBS, state: 'forbidden' }));
+/** `titled={false}` when a TopBar rendered beside it already owns the page title (one title source per page). */
+export function Forbidden({ titled = true }: { titled?: boolean } = {}) {
+  useDocumentTitle(titled ? pageTitle({ crumbs: NO_PAGE_CRUMBS, state: 'forbidden' }) : undefined);
   return (
     <div className={styles.page}>
       <EmptyState
@@ -68,7 +69,7 @@ export function PlatformForbidden() {
   const bar = useAppBar(null);
   return (
     <>
-      <TopBar variant="global" user={bar.user} org={bar.org} tabs="org" />
+      <TopBar variant="global" crumbs={NO_PAGE_CRUMBS} state="forbidden" user={bar.user} org={bar.org} tabs="org" />
       <div className={styles.page}>
         <EmptyState
           title="You don't have access"
@@ -94,7 +95,7 @@ export function SuspendedOrgPage() {
   const name = bar.org.orgs.find((o) => o.slug === slug)?.name ?? 'this organization';
   return (
     <>
-      <TopBar variant="global" user={bar.user} org={bar.org} tabs="org" />
+      <TopBar variant="global" crumbs={NO_PAGE_CRUMBS} user={bar.user} org={bar.org} tabs="org" />
       <OrgSuspended orgName={name} />
     </>
   );

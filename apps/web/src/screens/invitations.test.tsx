@@ -802,7 +802,7 @@ describe('CreateOrg', () => {
   it('renders names as text, never as markup', () => {
     render(<CreateOrg {...createProps(form({ values: { ...values, name: '<b>x</b>' } }))} />);
     expect(screen.getByLabelText('Name')).toHaveValue('<b>x</b>');
-    expect(document.querySelector('b')).toBeNull();
+    expect(document.querySelector('main b')).toBeNull();
   });
 });
 

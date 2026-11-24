@@ -45,7 +45,7 @@ const HINT = 'They get the owner role. Send them the link that appears next.';
 export function CreateOrg({ user, org, state, onChange, onSubmit, onRetry, onCopy, onDone }: CreateOrgProps) {
   return (
     <>
-      <TopBar variant="global" user={user} org={org} />
+      <TopBar variant="global" crumbs={[{ label: 'Create organization' }]} user={user} org={org} />
       <main className={styles.emptyMain}>{body(state, { onChange, onSubmit, onRetry, onCopy, onDone })}</main>
     </>
   );

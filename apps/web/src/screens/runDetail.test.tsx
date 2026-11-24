@@ -29,6 +29,29 @@ const show = (k: RunDetailKey, extra: Partial<React.ComponentProps<typeof RunDet
 const ended: RunDetailKey[] = ['RunSucceeded', 'RunFailed', 'RunTimedOut', 'RunCancelled', 'RunExpired'];
 const FINISH_TITLE = 'Finish is available when the agent is waiting for you';
 
+describe('RunDetail top bar', () => {
+  it('the bar reads Runs / Run 62 and the title never holds the ticket title', () => {
+    const data = runDetails.RunSucceeded;
+    render(
+      <RunDetailScreen
+        data={{
+          ...data,
+          run: { ...data.run, id: 62 },
+          pullRequest: data.pullRequest && {
+            ...data.pullRequest,
+            ticket: { ...data.pullRequest.ticket, title: '<b>Export</b> invoices as CSV' },
+          },
+        }}
+      />,
+    );
+    const bar = within(screen.getByRole('navigation', { name: 'Breadcrumb' }));
+    expect(bar.getByRole('link', { name: 'Runs' })).toHaveAttribute('href', '/runs');
+    expect(bar.getByText('Run 62')).toHaveAttribute('aria-current', 'page');
+    expect(document.title).toBe('Run 62 · invoicer-api · Agent Desk');
+    expect(document.title).not.toContain('Export');
+  });
+});
+
 describe('RunDetail without action handlers (a viewer, or a member on another person run)', () => {
   const bare = (k: RunDetailKey) => render(<RunDetailScreen data={runDetails[k]} lines={linesFor(k)} />);
 
@@ -812,7 +835,7 @@ describe('RunDetail under the app bar (BR-46)', () => {
   };
   const run = { runsHref: '/o/acme/p/1/runs', label: 'Run 61' };
 
-  it('with org and run: the crumbs read org / project / Runs / Run 61, Runs links to run.runsHref, no bell', () => {
+  it('with org and run: the crumbs read org / project / Runs / Run 61, Runs links to run.runsHref, with the bell', () => {
     show('RunRunning', { org, run });
     const crumbs = screen.getByRole('navigation', { name: 'Breadcrumb' });
     expect(crumbs).toHaveTextContent(/^Acme\/invoicer-api\/Runs\/Run 61$/);
@@ -822,7 +845,7 @@ describe('RunDetail under the app bar (BR-46)', () => {
     expect(within(crumbs).getByRole('button', { name: /invoicer-api/ })).toBeInTheDocument();
     expect(within(crumbs).getByRole('link', { name: 'Runs' })).toHaveAttribute('href', '/o/acme/p/1/runs');
     expect(within(crumbs).getByText('Run 61')).toHaveAttribute('aria-current', 'page');
-    expect(screen.queryByRole('button', { name: 'Notifications on' })).toBeNull();
+    expect(screen.getByRole('button', { name: 'Notifications on' })).toBeInTheDocument();
   });
 
   it('uses the given project name in the project crumb', () => {

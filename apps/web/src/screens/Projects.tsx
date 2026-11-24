@@ -78,7 +78,7 @@ export function Projects({
     );
   return (
     <>
-      <TopBar variant="global" user={user} org={org} tabs="org" active="projects" />
+      <TopBar variant="global" crumbs={[{ label: 'Projects' }]} user={user} org={org} tabs="org" active="projects" />
       <main className={styles.listMain}>
         {invitationsBanner && <InvitationsBanner {...invitationsBanner} />}
         <div className={styles.listHead}>

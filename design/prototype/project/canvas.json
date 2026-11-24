@@ -218,6 +218,14 @@
    "title": "Run 61 \u2014 running, stop session confirmation open",
    "expand": "fill"
   },
+  "RunIdleShell.dc.html": {
+   "x": 16720,
+   "y": 5220,
+   "w": 1440,
+   "h": 900,
+   "title": "Run 62 \u2014 the run bar: org / project / Runs / Run 62 with the bell, no tabs",
+   "expand": "fill"
+  },
   "RunIdleEnding.dc.html": {
    "x": 7600,
    "y": 5220,
@@ -2606,6 +2614,7 @@
   "RunStarting.dc.html",
   "RunRunning.dc.html",
   "RunIdle.dc.html",
+  "RunIdleShell.dc.html",
   "RunReconnect.dc.html",
   "RunSucceeded.dc.html",
   "RunPrompt.dc.html",
