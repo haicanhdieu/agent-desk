@@ -32,6 +32,8 @@ export interface Setup4Props extends SetupNav {
   ignoredHref?: string;
   /** Saves the rules. With it, the primary button is a button instead of the `nextHref` link. */
   onContinue?(draft: { rule: RuleDraft; followUp: boolean }): void;
+  /** Skips the rule and finishes setup. With it, Skip is a button instead of the `skipHref` link. */
+  onSkip?(): void;
   saving?: boolean;
   /** Field messages for the first rule. */
   errors?: RuleFormProps['errors'];
@@ -56,7 +58,9 @@ export function Setup4({
   nextHref = '#',
   agentSettingsHref = '#',
   ignoredHref = '#',
+  skipHref = '#',
   onContinue,
+  onSkip,
   saving,
   errors,
   formError,
@@ -71,11 +75,13 @@ export function Setup4({
       projectName={projectName}
       steps={setupSteps({ repo, credential: credentialDetail, skills: skills.join(', '), withWorkspace: true })}
       current={4}
-      stepLabel="Step 5 of 5"
+      stepLabel="Step 5 of 5, optional"
       title="Add your first rule"
       intro="A rule turns a comment command into a run. We filled in the one most people start with."
       footer={{
         back: backHref,
+        skip: skipHref,
+        onSkip,
         next: onContinue
           ? {
               label: 'Save rules and finish',

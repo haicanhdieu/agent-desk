@@ -367,6 +367,29 @@ describe('Setup4', () => {
     expect(screen.getByRole('region', { name: 'Guards on every rule' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Save rules and finish' })).toBeInTheDocument();
   });
+  it('marks the step optional and Skip calls onSkip', async () => {
+    const onSkip = vi.fn();
+    render(
+      <Setup4
+        user={user}
+        projectName="invoicer-api"
+        repo={repo}
+        rule={rules[0]}
+        skills={[]}
+        followUp={{ command: 'code-review', target: 'pr', skill: 'code-review', enabled: true }}
+        maxRunsPerTicket={agentSettings.maxRunsPerTicket}
+        onSkip={onSkip}
+      />,
+    );
+    expect(screen.getByText('Step 5 of 5, optional')).toBeInTheDocument();
+    expect(screen.getAllByText('optional')).toHaveLength(3);
+    await userEvent.click(screen.getByRole('button', { name: 'Skip' }));
+    expect(onSkip).toHaveBeenCalledTimes(1);
+  });
+  it('without onSkip, Skip is a link', () => {
+    render(s4);
+    expect(screen.getByRole('link', { name: 'Skip' })).toBeInTheDocument();
+  });
 });
 
 describe('SetupReady', () => {

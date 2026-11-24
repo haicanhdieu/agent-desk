@@ -157,6 +157,16 @@ describe('setup flow', () => {
     expect(mockDb.state.rules.filter((r) => r.projectId === id && r.command === 'code-build')).toHaveLength(1);
   });
 
+  it('skipping the first rule creates no rule, marks setup ready and opens the Ready step', async () => {
+    const id = seedAt('rules');
+    mockDb.state.rules = mockDb.state.rules.filter((r) => r.projectId !== id);
+    const { router, user } = await renderRoute(`${base}/rules?project=${id}`);
+    await user.click(await screen.findByRole('button', { name: 'Skip' }));
+    await waitFor(() => expect(router.state.location.pathname).toBe(`${base}/ready`));
+    expect(projectRow(id).setupStep).toBe('ready');
+    expect(mockDb.state.rules.filter((r) => r.projectId === id)).toHaveLength(0);
+  });
+
   it('the first rule can be a custom prompt and saves with kind prompt', async () => {
     const id = seedAt('rules');
     const { router, user } = await renderRoute(`${base}/rules?project=${id}`);

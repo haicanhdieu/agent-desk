@@ -490,6 +490,16 @@ function RulesStep({ org, projectId }: { org: string; projectId: string }) {
     }
   };
 
+  // Skipping creates no rule; it only marks setup ready.
+  const onSkip = async () => {
+    setErrors(noErrors);
+    try {
+      await goTo('ready', await save.mutateAsync({ project, rules: [] }));
+    } catch (e) {
+      setErrors(stepErrors(e, {}));
+    }
+  };
+
   return (
     <Setup4
       user={bar.user}
@@ -505,6 +515,7 @@ function RulesStep({ org, projectId }: { org: string; projectId: string }) {
       credentialDetail={credentialDetail(agent)}
       backHref={stepHref(org, 'skills', projectId)}
       onContinue={(d) => void onContinue(d)}
+      onSkip={() => void onSkip()}
       saving={save.isPending}
       errors={errors.fields}
       formError={errors.form}
