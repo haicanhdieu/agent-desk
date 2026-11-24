@@ -14,8 +14,10 @@ import {
   readPageSize,
 } from '@/app/pagination';
 import { useNow } from '@/app/useNow';
-import { Forbidden, RouteError } from '@/app/boundaries';
+import { Forbidden, RouteError, toastFromError } from '@/app/boundaries';
 import { TopBar, type OnboardingChecklistState } from '@/components';
+import { useToast } from '@/ds';
+import { forgetProject, useDeleteProject } from '@/features/desk/mutations';
 import { orgAccessQuery, toAccess } from '@/features/access/queries';
 import { useAppBar } from '@/features/chrome/appBar';
 import { myInvitationsQuery } from '@/features/invitations/queries';
@@ -82,6 +84,16 @@ function ProjectsPage() {
   const bar = useAppBar(org);
   const { data: accessDto } = useSuspenseQuery(orgAccessQuery(org));
   const access = toAccess(accessDto);
+  const qc = useQueryClient();
+  const toast = useToast();
+  const remove = useDeleteProject(org);
+  // Delete project is org-level (project:delete): a project-scoped admin, member or viewer gets no menu item, and the API refuses it anyway.
+  const mayDelete = can(access, 'project:delete');
+  const onDeleteProject = (p: { id: string }) =>
+    remove.mutate(p.id, {
+      onSuccess: () => forgetProject(qc, org, p.id),
+      onError: (e) => toast.show(toastFromError(e)),
+    });
   const checklist = useChecklistState(org, bar.org.current?.id, can(access, 'project:create'));
   // A failed invitations list hides the banner; it never breaks the page.
   const { data: invitations } = useQuery(myInvitationsQuery);
@@ -118,6 +130,7 @@ function ProjectsPage() {
       org={bar.org}
       {...(pending > 0 && { invitationsBanner: { count: pending, href: '/invitations' } })}
       canCreate={can(access, 'project:create')}
+      {...(mayDelete && { onDeleteProject })}
       {...(checklist && { checklist })}
     />
   );

@@ -96,7 +96,7 @@ const addressHelp = (
 );
 
 const narrow = { width: 90 };
-const deleteBody =
+export const deleteBody =
   'Removes rules, run history and the stored credential. Skills stay in the repo. The GitHub App stays installed until you remove it on GitHub.';
 
 export function DeskAgent({

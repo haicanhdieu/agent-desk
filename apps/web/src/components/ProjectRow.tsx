@@ -13,9 +13,11 @@ export interface ProjectRowProps {
   settingsHref?: string;
   /** Where "Switch to polling" goes on a silent-webhook warning (project settings); the button is left out without it. */
   switchToPollingHref?: string;
+  /** The More menu's Delete project item; the item is left out without it (the caller may not delete projects). */
+  onDelete?: () => void;
 }
 
-export function ProjectRow({ project: p, href, settingsHref, switchToPollingHref }: ProjectRowProps) {
+export function ProjectRow({ project: p, href, settingsHref, switchToPollingHref, onDelete }: ProjectRowProps) {
   const { tone, mode, text } = p.connection;
   const { menuAt, open, moreRef, toggleMenu, closeMenu } = useRowMenu();
 
@@ -110,10 +112,20 @@ export function ProjectRow({ project: p, href, settingsHref, switchToPollingHref
                 Settings
               </Button>
             )}
-            {/* Delete waits for a product decision on what it does (issue 152): shown, but it cannot be chosen. */}
-            <Button variant="ghost" size="sm" icon="trash" className={composites.menuAction} disabled>
-              Delete
-            </Button>
+            {onDelete !== undefined && (
+              <Button
+                variant="danger"
+                size="sm"
+                icon="trash"
+                className={composites.menuAction}
+                onClick={() => {
+                  closeMenu();
+                  onDelete();
+                }}
+              >
+                Delete project
+              </Button>
+            )}
           </Popover>
         </span>
       </td>

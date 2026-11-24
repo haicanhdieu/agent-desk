@@ -52,9 +52,9 @@ export const MenuNoSettings: Story = {
   },
 };
 
-/** The More menu: Runs and Settings link out; Delete is shown disabled until its behaviour is decided. */
+/** The More menu: Runs and Settings link out; Delete project (danger) shows for a caller who holds project:delete. */
 export const MenuOpen: Story = {
-  args: { project: projects[0], href: '#runs', settingsHref: '#settings' },
+  args: { project: projects[0], href: '#runs', settingsHref: '#settings', onDelete: () => undefined },
   decorators: [
     (S) => (
       <div style={{ minHeight: 180 }}>

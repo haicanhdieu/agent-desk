@@ -194,6 +194,26 @@ describe('Projects onboarding', () => {
     expect(screen.queryByRole('link', { name: 'Settings' })).not.toBeInTheDocument();
   });
 
+  it('has no Delete project item without onDeleteProject (fail closed)', async () => {
+    render(<Projects user={user} projects={projects} newHref="/new" />);
+    await userEvent.click(screen.getByRole('button', { name: 'More for docs-site' }));
+    expect(screen.queryByRole('button', { name: /Delete/ })).not.toBeInTheDocument();
+  });
+
+  it('Delete project confirms first, then hands the project to onDeleteProject', async () => {
+    const onDeleteProject = vi.fn();
+    render(<Projects user={user} projects={projects} newHref="/new" onDeleteProject={onDeleteProject} />);
+    await userEvent.click(screen.getByRole('button', { name: 'More for docs-site' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Delete project' }));
+    const dialog = screen.getByRole('dialog', { name: 'Delete project' });
+    expect(dialog).toHaveTextContent('docs-site');
+    expect(onDeleteProject).not.toHaveBeenCalled();
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Delete project' }));
+    expect(onDeleteProject).toHaveBeenCalledTimes(1);
+    expect(onDeleteProject.mock.calls[0]?.[0]).toMatchObject({ name: 'docs-site' });
+    expect(screen.queryByRole('dialog', { name: 'Delete project' })).not.toBeInTheDocument();
+  });
+
   it('shows Settings in the row menu when the row has a settings href', async () => {
     render(<Projects user={user} projects={projects} newHref="/new" settingsHref={() => '/settings'} />);
     await userEvent.click(screen.getByRole('button', { name: 'More for docs-site' }));

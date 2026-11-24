@@ -1,4 +1,5 @@
-import { Button } from '@/ds';
+import { useState } from 'react';
+import { Button, Dialog } from '@/ds';
 import {
   DataTable,
   OnboardingChecklist,
@@ -10,6 +11,7 @@ import {
   type PaginationProps,
 } from '@/components';
 import type { Actor, Project } from '@/mocks/types';
+import { deleteBody } from './DeskAgent';
 import { InvitationsBanner, type InvitationsBannerProps } from './InvitationsBanner';
 import { ProjectsEmpty } from './ProjectsEmpty';
 import styles from './Screens.module.css';
@@ -34,6 +36,8 @@ export interface ProjectsProps {
   invitationsBanner?: InvitationsBannerProps;
   /** Whether the viewer may create projects (default false: fail closed); hides "New project" without it. */
   canCreate?: boolean;
+  /** Deletes a project once the viewer confirmed; a row has no Delete project item without it (fail closed). */
+  onDeleteProject?: (project: Project) => void;
 }
 
 const columns = [
@@ -58,7 +62,9 @@ export function Projects({
   checklist,
   invitationsBanner,
   canCreate = false,
+  onDeleteProject,
 }: ProjectsProps) {
+  const [confirming, setConfirming] = useState<Project>();
   if (projects.length === 0)
     return (
       <ProjectsEmpty
@@ -97,10 +103,37 @@ export function Projects({
               href={projectHref(p)}
               settingsHref={settingsHref?.(p)}
               switchToPollingHref={switchToPollingHref?.(p)}
+              {...(onDeleteProject && { onDelete: () => setConfirming(p) })}
             />
           ))}
         </DataTable>
         {pagination && <Pagination {...pagination} />}
+        <Dialog
+          open={confirming !== undefined}
+          title="Delete project"
+          onClose={() => setConfirming(undefined)}
+          footer={
+            <>
+              <Button variant="ghost" onClick={() => setConfirming(undefined)}>
+                Cancel
+              </Button>
+              <Button
+                variant="solid-danger"
+                icon="trash"
+                onClick={() => {
+                  if (confirming) onDeleteProject?.(confirming);
+                  setConfirming(undefined);
+                }}
+              >
+                Delete project
+              </Button>
+            </>
+          }
+        >
+          <p>
+            Delete <b>{confirming?.name}</b>? {deleteBody}
+          </p>
+        </Dialog>
       </main>
     </>
   );
