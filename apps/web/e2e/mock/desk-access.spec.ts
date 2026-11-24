@@ -75,6 +75,13 @@ for (const role of ['member', 'viewer'] as const) {
       await expect(rowMenu(page).getByRole('link', { name: 'Runs' })).toBeVisible();
       await expect(rowMenu(page).getByRole('link', { name: 'Settings' })).toHaveCount(0);
     });
+
+    test('has no Delete project entry in the project list row menu', async ({ page }) => {
+      await open(page, role, '/o/acme/projects');
+      await page.getByRole('button', { name: /^More for invoicer-api/ }).click();
+      await expect(rowMenu(page).getByRole('link', { name: 'Runs' })).toBeVisible();
+      await expect(rowMenu(page).getByRole('button', { name: /Delete/ })).toHaveCount(0);
+    });
   });
 }
 
@@ -113,6 +120,14 @@ test.describe('the Danger zone on Agent & settings', () => {
     await expect(page.getByRole('heading', { level: 1, name: 'Agent & settings' })).toBeVisible();
     await expect(page.getByText('Danger zone')).toHaveCount(0);
     await expect(deleteProject(page)).toHaveCount(0);
+  });
+
+  test('a project admin has no Delete project entry in the project list row menu', async ({ page }) => {
+    await seedProjectSpace(page, { role: 'projectAdmin' });
+    await page.goto(`/o/${ORG}/projects`);
+    await page.getByRole('button', { name: /^More for invoicer-api/ }).click();
+    await expect(rowMenu(page).getByRole('link', { name: 'Runs' })).toBeVisible();
+    await expect(rowMenu(page).getByRole('button', { name: /Delete/ })).toHaveCount(0);
   });
 
   for (const [tc, role] of [

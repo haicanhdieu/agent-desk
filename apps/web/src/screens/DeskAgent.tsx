@@ -25,6 +25,7 @@ import { connectionCopy as c, DEFAULT_POLL_INTERVAL } from '@/mocks/connection';
 import type { AgentSettings, ConnectionStatus, PollInterval, TriggerMode } from '@/mocks/types';
 import styles from './Screens.module.css';
 import { DeskFrame, type DeskFrameData } from './DeskFrame';
+import { deleteProjectBody } from './deleteProjectCopy';
 
 export type LimitField =
   | 'timeoutMinutes'
@@ -96,8 +97,6 @@ const addressHelp = (
 );
 
 const narrow = { width: 90 };
-const deleteBody =
-  'Removes rules, run history and the stored credential. Skills stay in the repo. The GitHub App stays installed until you remove it on GitHub.';
 
 export function DeskAgent({
   frame,
@@ -450,7 +449,7 @@ export function DeskAgent({
           <SettingsSection title="Danger zone">
             <DangerZone
               title="Delete project"
-              body={deleteBody}
+              body={deleteProjectBody}
               actionLabel="Delete project"
               onAction={() => setConfirmingDelete(true)}
             />
@@ -476,7 +475,7 @@ export function DeskAgent({
                 </>
               }
             >
-              <p>{deleteBody}</p>
+              <p>{deleteProjectBody}</p>
             </Dialog>
           </SettingsSection>
         )}

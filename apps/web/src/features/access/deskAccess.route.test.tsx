@@ -1,4 +1,5 @@
 import { screen, waitFor, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it } from 'vitest';
 import { ids } from '@/mocks/dto/ids';
 import { mockDb } from '@/mocks/msw/db';
@@ -125,6 +126,28 @@ describe('while access cannot be loaded', () => {
     expect(await screen.findByRole('button', { name: 'Retry' })).toBeInTheDocument();
     expect(screen.queryByRole('heading', { level: 1, name: 'Agent & settings' })).not.toBeInTheDocument();
     expect(deskCalls()).toEqual([]);
+  });
+});
+
+describe('Delete project in the project list row menu (project:delete is an org-level permission)', () => {
+  const openList = (role: ProjectSpaceRole) =>
+    renderRoute('/o/alice/projects', { scenario: () => applyProjectSpace(mockDb, { role }) });
+  const openMenu = async () => {
+    const user = userEvent.setup();
+    await user.click((await screen.findAllByRole('button', { name: /^More for / }))[0]!);
+    return screen.findByRole('dialog', { name: /^Actions for / });
+  };
+
+  it.each(['owner', 'admin'] as const)('offers an org %s the item', async (role) => {
+    await openList(role);
+    expect(within(await openMenu()).getByRole('button', { name: 'Delete project' })).toBeEnabled();
+  });
+
+  it.each(['projectAdmin', 'member', 'viewer'] as const)('does not offer a %s the item', async (role) => {
+    await openList(role);
+    const menu = await openMenu();
+    expect(within(menu).getByRole('link', { name: 'Runs' })).toBeInTheDocument();
+    expect(within(menu).queryByRole('button', { name: /Delete/ })).not.toBeInTheDocument();
   });
 });
 

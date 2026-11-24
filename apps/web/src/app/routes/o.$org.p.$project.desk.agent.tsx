@@ -98,12 +98,12 @@ function DeskAgentPage() {
     });
   };
 
-  const remove = useDeleteProject(org, projectId);
+  const remove = useDeleteProject(org);
   const deleting = useRef(false);
   const onDeleteProject = () => {
     if (deleting.current) return;
     deleting.current = true;
-    remove.mutate(undefined, {
+    remove.mutate(projectId, {
       onSuccess: async () => {
         await navigate({ to: '/o/$org/projects', params: { org } });
         forgetProject(qc, org, projectId);
