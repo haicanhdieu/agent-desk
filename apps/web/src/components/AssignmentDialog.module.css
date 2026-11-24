@@ -1,0 +1,32 @@
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.person {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  overflow-wrap: anywhere;
+}
+.name {
+  font-size: var(--fs-13);
+  font-weight: 500;
+  color: var(--text);
+}
+.handle {
+  font-size: var(--fs-12);
+  color: var(--muted);
+}
+.cards {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.request {
+  display: block;
+  margin-top: 4px;
+  font-size: var(--fs-12);
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}

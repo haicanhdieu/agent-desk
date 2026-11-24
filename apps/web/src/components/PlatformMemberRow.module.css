@@ -1,0 +1,31 @@
+.name {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.nameText {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 500;
+}
+.handle {
+  color: var(--muted);
+  font-family: var(--mono);
+  font-size: var(--fs-13);
+  white-space: nowrap;
+}
+.cell {
+  font-size: var(--fs-13);
+}
+.faint {
+  color: var(--faint);
+}
+.actionsCell {
+  text-align: right;
+}
+.menuAction {
+  width: 100%;
+  min-width: 200px;
+  justify-content: flex-start;
+}

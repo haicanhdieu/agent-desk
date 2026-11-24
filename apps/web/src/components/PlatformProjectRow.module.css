@@ -1,0 +1,13 @@
+.id {
+  display: block;
+  max-width: 320px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--mono);
+  font-size: var(--fs-13);
+  color: var(--muted);
+}
+.name {
+  font-weight: 500;
+}
