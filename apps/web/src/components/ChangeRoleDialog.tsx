@@ -46,9 +46,10 @@ interface DraftGrant {
 }
 
 const draftOf = (g: ProjectGrantView): DraftGrant => g;
+// A grant is its project and role, so a removed-then-re-added row with the same role is no change.
 const unchangedGrants = (draft: DraftGrant[], before: ProjectGrantView[]) =>
   draft.length === before.length &&
-  draft.every((d, i) => d.assignmentId === before[i]?.assignmentId && d.roleId === before[i]?.roleId);
+  draft.every((d) => before.some((b) => b.projectId === d.projectId && b.roleId === d.roleId));
 
 /**
  * Change one member's access: the org role and, on the org Members page, the project grants (one role per project

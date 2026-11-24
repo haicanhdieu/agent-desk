@@ -234,6 +234,23 @@ describe('ChangeRoleDialog', () => {
       });
     });
 
+    it('keeps Save access disabled when a removed grant is added back with the same role', async () => {
+      setup({ projectAccess: access({ grants }) });
+      await userEvent.click(
+        within(rowFor('invoicer-web')).getByRole('button', { name: 'Remove access to invoicer-web' }),
+      );
+      const save = screen.getByRole('button', { name: 'Save access' }) as HTMLButtonElement;
+      expect(save.disabled).toBe(false);
+      const web = accessProjects.find((p) => p.label === 'invoicer-web');
+      await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Project to add' }), web?.id ?? '');
+      await userEvent.selectOptions(
+        screen.getByRole('combobox', { name: 'Role in the project to add' }),
+        accessProjectRoleIds.member,
+      );
+      await userEvent.click(screen.getByRole('button', { name: 'Add project' }));
+      expect(save.disabled).toBe(true);
+    });
+
     it('adds a project with a role (Member by default) and takes it out of the picker', async () => {
       const h = setup({ projectAccess: access({ grants }) });
       const picker = screen.getByRole('combobox', { name: 'Project to add' }) as HTMLSelectElement;

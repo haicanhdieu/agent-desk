@@ -82,6 +82,16 @@ describe('diffAccess', () => {
     expect(diffAccess('r-member', current, d)).toEqual({ setOrgRole: false, create: [], remove: ['a2'] });
   });
 
+  it('treats a removed then re-added grant (same project and role, no assignment id) as unchanged', () => {
+    const d = draft({
+      projects: [
+        { assignmentId: 'a1', projectId: 'p1', roleId: 'r-admin' },
+        { projectId: 'p2', roleId: 'r-member' },
+      ],
+    });
+    expect(diffAccess('r-member', current, d)).toEqual({ setOrgRole: false, create: [], remove: [] });
+  });
+
   it('replaces a grant whose role changed: create the new one, remove the old one', () => {
     const d = draft({
       projects: [

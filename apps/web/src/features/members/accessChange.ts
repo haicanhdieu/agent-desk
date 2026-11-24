@@ -35,8 +35,9 @@ export function diffAccess(
   const create: AccessDiff['create'] = [];
   const kept = new Set<string>();
   for (const w of wanted.projects) {
-    const before = w.assignmentId === undefined ? undefined : current.find((c) => c.assignmentId === w.assignmentId);
-    if (before !== undefined && before.roleId === w.roleId) kept.add(before.assignmentId);
+    // A grant is its project and role (the API's unique key), so a removed-then-re-added row is the same grant.
+    const before = current.find((c) => c.projectId === w.projectId && c.roleId === w.roleId);
+    if (before !== undefined) kept.add(before.assignmentId);
     else create.push({ projectId: w.projectId, roleId: w.roleId });
   }
   return {

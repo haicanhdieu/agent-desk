@@ -161,6 +161,7 @@ test('TC-259.3: lower roles see no Change access (B member, V viewer, A project 
   const outOfScope = await a.api.post(`/api/orgs/${orgId}/assignments`, {
     data: { userId: v.userId, roleId: roleIds.member, scope: { type: 'project', projectId: p2 } },
   });
-  expect([403, 404], `A grants on P2: ${await outOfScope.text()}`).toContain(outOfScope.status());
+  // The permission check (403) comes before any project lookup (ADR-0036 guard order; assignments.service grant()).
+  expect(outOfScope.status(), `A grants on P2: ${await outOfScope.text()}`).toBe(403);
   expect(await projectGrantsOf(cast, v.userId)).toEqual([]);
 });
