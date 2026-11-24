@@ -33,7 +33,7 @@
     if (name === 'Main') return { path: '/index', q: {} };
     if (name === 'SignIn') return { path: '/signin', q: {} };
     if (name === 'SignInNoInvitation') return { path: '/signin', q: { s: name } };
-    if (/^CreateOrg/.test(name)) return v('/orgs/new', 'CreateOrg');
+    if (/^CreateOrg/.test(name)) return v('/platform/orgs/new', 'CreateOrg');
     if (/^InvitationAccept/.test(name)) return v('/invitations/' + INVITE_TOKEN, 'InvitationAccept');
     if (/^MyInvitations/.test(name)) return v('/invitations', 'MyInvitations');
     if (/^NeedsYou/.test(name)) return v(o('/needs-you'), 'NeedsYou');
@@ -108,7 +108,7 @@
   const forbiddenMain = `<main style="flex:1;min-width:0;padding:24px 40px;overflow:hidden;display:flex;flex-direction:column;gap:20px"><div style="flex:1;display:flex;justify-content:center;padding:72px 0"><div style="width:100%;max-width:760px;display:flex;flex-direction:column;align-items:center;gap:10px;text-align:center"><h1 style="font-size:28px">You don't have access</h1><p class="muted" style="font-size:15px;max-width:56ch">Ask an owner of this organization to give you access.</p></div></div></main>`;
   AD.forbiddenMain = forbiddenMain;
   AD.forbiddenOut = () => ({ header: 'global', html: forbiddenMain, h: 900 });
-  AD.notFoundOut = (msg) => ({ header: 'global', h: 900, html: `<main style="flex:1;min-width:0;padding:24px 40px;display:flex;flex-direction:column;gap:20px"><div style="flex:1;display:flex;justify-content:center;padding:72px 0"><div style="width:100%;max-width:760px;display:flex;flex-direction:column;align-items:center;gap:10px;text-align:center"><h1 style="font-size:28px">Not found</h1><p class="muted" style="font-size:15px;max-width:56ch">${AD.esc(msg || 'This page does not exist, or you cannot see it.')}</p><a class="btn" href="#/">Go to the start</a></div></div></main>` });
+  AD.notFoundOut = (msg) => ({ header: 'global', h: 900, state: 'notfound', html: `<main style="flex:1;min-width:0;padding:24px 40px;display:flex;flex-direction:column;gap:20px"><div style="flex:1;display:flex;justify-content:center;padding:72px 0"><div style="width:100%;max-width:760px;display:flex;flex-direction:column;align-items:center;gap:10px;text-align:center"><h1 style="font-size:28px">Not found</h1><p class="muted" style="font-size:15px;max-width:56ch">${AD.esc(msg || 'This page does not exist, or you cannot see it.')}</p><a class="btn" href="#/">Go to the start</a></div></div></main>` });
   AD.loadingMain = (extra) => `<main style="flex:1;min-width:0;padding:24px 40px;overflow:hidden;display:flex;flex-direction:column;gap:20px"><div aria-busy="true" role="status" aria-label="Loading" style="display:flex;flex-direction:column;gap:20px"><span aria-hidden="true" style="display:flex;justify-content:space-between"><span aria-hidden="true" style="display:block;height:28px;width:140px;background:var(--raised);border-radius:6px"></span></span><span aria-hidden="true" style="display:flex;flex-direction:column;gap:14px;margin-top:8px">${'<span aria-hidden="true" style="display:block;height:30px;width:100%;background:var(--raised);border-radius:6px"></span>'.repeat(6)}</span></div></main>`;
   AD.errorMain = (retry) => `<main style="flex:1;min-width:0;padding:24px 40px;overflow:hidden;display:flex;flex-direction:column;gap:20px"><div class="banner err" role="alert" style="align-items:center"><span class="b-ico">${AD.I.warn}</span><div class="grow" style="display:flex;flex-direction:column;gap:2px"><b style="font-weight:600">Internal server error</b><span style="font-size:12px" class="muted">Request ID: <code class="mono" style="color:var(--text);font-size:12px">req_01JDA2C8R5HN</code></span></div><button class="btn" data-act="retry">${AD.I.retry}Retry</button></div></main>`;
   AD.emptyMain = (title) => `<main style="flex:1;min-width:0;padding:24px 40px;overflow:hidden;display:flex;flex-direction:column;gap:20px"><div style="display:flex;flex-direction:column;align-items:center;gap:8px;text-align:center;padding:40px 16px"><h3>${AD.esc(title)}</h3></div></main>`;
@@ -133,6 +133,8 @@
   /* ---- post-render enhancers for board snapshots ---- */
   AD.enhanceBoard = function (root, name) {
     if (!name) return;
+    // The skip-link board: focus the live skip link so it shows, as drawn.
+    if (/SkipLink$/.test(name)) setTimeout(() => { const k = AD.$('#stage .skip'); if (k) k.focus(); }, 0);
     if (/^SignIn/.test(name)) {
       const a = AD.$('a.btn.primary.lg', root);
       if (a) { a.setAttribute('href', '#'); a.setAttribute('data-act', 'signin'); }

@@ -17,6 +17,8 @@
     if (!uid) return '/signin';
     const orgs = AD.userOrgs(uid);
     if (orgs.length) return '/o/' + orgs[0].slug + '/projects';
+    // A platform admin with no membership has no org home: the platform area is their home.
+    if (AD.user() && AD.user().platform) return '/platform/orgs';
     return '/invitations';
   };
 
@@ -29,6 +31,8 @@
     if (!uid && !AD.isPublic(res.screen)) { AD.nav('/signin', {}, { replace: true }); return; }
 
     const ctx = { route, screen: res.screen, params: res.params, q: route.q, scen: route.q.s || 'live', uid, user: AD.user() };
+    // "GET /api/me/platform failed" (the *PlatformError boards): the scope menu then hides the Platform group, as in the app.
+    AD.ui.platformFailed = /PlatformError$/.test(ctx.scen);
     let out;
     const def = AD.screens[res.screen] || AD.screens.notfound;
     if (res.params.org) {
@@ -55,10 +59,15 @@
     const h = out.h || 900;
     const style = out.fixed ? `height:max(${h}px,100vh)` : `min-height:max(${h}px,100vh)`;
     const scrollY = window.scrollY;
-    stage.innerHTML = `<div class="app stage-app" style="${style}">${header}${out.html}</div>`;
+    // Skip link: the first focusable item on every page; moves focus to the page's main.
+    stage.innerHTML = `<a href="#" class="skip" data-act="skip">Skip to main content</a><div class="app stage-app" style="${style}">${header}${out.html}</div>`;
     if (AD.lastKey !== ctx.route.path) window.scrollTo(0, 0); else window.scrollTo(0, scrollY);
     AD.lastKey = ctx.route.path;
-    document.title = (out.title || (def && def.title) || 'Agent Desk') + ' - Agent Desk prototype';
+    // Not-found and forbidden states (live or drawn) get their own title, whatever screen shows them.
+    const h1 = AD.$('#stage main h1');
+    const h1t = h1 ? h1.textContent.trim() : '';
+    const st = out.state || (/^(Page )?not found$/i.test(h1t) ? 'notfound' : h1t === "You don't have access" ? 'forbidden' : null);
+    document.title = AD.chrome.title(st ? Object.assign({}, out, { state: st }) : out, def);
     AD.enhanceBoard(stage, out.board);
     if (out.after) out.after(stage);
     if (def && def.after) def.after(stage, ctx);
@@ -122,7 +131,12 @@
   const A = AD.acts;
   A.menu = (el) => { const m = el.dataset.menu; AD.ui.menu = AD.ui.menu === m ? null : m; AD.render(); };
   A.rowmenu = (el) => { const m = 'row:' + el.dataset.id; AD.ui.menu = AD.ui.menu === m ? null : m; AD.render(); };
-  A.bell = () => { AD.ui.bell = AD.ui.bell === false; AD.render(); AD.toast('off', AD.ui.bell ? 'Desktop notifications on' : 'Desktop notifications off'); };
+  A.skip = () => {
+    const m = AD.$('#stage main') || AD.$('#stage h1');
+    if (!m) return;
+    if (!m.hasAttribute('tabindex')) m.setAttribute('tabindex', '-1');
+    m.focus();
+  };
   A.go = (el) => { location.hash = el.dataset.href; };
   // A link inside a menu: close the menu, then go (same hash: no hashchange fires, so re-render).
   A['menu-link'] = (el) => { AD.ui.menu = null; const t = el.getAttribute('href'); if (t === location.hash) AD.render(); else location.hash = t; };
@@ -147,7 +161,8 @@
     e.preventDefault();
     const slug = el.dataset.org;
     AD.ui.menu = null;
-    if (slug === AD.curOrg()) { AD.render(); return; }
+    // Compare with the org of the route (in platform scope no org is open, so every org switches).
+    if (AD.cur && AD.cur.params && slug === AD.cur.params.org) { AD.render(); return; }
     AD.ui.switching = true;
     AD.nav('/o/' + slug + '/projects');
     setTimeout(() => { AD.ui.switching = false; AD.render(); }, 700);

@@ -1,4 +1,4 @@
-// Headless Chromium check of the Option A navigation. Run:  node design/prototype/interactive/_checks/nav-check.mjs
+// Headless Chromium check of the navigation: Option A plus the one scope-aware shell (2026-11-24 navigation-consistency spec). Run:  node design/prototype/interactive/_checks/nav-check.mjs
 // Needs playwright-core (found in the repo's node_modules, read-only) and an installed headless Chromium. Screenshots go to ./nav/.
 import { createRequire } from 'node:module';
 import path from 'node:path';
@@ -36,8 +36,8 @@ async function login(p, persona, hash) {
   if (hash) { await p.evaluate((h) => { location.hash = h; }, hash); await p.waitForTimeout(150); }
 }
 const go = async (p, hash) => { await p.evaluate((h) => { location.hash = h; }, hash); await p.waitForTimeout(120); };
-const tabs = (p) => p.$$eval('header.top nav[aria-label="Main"] a', (as) => as.map((a) => a.textContent.trim()));
-const activeTab = (p) => p.$$eval('header.top nav[aria-label="Main"] a[aria-current="page"]', (as) => as.map((a) => a.textContent.trim().replace(/\s*\d+ needs you$/, '')));
+const tabs = (p) => p.$$eval('header.top nav.tabs a', (as) => as.map((a) => a.textContent.trim()));
+const activeTab = (p) => p.$$eval('header.top nav.tabs a[aria-current="page"]', (as) => as.map((a) => a.textContent.trim().replace(/\s*\d+ needs you$/, '')));
 const hdrCount = (p) => p.$$eval('header.top', (h) => h.length);
 const shot = (p, name) => p.screenshot({ path: path.join(OUT, name + '.png') });
 const crumbs = (p) => p.$$eval('header.top .switch', (b) => b.map((x) => x.textContent.trim()));
@@ -48,12 +48,13 @@ const menuSecs = (p) => p.$$eval('header.top .pop .sec-h', (a) => a.map((x) => x
 
 /* ---- 1. the bar per role ---- */
 const ROLES = {
-  'kim-hale': { tabs: ['Projects', 'Settings'], orgItems: ['Projects', 'Settings', 'Harbor Labs', 'Northwind Analytics', 'Riverside Municipal Water and Power Utilities Digital Services'] },
-  'jordan-wu': { tabs: ['Projects', 'Settings'], orgItems: ['Projects', 'Settings'] },
-  'lee-park': { tabs: ['Projects', 'Settings'], orgItems: ['Projects', 'Settings'] },
+  'kim-hale': { tabs: ['Projects', 'Org settings'], orgItems: ['Projects', 'Org settings', 'Harbor Labs', 'Northwind Analytics', 'Riverside Municipal Water and Power Utilities Digital Services'] },
+  'jordan-wu': { tabs: ['Projects', 'Org settings'], orgItems: ['Projects', 'Org settings'] },
+  'lee-park': { tabs: ['Projects', 'Org settings'], orgItems: ['Projects', 'Org settings'] },
   'mira-chen': { tabs: ['Projects'], orgItems: ['Projects', 'Harbor Labs', 'Northwind Analytics'] },
   'theo-brandt': { tabs: ['Projects'], orgItems: ['Projects'] },
-  'ops-admin': { tabs: ['Projects'], orgItems: ['Projects', 'Harbor Labs', 'Platform admin', 'Create organization'] },
+  // platform admin + org admin + project admin: the Platform group comes first
+  'priya-natarajan': { tabs: ['Projects', 'Org settings'], orgItems: ['Platform admin', 'Manage this org in Platform', 'Projects', 'Org settings', 'Harbor Labs', 'Northwind Analytics', 'Create organization'] },
 };
 for (const [persona, want] of Object.entries(ROLES)) {
   const p = await fresh();
@@ -72,7 +73,7 @@ for (const [persona, want] of Object.entries(ROLES)) {
   if (persona === 'jordan-wu') await shot(p, '02-org-menu-one-org-admin');
   if (persona === 'mira-chen') await shot(p, '03-org-menu-member-no-settings');
   if (persona === 'lee-park') await shot(p, '04-org-menu-project-admin');
-  if (persona === 'ops-admin') await shot(p, '05-org-menu-platform-admin');
+  if (persona === 'priya-natarajan') { await shot(p, '05-org-menu-platform-admin'); eq(await menuSecs(p), ['Platform', 'Harbor Labs', 'Switch organization'], 'dual-role scope menu headings'); }
   await p.keyboard.press('Escape');
   // account menu: Logout only, never Settings or My invitations
   await p.click('header.top button.avatar');
@@ -90,21 +91,21 @@ for (const [persona, want] of Object.entries(ROLES)) {
   await p.click('header.top nav a:has-text("Settings")');
   await p.waitForTimeout(150);
   eq(await hash(p), '#/o/harbor-labs/settings/general', 'Settings tab opens General');
-  eq(await activeTab(p), ['Settings'], 'Settings tab active');
+  eq(await activeTab(p), ['Org settings'], 'Settings tab active');
   eq(await p.$$eval('nav.subnav', (n) => n.map((x) => x.getAttribute('aria-label'))), ['Organization settings'], 'side menu label');
   eq(await p.$$eval('nav[aria-label="Organization"]', (n) => n.length), 0, 'no second "Organization" landmark');
   await shot(p, '20-settings-general-owner');
   await p.click('header.top nav a:has-text("Members")').catch(() => {});
   await p.click('nav.subnav a:has-text("Members")');
   await p.waitForTimeout(120);
-  eq(await activeTab(p), ['Settings'], 'Settings tab stays active on Members');
+  eq(await activeTab(p), ['Org settings'], 'Settings tab stays active on Members');
   await p.click('header.top nav a:has-text("Projects")');
   await p.waitForTimeout(120);
   eq(await hash(p), '#/o/harbor-labs/projects', 'Projects tab goes back');
   eq(await activeTab(p), ['Projects'], 'Projects active again');
   await p.goBack(); await p.waitForTimeout(150);
   eq(await hash(p), '#/o/harbor-labs/settings/members', 'browser back returns to Members');
-  eq(await activeTab(p), ['Settings'], 'bar follows browser back');
+  eq(await activeTab(p), ['Org settings'], 'bar follows browser back');
   await p.goBack(); await p.waitForTimeout(150);
   eq(await hash(p), '#/o/harbor-labs/settings/general', 'back again: General');
   // the logo still goes to Projects
@@ -120,14 +121,14 @@ for (const [persona, want] of Object.entries(ROLES)) {
   await go(p, '/o/harbor-labs/projects');
   await p.click('#pc-p-btn'); await p.waitForTimeout(100);
   ok(!(await p.$('main a.btn:text-is("Settings")')), 'toggle off: button gone');
-  eq(await p.$$eval('header.top nav[aria-label="Main"] .count-idle', (x) => x.length), 0, 'needs count off by default');
+  eq(await p.$$eval('header.top nav.tabs .count-idle', (x) => x.length), 0, 'needs count off by default');
   await p.click('#pc-p-needs'); await p.waitForTimeout(100);
-  eq(await p.$$eval('header.top nav[aria-label="Main"] a:first-child .count-idle', (x) => x.map((e) => e.textContent)), ['1 needs you'], 'needs count on the Projects tab');
+  eq(await p.$$eval('header.top nav.tabs a:first-child .count-idle', (x) => x.map((e) => e.textContent)), ['1 needs you'], 'needs count on the Projects tab');
   await shot(p, '31-toggle-needs-count-on');
   await go(p, '/o/harbor-labs/settings/members'); // count follows on every org page
-  eq(await p.$$eval('header.top nav[aria-label="Main"] a:first-child .count-idle', (x) => x.length), 1, 'count also on Settings pages');
+  eq(await p.$$eval('header.top nav.tabs a:first-child .count-idle', (x) => x.length), 1, 'count also on Settings pages');
   await p.click('#pc-p-needs'); await p.waitForTimeout(100);
-  eq(await p.$$eval('header.top nav[aria-label="Main"] .count-idle', (x) => x.length), 0, 'needs count off again');
+  eq(await p.$$eval('header.top nav.tabs .count-idle', (x) => x.length), 0, 'needs count off again');
   // Reset restores both toggles to off
   await p.click('#pc-p-btn'); await p.click('#pc-p-needs'); await p.click('#pc-reset'); await p.waitForTimeout(200);
   eq(await p.$$eval('#pc-p-btn, #pc-p-needs', (x) => x.map((e) => e.checked)), [false, false], 'Reset turns both proposals off');
@@ -140,16 +141,16 @@ for (const [persona, want] of Object.entries(ROLES)) {
   await login(p, 'kim-hale', '/o/harbor-labs/p/invoicer-api/runs');
   eq(await hdrCount(p), 1, 'Runs one bar');
   eq(await crumbs(p), ['Harbor Labs', 'invoicer-api'], 'Runs crumbs');
-  eq(await tabs(p), ['Runs1 needs you', 'Settings'], 'Runs tabs');
+  eq(await tabs(p), ['Runs1 needs you', 'Project settings'], 'Runs tabs');
   eq(await activeTab(p), ['Runs'], 'Runs active');
   await shot(p, '40-runs-owner');
   // Settings in 2 clicks (org menu, Settings)
   await openOrg(p); await shot(p, '41-runs-org-menu');
-  await p.click('header.top .pop a:text-is("Settings")'); await p.waitForTimeout(150);
+  await p.click('header.top .pop a:text-is("Org settings")'); await p.waitForTimeout(150);
   eq(await hash(p), '#/o/harbor-labs/settings/general', 'Runs -> org menu -> Settings (2 clicks)');
   // another org from a project, 2 clicks + switch delay
   await go(p, '/o/harbor-labs/p/invoicer-api/desk/skills');
-  eq(await activeTab(p), ['Settings'], 'Settings active');
+  eq(await activeTab(p), ['Project settings'], 'Settings active');
   await openOrg(p); await p.click('header.top .pop a[data-org="northwind"]'); await p.waitForTimeout(1000);
   eq(await hash(p), '#/o/northwind/projects', 'project -> org menu -> Northwind');
   eq((await crumbs(p))[0], 'Northwind Analytics', 'Northwind crumb');
@@ -165,7 +166,7 @@ for (const [persona, want] of Object.entries(ROLES)) {
   eq(await hash(p), '#/o/harbor-labs/p/invoicer-api/runs', 'Run crumb Runs -> project Runs');
   await go(p, '/o/harbor-labs/p/invoicer-api/runs/62');
   await openOrg(p); await shot(p, '44-run-org-menu');
-  await p.click('header.top .pop a:text-is("Settings")'); await p.waitForTimeout(150);
+  await p.click('header.top .pop a:text-is("Org settings")'); await p.waitForTimeout(150);
   eq(await hash(p), '#/o/harbor-labs/settings/general', 'Run -> org menu -> Settings (2 clicks)');
   await go(p, '/o/harbor-labs/p/invoicer-api/runs/62');
   await openOrg(p); await p.click('header.top .pop a[data-org="riverside"]'); await p.waitForTimeout(1000);
@@ -192,7 +193,7 @@ for (const [persona, want] of Object.entries(ROLES)) {
   const p = await fresh();
   await login(p, 'kim-hale', '/o/harbor-labs/needs-you');
   eq(await hdrCount(p), 1, 'needs-you has the bar');
-  eq(await tabs(p), ['Projects', 'Settings'], 'needs-you tabs');
+  eq(await tabs(p), ['Projects', 'Org settings'], 'needs-you tabs');
   eq(await activeTab(p), [], 'needs-you has no active tab');
   ok(await p.$('header.top button.avatar'), 'needs-you has the account menu');
   await shot(p, '50-needs-you-owner');
@@ -201,32 +202,39 @@ for (const [persona, want] of Object.entries(ROLES)) {
   await shot(p, '51-setup-1');
   await go(p, '/invitations');
   eq(await hdrCount(p), 1, 'my invitations one bar');
-  eq(await tabs(p), ['Projects', 'Settings'], 'my invitations (a member of an org) shows the org tabs'); eq(await activeTab(p), [], 'none active');
+  eq(await tabs(p), ['Projects', 'Org settings'], 'my invitations (a member of an org) shows the org tabs'); eq(await activeTab(p), [], 'none active');
   await shot(p, '52-my-invitations-owner');
-  await go(p, '/orgs/new');
-  eq(await tabs(p), [], 'create org: no tabs');
+  await go(p, '/orgs/new'); await p.waitForTimeout(100);
+  eq(await hash(p), '#/platform/orgs/new', 'old /orgs/new redirects to /platform/orgs/new');
+  eq(await tabs(p), [], 'create org (not a platform admin): no tabs');
+  ok(await p.$('text=You don\'t have access'), 'create org (not a platform admin): no access');
   await p.context().close();
 }
 {
   const p = await fresh();
-  await login(p, 'ops-admin', '/orgs/new');
-  eq(await tabs(p), [], 'create org (platform admin): no tabs');
-  eq(await crumbs(p), ['No organization'], 'create org crumb');
+  await login(p, 'ops-admin');
+  eq(await hash(p), '#/platform/orgs', 'platform admin with no membership lands on Platform > Organizations');
+  await go(p, '/orgs/new'); await p.waitForTimeout(100);
+  eq(await hash(p), '#/platform/orgs/new', 'create org lives in the platform shell');
+  eq(await tabs(p), ['Organizations', 'Platform admins', 'Audit log'], 'create org: platform tabs');
+  eq(await activeTab(p), ['Organizations'], 'create org: Organizations active');
+  eq(await crumbs(p), ['Platform'], 'create org: scope crumb Platform');
+  eq(await p.$$eval('header.top nav[aria-label="Breadcrumb"] a, header.top nav[aria-label="Breadcrumb"] [aria-current="page"]', (a) => a.map((x) => x.textContent.trim())), ['Organizations', 'Create organization'], 'create org crumbs');
   await shot(p, '53-create-org-platform');
   await p.click('header.top button.switch[data-menu="org"]');
-  eq(await menuItems(p), ['Harbor Labs', 'Platform admin', 'Create organization'], 'create org: org menu');
+  eq(await menuItems(p), ['Platform admin', 'Create organization'], 'platform admin with no membership: no org list in the scope menu');
   await p.keyboard.press('Escape');
-  // create an org, land on its Projects page under the bar
-  await p.fill('#on', 'Acme Rockets'); await p.fill('#oe', 'boss@acme.example'); await p.click('[data-act="createorg-submit"]'); await p.waitForTimeout(1000);
+  // create an org, land on its platform detail (the creator is not a member)
+  await p.fill('#on', 'Orbit Labs'); await p.fill('#oe', 'boss@orbit.example'); await p.click('[data-act="createorg-submit"]'); await p.waitForTimeout(1000);
   await p.click('[data-act="createorg-done"]'); await p.waitForTimeout(200);
-  eq(await hash(p), '#/o/acme-rockets/projects', 'new org opens its Projects');
-  eq(await crumbs(p), ['Acme Rockets'], 'new org crumb');
-  eq(await tabs(p), ['Projects'], 'platform admin: Projects tab only');
+  ok(/^#\/platform\/orgs\/[0-9a-f-]+$/.test(await hash(p)), 'Done opens the new org in the platform area');
+  ok(!(await p.$('main a:has-text("Open organization")')), 'not a member of the new org: no Open organization');
   await shot(p, '54-new-org-platform');
-  // platform admin typed URL to Settings: forbidden, bar still there, no Settings tab
+  // a non-member platform admin: org pages stay not found (Decision 1)
   await go(p, '/o/harbor-labs/settings/members');
-  eq(await hdrCount(p), 1, 'platform admin Settings URL: one bar'); eq(await tabs(p), ['Projects'], 'no Settings tab for platform admin');
-  ok(await p.$('text=You don\'t have access'), 'forbidden text shown');
+  eq(await hdrCount(p), 1, 'platform admin org URL: one bar');
+  ok(await p.$('main h1:text-is("Not found")'), 'platform admin, not a member: org page not found');
+  eq(await p.title(), 'Not found · Agent Desk', 'not found title');
   await p.context().close();
 }
 {
@@ -257,9 +265,9 @@ for (const [persona, want] of Object.entries(ROLES)) {
   eq(await p.$$eval('nav.subnav a', (a) => a.map((x) => x.textContent.trim())), ['Invitations'], 'project admin: only Invitations');
   await shot(p, '60-project-admin-settings');
   await go(p, '/o/harbor-labs/settings/members');
-  eq(await hdrCount(p), 1, 'project admin Members URL one bar'); eq(await activeTab(p), ['Settings'], 'Settings tab active on forbidden Members');
+  eq(await hdrCount(p), 1, 'project admin Members URL one bar'); eq(await activeTab(p), ['Org settings'], 'Settings tab active on forbidden Members');
   await go(p, '/o/harbor-labs/p/invoicer-api/runs');
-  await openOrg(p); await p.click('header.top .pop a:text-is("Settings")'); await p.waitForTimeout(150);
+  await openOrg(p); await p.click('header.top .pop a:text-is("Org settings")'); await p.waitForTimeout(150);
   eq(await hash(p), '#/o/harbor-labs/settings/invitations', 'project admin: project -> org menu -> Settings');
   await go(p, '/o/harbor-labs/projects');
   eq(await p.$$eval('tbody tr', (r) => r.length), 1, 'project admin sees one project');
@@ -272,7 +280,7 @@ for (const persona of ['mira-chen', 'theo-brandt']) {
   ok(await p.$('text=You don\'t have access'), persona + ' forbidden');
   await shot(p, `61-${persona}-settings-url`);
   await go(p, '/o/harbor-labs/p/invoicer-web/runs');
-  await openOrg(p); ok(!(await menuItems(p)).includes('Settings'), persona + ' project org menu: no Settings');
+  await openOrg(p); ok(!(await menuItems(p)).includes('Org settings'), persona + ' project org menu: no Settings');
   await p.context().close();
 }
 { // jordan: org admin, no Owner card etc. is unchanged; just check Settings tabs
@@ -332,12 +340,12 @@ for (const persona of ['mira-chen', 'theo-brandt']) {
 /* ---- 8. platform admin area (platform-admin-dashboard spec) ---- */
 {
   const p = await fresh();
-  await login(p, 'ops-admin', '/orgs/new');
+  await login(p, 'ops-admin', '/platform/orgs/new');
   await p.evaluate(() => AD.controls.collapse(true)); // the controls panel would cover row actions
   await openOrg(p); await p.click('header.top .pop [role=menuitem]:has-text("Platform admin")'); await p.waitForTimeout(150);
   eq(await hash(p), '#/platform/orgs', 'Platform admin menu item opens the directory');
-  eq(await hdrCount(p), 1, 'platform: one bar'); eq(await tabs(p), [], 'platform: no tabs');
-  eq(await p.$$eval('nav.subnav[aria-label="Platform admin"] a', (a) => a.map((x) => x.textContent.trim())), ['Organizations', 'Platform admins', 'Audit log'], 'platform side menu');
+  eq(await hdrCount(p), 1, 'platform: one bar'); eq(await tabs(p), ['Organizations', 'Platform admins', 'Audit log'], 'platform: tabs in the top bar');
+  eq(await p.$$eval('nav.subnav', (a) => a.length), 0, 'platform directory: no side menu (the sections are tabs)');
   eq(await p.$$eval('main tbody tr', (r) => r.length), 5, 'directory: 5 orgs');
   await shot(p, '80-platform-orgs');
   await p.fill('#oq', 'blue'); await p.waitForTimeout(450);
@@ -431,6 +439,149 @@ for (const persona of ['mira-chen', 'theo-brandt']) {
   ok((await p.innerText('main tbody tr:first-child')).includes('changed the organization URL from /o/harbor-labs to /o/harbor-group'), 'org audit: URL change');
   ok((await p.innerText('main tbody tr:first-child')).includes('Platform admin'), 'org audit: marked Platform admin');
   await shot(p, '86-org-audit-platform-edit');
+  await p.context().close();
+}
+
+/* ---- 10. one scope-aware shell (navigation-consistency spec): dual-role flow, crumbs, titles, landmarks, skip link, states ---- */
+const navNames = (p) => p.$$eval('nav', (n) => n.map((x) => x.getAttribute('aria-label')));
+const crumbTexts = (p) => p.$$eval('header.top nav[aria-label="Breadcrumb"] a, header.top nav[aria-label="Breadcrumb"] [aria-current="page"]', (a) => a.map((x) => x.textContent.trim().replace(/\s+/g, ' ')));
+const bells = (p) => p.$$eval('header.top button[aria-label="Notifications"]', (b) => b.length);
+const distinctNavs = async (p, where) => { const n = (await navNames(p)).filter((x) => x !== 'Pagination'); ok(new Set(n).size === n.length && !n.includes('Main'), where + ': nav names distinct, none "Main": ' + JSON.stringify(n)); };
+{
+  const p = await fresh();
+  await login(p, 'priya-natarajan');
+  await p.evaluate(() => AD.controls.collapse(true));
+  const hl = await p.evaluate(() => AD.platformOrgId('harbor-labs'));
+  const rv = await p.evaluate(() => AD.platformOrgId('riverside'));
+  // org scope
+  eq(await hash(p), '#/o/harbor-labs/projects', 'dual role lands on the org');
+  eq(await crumbTexts(p), ['Projects'], 'org page crumbs');
+  eq(await p.title(), 'Projects · Harbor Labs · Agent Desk', 'org page title');
+  eq(await p.$eval('header.top button.switch[data-menu="org"]', (b) => b.getAttribute('aria-label')), 'Switch scope, currently organization Harbor Labs', 'scope button label (org)');
+  eq(await p.$$eval('header.top nav.tabs', (n) => n.map((x) => x.getAttribute('aria-label'))), ['Organization sections'], 'org tabs landmark');
+  eq(await bells(p), 1, 'bell on the org bar');
+  await distinctNavs(p, 'org page');
+  // skip link: first focusable, moves focus to main
+  await p.keyboard.press('Tab');
+  eq(await p.evaluate(() => document.activeElement.textContent.trim()), 'Skip to main content', 'skip link is the first focusable item');
+  await shot(p, '90-skip-link');
+  await p.keyboard.press('Enter'); await p.waitForTimeout(50);
+  eq(await p.evaluate(() => document.activeElement.tagName), 'MAIN', 'skip link moves focus to main');
+  // org -> platform: scope menu > Manage this org in Platform
+  await openOrg(p); await shot(p, '91-dual-role-scope-menu-org');
+  await p.click('header.top .pop a:has-text("Manage this org in Platform")'); await p.waitForTimeout(150);
+  eq(await hash(p), '#/platform/orgs/' + hl, 'Manage this org in Platform opens the platform org');
+  eq(await crumbs(p), ['Platform'], 'platform scope crumb');
+  eq(await p.$eval('header.top button.switch[data-menu="org"]', (b) => b.getAttribute('aria-label')), 'Switch scope, currently Platform', 'scope button label (platform)');
+  eq(await crumbTexts(p), ['Organizations', 'Harbor Labs', 'Overview'], 'platform org crumbs');
+  eq(await tabs(p), ['Organizations', 'Platform admins', 'Audit log'], 'platform tabs');
+  eq(await activeTab(p), ['Organizations'], 'Organizations tab active on an org');
+  eq(await bells(p), 1, 'bell on the platform bar');
+  ok(await p.$('main a:has-text("Open organization")'), 'member of Harbor Labs: Open organization shown');
+  await distinctNavs(p, 'platform org page');
+  // side menu: org group only; the org name links to Overview
+  await p.click('nav.subnav a:text-is("Members")'); await p.waitForTimeout(120);
+  eq(await crumbTexts(p), ['Organizations', 'Harbor Labs', 'Members'], 'crumbs Organizations / Harbor Labs / Members');
+  eq(await p.title(), 'Members · Platform · Agent Desk', 'platform org page title');
+  eq(await p.$$eval('nav.subnav a', (a) => a.map((x) => x.textContent.trim())), ['Harbor Labs', 'Overview', 'Projects', 'Members', 'Invitations'], 'platform side menu: org group only');
+  await shot(p, '92-platform-org-members-dual-role');
+  await p.click('nav.subnav a.grp-link'); await p.waitForTimeout(120);
+  eq(await hash(p), '#/platform/orgs/' + hl, 'side menu org name opens Overview');
+  await p.click('header.top nav[aria-label="Breadcrumb"] a:text-is("Organizations")'); await p.waitForTimeout(120);
+  eq(await hash(p), '#/platform/orgs', 'crumb Organizations goes back to the directory');
+  // not a member of Riverside: no Open organization
+  await go(p, '/platform/orgs/' + rv);
+  ok(!(await p.$('main a:has-text("Open organization")')), 'not a member of Riverside: no Open organization');
+  // platform -> org: Open organization
+  await go(p, '/platform/orgs/' + hl);
+  await p.click('main a:has-text("Open organization")'); await p.waitForTimeout(1000);
+  eq(await hash(p), '#/o/harbor-labs/projects', 'Open organization lands on the org Projects');
+  // org -> project
+  await go(p, '/o/harbor-labs/p/invoicer-api/runs');
+  eq(await crumbs(p), ['Harbor Labs', 'invoicer-api'], 'project scope crumbs');
+  eq(await crumbTexts(p), ['Runs'], 'project page crumb');
+  eq(await p.$$eval('header.top nav.tabs', (n) => n.map((x) => x.getAttribute('aria-label'))), ['Project sections'], 'project tabs landmark');
+  eq(await p.title(), 'Runs · invoicer-api · Agent Desk', 'project page title');
+  await distinctNavs(p, 'project page');
+  await shot(p, '93-project-runs-dual-role');
+  await go(p, '/o/harbor-labs/p/invoicer-api/desk/rules');
+  eq(await crumbTexts(p), ['Project settings', 'Routing rules'], 'Project settings crumbs');
+  await go(p, '/o/harbor-labs/p/invoicer-api/runs/62');
+  eq(await crumbTexts(p), ['Runs 1', 'Run 62'], 'run page crumbs');
+  eq(await p.title(), 'Run 62 · invoicer-api · Agent Desk', 'run page title (never the ticket title)');
+  eq(await bells(p), 1, 'bell on the run bar');
+  eq(await p.$$eval('header.top [aria-current="page"]', (a) => a.map((x) => x.textContent.trim())), ['Run 62'], 'run crumb is the current page');
+  // project -> platform in two clicks
+  await openOrg(p); await p.click('header.top .pop a:has-text("Platform admin")'); await p.waitForTimeout(150);
+  eq(await hash(p), '#/platform/orgs', 'run -> scope menu -> Platform admin (2 clicks)');
+  await openOrg(p);
+  eq(await menuItems(p), ['Platform admin', 'Harbor Labs', 'Northwind Analytics', 'Create organization'], 'platform scope menu (dual role): Platform first, then orgs, then Create');
+  await shot(p, '94-dual-role-scope-menu-platform');
+  await p.click('header.top .pop a[data-org="northwind"]'); await p.waitForTimeout(1000);
+  eq(await hash(p), '#/o/northwind/projects', 'platform -> org list -> Northwind');
+  eq(await tabs(p), ['Projects', 'Org settings'], 'Northwind (project grant only): Org settings from the invite permission');
+  await go(p, '/o/northwind/settings');
+  eq(await hash(p), '#/o/northwind/settings/invitations', 'Northwind Org settings opens Invitations');
+  // org settings crumbs
+  await go(p, '/o/harbor-labs/settings/members');
+  eq(await crumbTexts(p), ['Org settings', 'Members'], 'org settings crumbs');
+  eq(await p.title(), 'Members · Harbor Labs · Agent Desk', 'org settings title');
+  // states: loading (no jump), error, not found
+  await go(p, '/platform/orgs/' + hl + '/members');
+  const ready = await p.$eval('nav.subnav', (n) => { const k = [...n.children]; return k.map((c) => Math.round(c.getBoundingClientRect().height)); });
+  const crumbW = await p.$eval('header.top nav.tabs', (n) => Math.round(n.getBoundingClientRect().left));
+  await go(p, '/platform/orgs/' + hl + '/members?s=loading');
+  ok(await p.$('header.top .crumb-sk'), 'loading: crumb skeleton');
+  const loading = await p.$eval('nav.subnav', (n) => [...n.children].map((c) => Math.round(c.getBoundingClientRect().height)));
+  eq(loading, ready, 'loading: side menu items keep their size (no jump)');
+  await shot(p, '95-platform-org-loading');
+  await go(p, '/platform/orgs/' + hl + '/members?s=error');
+  eq(await crumbTexts(p), ['Organizations', 'Organization', 'Members'], 'error: the org crumb reads "Organization"');
+  await go(p, '/platform/orgs/00000000-0000-4000-8000-000000000000');
+  ok(await p.$('main a:text-is("Back to organizations")'), 'not found keeps Back to organizations');
+  eq(await p.title(), 'Not found · Agent Desk', 'platform not found title');
+  // me.platform failed: no Platform group
+  await go(p, '/o/harbor-labs/projects?s=ProjectsShellScopeMenuPlatformError');
+  await openOrg(p);
+  ok(!(await menuItems(p)).includes('Platform admin') && !(await menuItems(p)).includes('Create organization'), 'platform check failed: Platform group and Create hidden');
+  await p.keyboard.press('Escape');
+  await p.context().close();
+}
+{ // the platform admin with no membership: Harbor Labs page without Open organization, the same shell
+  const p = await fresh();
+  await login(p, 'ops-admin');
+  const hl = await p.evaluate(() => AD.platformOrgId('harbor-labs'));
+  await go(p, '/platform/orgs/' + hl + '/members');
+  ok(!(await p.$('main a:has-text("Open organization")')), 'non-member platform admin: no Open organization');
+  eq(await crumbTexts(p), ['Organizations', 'Harbor Labs', 'Members'], 'non-member: same crumbs');
+  await shot(p, '96-platform-org-members-non-member');
+  await p.context().close();
+}
+{ // other roles never see the Platform group or Manage this org in Platform
+  for (const persona of ['jordan-wu', 'lee-park']) {
+    const p = await fresh();
+    await login(p, persona);
+    await openOrg(p);
+    const items = await menuItems(p);
+    ok(!items.includes('Platform admin') && !items.includes('Manage this org in Platform') && !items.includes('Create organization'), persona + ': no Platform group');
+    await p.context().close();
+  }
+}
+{ // every new Shell board is reachable: its route renders it and the Scenario selector lists it
+  const p = await fresh();
+  await login(p, 'priya-natarajan');
+  const names = await p.evaluate(() => Object.keys(AD.B).filter((n) => /Shell/.test(n)));
+  const bad = [];
+  for (const n of names) {
+    const r = await p.evaluate((n) => AD.boardRoute(n), n);
+    await p.evaluate(([path, q]) => { location.hash = AD.href(path, q); }, [r.path, r.q]);
+    await p.waitForTimeout(60);
+    const opts = await p.$$eval('#pc-scen option', (o) => o.map((x) => x.value));
+    if (!opts.includes(n)) bad.push(n + ' not in Scenario selector at ' + r.path);
+    if ((await hdrCount(p)) !== 1) bad.push(n + ' bars');
+  }
+  ok(bad.length === 0, 'Shell boards reachable: ' + bad.join(' | '));
+  console.log(`shell boards checked: ${names.length}`);
   await p.context().close();
 }
 

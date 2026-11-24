@@ -75,11 +75,14 @@ for (const f of files) {
   const h = Number((open.match(/min-height:(\d+)px/) || [, 900])[1]);
   let inner = app.slice(open.length, app.length - 6);
   let hdr = null;
-  const hm = inner.match(/^\s*<header class="top">([\s\S]*?)<\/header>/);
-  if (hm) { hdr = hm[1].trim(); inner = inner.slice(hm[0].length); }
+  const hm = inner.match(/^\s*<header class="top"(?: data-bar="([a-z]+)")?>([\s\S]*?)<\/header>/);
+  if (hm) { hdr = hm[2].trim(); inner = inner.slice(hm[0].length); }
   let kind = 'none';
-  // Option A: org pages also have tabs (Projects, Settings), so tabs no longer mean "project bar". A project bar has the project switcher.
-  if (hdr) kind = /aria-label="Breadcrumb"/.test(hdr) ? 'run' : /aria-label="Switch project"/.test(hdr) ? 'project' : 'global';
+  // Navigation-consistency boards (*Shell) mark their bar: data-bar="platform|org|project|run" (every bar has a Breadcrumb now).
+  const BAR = { platform: 'platform', org: 'global', project: 'project', run: 'run' };
+  if (hm && hm[1]) kind = BAR[hm[1]] || 'global';
+  // Older boards. Option A: org pages also have tabs (Projects, Settings), so tabs no longer mean "project bar". A project bar has the project switcher.
+  else if (hdr) kind = /aria-label="Breadcrumb"/.test(hdr) ? 'run' : /aria-label="Switch project"/.test(hdr) ? 'project' : 'global';
   const fix = (x) => x
     .replace(/href="([A-Za-z0-9]+)\.dc\.html"/g, 'href="#/b/$1"')
     .replace(/href="https:\/\/github\.com\/"/g, 'href="https://github.com/" target="_blank" rel="noopener"');
