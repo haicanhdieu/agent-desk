@@ -127,6 +127,20 @@ const withoutRequestId = (body: string): string => body.replace(/"requestId":"[^
 
 const exact = (n: number): string => n.toLocaleString('en-US');
 
+/** How long the route's loading status may stay up: a first request of a user outside the org can exceed the default 5 s. */
+const ROUTE_SETTLE_MS = 30_000;
+
+/**
+ * Opens `path`, waits for the not found page (the loading status must be gone, so the text is the settled page), then
+ * returns the page text.
+ */
+async function notFoundTextOf(page: Page, path: string): Promise<string> {
+  await page.goto(path);
+  await expect(page.getByText('Page not found')).toBeVisible({ timeout: ROUTE_SETTLE_MS });
+  await expect(page.getByRole('status', { name: 'Loading' })).toBeHidden();
+  return page.locator('body').innerText();
+}
+
 async function openDetail(page: Page, projectId: string, runId: string): Promise<void> {
   const run = await runOf(page, runId);
   await page.goto(`/o/${cast.slug}/p/${projectId}/runs/${run.number}`);
@@ -379,11 +393,8 @@ test('TC-10.4: an admin of P1 only gets the same not found for a P2 run as for a
   await waitForTotal(o, runId, FIRST_TURN.total);
   const run = await runOf(o.page, runId);
 
-  const notFoundText = async (number: number): Promise<string> => {
-    await a.page.goto(`/o/${cast.slug}/p/${cast.p2}/runs/${number}`);
-    await expect(a.page.getByText('Page not found')).toBeVisible();
-    return a.page.locator('body').innerText();
-  };
+  const notFoundText = (number: number): Promise<string> =>
+    notFoundTextOf(a.page, `/o/${cast.slug}/p/${cast.p2}/runs/${number}`);
   const real = await notFoundText(run.number);
   const missing = await notFoundText(run.number + 100_000);
   expect(real).toBe(missing);
@@ -414,11 +425,8 @@ test('TC-10.5: a user of another org gets the same not found as for a missing ru
   second = await secondOrg(browser, pa);
   const y = second.owner;
 
-  const notFoundText = async (number: number): Promise<string> => {
-    await y.page.goto(`/o/${cast.slug}/p/${cast.p1}/runs/${number}`);
-    await expect(y.page.getByText('Page not found')).toBeVisible();
-    return y.page.locator('body').innerText();
-  };
+  const notFoundText = (number: number): Promise<string> =>
+    notFoundTextOf(y.page, `/o/${cast.slug}/p/${cast.p1}/runs/${number}`);
   const real = await notFoundText(run.number);
   const missing = await notFoundText(run.number + 100_000);
   expect(real).toBe(missing);
