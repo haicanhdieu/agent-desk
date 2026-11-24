@@ -1986,6 +1986,6 @@ Covers: BR-4 (TC-4.10), BR-24 (TC-24.1, TC-24.2), BR-25 (TC-25.1, TC-25.3), BR-2
 
 Covers: BR-24 (TC-24.3), BR-25 (TC-25.2), BR-27 (TC-27.4), BR-28 (TC-28.3), BR-30 (TC-30.4). Role-based case: TC-27.4 (a member's next request follows the new assignment).
 
-- [ ] **Step 1: Write the spec**: fresh orgs and users only; invitations revoked and assignments removed in `finally`.
-- [ ] **Step 2: Run** with the stack up: `pnpm --filter @agentdesk/web exec playwright test e2e/local/platform-org-detail.spec.ts`. Expected: PASS.
-- [ ] **Step 3: Commit**: `test(web): local e2e for the platform org detail tabs`.
+- [x] **Step 1: Write the spec**: fresh orgs and users only; invitations revoked and assignments removed in `finally`.
+- [x] **Step 2: Run** with the stack up: `pnpm --filter @agentdesk/web exec playwright test e2e/local/platform-org-detail.spec.ts`. Expected: PASS.
+- [x] **Step 3: Commit**: `test(web): local e2e for the platform org detail tabs`.
