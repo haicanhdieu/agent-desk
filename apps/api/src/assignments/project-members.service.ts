@@ -1,6 +1,6 @@
 import { ForbiddenException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import type { Logger } from 'pino';
-import { and, asc, eq, inArray, sql } from 'drizzle-orm';
+import { and, asc, eq, inArray, or, sql } from 'drizzle-orm';
 import { member, projects, roleAssignments, roles, user, withOrg, type Db, type Tx } from '@agentdesk/db';
 import {
   pageWindow,
@@ -46,6 +46,41 @@ function toProjectRole(row: AssignmentRow): ProjectMemberDto['projectRoles'][num
   return { assignmentId: row.id, role: { id: row.roleId, key: row.roleKey, name: row.roleName } };
 }
 
+function toOrgRole(row: AssignmentRow): ProjectMemberDto['orgRoles'][number] {
+  return { role: { id: row.roleId, key: row.roleKey, name: row.roleName } };
+}
+
+/** The person's org-scope rows (roles on the whole organization), oldest first. They apply to every project of the org. */
+async function orgRowsOf(tx: Tx, orgId: string, userIds: string[]): Promise<AssignmentRow[]> {
+  if (userIds.length === 0) return [];
+  return tx
+    .select(assignmentColumns)
+    .from(roleAssignments)
+    .innerJoin(roles, and(eq(roles.orgId, roleAssignments.orgId), eq(roles.id, roleAssignments.roleId)))
+    .where(
+      and(
+        eq(roleAssignments.orgId, orgId),
+        eq(roleAssignments.scopeType, 'org'),
+        inArray(roleAssignments.userId, userIds),
+      ),
+    )
+    .orderBy(asc(roleAssignments.grantedAt), asc(roleAssignments.id));
+}
+
+/** One member row from the person's project-scope and org-scope rows; `source` is 'org' when only the org ones exist. */
+function toMemberDto(
+  person: { userId: string; name: string; handle: string | null },
+  projectRows: AssignmentRow[],
+  orgRows: AssignmentRow[],
+): ProjectMemberDto {
+  return {
+    ...person,
+    source: projectRows.length > 0 ? 'project' : 'org',
+    projectRoles: projectRows.map(toProjectRole),
+    orgRoles: orgRows.map(toOrgRole),
+  };
+}
+
 /** The person's project-scope rows on `projectId`, oldest first. Add `lock` to take them `FOR UPDATE`. */
 async function projectRowsOf(
   tx: Tx,
@@ -71,6 +106,12 @@ async function projectRowsOf(
   return lock ? query.for('update', { of: roleAssignments }) : query;
 }
 
+function groupByUser(rows: AssignmentRow[]): Map<string, AssignmentRow[]> {
+  const byUser = new Map<string, AssignmentRow[]>();
+  for (const r of rows) byUser.set(r.userId, [...(byUser.get(r.userId) ?? []), r]);
+  return byUser;
+}
+
 @Injectable()
 export class ProjectMembersService {
   constructor(
@@ -79,7 +120,9 @@ export class ProjectMembersService {
   ) {}
 
   /**
-   * The people holding a project-scope role on `projectId`, name then id, each with their roles on it. The guard has
+   * Everyone with access to `projectId`, name then id: the people holding a project-scope role on it and the people
+   * holding an org-scope role (which applies to every project of the org), each with both kinds of role (access adds up,
+   * ADR-0036). Org-scope roles are listed read-only (`source` 'org' when there is no project role). The guard has
    * already decided 403 (`assignment:read`) and 404 (project out of scope or gone); the query filters by org and project.
    */
   async list(orgId: string, projectId: string, q: PageQuery): Promise<Page<ProjectMemberDto>> {
@@ -87,8 +130,10 @@ export class ProjectMembersService {
     return withOrg(this.db, orgId, async (tx) => {
       const onProject = and(
         eq(roleAssignments.orgId, orgId),
-        eq(roleAssignments.scopeType, 'project'),
-        eq(roleAssignments.projectId, projectId),
+        or(
+          and(eq(roleAssignments.scopeType, 'project'), eq(roleAssignments.projectId, projectId)),
+          eq(roleAssignments.scopeType, 'org'),
+        ),
       );
       const [counted] = await tx
         .select({ total: sql<number>`count(distinct ${roleAssignments.userId})::int` })
@@ -103,16 +148,10 @@ export class ProjectMembersService {
         .orderBy(asc(user.name), asc(user.id))
         .limit(limit)
         .offset(offset);
-      const rows = await projectRowsOf(
-        tx,
-        orgId,
-        projectId,
-        people.map((p) => p.userId),
-        false,
-      );
-      const byUser = new Map<string, ProjectMemberDto['projectRoles']>();
-      for (const r of rows) byUser.set(r.userId, [...(byUser.get(r.userId) ?? []), toProjectRole(r)]);
-      const items = people.map((p) => ({ ...p, projectRoles: byUser.get(p.userId) ?? [] }));
+      const ids = people.map((p) => p.userId);
+      const projectRows = groupByUser(await projectRowsOf(tx, orgId, projectId, ids, false));
+      const orgRows = groupByUser(await orgRowsOf(tx, orgId, ids));
+      const items = people.map((p) => toMemberDto(p, projectRows.get(p.userId) ?? [], orgRows.get(p.userId) ?? []));
       return toPage(items, counted?.total ?? 0, q);
     });
   }
@@ -358,6 +397,6 @@ export class ProjectMembersService {
       .limit(1);
     if (!person) throw new ConflictProblemException('Member changed, try again', []);
     const rows = await projectRowsOf(tx, orgId, projectId, [userId], false);
-    return { ...person, projectRoles: rows.map(toProjectRole) };
+    return toMemberDto(person, rows, await orgRowsOf(tx, orgId, [userId]));
   }
 }

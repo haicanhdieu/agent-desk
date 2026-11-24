@@ -165,28 +165,81 @@ async function auditRows(orgId: string, action: string, targetId: string) {
 }
 
 describe('listing project members (BR-4)', () => {
-  it('shows an org owner, an org admin and a project admin the people holding a project role, never org-only roles', async () => {
+  it('shows an org owner, an org admin and a project admin everyone with access: project roles and org-wide roles', async () => {
     const f = await buildCast('pm-list');
     for (const cookie of [f.o, f.oa, f.a]) {
       const res = await projectMembersList(t, cookie, f.orgId, f.p1);
       const page = expectContract('projectMembers.list', res) as Page<ProjectMemberDto>;
       const handles = page.items.map((i) => i.handle);
-      expect(handles).toEqual(['pm-list-a', 'pm-list-b', 'pm-list-c', 'pm-list-va']);
-      expect(page.total).toBe(4);
+      expect(handles).toEqual([
+        'pm-list-a',
+        'pm-list-b',
+        'pm-list-c',
+        'pm-list-o',
+        'pm-list-oa',
+        'pm-list-v',
+        'pm-list-va',
+      ]);
+      expect(page.total).toBe(7);
       for (const item of page.items) expect(ProjectMemberDto.safeParse(item).success).toBe(true);
       const by = Object.fromEntries(page.items.map((i) => [i.userId, i]));
       expect(by[f.ids.a]?.projectRoles.map((r) => r.role.name)).toEqual(['Admin']);
+      expect(by[f.ids.a]?.orgRoles).toEqual([]);
+      expect(by[f.ids.a]?.source).toBe('project');
       expect(by[f.ids.b]?.projectRoles.map((r) => r.role.key)).toEqual(['member']);
-      expect(handles).not.toContain('pm-list-o');
-      expect(handles).not.toContain('pm-list-v');
       expect(res.body).not.toContain('@dev.local');
       for (const item of res.json<{ items: object[] }>().items) {
-        expect(Object.keys(item).sort()).toEqual(['handle', 'name', 'projectRoles', 'userId']);
+        expect(Object.keys(item).sort()).toEqual(['handle', 'name', 'orgRoles', 'projectRoles', 'source', 'userId']);
       }
     }
   });
 
-  it('pages 25 extra project members as 20 then 6 with the real total', async () => {
+  it('lists a person with only an org-wide role as inherited: the org role, no project role, source org', async () => {
+    const f = await buildCast('pm-org');
+    const page = expectContract(
+      'projectMembers.list',
+      await projectMembersList(t, f.a, f.orgId, f.p1),
+    ) as Page<ProjectMemberDto>;
+    const by = Object.fromEntries(page.items.map((i) => [i.userId, i]));
+    expect(by[f.ids.o]?.orgRoles.map((r) => r.role.key)).toEqual(['owner']);
+    expect(by[f.ids.o]?.projectRoles).toEqual([]);
+    expect(by[f.ids.o]?.source).toBe('org');
+    expect(by[f.ids.oa]?.orgRoles.map((r) => r.role.key)).toEqual(['admin']);
+    expect(by[f.ids.v]?.orgRoles.map((r) => r.role.key)).toEqual(['viewer']);
+    expect(by[f.ids.v]?.source).toBe('org');
+    // the person who was revoked holds no role at all and stays out
+    expect(by[f.ids.n]).toBeUndefined();
+  });
+
+  it('lists a person with an org role and a project role once, showing both, source project', async () => {
+    const f = await buildCast('pm-both');
+    const page = expectContract(
+      'projectMembers.list',
+      await projectMembersList(t, f.o, f.orgId, f.p1),
+    ) as Page<ProjectMemberDto>;
+    expect(page.items.filter((i) => i.userId === f.ids.vAdmin)).toHaveLength(1);
+    const va = page.items.find((i) => i.userId === f.ids.vAdmin);
+    expect(va?.orgRoles.map((r) => r.role.key)).toEqual(['viewer']);
+    expect(va?.projectRoles.map((r) => r.role.key)).toEqual(['admin']);
+    expect(va?.source).toBe('project');
+  });
+
+  it('lists on another project only that project roles plus the org-wide people, never another org', async () => {
+    const f = await buildCast('pm-iso');
+    const other = await buildCast('pm-iso-other');
+    const p2 = expectContract(
+      'projectMembers.list',
+      await projectMembersList(t, f.o, f.orgId, f.p2),
+    ) as Page<ProjectMemberDto>;
+    // A is admin on P1 only: not on P2
+    expect(p2.items.find((i) => i.userId === f.ids.a)).toBeUndefined();
+    expect(p2.items.find((i) => i.userId === f.ids.d)?.source).toBe('project');
+    expect(p2.items.find((i) => i.userId === f.ids.v)?.source).toBe('org');
+    const ids = new Set(p2.items.map((i) => i.userId));
+    for (const id of Object.values(other.ids)) expect(ids.has(id)).toBe(false);
+  });
+
+  it('pages 25 extra project members as 20 then 12 with the real total', async () => {
     const f = await buildCast('pm-page');
     for (let i = 0; i < 25; i += 1) {
       await inviteAndLogin(t, f.orgId, `pm-page-x${String(i).padStart(2, '0')}`, 'member', {
@@ -199,13 +252,13 @@ describe('listing project members (BR-4)', () => {
       await projectMembersList(t, f.o, f.orgId, f.p1),
     ) as Page<ProjectMemberDto>;
     expect(first.items).toHaveLength(20);
-    expect(first.total).toBe(29);
+    expect(first.total).toBe(32);
     const second = expectContract(
       'projectMembers.list',
       await projectMembersList(t, f.o, f.orgId, f.p1, { page: 2 }),
     ) as Page<ProjectMemberDto>;
-    expect(second.items).toHaveLength(9);
-    expect(second.total).toBe(29);
+    expect(second.items).toHaveLength(12);
+    expect(second.total).toBe(32);
     const names = [...first.items, ...second.items].map((i) => i.name);
     expect(names).toEqual([...names].sort((x, y) => x.localeCompare(y)));
   });
@@ -219,7 +272,7 @@ describe('listing project members (BR-4)', () => {
     ) as Page<ProjectMemberDto>;
     const c = page.items.find((i) => i.userId === f.ids.c);
     expect(c?.projectRoles.map((r) => r.role.key).sort()).toEqual(['member', 'viewer']);
-    expect(page.total).toBe(4);
+    expect(page.total).toBe(7);
   });
 
   it('lists a person who accepted an invitation to the project (BR-13)', async () => {

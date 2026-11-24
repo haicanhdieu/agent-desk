@@ -226,9 +226,47 @@ describe('project member schemas', () => {
       userId: 'u1',
       name: 'Ada',
       handle: null,
+      source: 'project',
       projectRoles: [{ assignmentId: P1, role: { id: ROLE, key: 'member', name: 'Member' } }],
+      orgRoles: [],
     });
     expect(r.success).toBe(true);
+  });
+  it('ProjectMemberDto keeps the org roles and the source of an inherited row', () => {
+    const row = {
+      userId: 'u2',
+      name: 'Bo',
+      handle: 'bo',
+      source: 'org',
+      projectRoles: [],
+      orgRoles: [{ role: { id: ROLE, key: 'viewer', name: 'Viewer' } }],
+    };
+    const r = ProjectMemberDto.safeParse(row);
+    expect(r.success).toBe(true);
+    expect(r.data).toEqual(row);
+  });
+  it.each(['source', 'orgRoles'])('ProjectMemberDto rejects a row without %s', (field) => {
+    const row: Record<string, unknown> = {
+      userId: 'u2',
+      name: 'Bo',
+      handle: null,
+      source: 'project',
+      projectRoles: [],
+      orgRoles: [],
+    };
+    delete row[field];
+    expect(ProjectMemberDto.safeParse(row).success).toBe(false);
+  });
+  it('ProjectMemberDto rejects an unknown source', () => {
+    const r = ProjectMemberDto.safeParse({
+      userId: 'u2',
+      name: 'Bo',
+      handle: null,
+      source: 'platform',
+      projectRoles: [],
+      orgRoles: [],
+    });
+    expect(r.success).toBe(false);
   });
   it('AddProjectMemberRequest rejects a missing roleId and an empty userId', () => {
     expect(AddProjectMemberRequest.safeParse({ userId: 'u1' }).success).toBe(false);

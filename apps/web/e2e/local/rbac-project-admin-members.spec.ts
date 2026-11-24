@@ -3,10 +3,10 @@ import { expect, test, type Locator, type Page } from '@playwright/test';
 import { ProjectDto } from '@agentdesk/contracts';
 import { API, CommentResult, ok, runOf, signInAs, waitForStatus } from './helpers';
 import { REPO_P1, buildCast, disposeCast, type Actor, type Cast } from './rbac-cast';
-import { freshOrgMember } from './project-admin';
+import { freshOrgMember, membersUrl, projectMembersApi } from './project-admin';
 
 /*
- * Local end-to-end for the project admin's Members page (spec "E2E requirements": BR-4, BR-5, BR-7, BR-13). A is the
+ * Local end-to-end for the project admin's Members page (spec "E2E requirements": BR-4 (people with a project role and inherited org-wide ones), BR-5, BR-7, BR-13). A is the
  * admin of P1 only, B and C are members of P1, O the owner, V the org viewer, D the org admin (`buildCast`); every case
  * runs in a fresh org. The people a case adds to P1 (D, E) are built inside the case as members of P2 only, each in its
  * own browser context (`freshOrgMember`), and closed in a `finally`. In the cast a dev-login person's name is their
@@ -143,12 +143,14 @@ async function inviteViewer(page: Page, email: string): Promise<string> {
   return id;
 }
 
-test.describe('BR-4: Members lists only people with a project role', () => {
+test.describe('BR-4: Members lists everyone with access: project roles and inherited org-wide roles', () => {
   test('TC-4.4: A opens P1 → Settings → Members and sees B, C and A (You) with their roles and the intro note', async () => {
     const { a, b, c } = cast;
     await openMembers(a);
     await expect(
-      a.page.getByText(`People with a role on this project. A role in ${orgName()} also applies here.`),
+      a.page.getByText(
+        `People with access to this project. A role in ${orgName()} also applies here. Those people are labelled Organization and are managed in ${orgName()} Settings, Members.`,
+      ),
     ).toBeVisible();
     await expect(roleCell(rowOf(a.page, b.handle))).toHaveText('Member');
     await expect(roleCell(rowOf(a.page, c.handle))).toHaveText('Member');
@@ -157,31 +159,74 @@ test.describe('BR-4: Members lists only people with a project role', () => {
     await expect(rowOf(a.page, b.handle).getByText('You', { exact: true })).toHaveCount(0);
   });
 
-  test('TC-4.5: O (org-scope role only), D and V (org roles only) do not appear on P1 Members', async () => {
-    const { a, b, c, o, d, v } = cast;
+  test('TC-4.5: O (org owner), D (org admin) and V (org viewer) appear on P1 Members as Organization rows with no actions', async () => {
+    const { a, b, o, d, v } = cast;
     await openMembers(a);
-    // The list is loaded: the people with a P1 role are there, so the absences below are not an unrendered table.
     await expect(rowOf(a.page, b.handle)).toBeVisible();
-    await expect(rowOf(a.page, c.handle)).toBeVisible();
-    await expect(rowOf(a.page, a.handle)).toBeVisible();
-    for (const person of [o, v, d]) {
-      await expect(a.page.getByRole('table')).not.toContainText(person.handle);
+    for (const [person, role] of [
+      [o, 'Owner'],
+      [d, 'Admin'],
+      [v, 'Viewer'],
+    ] as const) {
+      const row = rowOf(a.page, person.handle);
+      await expect(roleCell(row)).toContainText(role);
+      await expect(roleCell(row)).toContainText('Organization');
+      await expect(row.getByRole('button', { name: /^Actions for/ })).toHaveCount(0);
     }
+    // a project row keeps its menu
+    await expect(rowOf(a.page, b.handle).getByRole('button', { name: /^Actions for/ })).toBeVisible();
   });
 
-  test('TC-4.6: O opens P1 Members and sees the same project-role people as A: A, B and C', async () => {
+  test('TC-4.6: O opens P1 Members and sees the same people as A: the project roles and the org-wide ones', async () => {
     const { o, a, b, c, d, v } = cast;
     await openMembers(o);
-    await expect(
-      o.page.getByText(`People with a role on this project. A role in ${orgName()} also applies here.`),
-    ).toBeVisible();
     await expect(roleCell(rowOf(o.page, a.handle))).toHaveText('Admin');
     await expect(roleCell(rowOf(o.page, b.handle))).toHaveText('Member');
     await expect(roleCell(rowOf(o.page, c.handle))).toHaveText('Member');
-    await expect(o.page.locator('tbody tr')).toHaveCount(3);
     for (const person of [o, v, d]) {
-      await expect(o.page.getByRole('table')).not.toContainText(person.handle);
+      await expect(roleCell(rowOf(o.page, person.handle))).toContainText('Organization');
     }
+  });
+
+  test('TC-4.7: a person with an org-wide role who is also given a project role shows both roles on one row', async () => {
+    const { a, v } = cast;
+    await ok(
+      await projectMembersApi(a, cast.p1).add(v.userId, cast.roleIds.member),
+      201,
+      'A adds V (org viewer) to P1 as Member',
+    );
+    await openMembers(a);
+    const row = rowOf(a.page, v.handle);
+    await expect(row).toHaveCount(1);
+    await expect(roleCell(row)).toContainText('Member');
+    await expect(roleCell(row)).toContainText('Viewer');
+    await expect(roleCell(row)).toContainText('Organization');
+    await expect(row.getByRole('button', { name: /^Actions for/ })).toBeVisible();
+  });
+});
+
+test.describe('BR-4: who may not read the inherited rows', () => {
+  test('TC-4.8: B (member on P1) and V (org viewer) get 403 on the members list and the page names no one', async () => {
+    const { a, b, o, v } = cast;
+    for (const who of [b, v]) {
+      const res = await projectMembersApi(who, cast.p1).list();
+      const text = await res.text();
+      expect(res.status(), `members list: ${text}`).toBe(403);
+      for (const person of [a, o, v]) expect(text, `the refusal names ${person.handle}`).not.toContain(person.handle);
+      await who.page.goto(membersUrl(cast, cast.p1));
+      await expect(who.page.getByRole('heading', { name: "You don't have access" })).toBeVisible();
+      await expect(who.page.getByRole('heading', { level: 1, name: 'Members' })).toHaveCount(0);
+    }
+  });
+
+  test('TC-4.9: A changing the role of or removing V, who has an org-wide role only, gets 404 and V stays Organization', async () => {
+    const { a, v } = cast;
+    const api = projectMembersApi(a, cast.p1);
+    for (const res of [await api.setRole(v.userId, cast.roleIds.admin), await api.remove(v.userId)]) {
+      expect(res.status(), await res.text()).toBe(404);
+    }
+    await openMembers(a);
+    await expect(roleCell(rowOf(a.page, v.handle))).toContainText('Organization');
   });
 });
 
@@ -291,8 +336,8 @@ test.describe('BR-5: A adds an org member to P1', () => {
 });
 
 test.describe('BR-7: the Person picker', () => {
-  test('TC-7.12: A opens Add member; the Person list contains E (no P1 role) and not C (holds a P1 role)', async () => {
-    const { a, c } = cast;
+  test('TC-7.12: A opens Add member; the Person list contains E (no access to P1) and not C (project role) nor O, D and V (org-wide roles)', async () => {
+    const { a, c, o, d, v } = cast;
     const e = await freshOrgMember(cast, 'member', { type: 'project', projectId: cast.p2 });
     try {
       await openMembers(a);
@@ -301,7 +346,9 @@ test.describe('BR-7: the Person picker', () => {
       const options = a.page.getByRole('option');
       // The list is loaded once E is offered; only then is C's absence a result.
       await expect(options.filter({ hasText: e.handle })).toBeVisible();
-      await expect(options.filter({ hasText: c.handle })).toHaveCount(0);
+      for (const person of [c, o, d, v]) {
+        await expect(options.filter({ hasText: person.handle })).toHaveCount(0);
+      }
     } finally {
       await quietly(() => e.ctx.close());
     }

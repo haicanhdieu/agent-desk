@@ -972,7 +972,15 @@ export const DeskMembersAdded: Story = {
   ...members(
     membersReady([
       ...projectMemberRows,
-      { userId: 'user-candidate-1', name: 'Mira Chen', handle: 'mira', you: false, roles: 'Member' },
+      {
+        userId: 'user-candidate-1',
+        name: 'Mira Chen',
+        handle: 'mira',
+        you: false,
+        roles: 'Member',
+        orgRoles: '',
+        inherited: false,
+      },
     ]),
     { notice: { tone: 'ok', title: 'Mira Chen added as Member', onDismiss: noop } },
   ),

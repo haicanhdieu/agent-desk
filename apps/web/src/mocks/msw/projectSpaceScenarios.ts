@@ -95,7 +95,9 @@ function pagedMembers(db: MockDb): ProjectMemberDto[] {
     userId: `user-paged-${i + 1}`,
     name: `Member ${String(i + 1).padStart(2, '0')}`,
     handle: `member${i + 1}`,
+    source: 'project',
     projectRoles: [{ assignmentId: db.nextId(), role: roleRef(role) }],
+    orgRoles: [],
   }));
   return [...structuredClone(base), ...extra];
 }
@@ -196,7 +198,9 @@ function personOf(db: MockDb, who: Pick<MemberDto, 'userId' | 'name' | 'handle'>
     userId: who.userId,
     name: who.name,
     handle: who.handle,
+    source: 'project',
     projectRoles: [{ assignmentId: db.nextId(), role: roleRef(role) }],
+    orgRoles: [],
   };
 }
 
@@ -303,8 +307,14 @@ function projectRoleOf(roleId: string): RoleDto {
 /** The role names a person holds on a project, each once, as the API's audit "from" text. */
 const roleNames = (m: ProjectMemberDto): string => [...new Set(m.projectRoles.map((r) => r.role.name))].join(', ');
 const rowsOf = (db: MockDb, projectId: string): ProjectMemberDto[] => db.state.projectSpace.members[projectId] ?? [];
-const rowOf = (db: MockDb, projectId: string, userId: string): ProjectMemberDto | undefined =>
+/** The person's row on P, org-only people included: they appear in the list but hold no project role. */
+const listedOf = (db: MockDb, projectId: string, userId: string): ProjectMemberDto | undefined =>
   rowsOf(db, projectId).find((m) => m.userId === userId);
+/** The person's row only when they hold a project-scope role on P (what change role and remove act on). */
+const rowOf = (db: MockDb, projectId: string, userId: string): ProjectMemberDto | undefined => {
+  const row = listedOf(db, projectId, userId);
+  return row && row.projectRoles.length > 0 ? row : undefined;
+};
 
 /** `projectMembers.add`: an org member with no role on P gets one (409 for any role, 422 for a stranger or a bad role). */
 export function addProjectMember(
@@ -324,8 +334,15 @@ export function addProjectMember(
   }
   if (!who) throw unprocessable('/userId', 'this person is not in the organization');
   if (rowOf(db, projectId, body.userId)) throw conflict('This person already has a role on this project', []);
-  const added = personOf(db, who, role);
-  space.members[projectId] = [...rowsOf(db, projectId), added];
+  // an org-wide person keeps the row and gains the project role (roles add up)
+  const inherited = listedOf(db, projectId, body.userId);
+  const added = inherited ?? personOf(db, who, role);
+  if (inherited) {
+    inherited.source = 'project';
+    inherited.projectRoles = [{ assignmentId: db.nextId(), role: roleRef(role) }];
+  } else {
+    space.members[projectId] = [...rowsOf(db, projectId), added];
+  }
   record(db, actor, projectId, {
     action: 'assignment.granted',
     target: who,
@@ -362,7 +379,13 @@ export function removeProjectMember(db: MockDb, actor: MockUser, projectId: stri
   if (userId === actor.id) throw forbidden();
   const current = rowOf(db, projectId, userId);
   if (!current) throw notFound('Project member');
-  db.state.projectSpace.members[projectId] = rowsOf(db, projectId).filter((m) => m.userId !== userId);
+  // a person with an org-wide role stays listed as inherited; anyone else leaves the list
+  if (current.orgRoles.length > 0) {
+    current.projectRoles = [];
+    current.source = 'org';
+  } else {
+    db.state.projectSpace.members[projectId] = rowsOf(db, projectId).filter((m) => m.userId !== userId);
+  }
   record(db, actor, projectId, {
     action: 'project_member.removed',
     target: current,

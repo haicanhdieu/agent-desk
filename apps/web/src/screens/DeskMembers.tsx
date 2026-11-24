@@ -46,7 +46,7 @@ export interface DeskMembersProps {
 
 const noop = () => {};
 
-/** The project's Members page inside the Desk: who holds a project role, the row actions, and the states around it. */
+/** The project's Members page inside the Desk: who can reach the project (project roles and inherited org roles), the row actions, and the states around it. */
 export function DeskMembers({
   frame,
   orgName,
@@ -108,7 +108,10 @@ export function DeskMembers({
                 )}
               </div>
             </div>
-            <p className="muted">People with a role on this project. A role in {orgName} also applies here.</p>
+            <p className="muted">
+              People with access to this project. A role in {orgName} also applies here. Those people are labelled
+              Organization and are managed in {orgName} Settings, Members.
+            </p>
             <div ref={tableRef}>
               <DataTable columns={projectMemberColumns} busy={state.pagination?.busy}>
                 {state.rows.map((row) => (

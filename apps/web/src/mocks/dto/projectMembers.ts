@@ -5,7 +5,7 @@ import { ids } from './ids';
 // Project space fixtures: who holds a role on a project, and the org members the Add picker can offer.
 const uuid = (n: number) => `b7000000-0000-4000-8000-${String(n).padStart(12, '0')}`;
 
-const roleRef = (key: 'admin' | 'member' | 'viewer') => {
+const roleRef = (key: 'owner' | 'admin' | 'member' | 'viewer') => {
   const r = roleFixtures.find((x) => x.key === key);
   if (!r) throw new Error(`no ${key} role fixture`);
   return { id: r.id, key: r.key, name: r.name };
@@ -17,14 +17,20 @@ const person = (
   name: string,
   handle: string | null,
   roles: ('admin' | 'member' | 'viewer')[],
+  orgRoles: ('owner' | 'admin' | 'member' | 'viewer')[] = [],
 ): ProjectMemberDto => ({
   userId,
   name,
   handle,
+  source: roles.length > 0 ? 'project' : 'org',
   projectRoles: roles.map((key) => ({ assignmentId: uuid(++seq), role: roleRef(key) })),
+  orgRoles: orgRoles.map((key) => ({ role: roleRef(key) })),
 });
 
-/** The people with a project role, by project id: invoicer-api (P) and invoicer-web. */
+/**
+ * The people with access, by project id: invoicer-api (P) and invoicer-web. Iris holds an org-wide role only
+ * (inherited, read-only); Omar holds an org-wide Viewer role and a project Member role.
+ */
 export const projectMemberFixtures: Record<string, ProjectMemberDto[]> = {
   [ids.project.invoicerApi]: [
     person(ids.user.alice, 'Lee Park', 'lee', ['admin']),
@@ -33,6 +39,8 @@ export const projectMemberFixtures: Record<string, ProjectMemberDto[]> = {
     person('user-tenant-3', 'Ben Okafor', 'ben', ['member', 'viewer']),
     person('user-tenant-7', 'Noor Haddad', null, ['viewer']),
     person('user-tenant-8', `Alexandria ${'Montgomery-Featherstonehaugh '.repeat(3)}`.trim(), 'alexandria', ['member']),
+    person('user-tenant-9', 'Iris Novak', 'iris', [], ['owner']),
+    person('user-tenant-10', 'Omar Reyes', 'omar', ['member'], ['viewer']),
   ],
   [ids.project.invoicerWeb]: [
     person(ids.user.alice, 'Lee Park', 'lee', ['member']),

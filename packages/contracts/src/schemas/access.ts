@@ -61,11 +61,22 @@ export type MembersListQuery = z.infer<typeof MembersListQuery>;
 export const ProjectRoleDto = z.object({ assignmentId: Id, role: RoleRef });
 export type ProjectRoleDto = z.infer<typeof ProjectRoleDto>;
 
+/** A role the person holds on the whole organization; it applies to this project too and is managed in org Settings. */
+export const OrgRoleDto = z.object({ role: RoleRef });
+export type OrgRoleDto = z.infer<typeof OrgRoleDto>;
+
+/**
+ * One person with access to the project. `projectRoles` are the roles granted on this project, `orgRoles` the
+ * org-scope roles that apply here (read-only for a project admin). `source` is 'project' when the person holds at
+ * least one project-scope role (the row can be changed or removed), 'org' when the access is inherited only.
+ */
 export const ProjectMemberDto = z.object({
   userId: z.string(),
   name: z.string(),
   handle: z.string().nullable(),
+  source: z.enum(['project', 'org']),
   projectRoles: z.array(ProjectRoleDto),
+  orgRoles: z.array(OrgRoleDto),
 });
 export type ProjectMemberDto = z.infer<typeof ProjectMemberDto>;
 

@@ -436,7 +436,8 @@ describe('remove from the project (BR-8)', () => {
     const { user } = await renderRoute(page('?page=2'), {
       scenario: () => {
         applyProjectSpace(mockDb, { role: 'projectAdmin' });
-        const base = mockDb.state.projectSpace.members[P] ?? [];
+        // only people without an org-wide role: removing one of them takes the row off the list
+        const base = (mockDb.state.projectSpace.members[P] ?? []).filter((m) => m.orgRoles.length === 0);
         const cleo = base.find((m) => m.userId === 'user-tenant-4');
         if (!cleo) throw new Error('fixture');
         const extra = Array.from({ length: 21 - base.length }, (_, i): ProjectMemberDto => ({

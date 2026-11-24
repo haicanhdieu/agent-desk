@@ -18,7 +18,10 @@ export const projectMemberColumns: DataTableColumn[] = [
   { key: 'actions', header: <span className="sr-only">Actions</span>, align: 'right' },
 ];
 
-/** One row of a project's Members table: name and handle, roles and the row menu. Text only, never HTML. */
+/**
+ * One row of a project's Members table: name and handle, the project roles, the org-wide roles labelled Organization,
+ * and the row menu. An inherited row (org-wide role only) has no menu: it is managed in the org's Members. Text only.
+ */
 export function ProjectMemberRow({ row, busy, onChangeRole, onRemove }: ProjectMemberRowProps) {
   const { menuAt, open, moreRef, toggleMenu, closeMenu } = useRowMenu();
   const pick = (action: (r: ProjectMemberRowView) => void) => () => {
@@ -38,9 +41,17 @@ export function ProjectMemberRow({ row, busy, onChangeRole, onRemove }: ProjectM
           {row.you && <LabelChip name="You" />}
         </span>
       </td>
-      <td className={styles.cell}>{row.roles}</td>
+      <td className={styles.cell}>
+        {row.roles}
+        {row.orgRoles !== '' && (
+          <span className={[styles.orgRoles, row.roles !== '' && styles.afterRoles].filter(Boolean).join(' ')}>
+            {row.orgRoles}
+            <LabelChip name="Organization" tone="idle" />
+          </span>
+        )}
+      </td>
       <td className={styles.actionsCell}>
-        {!row.you && (
+        {!row.you && !row.inherited && (
           <span ref={moreRef}>
             <IconButton
               icon="more"

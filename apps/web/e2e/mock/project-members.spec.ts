@@ -106,14 +106,16 @@ test.describe('BR-3: an admin of P only gets not found on another project', () =
   });
 });
 
-test.describe('BR-4: Members lists only people with a project role', () => {
+test.describe('BR-4: Members lists everyone with access: project roles and inherited org-wide roles', () => {
   test('TC-4.1: name (or handle), handle and role of each person, and the intro', async ({ page }) => {
     await seedProjectSpace(page, { role: 'projectAdmin' });
     await page.goto(`/o/${ORG}/p/${P}/desk/agent`);
     await sideMenu(page).getByRole('link', { name: 'Members' }).click();
     await expect(page.getByRole('heading', { level: 1, name: 'Members' })).toBeVisible();
     await expect(
-      page.getByText('People with a role on this project. A role in Alice also applies here.'),
+      page.getByText(
+        'People with access to this project. A role in Alice also applies here. Those people are labelled Organization and are managed in Alice Settings, Members.',
+      ),
     ).toBeVisible();
     await expect(page.getByRole('columnheader', { name: 'Name' })).toBeVisible();
     await expect(page.getByRole('columnheader', { name: 'Role' })).toBeVisible();
@@ -155,6 +157,40 @@ test.describe('BR-4: Members lists only people with a project role', () => {
     await seedProjectSpace(page, { role: 'owner' });
     await page.goto(membersUrl(P));
     await expect(rowOf(page, 'Ben Okafor').getByRole('cell').nth(1)).toHaveText('Member, Viewer');
+  });
+});
+
+test.describe('BR-4: inherited org-wide rows', () => {
+  test('TC-4.4: an org-wide person shows the org role with an Organization label and no Change role or Remove', async ({
+    page,
+  }) => {
+    await seedProjectSpace(page, { role: 'projectAdmin' });
+    await page.goto(membersUrl(P));
+    const iris = rowOf(page, 'Iris Novak');
+    await expect(iris.getByRole('cell').nth(1)).toContainText('Owner');
+    await expect(iris.getByRole('cell').nth(1)).toContainText('Organization');
+    await expect(iris.getByRole('button')).toHaveCount(0);
+  });
+
+  test('TC-4.5: a person with an org role and a project role shows both and keeps the row menu', async ({ page }) => {
+    await seedProjectSpace(page, { role: 'projectAdmin' });
+    await page.goto(membersUrl(P));
+    const omar = rowOf(page, 'Omar Reyes');
+    await expect(omar.getByRole('cell').nth(1)).toContainText('Member');
+    await expect(omar.getByRole('cell').nth(1)).toContainText('Viewer');
+    await expect(omar.getByRole('cell').nth(1)).toContainText('Organization');
+    await expect(omar.getByRole('button', { name: 'Actions for Omar Reyes' })).toBeVisible();
+  });
+
+  test('TC-4.6: the Add picker does not offer org-wide people', async ({ page }) => {
+    await seedProjectSpace(page, { role: 'projectAdmin' });
+    await page.goto(membersUrl(P));
+    await page.getByRole('button', { name: 'Add member' }).first().click();
+    const dialog = page.getByRole('dialog', { name: /^Add member to/ });
+    await dialog.getByRole('combobox', { name: 'Person' }).click();
+    await expect(page.getByRole('option').first()).toBeVisible();
+    await expect(page.getByRole('option').filter({ hasText: 'Iris Novak' })).toHaveCount(0);
+    await expect(page.getByRole('option').filter({ hasText: 'Omar Reyes' })).toHaveCount(0);
   });
 });
 

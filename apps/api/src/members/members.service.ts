@@ -318,7 +318,7 @@ export class MembersService {
       }
       if (filter?.excludeProject !== undefined) {
         conditions.push(
-          sql`NOT EXISTS (SELECT 1 FROM ${roleAssignments} WHERE ${roleAssignments.orgId} = ${orgId} AND ${roleAssignments.userId} = ${member.userId} AND ${roleAssignments.scopeType} = 'project' AND ${roleAssignments.projectId} = ${filter.excludeProject})`,
+          sql`NOT EXISTS (SELECT 1 FROM ${roleAssignments} WHERE ${roleAssignments.orgId} = ${orgId} AND ${roleAssignments.userId} = ${member.userId} AND (${roleAssignments.scopeType} = 'org' OR (${roleAssignments.scopeType} = 'project' AND ${roleAssignments.projectId} = ${filter.excludeProject})))`,
         );
       }
       const inOrg = and(...conditions);
