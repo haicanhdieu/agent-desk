@@ -126,6 +126,7 @@ describe('PATCH /api/orgs/:orgId', () => {
     expect(rows).toHaveLength(1);
     expect(rows[0]?.targetId).toBe(f.orgId);
     expect(rows[0]?.payload).toMatchObject({ from: { name: `Org ${f.slug}` }, to: { name: 'Renamed' } });
+    expect(rows[0]?.payload).toMatchObject({ actorKind: 'member' });
   });
 
   it('waits for a concurrent writer of the org row, so the audit from holds the committed name', async () => {

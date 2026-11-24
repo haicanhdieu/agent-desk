@@ -9,7 +9,7 @@ export interface PlatformAuditEntry {
   action: PlatformAuditAction;
   targetType: 'platform_admin' | 'org' | 'assignment' | 'invitation';
   targetId: string;
-  /** The organization the row is about (suspend, reactivate); left out for rows that target no org. */
+  /** The organization the row is about (suspend, reactivate, edit); left out for rows that target no org. */
   targetOrgId?: string;
   payload: Record<string, unknown>;
 }

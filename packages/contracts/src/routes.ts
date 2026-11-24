@@ -542,6 +542,13 @@ export const routes = {
       response: pageOf(PlatformOrgDto),
     },
     getOrg: { method: 'GET', path: '/api/platform/orgs/:orgId', params: orgParams, response: PlatformOrgDetailDto },
+    updateOrg: {
+      method: 'PATCH',
+      path: '/api/platform/orgs/:orgId',
+      params: orgParams,
+      body: UpdateOrgRequest,
+      response: PlatformOrgDetailDto,
+    },
     suspendOrg: {
       method: 'POST',
       path: '/api/platform/orgs/:orgId/suspend',

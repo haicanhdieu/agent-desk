@@ -57,6 +57,9 @@ type OrgRow = {
   memberCount: number;
 };
 
+/** Who edits: a member through the tenant route, or a platform admin through the platform route. */
+export type OrgActor = { userId: string; kind: 'member' | 'platform_admin' };
+
 @Injectable()
 export class OrgsService {
   constructor(
@@ -102,7 +105,9 @@ export class OrgsService {
    * and write one `org.updated` audit entry (from/to hold the changed fields only). A taken slug is caught on the
    * unique index. The caller's guard already matched `orgId` to the session's org.
    */
-  async update(actorUserId: string, orgId: string, req: UpdateOrgRequest): Promise<OrgDto> {
+  async update(actor: OrgActor, orgId: string, req: UpdateOrgRequest): Promise<OrgDto> {
+    const actorUserId = actor.userId;
+    if (!Id.safeParse(orgId).success) throw new NotFoundException('Organization not found');
     try {
       const result = await withOrg(this.db, orgId, async (tx): Promise<{ dto: OrgDto; changed: boolean }> => {
         const [current] = await tx
@@ -127,12 +132,22 @@ export class OrgsService {
         await writeAuditEntry(tx, {
           orgId,
           actorUserId,
-          actorKind: 'member',
+          actorKind: actor.kind,
           action: 'org.updated',
           targetType: 'org',
           targetId: orgId,
           payload: { from, to },
         });
+        if (actor.kind === 'platform_admin') {
+          await writePlatformAuditEntry(tx, {
+            actorUserId,
+            action: 'org.updated',
+            targetType: 'org',
+            targetId: orgId,
+            targetOrgId: orgId,
+            payload: { from, to },
+          });
+        }
         return { dto: { id: orgId, name: to.name ?? current.name, slug: to.slug ?? current.slug }, changed: true };
       });
       if (result.changed) {

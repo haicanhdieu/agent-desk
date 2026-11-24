@@ -37,6 +37,8 @@ describe('platform scenarios', () => {
       'manyOrgs',
       'suspendedMember',
       'suspendedPlatformAdmin',
+      'platformOrgEdit',
+      'platformOrgEditSuspended',
     ]);
   });
 
@@ -68,6 +70,27 @@ describe('platform scenarios', () => {
     expect(err.status).toBe(409);
     expect(err.errors).toEqual([expect.objectContaining({ pointer: '/slug' })]);
     expect((await api.platform.listOrgs({ query: {} })).items.filter((o) => o.slug === 'acme')).toHaveLength(1);
+  });
+
+  it('platformOrgEdit: Acme (acme) and Beta (beta) in the directory, both active', async () => {
+    scenarios.platform('platformOrgEdit');
+    const page = await api.platform.listOrgs({ query: {} });
+    expect(page.items.map((o) => [o.name, o.slug, o.status]).sort()).toEqual([
+      ['Acme', 'acme', 'active'],
+      ['Beta', 'beta', 'active'],
+    ]);
+  });
+
+  it('platformOrgEditSuspended: Acme is suspended with a reason, Beta stays active', async () => {
+    scenarios.platform('platformOrgEditSuspended');
+    const page = await api.platform.listOrgs({ query: {} });
+    expect(page.items.map((o) => [o.slug, o.status]).sort()).toEqual([
+      ['acme', 'suspended'],
+      ['beta', 'active'],
+    ]);
+    const acme = page.items.find((o) => o.slug === 'acme');
+    expect(acme?.suspendedAt).not.toBeNull();
+    expect(getPlatformOrg(acme?.id ?? '').suspension?.reason).toBe('Billing hold');
   });
 
   it('platformEmpty: lists no org', async () => {

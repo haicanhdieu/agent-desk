@@ -1,4 +1,4 @@
-import { Body, Controller, Get, HttpCode, Inject, Param, Post, Query } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, Inject, Param, Patch, Post, Query } from '@nestjs/common';
 import { z } from 'zod';
 import {
   routes,
@@ -12,6 +12,7 @@ import {
   type PlatformOrgListQuery,
   type PlatformProjectDto,
   type PlatformRoleDto,
+  type UpdateOrgRequest,
 } from '@agentdesk/contracts';
 import { CurrentPlatformAdmin, type PlatformAdminContext } from '../access/current-access';
 import { routePath } from '../common/route-path';
@@ -22,6 +23,7 @@ const CreateBody = new ZodPipe(routes.platform.createOrg.body);
 const ListOrgsQuery = new ZodPipe(routes.platform.listOrgs.query);
 // Not the route's uuid schema: a malformed id is a 404 for an admin (the guard already ran), never a 400.
 const GetOrgParams = new ZodPipe(z.object({ orgId: z.string().max(200) }));
+const EditBody = new ZodPipe(routes.platform.updateOrg.body);
 const StatusBody = new ZodPipe(routes.platform.suspendOrg.body);
 const ProjectsParams = new ZodPipe(routes.platform.listProjects.params);
 const ProjectsQuery = new ZodPipe(routes.platform.listProjects.query);
@@ -53,6 +55,16 @@ export class PlatformOrgsController {
     @CurrentPlatformAdmin() _admin: PlatformAdminContext,
     @Param(GetOrgParams) p: { orgId: string },
   ): Promise<PlatformOrgDetailDto> {
+    return this.orgs.getOrg(p.orgId);
+  }
+
+  @Patch(routePath(routes.platform.updateOrg))
+  async update(
+    @CurrentPlatformAdmin() admin: PlatformAdminContext,
+    @Param(GetOrgParams) p: { orgId: string },
+    @Body(EditBody) body: UpdateOrgRequest,
+  ): Promise<PlatformOrgDetailDto> {
+    await this.orgs.update({ userId: admin.userId, kind: 'platform_admin' }, p.orgId, body);
     return this.orgs.getOrg(p.orgId);
   }
 

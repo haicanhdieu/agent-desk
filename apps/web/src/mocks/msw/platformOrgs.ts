@@ -6,10 +6,11 @@ import {
   type PlatformOrgDto,
   type PlatformOrgListQuery,
   type PlatformOrgSuspensionDto,
+  type UpdateOrgRequest,
 } from '@agentdesk/contracts';
 import { platformOrgDtoFixtures } from '../dto/platform';
 import { mockDb } from './db';
-import { notFound } from './http';
+import { conflict, notFound } from './http';
 
 // The platform organizations directory: stateful so later suspend and reactivate calls change what the list shows.
 
@@ -80,6 +81,23 @@ export function setPlatformOrgStatus(
   } else {
     org.suspendedAt = null;
     suspensions.delete(orgId);
+  }
+  return getPlatformOrg(orgId);
+}
+
+/** As the API: a slug another org holds is a 409 at `/slug`; values equal to the current ones change nothing. Status and suspension stay. */
+export function updatePlatformOrg(orgId: string, body: UpdateOrgRequest): PlatformOrgDetailDto {
+  const org = orgs.find((o) => o.id === orgId);
+  if (!org) throw notFound('Organization');
+  if (body.slug !== undefined && body.slug !== org.slug && orgs.some((o) => o.id !== orgId && o.slug === body.slug)) {
+    throw conflict('Slug already in use', [{ pointer: '/slug', detail: 'this slug is already taken' }]);
+  }
+  org.name = body.name ?? org.name;
+  org.slug = body.slug ?? org.slug;
+  const seat = mockDb.state.orgs.find((o) => o.id === orgId);
+  if (seat) {
+    seat.name = org.name;
+    seat.slug = org.slug;
   }
   return getPlatformOrg(orgId);
 }

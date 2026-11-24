@@ -52,7 +52,7 @@ import {
   tenantMemberFixtures,
 } from '../dto/access';
 import { platformOrgDtoFixtures } from '../dto/platform';
-import { addPlatformOrg, getPlatformOrg, listPlatformOrgs } from './platformOrgs';
+import { addPlatformOrg, getPlatformOrg, listPlatformOrgs, setPlatformOrgStatus } from './platformOrgs';
 import { Problem } from './http';
 import {
   auditEntryFixtures,
@@ -1273,6 +1273,64 @@ describe('platform org directory store', () => {
     const reactivatedAgain = await post('reactivate', { reason: 'again' });
     expect(reactivatedAgain.status).toBe(200);
     expect(PlatformOrgDetailDto.parse(await reactivatedAgain.json())).toEqual(reactivated);
+  });
+  it('edits an org over HTTP: the store and the directory row change, a taken slug is 409 at /slug, equal values change nothing', async () => {
+    const me = mockDb.state.users[0];
+    if (me) me.platformAdmin = true;
+    const [first, second] = platformOrgDtoFixtures;
+    if (!first || !second) throw new Error('need two fixtures');
+    const patch = (id: string, body: unknown) =>
+      fetch(`http://localhost:3000/api/platform/orgs/${id}`, {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+
+    const empty = await patch(first.id, {});
+    expect(empty.status).toBe(400);
+    expect((await patch(crypto.randomUUID(), { name: 'x' })).status).toBe(404);
+
+    const renamed = await patch(first.id, { name: 'Acme Renamed', slug: 'acme-renamed' });
+    expect(renamed.status).toBe(200);
+    expect(PlatformOrgDetailDto.parse(await renamed.json())).toMatchObject({
+      id: first.id,
+      name: 'Acme Renamed',
+      slug: 'acme-renamed',
+    });
+    expect(getPlatformOrg(first.id)).toMatchObject({ name: 'Acme Renamed', slug: 'acme-renamed' });
+    expect(getPlatformOrg(second.id)).toMatchObject({ name: second.name, slug: second.slug });
+    expect(listPlatformOrgs({ ...base, q: 'acme-renamed' }).items[0]).toMatchObject({
+      id: first.id,
+      name: 'Acme Renamed',
+    });
+
+    const taken = await patch(first.id, { slug: second.slug });
+    expect(taken.status).toBe(409);
+    expect(await taken.json()).toMatchObject({ errors: [{ pointer: '/slug' }] });
+    expect(getPlatformOrg(first.id).slug).toBe('acme-renamed');
+
+    const before = getPlatformOrg(first.id);
+    const same = await patch(first.id, { name: 'Acme Renamed', slug: 'acme-renamed' });
+    expect(same.status).toBe(200);
+    expect(PlatformOrgDetailDto.parse(await same.json())).toEqual(before);
+  });
+  it('keeps a suspended org suspended when it is edited', async () => {
+    const me = mockDb.state.users[0];
+    if (me) me.platformAdmin = true;
+    const target = platformOrgDtoFixtures.find((o) => o.status === 'active');
+    if (!target) throw new Error('no active fixture');
+    setPlatformOrgStatus(target.id, 'suspended', 'abuse');
+    const res = await fetch(`http://localhost:3000/api/platform/orgs/${target.id}`, {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ name: 'Renamed While Suspended' }),
+    });
+    expect(res.status).toBe(200);
+    expect(PlatformOrgDetailDto.parse(await res.json())).toMatchObject({
+      name: 'Renamed While Suspended',
+      status: 'suspended',
+      suspension: { reason: 'abuse' },
+    });
   });
   it('adds a created org to the directory with no owner', async () => {
     const me = mockDb.state.users[0];

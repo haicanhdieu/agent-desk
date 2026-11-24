@@ -58,7 +58,13 @@ import {
   type RouteKey,
 } from './http';
 import { grantPlatformAdmin, listPlatformAdmins, revokePlatformAdmin } from './platformAdmins';
-import { addPlatformOrg, getPlatformOrg, listPlatformOrgs, setPlatformOrgStatus } from './platformOrgs';
+import {
+  addPlatformOrg,
+  getPlatformOrg,
+  listPlatformOrgs,
+  setPlatformOrgStatus,
+  updatePlatformOrg,
+} from './platformOrgs';
 import { linkedTicketsFor, toDto } from './linkedTickets';
 import {
   changeMemberRole,
@@ -1163,6 +1169,7 @@ const impl: Impl = {
   },
   'platform.listOrgs': ({ query }) => listPlatformOrgs(query),
   'platform.getOrg': ({ params }) => getPlatformOrg(params.orgId),
+  'platform.updateOrg': ({ params, body }) => updatePlatformOrg(params.orgId, body),
   'platform.suspendOrg': ({ params, body }) =>
     setPlatformOrgStatus(params.orgId, 'suspended', body.reason, actorOf(sessionUser())),
   'platform.reactivateOrg': ({ params, body }) =>

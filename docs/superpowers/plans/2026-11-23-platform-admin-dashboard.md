@@ -1378,15 +1378,15 @@ export function updatePlatformOrg(orgId: string, body: UpdateOrgRequest): Platfo
 PLATFORM_SCENARIOS + 'platformOrgEdit' // orgs "Acme" (acme) and "Beta" (beta), one of them suspended in a variant
 ```
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
   - `platform.test.ts` (BR-53 to BR-55): `UpdateOrgRequest` needs at least one field; name empty, spaces only (after the form trims) and 101 characters rejected, 100 accepted; slug uppercase, leading or trailing dash, `ac_me`, 0 and 64 characters rejected, 63 accepted.
   - `routes.test.ts`, `route-access.test.ts`: the PATCH route and entry; counts +1.
   - `authz.int.test.ts`: `'platform.updateOrg': platformRoute(200)`, in `NOT_REGISTERED_YET`, body `{ name: 'Denial Rename' }`.
   - `contract.test.ts`: rename changes the store and the directory row; a taken slug is 409 at `/slug`; equal values change nothing; editing a suspended org keeps `suspended`.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/contracts exec vitest run`. Expected: FAIL.
-- [ ] **Step 3: Implement** the contracts and the mock store, handler and scenario.
-- [ ] **Step 4: Run** Step 2's command, `pnpm --filter @agentdesk/api typecheck`, `pnpm --filter @agentdesk/api exec vitest run test/authz.int.test.ts`, `pnpm --filter @agentdesk/web exec vitest run src/mocks`, `pnpm --filter @agentdesk/web typecheck`. Expected: PASS.
-- [ ] **Step 5: Commit**: `feat(contracts): platform route to edit an organization`. Label `review:sensitive` (routeAccess).
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/contracts exec vitest run`. Expected: FAIL.
+- [x] **Step 3: Implement** the contracts and the mock store, handler and scenario.
+- [x] **Step 4: Run** Step 2's command, `pnpm --filter @agentdesk/api typecheck`, `pnpm --filter @agentdesk/api exec vitest run test/authz.int.test.ts`, `pnpm --filter @agentdesk/web exec vitest run src/mocks`, `pnpm --filter @agentdesk/web typecheck`. Expected: PASS.
+- [x] **Step 5: Commit**: `feat(contracts): platform route to edit an organization`. Label `review:sensitive` (routeAccess).
 
 ---
 
@@ -1415,7 +1415,7 @@ OrgsService.update(actor: OrgActor, orgId: string, req: UpdateOrgRequest): Promi
 PlatformOrgsController.update(@CurrentPlatformAdmin() admin, @Param() p: { orgId: string }, @Body() body: UpdateOrgRequest): Promise<PlatformOrgDetailDto>;
 ```
 
-- [ ] **Step 1: Write the failing tests** in `platform-org-edit.int.test.ts`:
+- [x] **Step 1: Write the failing tests** in `platform-org-edit.int.test.ts`:
   - BR-52: 403 before any lookup for the org's owner, org admin, project admin, member, viewer, another org's owner and a no-org user; an unknown id gives a non-admin the same 403; 401 signed out; `X-Org` ignored; a body `orgId` or `actorKind` is rejected or ignored; 404 unknown or malformed id for the admin.
   - BR-53: 200 `PlatformOrgDetailDto` with the new name and slug; a second org untouched; `platform.listOrgs` shows the new values.
   - BR-54, BR-55: 400 with pointer `/name` or `/slug`, nothing written, no audit rows.
@@ -1427,10 +1427,10 @@ PlatformOrgsController.update(@CurrentPlatformAdmin() admin, @Param() p: { orgId
   - A name with markup or SQL text is stored as typed.
   - `org-settings.int.test.ts`: the tenant PATCH still writes `actorKind: 'member'` (existing cases stay green; add the assertion if missing).
   - `authz.int.test.ts`: remove the key from `NOT_REGISTERED_YET`.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/api exec vitest run test/platform-org-edit.int.test.ts test/org-settings.int.test.ts`. Expected: FAIL.
-- [ ] **Step 3: Implement** the actor parameter (tenant controller passes `{ userId, kind: 'member' }`), the platform write in the same transaction, the platform controller (`update` then `getOrg` for the response), info log `{ requestId, actorUserId, orgId, action }`.
-- [ ] **Step 4: Run** Step 2's command, `pnpm --filter @agentdesk/api exec vitest run test/authz.int.test.ts src/audit`, `pnpm --filter @agentdesk/api typecheck`. Expected: PASS.
-- [ ] **Step 5: Commit**: `feat(api): platform admins edit an organization's name and slug`. Label `review:sensitive`.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/api exec vitest run test/platform-org-edit.int.test.ts test/org-settings.int.test.ts`. Expected: FAIL.
+- [x] **Step 3: Implement** the actor parameter (tenant controller passes `{ userId, kind: 'member' }`), the platform write in the same transaction, the platform controller (`update` then `getOrg` for the response), info log `{ requestId, actorUserId, orgId, action }`.
+- [x] **Step 4: Run** Step 2's command, `pnpm --filter @agentdesk/api exec vitest run test/authz.int.test.ts src/audit`, `pnpm --filter @agentdesk/api typecheck`. Expected: PASS.
+- [x] **Step 5: Commit**: `feat(api): platform admins edit an organization's name and slug`. Label `review:sensitive`.
 
 ---
 

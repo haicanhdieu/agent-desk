@@ -28,6 +28,8 @@ export const PLATFORM_SCENARIOS = [
   'manyOrgs',
   'suspendedMember',
   'suspendedPlatformAdmin',
+  'platformOrgEdit',
+  'platformOrgEditSuspended',
 ] as const;
 
 export type PlatformScenario = (typeof PLATFORM_SCENARIOS)[number];
@@ -69,6 +71,23 @@ function lastAdminEntries(workingOnFirstPage: boolean): PlatformAdminDto[] {
   // The list is served in store order: index 0 is page 1, index PAGE_SIZE_DEFAULT is the first of page 2.
   const at = workingOnFirstPage ? 0 : PAGE_SIZE_DEFAULT;
   return [...pending.slice(0, at), working, ...pending.slice(at)];
+}
+
+/** Two active orgs to edit: "Acme" (acme) and "Beta" (beta), so a slug can be taken. */
+function platformOrgEditEntries(): PlatformOrgDto[] {
+  const org = (n: number, name: string, slug: string): PlatformOrgDto => ({
+    id: `b9100000-0000-4000-8000-${String(n).padStart(12, '0')}`,
+    name,
+    slug,
+    memberCount: 1,
+    createdAt: new Date(Date.UTC(2026, 0, n)).toISOString(),
+    status: 'active',
+    suspendedAt: null,
+    projectCount: 0,
+    lastActivityAt: null,
+    owner: null,
+  });
+  return [org(1, 'Acme', 'acme'), org(2, 'Beta', 'beta')];
 }
 
 /** More organizations than two pages: "Many Org 01" is the oldest and "Many Org 45" the newest. */
@@ -156,6 +175,19 @@ const seeders: Record<PlatformScenario, () => void> = {
     suspendMockOrg(ids.org.alice, 'Billing hold');
   },
   revoke409: () => applyOnboardingScenario('platformAdminOneOrg'),
+  platformOrgEdit() {
+    applyOnboardingScenario('platformAdminOneOrg');
+    seedPlatformOrgs(platformOrgEditEntries());
+  },
+  // `platformOrgEdit` with "Acme" suspended (reason `Billing hold`); "Beta" stays active.
+  platformOrgEditSuspended() {
+    applyOnboardingScenario('platformAdminOneOrg');
+    const entries = platformOrgEditEntries();
+    seedPlatformOrgs(entries);
+    const acme = entries.find((o) => o.slug === 'acme');
+    if (!acme) throw new Error('seed has no acme org');
+    setPlatformOrgStatus(acme.id, 'suspended', 'Billing hold');
+  },
   manyOrgs() {
     applyOnboardingScenario('platformAdminOneOrg');
     seedPlatformOrgs(manyOrgEntries());
