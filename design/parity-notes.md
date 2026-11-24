@@ -459,6 +459,16 @@ item reads "Change access".
 - Table widths: the boards draw 34% / rest / 56px; the shared `DataTable` lays the columns out itself (as in the other Members boards).
 - The interactive prototype (`design/prototype/interactive/`) was regenerated with `_tools/build-boards.mjs` (322 boards) and its live
   Members screen now has the Access column and a working Change access dialog (add, change, remove, audit entries). `_checks/nav-check.mjs`
-  was not run: it needs a macOS headless Chromium and the check screenshots are not regenerated.
-- Storybook and `parity.mjs` were not run (no Chromium within the memory headroom). The redrawn and the 3 new pixel pairs are unchecked:
-  none is claimed to match.
+  was not run (macOS-only script: it hardcodes macOS paths) and the check screenshots are not regenerated.
+- Storybook parity was run in the runner pod (`build-storybook`, then `parity.mjs` with Chromium 158 from `runner-setup.sh` profile `full`).
+  `parity.mjs` built the story id from the title with a camelCase split, so every `Screens/OrgSettings` board timed out (the Storybook id is
+  `screens-orgsettings--...`); it now lowercases the title without splitting. After that fix only the 26 `OrgMembers*` pairs (23 redrawn and
+  the 3 new) were rendered and compared, by eye; the other boards were not re-run in this pass. Result:
+  - Fixed: `OrgMembersRowMenu` and `OrgMembersRowMenuSelf` had lost one row and the open row menu, and had Actions labels shifted onto the wrong
+    row. They now have 8 rows, the open menu (Change access and Remove from organization; own row: Change access only) and matching labels.
+  - Compared and matching in layout: the Access column with chips, the Change access title and Save access, the Project access rows, the Add
+    project row, and "No project access." on the empty board.
+  - Remaining differences, none claimed to match pixel for pixel: the story cast (Alice, Cleo, Dana, Fatima) against the board cast (Kim Hale,
+    Mira Chen, ari-k); the board dialog body overflows the 900px window while the story scrolls it; the story page content and dialog body sit
+    2px to 8px further in than the board; the story has no sidebar icons and no menu on the caller's own row (the `RowMenuSelf` board draws
+    one). The last two come from `OrgSettingsLayout` and the own-row rule, which this PR does not change.
