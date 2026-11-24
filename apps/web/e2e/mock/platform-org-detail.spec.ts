@@ -538,7 +538,8 @@ test.describe('BR-31: invitation email validation', () => {
 test.describe('Open organization', () => {
   test('"Open organization" on a member org lands on /o/<slug>/projects', async ({ page }) => {
     await open(page, 'platformAdminMemberOrg', { path: `${ORGS}/${ALICE_ORG}` });
-    const link = page.getByRole('link', { name: 'Open organization' });
+    await page.getByRole('button', { name: 'More actions' }).click();
+    const link = page.getByRole('menuitem', { name: 'Open organization' });
     await expect(link).toHaveAttribute('href', '/o/alice/projects');
     await link.click();
     await expect(page).toHaveURL(/\/o\/alice\/projects$/);
@@ -547,6 +548,28 @@ test.describe('Open organization', () => {
   test('a non-member org has no "Open organization"', async ({ page }) => {
     await open(page);
     await expect(page.getByRole('heading', { name: 'Acme', level: 1 })).toBeVisible();
-    await expect(page.getByRole('link', { name: 'Open organization' })).toHaveCount(0);
+    await page.getByRole('button', { name: 'More actions' }).click();
+    await expect(page.getByRole('menuitem', { name: 'Open organization' })).toHaveCount(0);
+  });
+});
+
+test.describe('Header actions', () => {
+  test('Edit organization and More actions are the only header buttons; the rest sits in the menu', async ({
+    page,
+  }) => {
+    await open(page);
+    await expect(page.getByRole('heading', { name: 'Acme', level: 1 })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Suspend organization' })).toHaveCount(0);
+    await expect(page.getByRole('link', { name: 'View audit log' })).toHaveCount(0);
+
+    const trigger = page.getByRole('button', { name: 'More actions' });
+    await expect(trigger).toHaveAttribute('aria-expanded', 'false');
+    await trigger.click();
+    await expect(trigger).toHaveAttribute('aria-expanded', 'true');
+    await expect(page.getByRole('menuitem')).toHaveText(['Suspend organization', 'View audit log']);
+
+    await page.keyboard.press('Escape');
+    await expect(page.getByRole('menu')).toHaveCount(0);
+    await expect(trigger).toBeFocused();
   });
 });

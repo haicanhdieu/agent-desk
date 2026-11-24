@@ -1,7 +1,7 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
 import type { MockLists } from '../../src/mocks/msw/e2eLists';
 import type { PlatformScenario } from '../../src/mocks/msw/platformScenarios';
-import { SESSION_MOCK_NOW, seedLists, seedPlatform } from './mock';
+import { SESSION_MOCK_NOW, chooseAction, seedLists, seedPlatform } from './mock';
 
 /*
  * The platform Audit log (spec 2026-11-23-platform-admin-dashboard-design.md "E2E requirements": TC-4.7 to TC-4.9,
@@ -191,7 +191,7 @@ test.describe('BR-50: the audit log of one organization', () => {
     await open(page, 'platformAdminOrgs', { path: `/platform/orgs/${ACME}` });
     await expect(page.getByRole('heading', { name: 'Acme', level: 1 })).toBeVisible();
 
-    await page.getByRole('link', { name: 'View audit log' }).click();
+    await chooseAction(page, 'View audit log');
 
     await expect(page).toHaveURL(new RegExp(`/platform/audit\\?org=${ACME}$`));
     await expect(heading(page)).toBeVisible();

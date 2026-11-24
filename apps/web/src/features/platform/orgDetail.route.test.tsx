@@ -20,6 +20,18 @@ const headerStatus = () => {
   if (!title) throw new Error('no header block');
   return within(title);
 };
+type User = Awaited<ReturnType<typeof renderRoute>>['user'];
+/** Opens the More actions menu and picks an item (the status actions live there). */
+async function chooseAction(user: User, name: string) {
+  await user.click(screen.getByRole('button', { name: 'More actions' }));
+  await user.click(screen.getByRole('menuitem', { name }));
+}
+/** The More actions menu offers the item; closes it again. */
+async function expectAction(user: User, name: string) {
+  await user.click(screen.getByRole('button', { name: 'More actions' }));
+  expect(screen.getByRole('menuitem', { name })).toBeInTheDocument();
+  await user.keyboard('{Escape}');
+}
 const suspendDialog = async () => within(await screen.findByRole('dialog', { name: 'Suspend Acme?' }));
 
 /** Counts the POSTs to suspend and reactivate until the test ends. */
@@ -86,7 +98,7 @@ describe('Platform org detail', () => {
     try {
       const { user } = await renderRoute(detailPath, { scenario: asAdmin });
       await ready();
-      await user.click(screen.getByRole('button', { name: 'Suspend organization' }));
+      await chooseAction(user, 'Suspend organization');
       const dialog = await suspendDialog();
       await user.click(dialog.getByRole('button', { name: 'Suspend' }));
       expect(await dialog.findByText('Enter a reason.')).toBeInTheDocument();
@@ -103,7 +115,7 @@ describe('Platform org detail', () => {
     try {
       const { user } = await renderRoute(detailPath, { scenario: asAdmin });
       await ready();
-      await user.click(screen.getByRole('button', { name: 'Suspend organization' }));
+      await chooseAction(user, 'Suspend organization');
       const dialog = await suspendDialog();
       await user.type(dialog.getByRole('textbox', { name: 'Reason' }), '   ');
       await user.click(dialog.getByRole('button', { name: 'Suspend' }));
@@ -119,7 +131,7 @@ describe('Platform org detail', () => {
     try {
       const { user } = await renderRoute(detailPath, { scenario: asAdmin });
       await ready();
-      await user.click(screen.getByRole('button', { name: 'Suspend organization' }));
+      await chooseAction(user, 'Suspend organization');
       const dialog = await suspendDialog();
       await user.click(dialog.getByRole('textbox', { name: 'Reason' }));
       await user.paste('x'.repeat(501));
@@ -136,7 +148,7 @@ describe('Platform org detail', () => {
   it('BR-33: a 500-character reason suspends', async () => {
     const { user } = await renderRoute(detailPath, { scenario: asAdmin });
     await ready();
-    await user.click(screen.getByRole('button', { name: 'Suspend organization' }));
+    await chooseAction(user, 'Suspend organization');
     const dialog = await suspendDialog();
     await user.click(dialog.getByRole('textbox', { name: 'Reason' }));
     await user.paste('x'.repeat(500));
@@ -155,7 +167,7 @@ describe('Platform org detail', () => {
     };
     server.events.on('request:start', listener);
     try {
-      await user.click(screen.getByRole('button', { name: 'Suspend organization' }));
+      await chooseAction(user, 'Suspend organization');
       const dialog = await suspendDialog();
       await user.type(dialog.getByRole('textbox', { name: 'Reason' }), 'Billing hold');
       await user.click(dialog.getByRole('button', { name: 'Suspend' }));
@@ -180,7 +192,7 @@ describe('Platform org detail', () => {
     );
     const { user } = await renderRoute(detailPath, { scenario: asAdmin });
     await ready();
-    await user.click(screen.getByRole('button', { name: 'Suspend organization' }));
+    await chooseAction(user, 'Suspend organization');
     const dialog = await suspendDialog();
     await user.type(dialog.getByRole('textbox', { name: 'Reason' }), 'Billing hold');
     await user.click(dialog.getByRole('button', { name: 'Suspend' }));
@@ -192,7 +204,7 @@ describe('Platform org detail', () => {
     const { user, queryClient } = await renderRoute('/platform/orgs', { scenario: asAdmin });
     await user.click(await screen.findByRole('link', { name: 'Acme' }));
     await ready();
-    await user.click(screen.getByRole('button', { name: 'Suspend organization' }));
+    await chooseAction(user, 'Suspend organization');
     const dialog = await suspendDialog();
     expect(
       dialog.getByText(
@@ -207,7 +219,7 @@ describe('Platform org detail', () => {
     expect(headerStatus().getByText('Suspended')).toBeInTheDocument();
     expect(screen.getByText('This organization is suspended')).toBeInTheDocument();
     expect(screen.getByText('Reason: Billing hold')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Reactivate organization' })).toBeInTheDocument();
+    await expectAction(user, 'Reactivate organization');
     expect(queryClient.getQueryData(platformKeys.org(ACME))).toMatchObject({ status: 'suspended' });
     // The directory's cached pages are stale: opening it shows the new status.
     await user.click(
@@ -223,14 +235,14 @@ describe('Platform org detail', () => {
   it('BR-34: reactivate toasts and removes the Banner', async () => {
     const { user } = await renderRoute(detailPath, { scenario: asAdmin });
     await ready();
-    await user.click(screen.getByRole('button', { name: 'Suspend organization' }));
+    await chooseAction(user, 'Suspend organization');
     const suspend = await suspendDialog();
     await user.type(suspend.getByRole('textbox', { name: 'Reason' }), 'Billing hold');
     await user.click(suspend.getByRole('button', { name: 'Suspend' }));
     await screen.findByText('This organization is suspended');
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
 
-    await user.click(screen.getByRole('button', { name: 'Reactivate organization' }));
+    await chooseAction(user, 'Reactivate organization');
     const dialog = within(await screen.findByRole('dialog', { name: 'Reactivate Acme?' }));
     expect(dialog.getByText('People can open it again.')).toBeInTheDocument();
     await user.click(dialog.getByRole('button', { name: 'Reactivate' }));
@@ -241,7 +253,7 @@ describe('Platform org detail', () => {
     await waitFor(() => expect(screen.queryByText('This organization is suspended')).toBeNull());
     await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Acme' })).toHaveFocus());
     expect(headerStatus().getByText('Active')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Suspend organization' })).toBeInTheDocument();
+    await expectAction(user, 'Suspend organization');
   });
 
   it.each([
@@ -251,7 +263,7 @@ describe('Platform org detail', () => {
     server.use(http.post('*/api/platform/orgs/:orgId/suspend', () => problemResponse({ status, title })));
     const { user } = await renderRoute(detailPath, { scenario: asAdmin });
     await ready();
-    await user.click(screen.getByRole('button', { name: 'Suspend organization' }));
+    await chooseAction(user, 'Suspend organization');
     const dialog = await suspendDialog();
     await user.type(dialog.getByRole('textbox', { name: 'Reason' }), 'Billing hold');
     await user.click(dialog.getByRole('button', { name: 'Suspend' }));
@@ -268,7 +280,7 @@ describe('Platform org detail', () => {
     );
     const { user, router } = await renderRoute(detailPath, { scenario: asAdmin });
     await ready();
-    await user.click(screen.getByRole('button', { name: 'Suspend organization' }));
+    await chooseAction(user, 'Suspend organization');
     const dialog = await suspendDialog();
     await user.type(dialog.getByRole('textbox', { name: 'Reason' }), 'Billing hold');
     await user.click(dialog.getByRole('button', { name: 'Suspend' }));
@@ -287,7 +299,7 @@ describe('Platform org detail', () => {
       );
       const { user } = await renderRoute(detailPath, { scenario: asAdmin });
       await ready();
-      await user.click(screen.getByRole('button', { name: 'Suspend organization' }));
+      await chooseAction(user, 'Suspend organization');
       const dialog = await suspendDialog();
       await user.type(dialog.getByRole('textbox', { name: 'Reason' }), 'Billing hold');
       const button = dialog.getByRole('button', { name: 'Suspend' });
@@ -306,16 +318,19 @@ describe('Platform org detail', () => {
 
 describe('Open organization link', () => {
   it('a member org shows the link to its projects page', async () => {
-    await renderRoute(`/platform/orgs/${ids.org.alice}`, {
+    const { user } = await renderRoute(`/platform/orgs/${ids.org.alice}`, {
       scenario: () => scenarios.platform('suspendedPlatformAdmin'),
     });
-    const link = await screen.findByRole('link', { name: 'Open organization' });
+    await screen.findByRole('heading', { level: 1, name: 'Alice' });
+    await user.click(screen.getByRole('button', { name: 'More actions' }));
+    const link = screen.getByRole('menuitem', { name: 'Open organization' });
     expect(link).toHaveAttribute('href', '/o/alice/projects');
   });
 
   it('a non-member org shows no link', async () => {
-    await renderRoute(detailPath, { scenario: asAdmin });
+    const { user } = await renderRoute(detailPath, { scenario: asAdmin });
     await ready();
-    expect(screen.queryByRole('link', { name: 'Open organization' })).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'More actions' }));
+    expect(screen.queryByRole('menuitem', { name: 'Open organization' })).not.toBeInTheDocument();
   });
 });

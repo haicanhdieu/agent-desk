@@ -1,16 +1,8 @@
-import {
-  createContext,
-  useContext,
-  useEffect,
-  useId,
-  useRef,
-  useState,
-  type KeyboardEvent,
-  type ReactNode,
-} from 'react';
+import { createContext, useContext, useId, useRef, useState, type ReactNode } from 'react';
 import { Avatar, Icon, Popover } from '@/ds';
 import type { Actor } from '@/mocks/types';
 import styles from './AccountMenu.module.css';
+import { useMenuNav } from './useMenuNav';
 
 const SignOutContext = createContext<(() => void) | undefined>(undefined);
 
@@ -50,45 +42,13 @@ export function AccountMenu({ user }: AccountMenuProps) {
   return <AccountMenuButton login={user.login} avatar={avatar} onSignOut={onSignOut} />;
 }
 
-const MENU_ITEMS = 'a[href],button:not([disabled])';
-const ARROW_KEYS = ['ArrowDown', 'ArrowUp', 'Home', 'End'];
-
 function AccountMenuButton({ login, avatar, onSignOut }: { login: string; avatar: ReactNode; onSignOut: () => void }) {
   const { name, email } = useContext(AccountInfoContext);
   const [open, setOpen] = useState(false);
   const wrapRef = useRef<HTMLDivElement>(null);
   const menuId = useId();
 
-  // An outside press closes the menu; Escape is handled by the Popover, which also returns focus to the button.
-  useEffect(() => {
-    if (!open) return undefined;
-    const onPointerDown = (e: PointerEvent) => {
-      if (e.target instanceof Node && !wrapRef.current?.contains(e.target)) setOpen(false);
-    };
-    document.addEventListener('pointerdown', onPointerDown);
-    return () => document.removeEventListener('pointerdown', onPointerDown);
-  }, [open]);
-
-  const onButtonKeyDown = (e: KeyboardEvent<HTMLButtonElement>) => {
-    if (e.key === 'ArrowDown' && !open) {
-      e.preventDefault();
-      setOpen(true);
-    }
-  };
-
-  // Arrow keys, Home and End move between the menu items.
-  const onMenuKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
-    if (!ARROW_KEYS.includes(e.key)) return;
-    const items = Array.from(e.currentTarget.querySelectorAll<HTMLElement>(MENU_ITEMS));
-    if (items.length === 0) return;
-    e.preventDefault();
-    const at = items.findIndex((el) => el === document.activeElement);
-    let next = 0;
-    if (e.key === 'End') next = items.length - 1;
-    else if (e.key === 'ArrowDown') next = (at + 1) % items.length;
-    else if (e.key === 'ArrowUp') next = (at <= 0 ? items.length : at) - 1;
-    items[next]?.focus();
-  };
+  const { onTriggerKeyDown, onMenuKeyDown } = useMenuNav(open, setOpen, wrapRef);
 
   return (
     <div ref={wrapRef} className={styles.wrap}>
@@ -100,7 +60,7 @@ function AccountMenuButton({ login, avatar, onSignOut }: { login: string; avatar
         aria-expanded={open}
         aria-controls={open ? menuId : undefined}
         onClick={() => setOpen((o) => !o)}
-        onKeyDown={onButtonKeyDown}
+        onKeyDown={onTriggerKeyDown}
       >
         {avatar}
       </button>

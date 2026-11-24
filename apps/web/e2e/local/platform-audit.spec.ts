@@ -3,6 +3,7 @@ import { expect, test, type APIRequestContext, type BrowserContext, type Locator
 import {
   API,
   asPlatformAdmin,
+  chooseAction,
   createOrg,
   grant,
   inviteAndSignIn,
@@ -185,7 +186,7 @@ test.describe('BR-50: "View audit log" from the org detail', () => {
     const mine = await adminPage(browser);
     await mine.goto(`/platform/orgs/${org.id}`);
     await expect(mine.getByRole('heading', { name: org.name, level: 1 })).toBeVisible();
-    await mine.getByRole('link', { name: 'View audit log' }).click();
+    await chooseAction(mine, 'View audit log');
 
     await expect(mine).toHaveURL(new RegExp(`${AUDIT}\\?org=${org.id}$`));
     await expect(heading(mine)).toBeVisible();

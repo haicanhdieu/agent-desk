@@ -92,7 +92,8 @@ describe('Platform audit log', () => {
 
   it('BR-45: "View audit log" on the org detail opens /platform/audit?org=<id>', async () => {
     const { user, router } = await renderRoute(`/platform/orgs/${ACME}`, { scenario: asAdmin });
-    await user.click(await screen.findByRole('link', { name: 'View audit log' }));
+    await user.click(await screen.findByRole('button', { name: 'More actions' }));
+    await user.click(await screen.findByRole('menuitem', { name: 'View audit log' }));
     await ready();
     expect(router.state.location.pathname).toBe('/platform/audit');
     expect(router.state.location.search).toMatchObject({ org: ACME });

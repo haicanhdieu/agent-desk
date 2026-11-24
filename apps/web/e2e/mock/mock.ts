@@ -233,3 +233,9 @@ export async function seedProjectSpace(
     [PROJECT_SPACE_KEY, JSON.stringify(opts)] as const,
   );
 }
+
+/** Opens the "More actions" menu of a platform org header and picks the item (status action or link). */
+export async function chooseAction(page: Page, name: string): Promise<void> {
+  await page.getByRole('button', { name: 'More actions' }).click();
+  await page.getByRole('menuitem', { name }).click();
+}

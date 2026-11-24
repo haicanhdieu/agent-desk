@@ -367,12 +367,13 @@ describe('PlatformOrgDetail', () => {
     expect(screen.queryByText('child page')).not.toBeInTheDocument();
   });
 
-  it('header shows the edit slot when given, and Suspend comes before View audit log', () => {
+  it('header shows the edit slot when given, and Suspend comes before View audit log in the More actions menu', async () => {
     render(<PlatformOrgDetail view={ready()} editSlot={<span>edit slot</span>} />);
     expect(screen.getByText('edit slot')).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'More actions' }));
     const names = [
-      screen.getByRole('button', { name: 'Suspend organization' }),
-      screen.getByRole('link', { name: 'View audit log' }),
+      screen.getByRole('menuitem', { name: 'Suspend organization' }),
+      screen.getByRole('menuitem', { name: 'View audit log' }),
     ];
     expect(names[0].compareDocumentPosition(names[1]) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
@@ -414,14 +415,15 @@ describe('PlatformOrgDetail', () => {
     expect(screen.queryByRole('dialog', { name: 'Edit organization' })).not.toBeInTheDocument();
   });
 
-  it('suspended: warning banner with the date, actor and reason', () => {
+  it('suspended: warning banner with the date, actor and reason', async () => {
     render(<PlatformOrgDetail view={ready(true)} />);
     expect(screen.getByText('This organization is suspended')).toBeInTheDocument();
     expect(
       screen.getByText('Since 21 Nov 2026 by Sam Rivera. People cannot open it and no new runs start.'),
     ).toBeInTheDocument();
     expect(screen.getByText('Reason: Billing hold')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Reactivate organization' })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'More actions' }));
+    expect(screen.getByRole('menuitem', { name: 'Reactivate organization' })).toBeInTheDocument();
   });
 
   it('a reason with markup renders as text', () => {

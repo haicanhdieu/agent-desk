@@ -18,6 +18,8 @@ function setup(over: Partial<PlatformOrgHeaderProps> = {}) {
   return handlers;
 }
 
+const openMenu = () => userEvent.click(screen.getByRole('button', { name: 'More actions' }));
+
 describe('PlatformOrgHeader', () => {
   it('shows the name as a focusable h1, the slug path and the status', () => {
     setup();
@@ -27,41 +29,80 @@ describe('PlatformOrgHeader', () => {
     expect(screen.getByText('Active')).toBeInTheDocument();
   });
 
-  it('offers Suspend for an active org', async () => {
-    const h = setup();
-    expect(screen.queryByRole('button', { name: 'Reactivate organization' })).toBeNull();
-    await userEvent.click(screen.getByRole('button', { name: 'Suspend organization' }));
-    expect(h.onSuspend).toHaveBeenCalled();
+  it('shows Edit organization as the only visible action button, next to More actions', () => {
+    setup({ onEdit: vi.fn(), openHref: '/o/acme/projects' });
+    expect(screen.getAllByRole('button').map((b) => b.getAttribute('aria-label') ?? b.textContent)).toEqual([
+      'Edit organization',
+      'More actions',
+    ]);
+    expect(screen.queryByRole('link')).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Suspend organization' })).toBeNull();
+    expect(screen.queryByRole('menu')).toBeNull();
   });
 
-  it('styles Suspend organization as danger', () => {
+  it('has an icon-only More actions trigger that reflects the menu state', async () => {
     setup();
-    expect(screen.getByRole('button', { name: 'Suspend organization' })).toHaveClass('danger');
+    const trigger = screen.getByRole('button', { name: 'More actions' });
+    expect(trigger).toHaveAttribute('title', 'More actions');
+    expect(trigger).toHaveAttribute('aria-haspopup', 'menu');
+    expect(trigger).toHaveAttribute('aria-expanded', 'false');
+    expect(trigger).not.toHaveAttribute('aria-controls');
+    await userEvent.click(trigger);
+    const menu = screen.getByRole('menu', { name: 'More actions' });
+    expect(trigger).toHaveAttribute('aria-expanded', 'true');
+    expect(trigger).toHaveAttribute('aria-controls', menu.id);
+    await userEvent.click(trigger);
+    expect(screen.queryByRole('menu')).toBeNull();
+    expect(trigger).toHaveAttribute('aria-expanded', 'false');
   });
 
-  it('styles Reactivate organization as the default button', () => {
-    setup({ status: 'suspended' });
-    const b = screen.getByRole('button', { name: 'Reactivate organization' });
-    expect(b).toHaveClass('btn');
-    for (const v of ['danger', 'solid-danger', 'primary', 'go', 'ghost']) expect(b).not.toHaveClass(v);
+  it('offers Suspend for an active org, then the audit log', async () => {
+    const h = setup();
+    await openMenu();
+    expect(screen.queryByRole('menuitem', { name: 'Reactivate organization' })).toBeNull();
+    expect(screen.getAllByRole('menuitem').map((m) => m.textContent)).toEqual([
+      'Suspend organization',
+      'View audit log',
+    ]);
+    expect(screen.getByRole('separator')).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('menuitem', { name: 'Suspend organization' }));
+    expect(h.onSuspend).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole('menu')).toBeNull();
   });
 
-  it('offers Reactivate for a suspended org', async () => {
+  it('styles Suspend organization as a destructive menu item, not a danger button', async () => {
+    setup();
+    await openMenu();
+    const item = screen.getByRole('menuitem', { name: 'Suspend organization' });
+    expect(item).toHaveClass('danger');
+    expect(item).not.toHaveClass('btn');
+  });
+
+  it('offers Reactivate for a suspended org, as a normal item', async () => {
     const h = setup({ status: 'suspended' });
     expect(screen.getByText('Suspended')).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Suspend organization' })).toBeNull();
-    await userEvent.click(screen.getByRole('button', { name: 'Reactivate organization' }));
-    expect(h.onReactivate).toHaveBeenCalled();
+    await openMenu();
+    expect(screen.queryByRole('menuitem', { name: 'Suspend organization' })).toBeNull();
+    const item = screen.getByRole('menuitem', { name: 'Reactivate organization' });
+    expect(item).not.toHaveClass('danger');
+    await userEvent.click(item);
+    expect(h.onReactivate).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole('menu')).toBeNull();
   });
 
-  it('links to the audit log', () => {
+  it('keeps the audit log href and closes the menu when it is chosen', async () => {
     setup();
-    expect(screen.getByRole('link', { name: 'View audit log' })).toHaveAttribute('href', '/platform/audit?org=1');
+    await openMenu();
+    const item = screen.getByRole('menuitem', { name: 'View audit log' });
+    expect(item).toHaveAttribute('href', '/platform/audit?org=1');
+    await userEvent.click(item);
+    expect(screen.queryByRole('menu')).toBeNull();
   });
 
   it('has no Edit button without onEdit', () => {
     setup();
     expect(screen.queryByRole('button', { name: 'Edit organization' })).toBeNull();
+    expect(screen.getByRole('button', { name: 'More actions' })).toBeInTheDocument();
   });
 
   it('calls onEdit from the Edit organization button', async () => {
@@ -72,20 +113,24 @@ describe('PlatformOrgHeader', () => {
   });
 
   it.each(['active', 'suspended'] as const)(
-    'orders actions Edit, status action, then the audit link (%s)',
-    (status) => {
-      setup({ status, onEdit: vi.fn() });
-      const els = [
-        screen.getByRole('button', { name: 'Edit organization' }),
-        screen.getByRole('button', { name: status === 'active' ? 'Suspend organization' : 'Reactivate organization' }),
-        screen.getByRole('link', { name: 'View audit log' }),
-      ];
-      expect(els[0].compareDocumentPosition(els[1]) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-      expect(els[1].compareDocumentPosition(els[2]) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    'orders the menu: status action, separator, audit, open (%s)',
+    async (status) => {
+      setup({ status, openHref: '/o/acme/projects' });
+      await openMenu();
+      const statusLabel = status === 'active' ? 'Suspend organization' : 'Reactivate organization';
+      expect(screen.getAllByRole('menuitem').map((m) => m.textContent)).toEqual([
+        statusLabel,
+        'View audit log',
+        'Open organization',
+      ]);
+      const roles = Array.from(screen.getByRole('menu').querySelectorAll('[role="menuitem"],[role="separator"]')).map(
+        (el) => el.getAttribute('role'),
+      );
+      expect(roles).toEqual(['menuitem', 'separator', 'menuitem', 'menuitem']);
     },
   );
 
-  it('shows "Open organization" after "View audit log" only with openHref', () => {
+  it('shows "Open organization" only with openHref, keeping its href', async () => {
     const { unmount } = render(
       <PlatformOrgHeader
         name="Acme"
@@ -97,10 +142,67 @@ describe('PlatformOrgHeader', () => {
         onReactivate={vi.fn()}
       />,
     );
-    expect(screen.getAllByRole('link').map((l) => l.textContent)).toEqual(['View audit log', 'Open organization']);
-    expect(screen.getByRole('link', { name: 'Open organization' })).toHaveAttribute('href', '/o/acme/projects');
+    await openMenu();
+    expect(screen.getByRole('menuitem', { name: 'Open organization' })).toHaveAttribute('href', '/o/acme/projects');
     unmount();
     setup();
-    expect(screen.queryByRole('link', { name: 'Open organization' })).not.toBeInTheDocument();
+    await openMenu();
+    expect(screen.queryByRole('menuitem', { name: 'Open organization' })).not.toBeInTheDocument();
+  });
+
+  it('closes on Escape and returns focus to the trigger', async () => {
+    setup();
+    const trigger = screen.getByRole('button', { name: 'More actions' });
+    await userEvent.click(trigger);
+    expect(screen.getByRole('menuitem', { name: 'Suspend organization' })).toHaveFocus();
+    await userEvent.keyboard('{Escape}');
+    expect(screen.queryByRole('menu')).toBeNull();
+    expect(trigger).toHaveFocus();
+  });
+
+  it('closes on a press outside the menu', async () => {
+    setup();
+    await openMenu();
+    await userEvent.click(screen.getByRole('heading', { level: 1, name: 'Acme' }));
+    expect(screen.queryByRole('menu')).toBeNull();
+  });
+
+  it('opens with Enter and Space on the trigger', async () => {
+    setup();
+    screen.getByRole('button', { name: 'More actions' }).focus();
+    await userEvent.keyboard('{Enter}');
+    expect(screen.getByRole('menu')).toBeInTheDocument();
+    await userEvent.keyboard('{Escape}');
+    await userEvent.keyboard(' ');
+    expect(screen.getByRole('menu')).toBeInTheDocument();
+  });
+
+  it('opens with ArrowDown on the trigger', async () => {
+    setup();
+    screen.getByRole('button', { name: 'More actions' }).focus();
+    await userEvent.keyboard('{ArrowDown}');
+    expect(screen.getByRole('menu')).toBeInTheDocument();
+  });
+
+  it('moves between items with the arrow keys, Home and End, and activates with Enter', async () => {
+    const h = setup({ openHref: '/o/acme/projects' });
+    await openMenu();
+    const [suspend, audit, open] = screen.getAllByRole('menuitem');
+    expect(suspend).toHaveFocus();
+    await userEvent.keyboard('{ArrowDown}');
+    expect(audit).toHaveFocus();
+    await userEvent.keyboard('{ArrowDown}');
+    expect(open).toHaveFocus();
+    await userEvent.keyboard('{ArrowDown}');
+    expect(suspend).toHaveFocus();
+    await userEvent.keyboard('{ArrowUp}');
+    expect(open).toHaveFocus();
+    await userEvent.keyboard('{Home}');
+    expect(suspend).toHaveFocus();
+    await userEvent.keyboard('{End}');
+    expect(open).toHaveFocus();
+    await userEvent.keyboard('{Home}{Enter}');
+    expect(h.onSuspend).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole('menu')).toBeNull();
   });
 });
