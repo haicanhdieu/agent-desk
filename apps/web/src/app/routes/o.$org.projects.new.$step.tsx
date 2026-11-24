@@ -235,9 +235,12 @@ function RepoStep({ org, projectId, connectionId }: { org: string; projectId?: s
   };
 
   const onConnect = async () => {
+    // Opened now, in the click, and pointed at GitHub once the API has answered: a tab opened after the wait is blocked.
+    const tab = browserLocation.openPendingTab();
     try {
       const outcome = await install.mutateAsync('github');
       if (outcome.kind === 'linked') {
+        tab.close();
         await navigate({
           to: '/o/$org/projects/new/$step',
           params: { org, step: 'repo' },
@@ -248,14 +251,16 @@ function RepoStep({ org, projectId, connectionId }: { org: string; projectId?: s
       }
       const target = safeInstallUrl(outcome.url);
       if (!target) {
+        tab.close();
         setErrors({
           fields: {},
           form: 'The install link from the server is not a valid https address. Try again later.',
         });
         return;
       }
-      browserLocation.openExternal(target);
+      tab.go(target);
     } catch (e) {
+      tab.close();
       toast.show(toastFromError(e));
     }
   };

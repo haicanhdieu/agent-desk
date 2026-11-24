@@ -582,3 +582,15 @@ item reads "Change access".
     - The story has no sidebar icons: not fixed; shared `OrgSettingsLayout`, not changed here.
     - The story shows no menu on the caller's own row, while the `RowMenuSelf` board draws one: not fixed; the board already drew an
       own-row menu on `main` ("Change role" on Kim Hale's row), and the own-row rule is not changed here.
+
+## Setup 1: Refresh repositories button (#270)
+
+- `Setup1` takes an optional `onRefresh` (and `refreshing`). With it, a small "Refresh repositories" button sits under the "Missing a
+  repository?" help text; it reads the repository list again after the app's repositories changed in GitHub, and is disabled and says
+  "Refreshing repositories" while it loads. The `Setup1` board and the other Setup1 boards in `design/prototype/` have no such
+  button, and the `Setup1` story passes no `onRefresh`, so the default board is unchanged and the interactive prototype was not
+  regenerated. The two new states are the stories `Setup1RefreshRepos` and `Setup1Refreshing` (boards `Setup1`).
+- Intentional state difference: the button only exists in the app's repo step (a new project, where the list is GitHub's) and in these
+  two stories. The help copy is the prototype's own ("This list refreshes on its own."); the list now also reads again when the tab
+  gets focus back, which makes that sentence true. No copy was changed.
+- Not compared by browser: the two new stories were not rendered against a board (no board has the button).

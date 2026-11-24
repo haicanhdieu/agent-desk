@@ -248,7 +248,7 @@ export function Setup1({
           <a href={accessHref} onClick={action(onConnect)}>
             Change which repositories the app can access
           </a>{' '}
-          in GitHub, then come back. This list refreshes when you return to this tab.
+          in GitHub, then come back. This list refreshes on its own.
         </p>
         {onRefresh && (
           <div>
