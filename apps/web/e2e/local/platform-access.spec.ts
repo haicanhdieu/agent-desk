@@ -76,7 +76,9 @@ test.describe('BR-23: a non-member platform admin gets no org data', () => {
     expect(shown.split(handle).join('<slug>')).toBe(unknownShown.split(unknown).join('<slug>'));
   });
 
-  test('TC-23.2: GET /api/orgs/<org id> with the org pinned is 403 and carries no org data', async ({ page }) => {
+  test('TC-23.2: GET /api/orgs/<org id>/checklist with the org pinned is 409 org-mismatch and carries no org data', async ({
+    page,
+  }) => {
     const { handle } = await signInAndCreateProject(page);
     const orgs = pageOf(PlatformOrgDto).parse(
       await (await pa.get('/api/platform/orgs?pageSize=100&q=' + encodeURIComponent(handle))).json(),
@@ -85,11 +87,12 @@ test.describe('BR-23: a non-member platform admin gets no org data', () => {
     expect(org, `org ${handle} is not in the platform directory`).toBeTruthy();
     const orgId = org?.id ?? '';
 
-    const res = await pa.get(`/api/orgs/${orgId}`, { headers: { 'x-org-id': orgId } });
+    const res = await pa.get(`/api/orgs/${orgId}/checklist`, { headers: { 'x-org-id': orgId } });
     const text = await res.text();
-    expect(res.status(), text).toBe(403);
+    expect(res.status(), text).toBe(409);
+    expect(JSON.parse(text)).toMatchObject({ type: 'org-mismatch' });
     for (const secret of [handle, `E2E ${handle}`, `${handle}@dev.local`]) {
-      expect(text, `the 403 carries ${secret}`).not.toContain(secret);
+      expect(text, `the 409 carries ${secret}`).not.toContain(secret);
     }
   });
 });

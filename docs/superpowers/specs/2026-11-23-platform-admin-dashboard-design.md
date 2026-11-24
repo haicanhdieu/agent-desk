@@ -998,7 +998,7 @@ Common setup. mock: the mock Playwright stack seeded with `seedPlatform(page, sc
 | Case | Type | Env | Given | Steps | Expected |
 | ---- | ---- | --- | ----- | ----- | -------- |
 | TC-23.1 | permission | local | `admin@dev.local` is not a member of a fresh org that has a project. | 1. Type `/o/<fresh slug>/projects` in the address bar. | No project, member or other org data is shown (the page is the same refusal as for any non-member). |
-| TC-23.2 | permission | local | Same. | 1. Request `GET /api/orgs/<org id>` as `admin@dev.local` with the org pinned. | The response is 403 and carries no org data. |
+| TC-23.2 | permission | local | Same. | 1. Request `GET /api/orgs/<org id>/checklist` as `admin@dev.local` with the org pinned. | The response is 409 `org-mismatch` and carries no org data. |
 
 #### BR-24: Org detail from the directory
 
