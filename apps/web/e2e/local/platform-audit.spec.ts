@@ -17,7 +17,8 @@ import {
 
 /*
  * Local end-to-end for the platform audit log (spec 2026-11-23-platform-admin-dashboard-design.md "E2E requirements":
- * TC-44.1, TC-44.2, TC-45.5, TC-50.4, TC-60.1, TC-60.2). Every case makes fresh `e2e-<rand>` orgs (orgs cannot be
+ * TC-44.1, TC-44.2, TC-45.5, TC-50.4, TC-60.1, TC-60.2; plus BR-45, the role in the gave, removed and invited
+ * sentences, which is not a spec case). Every case makes fresh `e2e-<rand>` orgs (orgs cannot be
  * deleted) and asserts its entries through `/platform/audit?org=<fresh id>`, never by position in the global list
  * (TC-45.5 and TC-50.4 open the global list, whose newest entries are the ones the case just made). `afterEach`
  * reactivates every org a case suspends and renames edited orgs back, errors swallowed.
@@ -146,7 +147,7 @@ test.describe('BR-45: the audit list', () => {
 });
 
 test.describe('BR-45: the sentences name the role', () => {
-  test('TC-45.1: gave, removed and invited sentences carry the role, read from the real API', async ({
+  test('BR-45: the gave, removed and invited sentences carry the role, read from the real API', async ({
     browser,
     page,
   }) => {
