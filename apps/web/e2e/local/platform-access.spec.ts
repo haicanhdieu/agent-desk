@@ -121,11 +121,7 @@ test.describe('BR-36: who can suspend or reactivate', () => {
     await page.goto(`/o/${handle}/projects`);
     await expect(page.getByRole('heading', { name: 'Projects', level: 1 })).toBeVisible();
     await expect(page.getByRole('heading', { name: 'This organization is suspended', level: 1 })).toHaveCount(0);
-    await ok(
-      await page.request.get(`/api/orgs/${orgId}/projects`, { headers: { [ORG_HEADER]: orgId } }),
-      200,
-      'projects',
-    );
+    await ok(await page.request.get('/api/projects', { headers: { [ORG_HEADER]: orgId } }), 200, 'projects');
   });
 
   test('TC-36.2: a member of a suspended org gets 403 on POST reactivate and the org stays suspended', async ({
