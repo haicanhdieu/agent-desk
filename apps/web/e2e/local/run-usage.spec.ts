@@ -317,6 +317,20 @@ test('TC-9.1: while the run is active its total is a number so far and a later r
     .toBe(FIRST_TURN.total + LATER_TURN);
   expect((await runOf(o.page, runId)).status).not.toBe('succeeded');
 
+  // The open page (no goto, no reload) shows the larger number on the existing run refetch: the detail query refetches
+  // on window focus once it is older than its 30 s staleTime, so each poll round signals a return to the tab.
+  await expect
+    .poll(
+      async () => {
+        await o.page.evaluate(() => {
+          window.dispatchEvent(new Event('visibilitychange'));
+        });
+        return totalShown(o.page);
+      },
+      { timeout: 90_000, intervals: [1_000, 2_000, 5_000] },
+    )
+    .toBe(exact(FIRST_TURN.total + LATER_TURN));
+
   await o.page.reload();
   await expect(panel(o.page)).toBeVisible();
   await expect(

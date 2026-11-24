@@ -408,6 +408,28 @@ const NOTE =
   'Estimate at public API rates, whatever credential the run used. Costs are fixed when recorded, so later price changes do not change them.';
 const PARTIAL = 'Some usage is missing or had no price when recorded, so tokens or cost may be low.';
 
+/** Collapsed Usage section: the header and a "Show" button stay, every other part of the body is hidden. */
+async function expectOnlyHeaderStays(page: Page): Promise<void> {
+  const section = usageSection(page);
+  await expect(section.getByText('Usage', { exact: true })).toBeVisible();
+  await expect(usageToggle(page, 'Show')).toBeVisible();
+  const parts = [
+    'Total tokens',
+    'all tokens processed',
+    ...SPLIT,
+    'of which reasoning',
+    'Est. cost',
+    'Models',
+    NOTE,
+    PARTIAL,
+  ];
+  for (const text of parts) {
+    await expect(section.getByText(text).filter({ visible: true }), text).toHaveCount(0);
+  }
+  await expect(section.locator('dl')).toBeHidden();
+  await expect(modelsTable(page)).toBeHidden();
+}
+
 test.describe('run detail Usage section', () => {
   test('TC-2.1: the Usage section shows the headline, four exact split rows adding up to the total, and Est. cost', async ({
     page,
@@ -455,6 +477,7 @@ test.describe('run detail Usage section', () => {
       await expect(section.getByText(text).first()).toBeHidden();
     }
     await expect(modelsTable(page)).toBeHidden();
+    await expectOnlyHeaderStays(page);
 
     await show.click();
     await expect(usageToggle(page, 'Hide')).toHaveAttribute('aria-expanded', 'true');
@@ -465,6 +488,15 @@ test.describe('run detail Usage section', () => {
     await page.reload();
     await expect(usageToggle(page, 'Hide')).toHaveAttribute('aria-expanded', 'true');
     await expect(usageSection(page).getByText('Total tokens')).toBeVisible();
+
+    // The same holds for the parts the first run does not have: the partial note, an unpriced model row, reasoning.
+    for (const number of [USAGE_RUNS.unpriced, USAGE_RUNS.reasoning]) {
+      await openDetail(page, number);
+      await expect(usageSection(page).getByText('Total tokens')).toBeVisible();
+      await usageToggle(page, 'Hide').click();
+      await expect(usageToggle(page, 'Show')).toHaveAttribute('aria-expanded', 'false');
+      await expectOnlyHeaderStays(page);
+    }
   });
 
   test('TC-2.4: a run with no usage shows no Hide or Show control on the Usage header', async ({ page }) => {
