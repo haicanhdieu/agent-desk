@@ -44,6 +44,16 @@ const PostedComment = z.object({
 export type PostedComment = z.infer<typeof PostedComment>;
 export type NewComment = Omit<StoredComment, 'id' | 'createdAt'>;
 
+const StoredChangeRequest = z.object({
+  id: z.string(),
+  repoPath: z.string(),
+  sourceBranch: z.string(),
+  targetBranch: z.string(),
+  title: z.string(),
+  message: z.string(),
+});
+export type StoredChangeRequest = z.infer<typeof StoredChangeRequest>;
+
 const SKILL_NAME = /^[a-z0-9-]+$/;
 const SEGMENT = /^[A-Za-z0-9._-]+$/;
 function safeSegments(path: string): string[] {
@@ -204,6 +214,33 @@ export class FakeStore {
     if ((await this.readOrNull(file)) === null) return false;
     await rm(file, { force: true });
     return true;
+  }
+
+  // ---- protected default branch and change requests (a protected repo takes skill changes as change requests)
+
+  private protectedFile(repoPath: string): string {
+    return this.path('protected-branches', ...safeSegments(repoPath));
+  }
+
+  async setBranchProtected(repoPath: string, isProtected: boolean): Promise<void> {
+    if (isProtected) await this.atomicWrite(this.protectedFile(repoPath), '1');
+    else await rm(this.protectedFile(repoPath), { force: true });
+  }
+
+  async isBranchProtected(repoPath: string): Promise<boolean> {
+    return (await this.readOrNull(this.protectedFile(repoPath))) !== null;
+  }
+
+  /** Records a pending change request and returns its id. The live skill files are not touched. */
+  async addChangeRequest(cr: Omit<StoredChangeRequest, 'id'>): Promise<string> {
+    const file = this.path('change-requests.jsonl');
+    const id = String((await this.readLines(file, StoredChangeRequest)).length + 1);
+    await this.appendLine(file, { ...cr, id });
+    return id;
+  }
+
+  async listChangeRequests(): Promise<StoredChangeRequest[]> {
+    return this.readLines(this.path('change-requests.jsonl'), StoredChangeRequest);
   }
 
   async listSkillNames(repoPath: string): Promise<string[]> {

@@ -42,6 +42,8 @@ const CommitList = z.array(
   }),
 );
 const WriteResponse = z.object({ commit: z.object({ sha: z.string() }) });
+const BranchResponse = z.object({ protected: z.boolean(), commit: z.object({ sha: z.string() }) });
+const PullResponse = z.object({ number: z.number(), html_url: z.string() });
 const UserInstallations = z.object({
   installations: z.array(
     z.object({
@@ -63,6 +65,8 @@ function skillPath(name: string): string {
   if (!SKILL_NAME.test(name)) throw new Error(`invalid skill name "${name}"`);
   return `${SKILLS_DIR}/${name}/SKILL.md`;
 }
+
+type GithubInstallationClient = ReturnType<GithubClients['installation']>;
 
 export class GithubCodeHostAdapter implements CodeHostAdapter {
   constructor(
@@ -292,54 +296,114 @@ export class GithubCodeHostAdapter implements CodeHostAdapter {
   ): Promise<SkillChangeResult> {
     const path = skillPath(name);
     const { owner, repo } = splitRepoPath(project.repoPath);
-    try {
-      const res = await this.clients
-        .installation(project.connectionExternalId)
-        .request('PUT /repos/{owner}/{repo}/contents/{+path}', {
-          owner,
-          repo,
-          path,
-          message,
-          content: Buffer.from(body, 'utf8').toString('base64'),
-          committer: { name: this.opts.botName, email: this.opts.botEmail },
-          ...(sha ? { sha } : {}),
-        });
-      return {
-        kind: 'commit',
-        commitSha: WriteResponse.parse(res.data).commit.sha,
-        targetBranch: project.defaultBranch ?? 'main',
-      };
-    } catch (e) {
-      const s = errorStatus(e);
-      if (s === 409 || s === 422) throw new SkillConflictError(name);
-      throw e;
-    }
+    return this.submit(project, sha ? 'update' : 'create', name, message, (octokit, branch) =>
+      octokit.request('PUT /repos/{owner}/{repo}/contents/{+path}', {
+        owner,
+        repo,
+        path,
+        message,
+        content: Buffer.from(body, 'utf8').toString('base64'),
+        committer: { name: this.opts.botName, email: this.opts.botEmail },
+        ...(sha ? { sha } : {}),
+        ...(branch ? { branch } : {}),
+      }),
+    );
   }
 
   async deleteSkill(project: AdapterProject, name: string, message: string): Promise<SkillChangeResult> {
     const path = skillPath(name);
     const { owner, repo } = splitRepoPath(project.repoPath);
     const current = await this.readSkill(project, name);
+    return this.submit(project, 'delete', name, message, (octokit, branch) =>
+      octokit.request('DELETE /repos/{owner}/{repo}/contents/{+path}', {
+        owner,
+        repo,
+        path,
+        message,
+        sha: current.sha,
+        committer: { name: this.opts.botName, email: this.opts.botEmail },
+        ...(branch ? { branch } : {}),
+      }),
+    );
+  }
+
+  /**
+   * Commits straight to the default branch, or, when that branch is protected, to a new branch that gets a PR. The
+   * choice comes only from the branch's own `protected` flag; a failed write is never retried as a PR.
+   */
+  private async submit(
+    project: AdapterProject,
+    action: 'create' | 'update' | 'delete',
+    name: string,
+    message: string,
+    write: (octokit: GithubInstallationClient, branch?: string) => Promise<{ data: unknown }>,
+  ): Promise<SkillChangeResult> {
+    const { owner, repo } = splitRepoPath(project.repoPath);
+    const octokit = this.clients.installation(project.connectionExternalId);
+    const targetBranch = assertSafeRef(project.defaultBranch ?? 'main');
+    const commit = async (branch?: string): Promise<string> => {
+      try {
+        const res = await write(octokit, branch);
+        return WriteResponse.parse(res.data).commit.sha;
+      } catch (e) {
+        const s = errorStatus(e);
+        if (s === 409 || s === 422) throw new SkillConflictError(name);
+        throw e;
+      }
+    };
+
+    const meta = BranchResponse.parse(
+      (await octokit.request('GET /repos/{owner}/{repo}/branches/{branch}', { owner, repo, branch: targetBranch }))
+        .data,
+    );
+    if (!meta.protected) return { kind: 'commit', commitSha: await commit(), targetBranch };
+
+    // The suffix keeps concurrent submissions apart; creating a ref never overwrites an existing one.
+    const sourceBranch = `agent-desk/skill-${action}-${name}-${this.clock.now().getTime().toString(36)}`;
     try {
-      const res = await this.clients
-        .installation(project.connectionExternalId)
-        .request('DELETE /repos/{owner}/{repo}/contents/{+path}', {
-          owner,
-          repo,
-          path,
-          message,
-          sha: current.sha,
-          committer: { name: this.opts.botName, email: this.opts.botEmail },
-        });
-      return {
-        kind: 'commit',
-        commitSha: WriteResponse.parse(res.data).commit.sha,
-        targetBranch: project.defaultBranch ?? 'main',
-      };
+      await octokit.request('POST /repos/{owner}/{repo}/git/refs', {
+        owner,
+        repo,
+        ref: `refs/heads/${sourceBranch}`,
+        sha: meta.commit.sha,
+      });
     } catch (e) {
-      const s = errorStatus(e);
-      if (s === 409 || s === 422) throw new SkillConflictError(name);
+      if (errorStatus(e) === 422) throw new SkillConflictError(name);
       throw e;
+    }
+    try {
+      await commit(sourceBranch);
+      const verb = action[0]?.toUpperCase() + action.slice(1);
+      const pr = PullResponse.parse(
+        (
+          await octokit.request('POST /repos/{owner}/{repo}/pulls', {
+            owner,
+            repo,
+            title: `${verb} skill: ${name}`,
+            head: sourceBranch,
+            base: targetBranch,
+            body: `${verb} skill \`${name}\` (\`${skillPath(name)}\`).\n\n${message}`,
+          })
+        ).data,
+      );
+      return { kind: 'change_request', sourceBranch, targetBranch, url: pr.html_url, id: String(pr.number) };
+    } catch (e) {
+      await this.dropBranch(octokit, owner, repo, sourceBranch);
+      throw e;
+    }
+  }
+
+  /** Best effort: a leftover branch must not hide the error that made us give up. */
+  private async dropBranch(
+    octokit: GithubInstallationClient,
+    owner: string,
+    repo: string,
+    branch: string,
+  ): Promise<void> {
+    try {
+      await octokit.request('DELETE /repos/{owner}/{repo}/git/refs/{+ref}', { owner, repo, ref: `heads/${branch}` });
+    } catch {
+      // ignore
     }
   }
 }
