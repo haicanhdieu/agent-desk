@@ -305,6 +305,8 @@ export interface RoleCardOption {
 export interface AuditTextPart {
   text: string;
   strong: boolean;
+  /** Shown in the mono face (URLs); never combined with `strong`. */
+  mono?: boolean;
 }
 export interface AuditRowView {
   id: string;

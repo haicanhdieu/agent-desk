@@ -1701,13 +1701,13 @@ export function toPlatformAuditRow(dto: PlatformAuditEntryDto, now: Date): Audit
 // route search: { page?: number; action?: PlatformAuditAction; org?: string } — `org` maps to the API `orgId`
 ```
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
   - `map.test.ts`: every `PlatformAuditAction` value has a label; each sentence of the spec's "Platform audit sentences" (actor and org bold, edit URLs in mono, "renamed X to Y" from `changes`); a gone actor reads "Deleted user"; the note only on suspend and reactivate rows; markup in a reason or org name renders as text.
   - `audit.route.test.tsx` (BR-45, BR-50): newest first; the Action select puts `action` in the URL and "All actions" removes it; empty filtered shows "Clear filters"; `?org=<id>` shows chip "Organization: <name>" and sends `orgId`; removing the chip drops `org` and lists all; an unknown id shows "Unknown organization" and an empty list; no org picker; "View audit log" on the detail opens `/platform/audit?org=<id>`; loading, empty and `serverError` with Retry (BR-4); Review Focus 3: `?org=abc` shows "Unknown organization", an empty list and sends no audit request.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/features/platform`. Expected: FAIL.
-- [ ] **Step 3: Implement** the route, query, mapper and the header's `auditHref`; regenerate `routeTree.gen.ts`.
-- [ ] **Step 4: Run** Step 2's command and `pnpm --filter @agentdesk/web typecheck`. Expected: PASS.
-- [ ] **Step 5: Commit**: `feat(web): platform audit log with action and org filters`.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/features/platform`. Expected: FAIL.
+- [x] **Step 3: Implement** the route, query, mapper and the header's `auditHref`; regenerate `routeTree.gen.ts`.
+- [x] **Step 4: Run** Step 2's command and `pnpm --filter @agentdesk/web typecheck`. Expected: PASS.
+- [x] **Step 5: Commit**: `feat(web): platform audit log with action and org filters`.
 
 ---
 
@@ -1723,9 +1723,9 @@ export function toPlatformAuditRow(dto: PlatformAuditEntryDto, now: Date): Audit
 
 Covers: BR-4 (TC-4.7, TC-4.8, TC-4.9), BR-45 (TC-45.1 to TC-45.4), BR-50 (TC-50.1, TC-50.2, TC-50.3).
 
-- [ ] **Step 1: Write the spec** with the spec's sentences and labels.
-- [ ] **Step 2: Run** the mock build, then `pnpm --filter @agentdesk/web exec playwright test e2e/mock/platform-audit.spec.ts`. Expected: PASS.
-- [ ] **Step 3: Commit**: `test(web): mock e2e for the platform audit log`.
+- [x] **Step 1: Write the spec** with the spec's sentences and labels.
+- [x] **Step 2: Run** the mock build, then `pnpm --filter @agentdesk/web exec playwright test e2e/mock/platform-audit.spec.ts`. Expected: PASS.
+- [x] **Step 3: Commit**: `test(web): mock e2e for the platform audit log`.
 
 ---
 

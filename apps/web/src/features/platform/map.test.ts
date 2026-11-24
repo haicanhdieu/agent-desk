@@ -1,6 +1,18 @@
-import type { PlatformAdminDto, PlatformOrgDetailDto, PlatformOrgDto } from '@agentdesk/contracts';
+import {
+  PlatformAuditAction,
+  type PlatformAdminDto,
+  type PlatformAuditEntryDto,
+  type PlatformOrgDetailDto,
+  type PlatformOrgDto,
+} from '@agentdesk/contracts';
 import { describe, expect, it } from 'vitest';
-import { toPlatformAdminRow, toPlatformOrgOverview, toPlatformOrgRow } from './map';
+import {
+  PLATFORM_AUDIT_ACTION_LABELS,
+  toPlatformAdminRow,
+  toPlatformAuditRow,
+  toPlatformOrgOverview,
+  toPlatformOrgRow,
+} from './map';
 
 const NOW = new Date('2026-11-23T12:00:00.000Z');
 
@@ -158,5 +170,152 @@ describe('toPlatformOrgOverview', () => {
       NOW,
     );
     expect(view.suspension?.by).toBeNull();
+  });
+});
+
+const ORG = { id: 'c3000000-0000-4000-8000-000000000001', name: 'Acme' };
+const audit = (over: Partial<PlatformAuditEntryDto> = {}): PlatformAuditEntryDto => ({
+  id: 'ba000000-0000-4000-8000-000000000001',
+  at: '2026-11-23T11:00:00.000Z',
+  actor: { userId: 'u1', name: 'Dev Admin', handle: 'dev-admin' },
+  action: 'org.created',
+  target: { type: 'org', id: ORG.id, label: 'Acme' },
+  org: ORG,
+  reason: null,
+  changes: [],
+  ...over,
+});
+const sentence = (dto: PlatformAuditEntryDto) => {
+  const what = toPlatformAuditRow(dto, NOW).what;
+  if (what.kind !== 'sentence') throw new Error('not a sentence');
+  return what;
+};
+const text = (dto: PlatformAuditEntryDto) =>
+  sentence(dto)
+    .parts.map((p) => p.text)
+    .join('');
+const adminTarget = { type: 'platform_admin', id: 'a', label: 'a@x.io' };
+const inviteTarget = { type: 'invitation', id: 'x', label: 'r@x.io' };
+const assignTarget = { type: 'assignment', id: 'x', label: 'Ruth' };
+
+describe('PLATFORM_AUDIT_ACTION_LABELS', () => {
+  it('BR-50: every PlatformAuditAction has its label', () => {
+    for (const action of PlatformAuditAction.options) expect(PLATFORM_AUDIT_ACTION_LABELS[action]).toBeTruthy();
+    expect(PlatformAuditAction.options.map((a) => PLATFORM_AUDIT_ACTION_LABELS[a])).toEqual([
+      'Platform admin added',
+      'Platform admin revoked',
+      'Organization created',
+      'Organization updated',
+      'Organization suspended',
+      'Organization reactivated',
+      'Assignment added',
+      'Assignment removed',
+      'Invitation created',
+      'Invitation resent',
+      'Invitation revoked',
+    ]);
+  });
+});
+
+describe('toPlatformAuditRow', () => {
+  it('BR-45: writes the spec sentence for each action', () => {
+    const t = (action: PlatformAuditEntryDto['action'], over: Partial<PlatformAuditEntryDto>) =>
+      text(audit({ action, ...over }));
+    expect(t('org.created', {})).toBe('Dev Admin created Acme');
+    expect(t('org.suspended', { reason: 'r' })).toBe('Dev Admin suspended Acme');
+    expect(t('org.reactivated', { reason: 'r' })).toBe('Dev Admin reactivated Acme');
+    expect(t('platform_admin.granted', { org: null, target: adminTarget })).toBe(
+      'Dev Admin added a@x.io as a platform admin',
+    );
+    expect(t('platform_admin.revoked', { org: null, target: adminTarget })).toBe(
+      'Dev Admin revoked platform access for a@x.io',
+    );
+    expect(
+      t('assignment.granted', { target: assignTarget, changes: [{ field: 'role', from: null, to: 'owner' }] }),
+    ).toBe('Dev Admin gave Ruth the Owner role in Acme');
+    expect(
+      t('assignment.revoked', { target: assignTarget, changes: [{ field: 'role', from: 'admin', to: null }] }),
+    ).toBe("Dev Admin removed Ruth's Admin role in Acme");
+    expect(
+      t('invitation.created', { target: inviteTarget, changes: [{ field: 'role', from: null, to: 'admin' }] }),
+    ).toBe('Dev Admin invited r@x.io to Acme as Admin');
+    expect(t('invitation.resent', { target: inviteTarget })).toBe('Dev Admin resent the invitation for r@x.io to Acme');
+    expect(t('invitation.revoked', { target: inviteTarget })).toBe(
+      'Dev Admin revoked the invitation for r@x.io to Acme',
+    );
+  });
+
+  it('BR-45: an edit of both fields reads from the changes, with the URLs in mono', () => {
+    const s = sentence(
+      audit({
+        action: 'org.updated',
+        changes: [
+          { field: 'name', from: 'Acme Labs', to: 'Acme' },
+          { field: 'slug', from: 'acme-labs', to: 'acme' },
+        ],
+      }),
+    );
+    expect(s.parts.map((p) => p.text).join('')).toBe(
+      'Dev Admin changed the name of Acme from Acme Labs to Acme and the URL from /o/acme-labs to /o/acme',
+    );
+    expect(s.parts.filter((p) => p.mono).map((p) => p.text)).toEqual(['/o/acme-labs', '/o/acme']);
+    expect(s.title).toBe(s.parts.map((p) => p.text).join(''));
+  });
+
+  it('BR-45: a one-field edit names only that field', () => {
+    expect(text(audit({ action: 'org.updated', changes: [{ field: 'name', from: 'A', to: 'Acme' }] }))).toBe(
+      'Dev Admin changed the name of Acme from A to Acme',
+    );
+    expect(text(audit({ action: 'org.updated', changes: [{ field: 'slug', from: 'a', to: 'acme' }] }))).toBe(
+      'Dev Admin changed the URL of Acme from /o/a to /o/acme',
+    );
+  });
+
+  it('BR-45: the actor and the org are bold', () => {
+    const bold = sentence(audit())
+      .parts.filter((p) => p.strong)
+      .map((p) => p.text);
+    expect(bold).toEqual(['Dev Admin', 'Acme']);
+  });
+
+  it('BR-45: a gone actor reads Deleted user in the Who column and the sentence', () => {
+    const row = toPlatformAuditRow(audit({ actor: null }), NOW);
+    expect(row.who).toEqual({ label: 'Deleted user', tag: 'deleted' });
+    expect(text(audit({ actor: null }))).toBe('Deleted user created Acme');
+  });
+
+  it('BR-45: a gone org falls back to the target label, then a plain phrase', () => {
+    expect(text(audit({ org: null }))).toBe('Dev Admin created Acme');
+    expect(text(audit({ org: null, action: 'invitation.revoked', target: inviteTarget }))).toBe(
+      'Dev Admin revoked the invitation for r@x.io to a deleted organization',
+    );
+  });
+
+  it('BR-45: the Reason note shows only on suspend and reactivate rows', () => {
+    expect(toPlatformAuditRow(audit({ action: 'org.suspended', reason: 'Billing hold' }), NOW).note).toBe(
+      'Reason: Billing hold',
+    );
+    expect(toPlatformAuditRow(audit({ action: 'org.reactivated', reason: 'Paid' }), NOW).note).toBe('Reason: Paid');
+    expect(toPlatformAuditRow(audit({ action: 'org.created', reason: 'x' }), NOW).note).toBeUndefined();
+    expect(toPlatformAuditRow(audit({ action: 'org.suspended', reason: null }), NOW).note).toBeUndefined();
+  });
+
+  it('markup in a reason or an org name stays text', () => {
+    const row = toPlatformAuditRow(
+      audit({
+        action: 'org.suspended',
+        reason: '<img src=x onerror=alert(1)>',
+        org: { id: ORG.id, name: '<b>Acme</b>' },
+      }),
+      NOW,
+    );
+    expect(row.note).toBe('Reason: <img src=x onerror=alert(1)>');
+    expect(row.what.kind === 'sentence' && row.what.parts.map((p) => p.text)).toContain('<b>Acme</b>');
+  });
+
+  it('shows when as relative time with the exact date', () => {
+    const row = toPlatformAuditRow(audit(), NOW);
+    expect(row.when.iso).toBe('2026-11-23T11:00:00.000Z');
+    expect(row.when.label).toBe('1 hour ago');
   });
 });

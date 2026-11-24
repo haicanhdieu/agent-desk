@@ -1,5 +1,10 @@
 import type { HttpHandler } from 'msw';
-import { PAGE_SIZE_DEFAULT, type PlatformAdminDto, type PlatformOrgDto } from '@agentdesk/contracts';
+import {
+  PAGE_SIZE_DEFAULT,
+  type PlatformAdminDto,
+  type PlatformAuditEntryDto,
+  type PlatformOrgDto,
+} from '@agentdesk/contracts';
 import { platformAdminFixtures } from '../dto/access';
 import { ids } from '../dto/ids';
 import { mockDb } from './db';
@@ -31,6 +36,7 @@ export const PLATFORM_SCENARIOS = [
   'suspendedPlatformAdmin',
   'platformOrgEdit',
   'platformOrgEditSuspended',
+  'manyAudit',
 ] as const;
 
 export type PlatformScenario = (typeof PLATFORM_SCENARIOS)[number];
@@ -112,6 +118,23 @@ function manyOrgEntries(): PlatformOrgDto[] {
   });
 }
 
+/** More audit entries than a page (25, page size 20): "Audit entry 01" is the oldest, one minute apart. */
+function manyAuditEntries(): PlatformAuditEntryDto[] {
+  return Array.from({ length: 25 }, (_, i): PlatformAuditEntryDto => {
+    const n = String(i + 1).padStart(2, '0');
+    return {
+      id: `ba100000-0000-4000-8000-${String(i + 1).padStart(12, '0')}`,
+      at: new Date(Date.UTC(2026, 10, 19, 9, i)).toISOString(),
+      actor: { userId: 'user-dev-admin', name: 'Dev Admin', handle: 'dev-admin' },
+      action: 'platform_admin.granted',
+      org: null,
+      target: { type: 'platform_admin', id: `admin${n}@example.com`, label: `admin${n}@example.com` },
+      reason: null,
+      changes: [],
+    };
+  });
+}
+
 /** Lists the signed-in user's mock orgs in the directory, then suspends one with a reason. */
 function suspendMockOrg(orgId: string, reason: string): void {
   for (const org of mockDb.state.orgs) {
@@ -188,6 +211,10 @@ const seeders: Record<PlatformScenario, () => void> = {
     const acme = entries.find((o) => o.slug === 'acme');
     if (!acme) throw new Error('seed has no acme org');
     setPlatformOrgStatus(acme.id, 'suspended', 'Billing hold');
+  },
+  manyAudit() {
+    applyOnboardingScenario('platformAdminOneOrg');
+    seedPlatformAudit(manyAuditEntries());
   },
   manyOrgs() {
     applyOnboardingScenario('platformAdminOneOrg');

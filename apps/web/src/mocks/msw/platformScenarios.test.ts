@@ -39,6 +39,7 @@ describe('platform scenarios', () => {
       'suspendedPlatformAdmin',
       'platformOrgEdit',
       'platformOrgEditSuspended',
+      'manyAudit',
     ]);
   });
 
@@ -109,6 +110,17 @@ describe('platform scenarios', () => {
     expect(second.items.every((o) => o.createdAt < oldestOnFirst)).toBe(true);
     const found = await api.platform.listOrgs({ query: { q: 'many org' } });
     expect(found.total).toBe(first.total);
+  });
+
+  it('manyAudit: more audit entries than a page, newest first, the oldest on page 2', async () => {
+    scenarios.platform('manyAudit');
+    const first = await api.platform.listAudit({ query: {} });
+    const second = await api.platform.listAudit({ query: { page: 2 } });
+    expect(first.total).toBe(25);
+    expect(first.items).toHaveLength(PAGE_SIZE_DEFAULT);
+    expect(second.items).toHaveLength(5);
+    const oldestOnFirst = first.items[first.items.length - 1]?.at ?? '';
+    expect(second.items.every((e) => e.at < oldestOnFirst)).toBe(true);
   });
 
   it('platformAdminNoOrg: a platform admin with no org', async () => {

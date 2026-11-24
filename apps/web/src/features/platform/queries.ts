@@ -3,6 +3,8 @@ import type {
   Page,
   PageQuery,
   PlatformAdminDto,
+  PlatformAuditEntryDto,
+  PlatformAuditListQuery,
   PlatformOrgDetailDto,
   PlatformOrgDto,
   PlatformOrgListQuery,
@@ -31,4 +33,12 @@ export const platformOrgQuery = (orgId: string) =>
   queryOptions({
     queryKey: platformKeys.org(orgId),
     queryFn: (): Promise<PlatformOrgDetailDto> => api.platform.getOrg({ params: { orgId } }),
+  });
+
+/** One page of the platform audit log (`GET /api/platform/audit`), newest first. A new page or filter keeps the old rows while it loads. */
+export const platformAuditQuery = (q: PlatformAuditListQuery) =>
+  queryOptions({
+    queryKey: platformKeys.audit(q),
+    queryFn: (): Promise<Page<PlatformAuditEntryDto>> => api.platform.listAudit({ query: q }),
+    placeholderData: keepPreviousData,
   });
