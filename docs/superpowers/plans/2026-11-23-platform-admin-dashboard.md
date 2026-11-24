@@ -1545,9 +1545,9 @@ Covers: BR-52 (TC-52.3), BR-53 (TC-53.1, TC-53.2), BR-54 (TC-54.1 to TC-54.4), B
 
 Covers: BR-53 (TC-53.3), BR-56 (TC-56.2), BR-58 (TC-58.1, TC-58.2, TC-58.3), BR-61 (TC-61.1) in `platform-org-edit.spec.ts`; BR-52 (TC-52.1, TC-52.2) in `platform-access.spec.ts`. BR-59, BR-62 and BR-56's race are Not e2e on local (Task 35, Task 39). Role-based cases: TC-52.1, TC-52.2.
 
-- [ ] **Step 1: Write the specs**: fresh `e2e-<rand>` orgs only; restore the original name and slug in `finally` (errors swallowed); the org created on the freed slug is cleaned up the same way.
-- [ ] **Step 2: Run** with the stack up: `pnpm --filter @agentdesk/web exec playwright test e2e/local/platform-org-edit.spec.ts e2e/local/platform-access.spec.ts`. Expected: PASS.
-- [ ] **Step 3: Commit**: `test(web): local e2e for editing an organization`.
+- [x] **Step 1: Write the specs**: fresh `e2e-<rand>` orgs only; restore the original name and slug in `finally` (errors swallowed); the org created on the freed slug is cleaned up the same way.
+- [x] **Step 2: Run** with the stack up: `pnpm --filter @agentdesk/web exec playwright test e2e/local/platform-org-edit.spec.ts e2e/local/platform-access.spec.ts`. Expected: PASS.
+- [x] **Step 3: Commit**: `test(web): local e2e for editing an organization`.
 
 ---
 
@@ -1581,16 +1581,16 @@ routeAccess['platform.listAudit'] = platform('platform-audit:read')
 export const platformAuditFixtures: PlatformAuditEntryDto[]; // every action, one gone actor, one gone org, suspend/reactivate with reasons, an edit with name and slug
 ```
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
   - `access.test.ts`: the permission is platform level; count +1.
   - `platform.test.ts` (BR-45, BR-50): the DTO keys; `actor` and `org` nullable; the query accepts `orgId` (uuid) and each action, rejects a non-uuid `orgId` and an unknown action.
   - `routes.test.ts`, `route-access.test.ts`: route and entry; counts +1.
   - `authz.int.test.ts`: `'platform.listAudit': platformRoute(200)` and in `NOT_REGISTERED_YET`.
   - `contract.test.ts`: fixtures parse; the handler filters by `orgId`, by `action` and both, newest first; `platformEmpty` lists none.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/contracts exec vitest run`. Expected: FAIL.
-- [ ] **Step 3: Implement** the contracts, fixtures, handler and scenario data.
-- [ ] **Step 4: Run** Step 2's command, `pnpm --filter @agentdesk/api typecheck`, `pnpm --filter @agentdesk/api exec vitest run test/authz.int.test.ts`, `pnpm --filter @agentdesk/web exec vitest run src/mocks`, `pnpm --filter @agentdesk/web typecheck`. Expected: PASS.
-- [ ] **Step 5: Commit**: `feat(contracts): platform audit list route and permission`. Label `review:sensitive` (permission, routeAccess).
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/contracts exec vitest run`. Expected: FAIL.
+- [x] **Step 3: Implement** the contracts, fixtures, handler and scenario data.
+- [x] **Step 4: Run** Step 2's command, `pnpm --filter @agentdesk/api typecheck`, `pnpm --filter @agentdesk/api exec vitest run test/authz.int.test.ts`, `pnpm --filter @agentdesk/web exec vitest run src/mocks`, `pnpm --filter @agentdesk/web typecheck`. Expected: PASS.
+- [x] **Step 5: Commit**: `feat(contracts): platform audit list route and permission`. Label `review:sensitive` (permission, routeAccess).
 
 ---
 

@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { OrgStatus } from '../enums';
 import { ORG_STATUS_REASON_MAX } from '../org-context';
 import { OrgSlug } from '../slug';
+import { AuditChange } from './audit';
 import { AssignmentDto, InvitationDto, InvitationEmail, InviterDto, RoleDto } from './access';
 import { Id, Timestamp } from './common';
 import { PageQuery } from './page';
@@ -121,3 +122,21 @@ export const PlatformAuditAction = z.enum([
   'invitation.revoked',
 ]);
 export type PlatformAuditAction = z.infer<typeof PlatformAuditAction>;
+
+export const PlatformAuditEntryDto = z.object({
+  id: Id,
+  at: Timestamp,
+  actor: z.object({ userId: z.string(), name: z.string(), handle: z.string().nullable() }).nullable(),
+  action: PlatformAuditAction,
+  target: z.object({ type: z.string(), id: z.string(), label: z.string().nullable() }),
+  org: z.object({ id: Id, name: z.string() }).nullable(),
+  reason: z.string().nullable(),
+  changes: z.array(AuditChange),
+});
+export type PlatformAuditEntryDto = z.infer<typeof PlatformAuditEntryDto>;
+
+export const PlatformAuditListQuery = PageQuery.extend({
+  orgId: Id.optional(),
+  action: PlatformAuditAction.optional(),
+});
+export type PlatformAuditListQuery = z.infer<typeof PlatformAuditListQuery>;

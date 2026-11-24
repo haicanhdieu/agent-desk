@@ -11,6 +11,8 @@ import {
   OrgChecklistDto,
   PAGE_SIZE_DEFAULT,
   PlatformAdminDto,
+  PlatformAuditAction,
+  PlatformAuditEntryDto,
   PlatformMemberDto,
   PlatformOrgDetailDto,
   PlatformOrgDto,
@@ -51,7 +53,7 @@ import {
   tenantAccessFixtures,
   tenantMemberFixtures,
 } from '../dto/access';
-import { platformOrgDtoFixtures } from '../dto/platform';
+import { platformAuditFixtures, platformOrgDtoFixtures } from '../dto/platform';
 import { addPlatformOrg, getPlatformOrg, listPlatformOrgs, setPlatformOrgStatus } from './platformOrgs';
 import { Problem } from './http';
 import {
@@ -119,6 +121,7 @@ describe('MSW handlers cover the contract', () => {
       [MemberDto, memberFixtures],
       [AccessDto, [accessFixture]],
       [PlatformOrgDto, platformOrgDtoFixtures],
+      [PlatformAuditEntryDto, platformAuditFixtures],
       [PlatformProjectDto, platformProjectFixtures],
       [PlatformMemberDto, platformMemberFixtures],
       [PlatformAdminDto, platformAdminFixtures],
@@ -1343,5 +1346,62 @@ describe('platform org directory store', () => {
     expect(res.status).toBe(201);
     const row = listPlatformOrgs({ ...base, q: 'gamma' }).items[0];
     expect(row).toMatchObject({ name: 'Gamma', owner: null, status: 'active', memberCount: 0, projectCount: 0 });
+  });
+});
+
+describe('platform.listAudit (BR-45, BR-50)', () => {
+  const base = 'http://localhost:3000/api/platform/audit';
+  const read = async (qs = '') =>
+    PlatformAuditEntryDto.array().parse(((await (await fetch(`${base}${qs}`)).json()) as { items: unknown[] }).items);
+
+  it('fixtures cover every action, a gone actor, a gone org, reasons and a name and slug edit', () => {
+    expect(new Set(platformAuditFixtures.map((e) => e.action))).toEqual(new Set(PlatformAuditAction.options));
+    expect(platformAuditFixtures.some((e) => e.actor === null)).toBe(true);
+    expect(platformAuditFixtures.some((e) => e.org === null)).toBe(true);
+    for (const action of ['org.suspended', 'org.reactivated'] as const) {
+      expect(platformAuditFixtures.some((e) => e.action === action && e.reason !== null)).toBe(true);
+    }
+    expect(
+      platformAuditFixtures.some(
+        (e) =>
+          e.action === 'org.updated' &&
+          e.changes.some((c) => c.field === 'name') &&
+          e.changes.some((c) => c.field === 'slug'),
+      ),
+    ).toBe(true);
+  });
+
+  it('lists newest first, filtered by org, by action and by both', async () => {
+    const me = mockDb.state.users[0];
+    if (me) me.platformAdmin = true;
+    const all = await read();
+    expect(all).toHaveLength(platformAuditFixtures.length);
+    const times = all.map((e) => e.at);
+    expect(times).toEqual([...times].sort().reverse());
+
+    const orgId = platformAuditFixtures.find((e) => e.org !== null)?.org?.id ?? '';
+    const byOrg = await read(`?orgId=${orgId}`);
+    expect(byOrg.length).toBeGreaterThan(0);
+    expect(byOrg.length).toBeLessThan(all.length);
+    expect(byOrg.every((e) => e.org?.id === orgId)).toBe(true);
+
+    const byAction = await read('?action=org.suspended');
+    expect(byAction.length).toBeGreaterThan(0);
+    expect(byAction.every((e) => e.action === 'org.suspended')).toBe(true);
+
+    const both = await read(`?orgId=${orgId}&action=org.suspended`);
+    expect(both.every((e) => e.org?.id === orgId && e.action === 'org.suspended')).toBe(true);
+    expect(both).toEqual(byOrg.filter((e) => e.action === 'org.suspended'));
+  });
+
+  it('platformEmpty lists none', async () => {
+    scenarios.platform('platformEmpty');
+    expect(await read()).toEqual([]);
+  });
+
+  it('answers 403 to a user who is not a platform admin', async () => {
+    const me = mockDb.state.users[0];
+    if (me) me.platformAdmin = false;
+    expect((await fetch(base)).status).toBe(403);
   });
 });

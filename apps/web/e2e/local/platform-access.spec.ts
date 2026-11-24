@@ -182,3 +182,45 @@ test.describe('BR-36: who can suspend or reactivate', () => {
     expect(await statusOf(org.id)).toBe('active');
   });
 });
+
+/*
+ * BR-52 (spec "E2E requirements": TC-52.1, TC-52.2): only a platform admin edits an org. A fresh `e2e-<rand>` org, its
+ * owner and a member; the name is read back from the platform route after each refusal.
+ */
+async function nameOf(orgId: string): Promise<string> {
+  return PlatformOrgDetailDto.parse(await ok(await pa.get(`/api/platform/orgs/${orgId}`), 200, 'platform org')).name;
+}
+
+test.describe('BR-52: who can edit an organization', () => {
+  test('TC-52.1: the owner and a member of an org get 403 on PATCH and the name is unchanged', async ({
+    browser,
+    page,
+  }) => {
+    const handle = `e2e-${randomBytes(4).toString('hex')}`;
+    const name = `E2E ${handle}`;
+    const org = await createOrg(pa, name, handle);
+    await inviteAndSignIn(page, pa, org.id, handle, 'owner', { type: 'org' });
+    const context = await browser.newContext();
+    toClose.push(context);
+    const memberPage = await context.newPage();
+    await inviteAndSignIn(memberPage, pa, org.id, `${handle}-m`, 'member', { type: 'org' });
+
+    for (const who of [page, memberPage]) {
+      const res = await who.request.patch(`/api/platform/orgs/${org.id}`, { data: { name: 'Hacked' } });
+      expect(res.status(), await res.text()).toBe(403);
+    }
+    expect(await nameOf(org.id)).toBe(name);
+  });
+
+  test('TC-52.2: the owner opening /platform/orgs/<org id> sees "You don\'t have access" and no Edit organization', async ({
+    page,
+  }) => {
+    const handle = `e2e-${randomBytes(4).toString('hex')}`;
+    const org = await createOrg(pa, `E2E ${handle}`, handle);
+    await inviteAndSignIn(page, pa, org.id, handle, 'owner', { type: 'org' });
+
+    await page.goto(`/platform/orgs/${org.id}`);
+    await expect(page.getByRole('heading', { name: "You don't have access" })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Edit organization' })).toHaveCount(0);
+  });
+});

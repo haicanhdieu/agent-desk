@@ -58,6 +58,7 @@ import {
   type RouteKey,
 } from './http';
 import { grantPlatformAdmin, listPlatformAdmins, revokePlatformAdmin } from './platformAdmins';
+import { listPlatformAudit } from './platformAudit';
 import {
   addPlatformOrg,
   getPlatformOrg,
@@ -1185,6 +1186,7 @@ const impl: Impl = {
   'platform.removeInvitation': ({ params }) => revokeInvitation(requireOrg(params.orgId), params.invitationId),
   'platform.resendInvitation': ({ params }) => resendInvitation(requireOrg(params.orgId), params.invitationId),
   'platform.listAdmins': ({ query }) => listPlatformAdmins(query),
+  'platform.listAudit': ({ query }) => listPlatformAudit(query),
   'platform.grantAdmin': ({ body }) => grantPlatformAdmin(body),
   'platform.revokeAdmin': ({ params }) => revokePlatformAdmin(params.adminId),
 };
