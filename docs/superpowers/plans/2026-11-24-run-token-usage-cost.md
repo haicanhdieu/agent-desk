@@ -700,11 +700,11 @@ This task and Tasks 17 and 18 are the spec's "Blocker: Storybook first": Task 20
   - `mocks/usage.ts`: `usageCellValue`, `usageCellPartial`, `usageCellNoCost`, `usageCellSubCent`, `usageCellNone` with the spec Copy strings
   - Runs columns: `{ key: 'usage', header: 'Usage' }` after Duration (`th scope="col"`)
 
-- [ ] **Step 1: Write the failing tests** in `UsageCell.test.tsx` (one case per story, `it.each`): Value shows `48.2k · ~$0.42`, title "48,213 tokens in total, estimated cost $0.42, 1 model", sr suffix " tokens, estimated cost"; Partial `61.2k · ~$0.42+` with " tokens, estimated cost, at least"; NoCost `12.8k · —` with " tokens, no estimated cost"; None `—` and "No usage data"; no text contains "provider bill" or a date; the cell is not focusable.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/components/UsageCell.test.tsx`. Expected: FAIL.
-- [ ] **Step 3: Implement** the types, fixtures, component (tokens `--muted`, `--mono`, `--fs-12_5`; the tabular class used by Duration), stories `Components/UsageCell` Value, Partial, NoCost, None, the RunRow cell and its usage story variants, and the Runs column (group rows already span `columns.length`).
-- [ ] **Step 4: Run** Step 2 again, `pnpm --filter @agentdesk/web exec vitest run src/components/RunList.test.tsx src/test/stories.smoke.test.tsx` and `pnpm --filter @agentdesk/web typecheck`. Expected: PASS.
-- [ ] **Step 5: Commit**: `feat(web): add the UsageCell component and the Runs Usage column`.
+- [x] **Step 1: Write the failing tests** in `UsageCell.test.tsx` (one case per story, `it.each`): Value shows `48.2k · ~$0.42`, title "48,213 tokens in total, estimated cost $0.42, 1 model", sr suffix " tokens, estimated cost"; Partial `61.2k · ~$0.42+` with " tokens, estimated cost, at least"; NoCost `12.8k · —` with " tokens, no estimated cost"; None `—` and "No usage data"; no text contains "provider bill" or a date; the cell is not focusable.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/components/UsageCell.test.tsx`. Expected: FAIL.
+- [x] **Step 3: Implement** the types, fixtures, component (tokens `--muted`, `--mono`, `--fs-12_5`; the tabular class used by Duration), stories `Components/UsageCell` Value, Partial, NoCost, None, the RunRow cell and its usage story variants, and the Runs column (group rows already span `columns.length`).
+- [x] **Step 4: Run** Step 2 again, `pnpm --filter @agentdesk/web exec vitest run src/components/RunList.test.tsx src/test/stories.smoke.test.tsx` and `pnpm --filter @agentdesk/web typecheck`. Expected: PASS.
+- [x] **Step 5: Commit**: `feat(web): add the UsageCell component and the Runs Usage column`.
 
 ---
 
@@ -729,11 +729,11 @@ This task and Tasks 17 and 18 are the spec's "Blocker: Storybook first": Task 20
   - `RunSidePanel` renders `<RunUsage>` directly before "Chain on this ticket" when `data.usage` is set, passing `initialOpen={!data.usageCollapsed}` and `initialModelsOpen={!data.usageModelsCollapsed}`.
   - `mocks/runUsage.ts`: view fixtures for the thirteen stories (neutral names `model-a`, `model-b`; long name of 128 chars with `. : / @ -`; hostile name `<img src=x onerror=alert(1)>'; rm -rf /`).
 
-- [ ] **Step 1: Write the failing tests** in `RunUsage.test.tsx`, one case per story name (SingleModel, MultiModel, Partial, UnpricedModel, WithReasoning, NoUsage, Zero, LongModelName, HostileModelName, Collapsed, ModelsCollapsed, SinglePriceDate, PriceDateRange): split rows and "Total tokens" text per fixture; the note appears once with the exact Copy order and "Your provider bill may differ." last; `SinglePriceDate` has "Prices as of 21 Nov 2026.", `PriceDateRange` "Prices as of 18 Nov 2026 to 21 Nov 2026."; a fixture with no `priceDate` has no "Prices as of"; Zero shows `0` rows and `~$0.00` with the dated note; NoUsage has no button and "No usage data for this run."; Hide on Usage leaves only the header, button "Show", `aria-expanded="false"`, `aria-controls` equal to the region id; Show reopens; a remount starts open; Hide on Models hides only the table (total, cost and notes stay) and its `aria-controls` names the table; the hostile name renders as text (no `img` element) with `title`; table caption, headers and row header roles.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/components/RunUsage.test.tsx`. Expected: FAIL.
-- [ ] **Step 3: Implement** the component (reuse `Section`, `KeyValue`, `Note` and the `RunPromptSection` toggle pattern; tokens only; Tokens and Est. cost columns fixed width), the stories `Components/RunUsage` with the thirteen names, the fixtures and the side panel placement.
-- [ ] **Step 4: Run** Step 2 again, `pnpm --filter @agentdesk/web exec vitest run src/test/stories.smoke.test.tsx` and `pnpm --filter @agentdesk/web typecheck`. Expected: PASS.
-- [ ] **Step 5: Commit**: `feat(web): add the collapsible RunUsage section to run detail`.
+- [x] **Step 1: Write the failing tests** in `RunUsage.test.tsx`, one case per story name (SingleModel, MultiModel, Partial, UnpricedModel, WithReasoning, NoUsage, Zero, LongModelName, HostileModelName, Collapsed, ModelsCollapsed, SinglePriceDate, PriceDateRange): split rows and "Total tokens" text per fixture; the note appears once with the exact Copy order and "Your provider bill may differ." last; `SinglePriceDate` has "Prices as of 21 Nov 2026.", `PriceDateRange` "Prices as of 18 Nov 2026 to 21 Nov 2026."; a fixture with no `priceDate` has no "Prices as of"; Zero shows `0` rows and `~$0.00` with the dated note; NoUsage has no button and "No usage data for this run."; Hide on Usage leaves only the header, button "Show", `aria-expanded="false"`, `aria-controls` equal to the region id; Show reopens; a remount starts open; Hide on Models hides only the table (total, cost and notes stay) and its `aria-controls` names the table; the hostile name renders as text (no `img` element) with `title`; table caption, headers and row header roles.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/components/RunUsage.test.tsx`. Expected: FAIL.
+- [x] **Step 3: Implement** the component (reuse `Section`, `KeyValue`, `Note` and the `RunPromptSection` toggle pattern; tokens only; Tokens and Est. cost columns fixed width), the stories `Components/RunUsage` with the thirteen names, the fixtures and the side panel placement.
+- [x] **Step 4: Run** Step 2 again, `pnpm --filter @agentdesk/web exec vitest run src/test/stories.smoke.test.tsx` and `pnpm --filter @agentdesk/web typecheck`. Expected: PASS.
+- [x] **Step 5: Commit**: `feat(web): add the collapsible RunUsage section to run detail`.
 
 ---
 

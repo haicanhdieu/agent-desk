@@ -2,6 +2,7 @@ import type { Meta, StoryObj } from '@storybook/react-vite';
 import { Fragment } from 'react';
 import { Button, PR_STATES, RUN_STATUSES } from '@/ds';
 import { prStateRuns } from '@/mocks';
+import { usageCellNoCost, usageCellNone, usageCellPartial, usageCellSubCent, usageCellValue } from '@/mocks/usage';
 import type { RunSummary, TicketGroup, Ticket } from '@/mocks/types';
 import { DataTable } from './DataTable';
 import { RunRow, TicketGroupRow } from './RunRow';
@@ -41,6 +42,7 @@ const columns = [
   { key: 'by', header: 'Triggered by' },
   { key: 'started', header: 'Started' },
   { key: 'dur', header: 'Duration' },
+  { key: 'usage', header: 'Usage' },
   {
     key: 'actions',
     header: (
@@ -148,7 +150,7 @@ export const Connectors: Story = {
   args: { run: base, tree: 'mid', href: '#' },
   render: () => (
     <>
-      <TicketGroupRow group={group()} colSpan={8} />
+      <TicketGroupRow group={group()} colSpan={9} />
       <RunRow run={base} tree="mid" href="#" />
       <RunRow run={{ ...base, id: 61, status: 'failed', statusNote: notes.failed }} tree="mid" href="#" />
       <RunRow run={{ ...base, id: 62, ticket: pr148 }} tree="last" href="#" />
@@ -188,7 +190,7 @@ export const UngroupedLongTitle: Story = {
 
 export const GroupHeader: Story = {
   args: { run: base, tree: 'last', href: '#' },
-  render: () => <TicketGroupRow group={group()} colSpan={8} />,
+  render: () => <TicketGroupRow group={group()} colSpan={9} />,
 };
 
 export const LongTitle: Story = {
@@ -202,7 +204,7 @@ export const LongTitle: Story = {
             2,
           ),
       })}
-      colSpan={8}
+      colSpan={9}
     />
   ),
 };
@@ -212,11 +214,11 @@ export const TicketLinks: Story = {
   args: { run: base, tree: 'mid', href: '#' },
   render: () => (
     <>
-      <TicketGroupRow group={group()} colSpan={8} />
+      <TicketGroupRow group={group()} colSpan={9} />
       <RunRow run={base} tree="mid" href="#" />
       <RunRow run={{ ...base, id: 61, ticket: { ...ticket, kind: 'pr', number: 148 } }} tree="mid" href="#" />
       <RunRow run={{ ...base, id: 62, ticket: { ...ticket, href: '' } }} tree="last" href="#" />
-      <TicketGroupRow group={group({ ...ticket, href: '' })} colSpan={8} />
+      <TicketGroupRow group={group({ ...ticket, href: '' })} colSpan={9} />
     </>
   ),
 };
@@ -228,7 +230,7 @@ export const GroupHeaderIssueAndPr: Story = {
   args: { run: base, tree: 'last', href: '#' },
   render: () => (
     <>
-      <TicketGroupRow group={group()} colSpan={8} />
+      <TicketGroupRow group={group()} colSpan={9} />
       <RunRow run={base} tree="mid" href="#" />
       <RunRow run={{ ...base, id: 62, ticket: pr148 }} tree="last" href="#" />
     </>
@@ -248,7 +250,7 @@ export const GroupHeaderSeveralPrs: Story = {
             { ticket: { kind: 'pr', number: 150 }, runsUsed: 2 },
           ],
         }}
-        colSpan={8}
+        colSpan={9}
       />
       <RunRow run={base} tree="mid" href="#" />
       <RunRow run={{ ...base, id: 62, ticket: pr148 }} tree="mid" href="#" />
@@ -281,7 +283,7 @@ export const GroupHeaderLongChain: Story = {
           runsUsed: 1,
         })),
       }}
-      colSpan={8}
+      colSpan={9}
     />
   ),
 };
@@ -291,9 +293,9 @@ export const GroupHeaderSplitPr: Story = {
   args: { run: base, tree: 'last', href: '#' },
   render: () => (
     <>
-      <TicketGroupRow group={group()} colSpan={8} />
+      <TicketGroupRow group={group()} colSpan={9} />
       <RunRow run={{ ...base, id: 64, ticket: pr148 }} tree="last" href="#" />
-      <TicketGroupRow group={prGroup(pr148, 2)} colSpan={8} />
+      <TicketGroupRow group={prGroup(pr148, 2)} colSpan={9} />
       <RunRow run={{ ...base, id: 50, ticket: pr148 }} tree="last" href="#" />
     </>
   ),
@@ -304,7 +306,7 @@ export const GroupHeaderPrRunsOnly: Story = {
   args: { run: base, tree: 'last', href: '#' },
   render: () => (
     <>
-      <TicketGroupRow group={group()} colSpan={8} />
+      <TicketGroupRow group={group()} colSpan={9} />
       <RunRow run={{ ...base, id: 62, ticket: pr148 }} tree="mid" href="#" />
       <RunRow run={{ ...base, id: 63, ticket: pr148 }} tree="last" href="#" />
     </>
@@ -332,11 +334,26 @@ export const GroupHeaderPrStates: Story = {
         const r = prStateRuns[i];
         return (
           <Fragment key={s}>
-            <TicketGroupRow group={{ ticket: r.ticket, runsUsed: 1, runsMax: 10, runs: [r] }} colSpan={8} />
+            <TicketGroupRow group={{ ticket: r.ticket, runsUsed: 1, runsMax: 10, runs: [r] }} colSpan={9} />
             <RunRow run={r} tree="last" href="#" />
           </Fragment>
         );
       })}
+    </>
+  ),
+};
+
+/** Usage column: value, partial, no cost, below a cent, none, absent. */
+export const Usage: Story = {
+  args: { run: { ...base, usage: usageCellValue }, tree: 'none', href: '#' },
+  render: () => (
+    <>
+      <RunRow run={{ ...base, usage: usageCellValue }} tree="none" href="#" />
+      <RunRow run={{ ...base, id: 61, usage: usageCellPartial }} tree="none" href="#" />
+      <RunRow run={{ ...base, id: 62, usage: usageCellNoCost }} tree="none" href="#" />
+      <RunRow run={{ ...base, id: 63, usage: usageCellSubCent }} tree="none" href="#" />
+      <RunRow run={{ ...base, id: 64, usage: usageCellNone }} tree="none" href="#" />
+      <RunRow run={{ ...base, id: 65 }} tree="none" href="#" />
     </>
   ),
 };

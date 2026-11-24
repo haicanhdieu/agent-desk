@@ -2,6 +2,7 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import type { RunSummary, TicketGroup } from '@/mocks/types';
+import { usageCellValue } from '@/mocks/usage';
 import { DataTable } from './DataTable';
 import { EmptyState } from './EmptyState';
 import { FilterChip, FilterChips } from './FilterChip';
@@ -53,7 +54,9 @@ describe('RunRow', () => {
   });
 
   it('missing duration shows a dash', () => {
-    inTable(<RunRow run={{ ...run, status: 'queued', duration: undefined }} tree="last" href="/r" />);
+    inTable(
+      <RunRow run={{ ...run, status: 'queued', duration: undefined, usage: usageCellValue }} tree="last" href="/r" />,
+    );
     expect(screen.getByText('—')).toBeInTheDocument();
   });
 
@@ -95,7 +98,7 @@ describe('RunRow routing rule', () => {
   });
 
   it('shows a dash when no command was recorded', () => {
-    inTable(<RunRow run={{ ...run, command: '', duration: '1m' }} tree="last" href="/r" />);
+    inTable(<RunRow run={{ ...run, command: '', duration: '1m', usage: usageCellValue }} tree="last" href="/r" />);
     expect(screen.getByText('—')).toBeInTheDocument();
   });
 

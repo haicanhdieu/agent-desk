@@ -19,6 +19,26 @@ export type Ticket = {
   prState?: PrState;
 };
 export type Actor = { login: string; initials?: string; bot?: boolean };
+/** Display-ready Runs list Usage cell: visible text, hover title and the screen reader suffix. */
+export type UsageCellView = { text: string; title: string; srSuffix: string };
+export type RunUsageModelView = { name: string; tokens: string; cost: string; unpriced: boolean };
+export type RunUsageView =
+  | { state: 'none' }
+  | {
+      state: 'data';
+      total: string;
+      input: string;
+      cacheRead: string;
+      cacheWrite: string;
+      output: string;
+      reasoning?: string;
+      cost: string;
+      atLeast: boolean;
+      /** `21 Nov 2026` or `18 Nov 2026 to 21 Nov 2026`; absent when no date sentence applies. */
+      priceDate?: string;
+      partial: boolean;
+      models: RunUsageModelView[];
+    };
 export type RunSummary = {
   id: number;
   status: RunStatus;
@@ -31,6 +51,8 @@ export type RunSummary = {
   triggeredBy: Actor;
   startedAt: string;
   duration?: string;
+  /** Absent renders as no usage data. */
+  usage?: UsageCellView;
 };
 export type TicketGroup = {
   /** The lead ticket: the issue of a merged group, else the group's own ticket. */
@@ -122,6 +144,11 @@ export type AgentSettings = {
 
 export type RunDetailData = {
   run: RunSummary;
+  usage?: RunUsageView;
+  /** The Usage section starts collapsed. */
+  usageCollapsed?: true;
+  /** The Usage section's Models table starts collapsed. */
+  usageModelsCollapsed?: true;
   elapsed: string;
   rule: string;
   triggerNote: string;

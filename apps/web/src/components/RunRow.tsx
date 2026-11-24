@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import { AppLink, Avatar, Icon, LabelChip, StatusBadge, TicketRef } from '@/ds';
 import type { RunSummary, TicketGroup } from '@/mocks/types';
 import styles from './RunList.module.css';
+import { UsageCell } from './UsageCell';
 
 const initialsOf = (login: string) =>
   login
@@ -102,6 +103,7 @@ export function RunRow({ run, tree, href, actions }: RunRowProps) {
       </td>
       <td className={`${styles.num} ${styles.muted}`}>{run.startedAt}</td>
       <td className={styles.num}>{run.duration ?? <span className={styles.faint}>—</span>}</td>
+      <UsageCell usage={run.usage} />
       <td className={styles.actions}>{actions}</td>
     </tr>
   );

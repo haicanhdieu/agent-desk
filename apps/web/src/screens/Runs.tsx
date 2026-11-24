@@ -57,6 +57,7 @@ const columns = [
   { key: 'by', header: 'Triggered by' },
   { key: 'started', header: 'Started' },
   { key: 'duration', header: 'Duration' },
+  { key: 'usage', header: 'Usage' },
   { key: 'actions', header: <span className="sr-only">Actions</span> },
 ];
 
