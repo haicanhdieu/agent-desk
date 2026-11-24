@@ -16,6 +16,10 @@ import { api } from '../api';
 import { orgsQuery } from '../auth/session';
 import { platformKeys } from './keys';
 
+/** Every platform change writes a platform audit entry: the cached audit pages (fresh for 30 s) read again. */
+export const refreshAudit = (queryClient: QueryClient) =>
+  queryClient.invalidateQueries({ queryKey: ['platform', 'audit'] });
+
 // No optimistic updates: the list changes when the server has answered, and a mutation stays pending until the
 // refetch it asks for is done (so a dialog stays unclosable until the rows are fresh).
 
@@ -24,7 +28,8 @@ export function useGrantPlatformAdmin(): UseMutationResult<PlatformAdminDto, Api
   const queryClient = useQueryClient();
   return useMutation<PlatformAdminDto, ApiError, GrantPlatformAdminRequest>({
     mutationFn: (body) => api.platform.grantAdmin({ body }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: platformKeys.adminsAll() }),
+    onSuccess: () =>
+      Promise.all([queryClient.invalidateQueries({ queryKey: platformKeys.adminsAll() }), refreshAudit(queryClient)]),
   });
 }
 
@@ -46,7 +51,10 @@ export function useRevokePlatformAdmin(): UseMutationResult<void, ApiError, { ad
         queryClient.removeQueries({ queryKey: accessKeys.platform(), exact: true });
         return;
       }
-      await queryClient.invalidateQueries({ queryKey: platformKeys.adminsAll() });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: platformKeys.adminsAll() }),
+        refreshAudit(queryClient),
+      ]);
     },
     onError: async (e) => {
       if (e instanceof ApiError && (e.status === 404 || e.status === 409)) {
@@ -77,6 +85,7 @@ export function useSetOrgStatus(
         queryKey: platformKeys.orgsAll(),
         predicate: (q) => !(q.queryKey.length === own.length && q.queryKey.every((part, i) => part === own[i])),
       });
+      await refreshAudit(queryClient);
     },
   });
 }
@@ -100,6 +109,7 @@ export function useUpdatePlatformOrg(
           predicate: (q) => !(q.queryKey.length === own.length && q.queryKey.every((part, i) => part === own[i])),
         }),
         queryClient.invalidateQueries({ queryKey: orgsQuery.queryKey }),
+        refreshAudit(queryClient),
       ]);
     },
   });
@@ -111,7 +121,7 @@ export function useUpdatePlatformOrg(
  * until that is done, so a dialog stays unclosable until the rows are fresh.
  */
 const refreshAfterAssignment = (queryClient: QueryClient) =>
-  queryClient.invalidateQueries({ queryKey: platformKeys.orgsAll() });
+  Promise.all([queryClient.invalidateQueries({ queryKey: platformKeys.orgsAll() }), refreshAudit(queryClient)]);
 
 /** `POST /api/platform/orgs/:orgId/assignments`: a repeat returns the same assignment, so it ends like a new one. */
 export function useAddPlatformAssignment(
@@ -151,7 +161,7 @@ export function useRemovePlatformAssignment(
 const refreshInvitations = (queryClient: QueryClient, orgId: string) =>
   Promise.all([
     queryClient.invalidateQueries({ queryKey: [...platformKeys.org(orgId), 'invitations'] }),
-    queryClient.invalidateQueries({ queryKey: ['platform', 'audit'] }),
+    refreshAudit(queryClient),
   ]);
 
 /** `POST /api/platform/orgs/:orgId/invitations`. The answer is not cached: the link is built from its id when shown. */

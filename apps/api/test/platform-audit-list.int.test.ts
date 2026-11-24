@@ -181,7 +181,40 @@ describe('the list (BR-45)', () => {
     ]);
     const rest = (await listAs(admin, { orgId: h.orgId })).items.filter((e) => e.action !== 'org.updated');
     expect(rest.some((e) => e.action === 'org.suspended')).toBe(true);
-    for (const e of rest) expect(e.changes, e.action).toEqual([]);
+    const roleActions = ['assignment.granted', 'assignment.revoked', 'invitation.created'];
+    for (const e of rest.filter((r) => !roleActions.includes(r.action))) expect(e.changes, e.action).toEqual([]);
+    for (const e of rest.filter((r) => roleActions.includes(r.action))) {
+      expect(
+        e.changes.map((c) => c.field),
+        e.action,
+      ).toEqual(['role']);
+    }
+  });
+
+  it('shows the role on granted, removed and invited rows, so the sentence can name it', async () => {
+    const h = await orgWithHistory('role');
+    const handle = `pal-r${next()}`;
+    await inviteAndLogin(t, h.orgId, handle, 'viewer', { type: 'org' });
+    const userId = await userIdOf(t, handle);
+    const granted = await t.app.inject({
+      method: 'POST',
+      url: `/api/platform/orgs/${h.orgId}/assignments`,
+      headers: { cookie: admin },
+      payload: { userId, roleId: await roleId(h.orgId, 'admin'), scope: { type: 'org' } },
+    });
+    expect(granted.statusCode, granted.body).toBe(201);
+    const assignmentId = granted.json<{ id: string }>().id;
+    const removed = await t.app.inject({
+      method: 'DELETE',
+      url: `/api/platform/orgs/${h.orgId}/assignments/${assignmentId}`,
+      headers: { cookie: admin },
+    });
+    expect(removed.statusCode, removed.body).toBe(204);
+    const page = await listAs(admin, { orgId: h.orgId });
+    const roles = (action: string) => page.items.filter((e) => e.action === action).map((e) => e.changes);
+    expect(roles('assignment.granted')).toContainEqual([{ field: 'role', from: null, to: 'admin' }]);
+    expect(roles('assignment.revoked')).toEqual([[{ field: 'role', from: 'admin', to: null }]]);
+    expect(roles('invitation.created')).toContainEqual([{ field: 'role', from: null, to: 'viewer' }]);
   });
 
   it('builds the target label on read: admin email, org name, member name and invitee email', async () => {

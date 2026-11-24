@@ -4,10 +4,14 @@ import {
   API,
   asPlatformAdmin,
   createOrg,
+  grant,
+  inviteAndSignIn,
+  inviteViaApi,
   ok,
   platformAdminContext,
   platformAuditFor,
   reactivateOrg,
+  revoke,
   suspendOrg,
 } from './helpers';
 
@@ -26,6 +30,7 @@ const AUDIT = '/platform/audit';
 let pa: APIRequestContext;
 const toClose: BrowserContext[] = [];
 const toReactivate: string[] = [];
+const toRevoke: { orgId: string; invitationId: string }[] = [];
 const toRestore: { id: string; name: string; slug: string }[] = [];
 
 test.beforeAll(async ({ request: probe }) => {
@@ -38,6 +43,9 @@ test.afterEach(async () => {
   for (const id of toReactivate.splice(0)) await reactivateOrg(pa, id, 'e2e cleanup').catch(() => null);
   for (const org of toRestore.splice(0).reverse()) {
     await pa.patch(`/api/platform/orgs/${org.id}`, { data: { name: org.name, slug: org.slug } }).catch(() => null);
+  }
+  for (const i of toRevoke.splice(0)) {
+    await pa.delete(`/api/platform/orgs/${i.orgId}/invitations/${i.invitationId}`).catch(() => null);
   }
   for (const ctx of toClose.splice(0)) await ctx.close().catch(() => null);
 });
@@ -134,6 +142,32 @@ test.describe('BR-45: the audit list', () => {
     await expect(bodyRows(mine).filter({ hasText: `suspended ${org.name}` })).toHaveCount(1);
     await expect(bodyRows(mine).filter({ hasText: `reactivated ${org.name}` })).toHaveCount(0);
     await expect(bodyRows(mine).filter({ hasText: /reactivated/ })).toHaveCount(0);
+  });
+});
+
+test.describe('BR-45: the sentences name the role', () => {
+  test('TC-45.1: gave, removed and invited sentences carry the role, read from the real API', async ({
+    browser,
+    page,
+  }) => {
+    const org = await freshOrg();
+    const { userId } = await inviteAndSignIn(page, pa, org.id, org.slug, 'viewer', { type: 'org' });
+    const members = await ok(await pa.get(`/api/platform/orgs/${org.id}/members?pageSize=100`), 200, 'members');
+    const person = (members as { items: { userId: string; name: string }[] }).items.find((m) => m.userId === userId);
+    const name = person?.name ?? '';
+    expect(name).not.toBe('');
+    const assignment = await grant(pa, org.id, userId, 'owner', { type: 'org' });
+    await revoke(pa, org.id, assignment.id);
+    const email = `e2e-${tagOf()}@dev.local`;
+    const invitation = await inviteViaApi(pa, org.id, email, 'owner', { type: 'org' });
+    toRevoke.push({ orgId: org.id, invitationId: invitation.id });
+
+    const mine = await adminPage(browser);
+    await openAudit(mine, `?org=${org.id}`);
+    const sentence = (text: string): Locator => bodyRows(mine).locator('td:nth-child(3)').filter({ hasText: text });
+    await expect(sentence(`gave ${name} the Owner role in ${org.name}`)).toHaveCount(1);
+    await expect(sentence(`removed ${name}'s Owner role in ${org.name}`)).toHaveCount(1);
+    await expect(sentence(`invited ${email} to ${org.name} as Owner`)).toHaveCount(1);
   });
 });
 

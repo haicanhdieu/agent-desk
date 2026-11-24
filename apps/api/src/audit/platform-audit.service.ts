@@ -23,8 +23,20 @@ function str(v: unknown): string | null {
   return typeof v === 'string' ? v : null;
 }
 
-/** Old and new name and slug of an `org.updated` row; read defensively, only the two fields, only strings. */
+/**
+ * What a row changed, read defensively, only strings: the old and new name and slug of an `org.updated` row, and the
+ * role key of a role given (`assignment.granted`, `invitation.created`) or taken (`assignment.revoked`), so the
+ * sentence can name the role. No other action carries changes.
+ */
 function changesOf(action: PlatformAuditAction, payload: Record<string, unknown>): AuditChange[] {
+  if (action === 'assignment.granted' || action === 'invitation.created') {
+    const role = str(payload['roleKey']);
+    return role === null ? [] : [{ field: 'role', from: null, to: role }];
+  }
+  if (action === 'assignment.revoked') {
+    const role = str(payload['roleKey']);
+    return role === null ? [] : [{ field: 'role', from: role, to: null }];
+  }
   if (action !== 'org.updated') return [];
   const from = payload['from'];
   const to = payload['to'];
