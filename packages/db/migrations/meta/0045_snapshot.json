@@ -1291,6 +1291,28 @@
         }
       },
       "indexes": {
+        "inbound_events_null_org_delivery_key": {
+          "name": "inbound_events_null_org_delivery_key",
+          "columns": [
+            {
+              "expression": "provider",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "delivery_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"inbound_events\".\"org_id\" is null",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
         "inbound_events_project_received_idx": {
           "name": "inbound_events_project_received_idx",
           "columns": [
@@ -1366,10 +1388,11 @@
       "foreignKeys": {},
       "compositePrimaryKeys": {},
       "uniqueConstraints": {
-        "inbound_events_provider_delivery_key": {
-          "name": "inbound_events_provider_delivery_key",
+        "inbound_events_org_provider_delivery_key": {
+          "name": "inbound_events_org_provider_delivery_key",
           "nullsNotDistinct": false,
           "columns": [
+            "org_id",
             "provider",
             "delivery_id"
           ]

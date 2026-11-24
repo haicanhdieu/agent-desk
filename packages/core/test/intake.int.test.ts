@@ -86,11 +86,13 @@ async function seed(
     role?: 'member' | 'viewer' | 'none';
     /** Extra provider user ids that also link to the commenter (account ids). */
     extraAccountIds?: string[];
+    /** A new org that links the same installation and repo as `like`, with the same commenter (ADR-0039). */
+    like?: Seed;
   } = {},
 ): Promise<Seed> {
   seq += 1;
-  const author = `alice-${seq}-${randomUUID().slice(0, 8)}`;
-  const ownerId = await makeLinkedUser(author, author);
+  const author = over.like?.author ?? `alice-${seq}-${randomUUID().slice(0, 8)}`;
+  const ownerId = over.like?.ownerId ?? (await makeLinkedUser(author, author));
   for (const extra of over.extraAccountIds ?? []) {
     await admin.query(
       `insert into account (id, account_id, provider_id, user_id, updated_at) values ($1, $2, 'fake', $3, now())`,
@@ -98,8 +100,8 @@ async function seed(
     );
   }
   const orgId = randomUUID();
-  const externalId = `fake-${orgId}`;
-  const repoPath = `acme/app-${seq}`;
+  const externalId = over.like?.externalId ?? `fake-${orgId}`;
+  const repoPath = over.like?.repoPath ?? `acme/app-${seq}`;
   const roleIds: Record<string, string> = {};
   const projectId = await withOrg(db, orgId, async (tx) => {
     await copyRoleTemplates(tx, orgId);
@@ -299,25 +301,18 @@ describe('processTicketEvent', () => {
       e.deliveryId,
     ]);
     expect(rows.rows).toEqual([{ outcome: 'ignored_unknown_project', org_id: null, project_id: null }]);
-    // the same delivery arriving later for a now-known project still collides on the global unique key
-    expect(
-      await processTicketEvent(h.deps, { ...e, externalId: s.externalId, repoPath: s.repoPath }, 'webhook'),
-    ).toEqual({
-      outcome: 'duplicate',
-    });
-    expect(await runsOf(s)).toHaveLength(0);
   });
 
-  it('a delivery id owned by another org is a duplicate, not an error', async () => {
+  it('a delivery id recorded by another org does not hide the event from this org', async () => {
     const a = await seed();
     const b = await seed();
     const h = harness();
     const e = eventFor(a);
     await processTicketEvent(h.deps, e, 'webhook');
-    expect(
-      await processTicketEvent(h.deps, { ...e, externalId: b.externalId, repoPath: b.repoPath }, 'webhook'),
-    ).toEqual({ outcome: 'duplicate' });
-    expect(await runsOf(b)).toHaveLength(0);
+    expect((await processTicketEvent(h.deps, { ...eventFor(b), deliveryId: e.deliveryId }, 'webhook')).outcome).toBe(
+      'run_created',
+    );
+    expect(await runsOf(b)).toHaveLength(1);
   });
 
   it('skips resolution when the project is known', async () => {
@@ -417,6 +412,79 @@ async function setOrgStatus(orgId: string, status: 'active' | 'suspended'): Prom
     [orgId, status],
   );
 }
+
+describe('processTicketEvent: one installation linked by several orgs (ADR-0039)', () => {
+  it('one delivery starts a run in every org that has a project for the repo, each in its own org', async () => {
+    const a = await seed();
+    const b = await seed({ like: a });
+    const h = harness();
+    const r = await processTicketEvent(h.deps, eventFor(a), 'webhook');
+    expect(r.outcome).toBe('run_created');
+    const [runA] = await runsOf(a);
+    const [runB] = await runsOf(b);
+    expect(runA).toMatchObject({ orgId: a.orgId, projectId: a.projectId, status: 'queued' });
+    expect(runB).toMatchObject({ orgId: b.orgId, projectId: b.projectId, status: 'queued' });
+    expect(h.startRun).toHaveBeenCalledTimes(2);
+    expect(h.startRun).toHaveBeenCalledWith(a.orgId, runA!.id);
+    expect(h.startRun).toHaveBeenCalledWith(b.orgId, runB!.id);
+    // Each org sees only its own delivery row.
+    expect(await inboundOf(a)).toHaveLength(1);
+    expect(await inboundOf(b)).toHaveLength(1);
+    expect(await withOrg(db, a.orgId, (tx) => tx.select().from(inboundEvents))).toHaveLength(1);
+  });
+
+  it('a replayed delivery is a duplicate in every org: no new runs', async () => {
+    const a = await seed();
+    const b = await seed({ like: a });
+    const h = harness();
+    const e = eventFor(a);
+    await processTicketEvent(h.deps, e, 'webhook');
+    expect(await processTicketEvent(h.deps, e, 'webhook')).toEqual({ outcome: 'duplicate' });
+    expect(await runsOf(a)).toHaveLength(1);
+    expect(await runsOf(b)).toHaveLength(1);
+    expect(h.startRun).toHaveBeenCalledTimes(2);
+  });
+
+  it('a failure in the first org does not stop the others, and the retry finishes only the failed org', async () => {
+    const a = await seed();
+    const b = await seed({ like: a });
+    const failA = vi.fn(async (orgId: string, _runId: string) => {
+      if (orgId === a.orgId) throw new Error('temporal down');
+    });
+    const h = harness({ startRun: failA });
+    const e = eventFor(a);
+    await expect(processTicketEvent(h.deps, e, 'webhook')).rejects.toThrow('temporal down');
+    expect(await runsOf(b)).toHaveLength(1);
+    expect(failA).toHaveBeenCalledWith(b.orgId, (await runsOf(b))[0]!.id);
+    // The run row of the failing org is committed (the outbox sweep starts it); a replay does not duplicate anything.
+    expect(await runsOf(a)).toHaveLength(1);
+    expect(await processTicketEvent(h.deps, e, 'webhook')).toEqual({ outcome: 'duplicate' });
+    expect(await runsOf(a)).toHaveLength(1);
+    expect(await runsOf(b)).toHaveLength(1);
+  });
+
+  it('a commenter who may not run commands in one org starts a run in the other only', async () => {
+    const a = await seed();
+    const b = await seed({ like: a, role: 'none' });
+    const h = harness();
+    const r = await processTicketEvent(h.deps, eventFor(a), 'webhook');
+    expect(r.outcome).toBe('run_created');
+    expect(await runsOf(a)).toHaveLength(1);
+    expect(await runsOf(b)).toHaveLength(0);
+    expect((await inboundOf(b))[0]?.outcome).toMatch(/^ignored_owner/);
+    expect(h.startRun).toHaveBeenCalledExactlyOnceWith(a.orgId, (await runsOf(a))[0]!.id);
+  });
+
+  it('a suspended org ignores the event while the other org still runs it', async () => {
+    const a = await seed();
+    const b = await seed({ like: a });
+    await setOrgStatus(b.orgId, 'suspended');
+    const h = harness();
+    expect((await processTicketEvent(h.deps, eventFor(a), 'webhook')).outcome).toBe('run_created');
+    expect(await runsOf(b)).toHaveLength(0);
+    expect((await inboundOf(b))[0]?.outcome).toBe('ignored_org_suspended');
+  });
+});
 
 describe('processTicketEvent: suspended organization (BR-39, BR-42)', () => {
   it.each(['webhook', 'poll'] as const)(

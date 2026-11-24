@@ -54,13 +54,13 @@ Application tables (every one has `org_id uuid not null` unless noted):
 
 | Table | Key columns | Notes |
 |---|---|---|
-| `connections` | id, org_id, provider, capabilities (`{code, board}`), external_id (text), account_name, config (jsonb), status, linked_by_user_id, created_at | One per connected provider account. GitHub provides both capabilities; Jira would be board only. Unique on (provider, external_id) |
+| `connections` | id, org_id, provider, capabilities (`{code, board}`), external_id (text), account_name, config (jsonb), status, linked_by_user_id, created_at | One per connected provider account. GitHub provides both capabilities; Jira would be board only. Unique on (org_id, provider, external_id): several orgs may link the same installation, each with its own row ([ADR-0039](../../adr/0039-per-org-connections-and-webhook-fan-out.md)) |
 | `projects` | id, org_id, name, repo_path, code_connection_id, board_connection_id, trigger_mode (`webhook`, `polling`), poll_interval_seconds, max_concurrent_runs, max_runs_per_ticket, created_by | `repo_path` is `owner/repo`, `group/subgroup/repo` or `workspace/repo`. `poll_interval_seconds` ∈ {300, 600, 900, 1800} |
 | `agents` | id, org_id, project_id, name, provider (`claude`), model, credential_secret_name, max_turns, timeout_seconds | `timeout_seconds` 60 to 604800 (default 86400; ADR 0021). Credential value only in a Kubernetes Secret |
 | `rules` | id, org_id, project_id, command, label_filter[], target (`issue`, `pr`, `any`), agent_id, skill_name, enabled | Unique on (project_id, command) |
 | `runs` | id, number, org_id, project_id, rule_id, agent_id, skill_name, ticket_ref (text), ticket_kind, checkout_ref, args, status, workflow_id, job_name, trigger_source (`webhook`, `polling`, `manual`), trigger_comment_id (text), inbound_event_id, triggered_by, queued_at, started_at, finished_at, exit_code, failure_reason, cost_usd, outbox (jsonb) | Unique on (project_id, trigger_comment_id) and (project_id, number). `number` is a per-project sequence assigned on insert, shown as "Run 62" and used in web URLs. `outbox` records which comments were posted, for idempotency |
 | `run_events` | org_id, run_id, seq, ts, type, payload (jsonb) | Primary key (run_id, seq). Lifecycle lines and final scrollback in the PoC |
-| `inbound_events` | id, provider, channel (`webhook`, `poll`), delivery_id (text), comment_id (text), org_id (nullable), project_id (nullable), received_at, event, action, outcome | Dedupe and debugging. `org_id` filled once the project is resolved. Unique on (provider, delivery_id) |
+| `inbound_events` | id, provider, channel (`webhook`, `poll`), delivery_id (text), comment_id (text), org_id (nullable), project_id (nullable), received_at, event, action, outcome | Dedupe and debugging. `org_id` filled once the project is resolved. Unique on (org_id, provider, delivery_id), and on (provider, delivery_id) where org_id is null ([ADR-0039](../../adr/0039-per-org-connections-and-webhook-fan-out.md)) |
 | `poll_cursors` | org_id, project_id, since, etag, last_polled_at, last_error, next_poll_at, paused_reason | Primary key (project_id) |
 | `audit_log` | id, org_id, actor_user_id, action, target_type, target_id, payload (jsonb), at | Written by an interceptor on mutating Desk calls |
 
@@ -73,7 +73,7 @@ Run status is unchanged: `queued` → `starting` → `running` ⇄ `idle` ⇄ `d
 - The api image has a migrate entrypoint: it connects as the server's admin user, creates the roles `agentdesk_owner`, `agentdesk_app` and `temporal` and their databases idempotently, then runs the migrations as `agentdesk_owner`. It runs as a Helm hook (infra spec §6.3) and does not depend on Postgres init scripts.
 - `packages/db` exports `withOrg(orgId, fn)`: open a transaction, `select set_config('app.org_id', $1, true)`, run `fn(tx)`. Request and activity code have no other way to obtain a database handle.
 - The api derives `OrgContext` (request-scoped provider) from the session's active organization; a guard checks membership. Workflow inputs carry `orgId`; activities call `withOrg`.
-- Cross-tenant lookup for webhooks: `resolve_project(provider text, external_id text, repo_path text) returns (org_id uuid, project_id uuid)`, a `SECURITY DEFINER` function owned by `agentdesk_owner`, granted to `agentdesk_app`. The only other cross-tenant read is `queued_runs_without_workflow` for the outbox sweep (section 6.1), built the same way. Reconcile needs neither: it reads `agentdesk/org-id` from Job labels and uses `withOrg`.
+- Cross-tenant lookup for webhooks: `resolve_project(provider text, external_id text, repo_path text) returns setof (org_id uuid, project_id uuid)` (every project that uses the connection and repo, one per org), a `SECURITY DEFINER` function owned by `agentdesk_owner`, granted to `agentdesk_app`. The only other cross-tenant read is `queued_runs_without_workflow` for the outbox sweep (section 6.1), built the same way. Reconcile needs neither: it reads `agentdesk/org-id` from Job labels and uses `withOrg`.
 
 ## 5. Provider seams
 
@@ -105,8 +105,8 @@ GitHub specifics live only in the `github` adapters: HMAC `X-Hub-Signature-256`,
 `POST /webhooks/{provider}`:
 
 1. The adapter verifies the signature and parses into a `TicketEvent`. Reject with 401 on a bad signature.
-2. Insert into `inbound_events`. Duplicate key → 200, done.
-3. `resolve_project`; unknown → record outcome, 200.
+2. `resolve_project`; unknown → record outcome once (null org), 200. Steps 3 to 6 run once per matching project (ADR-0039), each in its own org; a failure in one does not stop the others.
+3. Insert into `inbound_events` (org, provider, delivery). Duplicate key → that project's event is a duplicate, done.
 4. Under `withOrg`: router steps from Architecture §4 — parse command (`^/([a-z0-9-]+)(\s+.*)?$`), authorize (bot, or `OWNER`/`MEMBER`/`COLLABORATOR`), match rule (target kind and labels via `getTicket` if missing), guard (`max_runs_per_ticket`, active run for the same skill).
 5. Insert `runs` as `queued`. A unique violation on (project_id, trigger_comment_id) → no-op.
 6. `workflowClient.start(RunWorkflow, { workflowId: 'run-' + runId, args: [{ orgId, runId }] })`. `WorkflowExecutionAlreadyStarted` is treated as success. Reply 202.

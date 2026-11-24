@@ -50,7 +50,7 @@ Route: `POST /webhooks/:provider`. Verification lives in the provider's `BoardAd
 - **MUST** verify the signature over the **raw request body bytes** (Fastify content parser with `parseAs: 'buffer'`, scoped to the route). _Why:_ re-serialized JSON does not match the signed bytes.
 - **MUST** compare with a constant-time function, after checking lengths. _Why:_ `===` leaks the match length through timing.
 - **MUST** verify before any side effect: no `inbound_events` row, no project lookup, no log of the body. Bad signature → 401 and nothing written (backend spec §6.6).
-- **MUST** dedupe on `(provider, delivery_id)` and on `(project_id, trigger_comment_id)`. _Why:_ signatures do not prevent replay; dedupe does.
+- **MUST** dedupe on `(org_id, provider, delivery_id)` (per org, [ADR-0039](../adr/0039-per-org-connections-and-webhook-fan-out.md)) and on `(project_id, trigger_comment_id)`. _Why:_ signatures do not prevent replay; dedupe does.
 - **MUST** fail closed when the webhook secret is not configured for that provider/connection (reject, do not skip verification).
 - **MUST** register the `fake` provider (and its `x-fake-signature` with `FAKE_WEBHOOK_SECRET=dev`) only when `NODE_ENV !== 'production'`; config validation rejects `ENABLE_FAKE_PROVIDER=true` in production.
 

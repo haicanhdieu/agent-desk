@@ -6,6 +6,7 @@ import { ProjectSchedules } from '../src/projects/project-schedules';
 import { createTestApp, type TestApp } from './helpers/app';
 import { createOrg, grant, inviteAndLogin, revoke, userIdOf } from './helpers/auth';
 import { expectContract } from './helpers/contract';
+import { makeProject, wideFakeRepos } from './helpers/fixtures';
 
 let t: TestApp;
 let alice: string;
@@ -156,6 +157,75 @@ describe('connections', () => {
       const { first, list } = await syncAs('sync-none', []);
       expect(expectContract('connections.sync', first)).toEqual([]);
       expect(expectContract('connections.list', list)).toEqual([]);
+    });
+  });
+
+  describe('sync access when two orgs share one installation (ADR-0039)', () => {
+    it('only connection:create at org level may link it: a member, a project-only admin and another org are refused', async () => {
+      const shared = [{ externalId: 'shared-ext', accountName: 'shared-co' }];
+      const synced = await createTestApp({
+        wrapAdapters: (real) => {
+          const wide = wideFakeRepos(real);
+          return {
+            ...wide,
+            codeHost: (provider) =>
+              Object.assign(Object.create(wide.codeHost(provider)), {
+                listInstallations: async () =>
+                  shared.map((i) => ({ provider, ...i, capabilities: { code: true, board: true } })),
+              }),
+          };
+        },
+      });
+      try {
+        const orgA = (await createOrg(synced, 'Sync A', 'sync-a')).id;
+        const orgB = (await createOrg(synced, 'Sync B', 'sync-b')).id;
+        const ownerA = await inviteAndLogin(synced, orgA, 'sync-owner-a', 'owner', { type: 'org' });
+        // Org A links the installation and has a project on it.
+        const linkedA = await synced.app.inject({
+          method: 'POST',
+          url: '/api/connections/fake/sync',
+          headers: { cookie: ownerA },
+        });
+        expect(linkedA.statusCode).toBe(201);
+        const connectionA = (linkedA.json() as { id: string }[])[0]?.id ?? '';
+        const { projectId } = await makeProject(synced, ownerA, connectionA);
+
+        const memberB = await inviteAndLogin(synced, orgB, 'sync-member-b', 'member', { type: 'org' });
+        const viewerB = await inviteAndLogin(synced, orgB, 'sync-viewer-b', 'viewer', { type: 'org' });
+        const projectAdminA = await inviteAndLogin(synced, orgA, 'sync-padmin-a', 'admin', {
+          type: 'project',
+          projectIds: [projectId],
+        });
+        const sync = (cookie: string) =>
+          synced.app.inject({ method: 'POST', url: '/api/connections/fake/sync', headers: { cookie } });
+        const listOf = async (cookie: string) =>
+          (await synced.app.inject({ method: 'GET', url: '/api/connections', headers: { cookie } })).json() as {
+            id: string;
+          }[];
+
+        // Denied (403): org-level roles without connection:create, and a project grant (never an org permission).
+        for (const cookie of [memberB, viewerB, projectAdminA]) expect((await sync(cookie)).statusCode).toBe(403);
+        // Nothing was linked in org B by the refused calls.
+        const ownerB = await inviteAndLogin(synced, orgB, 'sync-owner-b', 'owner', { type: 'org' });
+        expect(await listOf(ownerB)).toEqual([]);
+
+        // Allowed: org B's owner links the same installation as its own connection row.
+        const linkedB = await sync(ownerB);
+        expect(linkedB.statusCode).toBe(201);
+        const connectionB = (linkedB.json() as { id: string }[])[0]?.id ?? '';
+        expect(connectionB).not.toBe(connectionA);
+        // Cross-tenant: each org lists only its own row, and cannot use the other's.
+        expect((await listOf(ownerA)).map((c) => c.id)).toEqual([connectionA]);
+        expect((await listOf(ownerB)).map((c) => c.id)).toEqual([connectionB]);
+        const reposOfA = await synced.app.inject({
+          method: 'GET',
+          url: `/api/connections/${connectionA}/repos`,
+          headers: { cookie: ownerB },
+        });
+        expect(reposOfA.statusCode).toBe(404);
+      } finally {
+        await synced.close();
+      }
     });
   });
 

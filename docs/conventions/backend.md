@@ -84,7 +84,7 @@ All errors are RFC 9457 `application/problem+json` matching `ProblemSchema` (`ty
 
 Every entry point may be delivered twice. Design for it.
 
-- **Webhooks:** insert `inbound_events` first; unique `(provider, delivery_id)` violation → 200 and stop. Run insert relies on unique `(project_id, trigger_comment_id)`; violation → no-op (`duplicate_comment`). Webhook and poll share `processTicketEvent`, so the same comment from either path yields one run.
+- **Webhooks:** insert `inbound_events` first; unique `(org_id, provider, delivery_id)` violation → that org's event is a duplicate and stops; an event that matches several orgs' projects is handled once per project, each in its own `withOrg` ([ADR-0039](../adr/0039-per-org-connections-and-webhook-fan-out.md)). Run insert relies on unique `(project_id, trigger_comment_id)`; violation → no-op (`duplicate_comment`). Webhook and poll share `processTicketEvent`, so the same comment from either path yields one run.
 - **Workflow start:** workflow id is deterministic (`run-{runId}`, `gate-{projectId}`); `WorkflowExecutionAlreadyStartedError` is success. A Temporal failure is logged and swallowed: the run stays `queued` with null `workflow_id` and the `outbox-sweep` Schedule starts it.
 - **Activities MUST be idempotent**: Temporal retries them. Create-if-absent for Kubernetes (`run-{runId}` Job/Secret; 409/404 → success), `runs.outbox` keys for comments (`start`, `finish`) checked and set in the same transaction as the post is recorded, `run_events` keyed by `(run_id, seq)`.
 - **MUST NOT** perform a side effect (comment, Job, Secret) without a stable key that a retry can detect. _Why: duplicate bot comments are the most visible bug we can ship._

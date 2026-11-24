@@ -13,6 +13,7 @@ import {
   text,
   timestamp,
   unique,
+  uniqueIndex,
   uuid,
 } from 'drizzle-orm/pg-core';
 import { user } from './auth';
@@ -193,7 +194,12 @@ export const inboundEvents = pgTable(
     detail: text('detail'),
   },
   (t) => [
-    unique('inbound_events_provider_delivery_key').on(t.provider, t.deliveryId),
+    // Per org, so every org that shares an installation records the same delivery (ADR-0039). Deliveries with no
+    // project have a null org, which a plain unique key treats as distinct, so a second key covers those replays.
+    unique('inbound_events_org_provider_delivery_key').on(t.orgId, t.provider, t.deliveryId),
+    uniqueIndex('inbound_events_null_org_delivery_key')
+      .on(t.provider, t.deliveryId)
+      .where(sql`${t.orgId} is null`),
     index('inbound_events_project_received_idx').on(t.projectId, t.receivedAt),
     // Serves the ignored-events list and the run stats count, which filter on this exact predicate.
     index('inbound_events_project_received_ignored_idx')

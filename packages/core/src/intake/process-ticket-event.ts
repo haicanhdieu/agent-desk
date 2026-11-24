@@ -5,7 +5,7 @@ import {
   inboundEvents,
   organization,
   projects,
-  resolveProject,
+  resolveProjects,
   rules,
   runs,
   withOrg,
@@ -96,11 +96,16 @@ function commandColumn(body: string): string | null {
 /**
  * Steps 2-6 of control-plane design 6.1, shared by the webhook and polling channels.
  *
- * The project is resolved first so the delivery row can carry its org: rows with a null org are insert-only for the
+ * The projects are resolved first so each delivery row can carry its org: rows with a null org are insert-only for the
  * app role (never updatable, never readable), so an unresolvable delivery is inserted once with its final outcome and
- * a resolvable one is inserted as `received` and finalised inside the same org transaction that routes it. The
- * `(provider, delivery_id)` unique key is global, so a replay is `duplicate` whichever org (or none) owns the row.
- * `startRun` runs only after that transaction commits.
+ * a resolvable one is inserted as `received` and finalised inside the same org transaction that routes it.
+ *
+ * Orgs may share one installation (ADR-0039), so an event can match a project in several orgs. It is then handled once
+ * per match, each in its own `withOrg` transaction, and the delivery is deduped per org on `(org_id, provider,
+ * delivery_id)`: a replay is `duplicate` in every org that already recorded it. A project that fails does not stop the
+ * others; its error is rethrown after all of them ran, so the sender retries and only the failed org does the work.
+ * The result is the first `run_created`, else the first project's. `startRun` runs only after that org's transaction
+ * commits.
  */
 export async function processTicketEvent(
   deps: IntakeDeps,
@@ -108,9 +113,34 @@ export async function processTicketEvent(
   channel: IntakeChannel,
   known?: { orgId: string; projectId: string },
 ): Promise<IntakeResult> {
-  const target = known ?? (await resolveProject(deps.db, event.provider, event.externalId, event.repoPath));
-  if (!target) return recordUnknownProject(deps, event, channel);
+  const targets = known ? [known] : await resolveProjects(deps.db, event.provider, event.externalId, event.repoPath);
+  if (targets.length === 0) return recordUnknownProject(deps, event, channel);
 
+  const results: IntakeResult[] = [];
+  const failures: unknown[] = [];
+  for (const target of targets) {
+    try {
+      results.push(await processForProject(deps, event, channel, target));
+    } catch (err) {
+      failures.push(err);
+      deps.log?.warn(
+        { deliveryId: event.deliveryId, projectId: target.projectId, err: err instanceof Error ? err.name : 'unknown' },
+        'intake failed for one project',
+      );
+    }
+  }
+  if (failures.length > 0) throw failures[0];
+  const result = results.find((r) => r.outcome === 'run_created') ?? results[0];
+  if (!result) throw new Error('intake produced no result');
+  return result;
+}
+
+async function processForProject(
+  deps: IntakeDeps,
+  event: TicketEvent,
+  channel: IntakeChannel,
+  target: { orgId: string; projectId: string },
+): Promise<IntakeResult> {
   const prefetched = await prefetchTicket(deps, event, target);
   const routed = await withOrg(deps.db, target.orgId, (tx) => routeInTx(deps, tx, event, channel, target, prefetched));
   if (routed.notice) await postOwnerNotice(deps, routed.notice);
@@ -157,7 +187,13 @@ async function prefetchTicket(
     const [delivery] = await tx
       .select({ id: inboundEvents.id })
       .from(inboundEvents)
-      .where(and(eq(inboundEvents.provider, event.provider), eq(inboundEvents.deliveryId, event.deliveryId)))
+      .where(
+        and(
+          eq(inboundEvents.orgId, target.orgId),
+          eq(inboundEvents.provider, event.provider),
+          eq(inboundEvents.deliveryId, event.deliveryId),
+        ),
+      )
       .limit(1);
     if (delivery) return undefined;
     const [sameComment] = await tx
