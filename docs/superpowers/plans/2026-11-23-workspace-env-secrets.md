@@ -19,7 +19,7 @@
 - List: `GET /api/projects/:projectId/env?kind=plain|secret&page=&pageSize` (ADR 0028, `pageSize` ceiling 100), `ORDER BY name COLLATE "C"`, `count(*)` in the same `withOrg` transaction.
 - Secret entry: Kubernetes Secret `org-{orgId}-env-{entryId}`, data `{ value }`, built by `projectEnvSecretName(orgId, entryId)`. Postgres holds a secret row with `value` null. A secret value is never in Postgres, logs, events, errors, audit, problem+json, DTOs, Temporal inputs or results, labels or the Job literal env.
 - Write order: add and edit are Secret first then row; remove is row first then Secret (best effort). No transaction or lock is held across a store call.
-- Migration `0036_project_env_vars.sql` (never edit an applied migration). Permissions reuse `setup:read`, `setup:update`, `secret:update` (no `access.ts` change, no role migration).
+- Migration `0044_project_env_vars.sql` (never edit an applied migration). Permissions reuse `setup:read`, `setup:update`, `secret:update` (no `access.ts` change, no role migration).
 - Pod env: project vars first, platform env after; a duplicate name is rejected; no `envFrom`; the loader reads secrets with concurrency 10.
 - Web: tokens only, every shared component has a story with loading, empty and error states; secret values live only in the entry form's state and are never cached; `?tab=environment` (default `script`), `varsPage`, `secretsPage` in the URL.
 - Copy strings are the ones in the spec's "UI and Storybook > Copy" and "User flows", character for character. Contract messages equal those strings (see Agent calls).
@@ -226,9 +226,9 @@ graph LR
 **Files:**
 
 - Modify: `packages/db/src/schema/app.ts`
-- Create: `packages/db/migrations/0036_project_env_vars.sql`
+- Create: `packages/db/migrations/0044_project_env_vars.sql`
 - Modify: `packages/db/migrations/meta/_journal.json`
-- Create: `packages/db/migrations/meta/0036_snapshot.json`
+- Create: `packages/db/migrations/meta/0044_snapshot.json`
 - Test: `packages/db/test/rls.int.test.ts`
 - Test: `packages/db/test/migrate.int.test.ts`
 

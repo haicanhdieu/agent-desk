@@ -74,7 +74,7 @@ describe('contracts', () => {
       method: 'POST',
       path: '/api/projects/:projectId/connection/poll',
     });
-    expect(Object.keys(flat)).toHaveLength(95);
+    expect(Object.keys(flat)).toHaveLength(100);
     expect(flat['assignments.remove']).toMatchObject({
       method: 'DELETE',
       path: '/api/orgs/:orgId/assignments/:assignmentId',

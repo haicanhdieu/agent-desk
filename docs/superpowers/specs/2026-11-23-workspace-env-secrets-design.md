@@ -154,7 +154,7 @@ flowchart LR
         CFG["config: PROJECT_ENV_MAX_ENTRIES"]:::changed
     end
     subgraph dbLayer["packages/db"]
-        TBL[("project_env_vars + migration 0036")]:::new
+        TBL[("project_env_vars + migration 0044")]:::new
     end
     K8S["Kubernetes: Secret per entry, run Secret, Job, Pod"]
 
@@ -203,7 +203,7 @@ Contracts (a new file `packages/contracts/src/schemas/env.ts` and a `projectEnv`
 
 ### Data model
 
-Migration: new `0036_project_env_vars.sql` (Drizzle generated, plus a hand-written `GRANT SELECT, INSERT, UPDATE, DELETE ... TO agentdesk_app`); it never edits an applied migration. No backfill (new table). No other schema change: there is no new column on `runs` (a Pod keeps the values it was created with).
+Migration: new `0044_project_env_vars.sql` (Drizzle generated, plus a hand-written `GRANT SELECT, INSERT, UPDATE, DELETE ... TO agentdesk_app`); it never edits an applied migration. No backfill (new table). No other schema change: there is no new column on `runs` (a Pod keeps the values it was created with).
 
 ```mermaid
 erDiagram
