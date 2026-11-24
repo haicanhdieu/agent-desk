@@ -40,10 +40,24 @@ describe('DeskMembers', () => {
     render(<DeskMembers {...ready()} />);
     expect(screen.getByRole('heading', { level: 1, name: 'Members' })).toBeInTheDocument();
     expect(
-      screen.getByText('People with a role on this project. A role in Harbor Labs also applies here.'),
+      screen.getByText(
+        'People with access to this project. A role in Harbor Labs also applies here. Those people are labelled Organization and are managed in Harbor Labs Settings, Members.',
+      ),
     ).toBeInTheDocument();
     expect(screen.getAllByRole('columnheader').map((h) => h.textContent)).toEqual(['Name', 'Role', 'Actions']);
     expect(screen.getAllByRole('row').slice(1)).toHaveLength(projectMemberRows.length);
+  });
+
+  it('BR-4: an org-wide person is listed with the Organization label and no row actions', () => {
+    render(<DeskMembers {...ready()} />);
+    const iris = screen.getByRole('row', { name: /Iris Novak/ });
+    expect(within(iris).getByText('Owner')).toBeInTheDocument();
+    expect(within(iris).getByText('Organization')).toBeInTheDocument();
+    expect(within(iris).queryByRole('button')).toBeNull();
+    const omar = screen.getByRole('row', { name: /Omar Reyes/ });
+    expect(within(omar).getByText('Member')).toBeInTheDocument();
+    expect(within(omar).getByText('Viewer')).toBeInTheDocument();
+    expect(within(omar).getByRole('button', { name: 'Actions for Omar Reyes' })).toBeInTheDocument();
   });
 
   it('BR-4: the page buttons read Invite people, then Add member, and call their handlers', async () => {

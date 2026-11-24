@@ -50,6 +50,8 @@ async function rejection(p: Promise<unknown>): Promise<ApiError> {
   throw new Error('expected the call to fail');
 }
 
+const IRIS = 'user-tenant-9';
+const OMAR = 'user-tenant-10';
 const apply = (role: ProjectSpaceRole, scenario?: ProjectSpaceScenario) =>
   applyProjectSpace(mockDb, { role, ...(scenario && { scenario }) });
 const list = (projectId = P, query: { page?: number; pageSize?: number } = {}) =>
@@ -246,6 +248,38 @@ describe('the store', () => {
     await remove(CLEO);
     expect((await list(P, { pageSize: 100 })).items.map((m) => m.userId)).not.toContain(CLEO);
     expect(await status(remove(CLEO))).toBe(404);
+  });
+
+  it('lists an org-wide person as inherited, and a person with both roles with both', async () => {
+    apply('projectAdmin');
+    const items = (await list(P, { pageSize: 100 })).items;
+    expect(items.find((m) => m.userId === IRIS)).toMatchObject({ source: 'org', projectRoles: [] });
+    expect(items.find((m) => m.userId === IRIS)?.orgRoles.map((r) => r.role.key)).toEqual(['owner']);
+    const omar = items.find((m) => m.userId === OMAR);
+    expect(omar?.source).toBe('project');
+    expect(omar?.orgRoles.map((r) => r.role.key)).toEqual(['viewer']);
+    expect(omar?.projectRoles.map((r) => r.role.key)).toEqual(['member']);
+  });
+
+  it('leaves out of the picker the org-wide people, who already reach P', async () => {
+    apply('projectAdmin');
+    const ids = (await picker({ pageSize: 100, excludeProject: P })).items.map((m) => m.userId);
+    expect(ids).not.toContain(IRIS);
+    expect(ids).not.toContain(OMAR);
+  });
+
+  it('changing or removing the project role of an org-only person is 404: it is managed in the org', async () => {
+    apply('owner');
+    expect(await status(setRole(IRIS, 'viewer'))).toBe(404);
+    expect(await status(remove(IRIS))).toBe(404);
+  });
+
+  it('removing the project role of a person with an org-wide role keeps them listed as inherited', async () => {
+    apply('owner');
+    await remove(OMAR);
+    const omar = (await list(P, { pageSize: 100 })).items.find((m) => m.userId === OMAR);
+    expect(omar).toMatchObject({ source: 'org', projectRoles: [] });
+    expect(omar?.orgRoles).toHaveLength(1);
   });
 
   it('P audit holds only the entries of P', async () => {

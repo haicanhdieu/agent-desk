@@ -981,13 +981,14 @@ describe('searching members and leaving out a project', () => {
     await t.db.pool.query('update "user" set name = $1 where handle = $2', [name, handle]);
   }
 
-  it('N-FILTER: excludeProject leaves out the project members, and total counts only eligible people', async () => {
+  it('N-FILTER: excludeProject leaves out the project members and the org-wide people, and total counts only eligible people', async () => {
     const f = await buildCast('mem-ex');
     const res = await memberSearch(t, f.o, f.orgId, { excludeProject: f.p1 });
     expect(res.statusCode).toBe(200);
     const page = expectContract('members.list', res) as Page<MemberDto>;
-    expect(page.items.map((i) => i.handle)).toEqual(['mem-ex-n', 'mem-ex-o', 'mem-ex-v']);
-    expect(page.total).toBe(3);
+    // O (org owner) and V (org viewer) already reach P1 through their org-wide role, so the picker leaves them out
+    expect(page.items.map((i) => i.handle)).toEqual(['mem-ex-n']);
+    expect(page.total).toBe(1);
     expect(JSON.stringify(page)).not.toContain('email');
     // a project admin on P1 may use the filter on P1
     expect((await memberSearch(t, f.a, f.orgId, { excludeProject: f.p1 })).statusCode).toBe(200);
@@ -996,16 +997,19 @@ describe('searching members and leaving out a project', () => {
   it('N-FILTER: the exclusion happens before paging', async () => {
     const f = await buildCast('mem-expage');
     for (let i = 0; i < 24; i++) {
-      await inviteAndLogin(t, f.orgId, `mem-expage-x${String(i).padStart(2, '0')}`, 'viewer', { type: 'org' });
+      await inviteAndLogin(t, f.orgId, `mem-expage-x${String(i).padStart(2, '0')}`, 'viewer', {
+        type: 'project',
+        projectIds: [f.p2],
+      });
     }
     const first = (await memberSearch(t, f.o, f.orgId, { excludeProject: f.p1, pageSize: 20 })).json<Page<MemberDto>>();
     const second = (await memberSearch(t, f.o, f.orgId, { excludeProject: f.p1, pageSize: 20, page: 2 })).json<
       Page<MemberDto>
     >();
-    expect(first.total).toBe(27);
-    expect(second.total).toBe(27);
+    expect(first.total).toBe(25);
+    expect(second.total).toBe(25);
     expect(first.items).toHaveLength(20);
-    expect(second.items).toHaveLength(7);
+    expect(second.items).toHaveLength(5);
   });
 
   it('BR-24: q is optional, trimmed, bounded to 1 to 100 characters and answers 400 /q otherwise', async () => {
@@ -1045,8 +1049,6 @@ describe('searching members and leaving out a project', () => {
     const f = await buildCast('mem-qcomb');
     expect(handles(await memberSearch(t, f.o, f.orgId, { q: 'mem-qcomb-', excludeProject: f.p1 }))).toEqual([
       'mem-qcomb-n',
-      'mem-qcomb-o',
-      'mem-qcomb-v',
     ]);
     expect(handles(await memberSearch(t, f.o, f.orgId, { q: 'mem-qcomb-a', excludeProject: f.p1 }))).toEqual([]);
   });

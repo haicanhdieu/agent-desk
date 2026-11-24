@@ -303,8 +303,12 @@ export interface ProjectMemberRowView {
   /** null shows the name only. */
   handle: string | null;
   you: boolean;
-  /** "Member" or "Member, Viewer". */
+  /** The project-scope roles: "Member" or "Member, Viewer"; empty when the access is inherited only. */
   roles: string;
+  /** The org-scope roles that apply here, "Viewer"; empty when there are none. Managed in org Settings. */
+  orgRoles: string;
+  /** Access through an org-wide role only: the row has no Change role or Remove actions. */
+  inherited: boolean;
 }
 export interface MemberPickerOption {
   userId: string;

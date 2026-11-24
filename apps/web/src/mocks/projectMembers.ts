@@ -8,12 +8,15 @@ const row = (
   handle: string | null,
   roles: string,
   you = false,
+  orgRoles = '',
 ): ProjectMemberRowView => ({
   userId,
   name,
   handle,
   you,
   roles,
+  orgRoles,
+  inherited: roles === '' && orgRoles !== '',
 });
 
 export const projectMemberRows: ProjectMemberRowView[] = [
@@ -23,6 +26,8 @@ export const projectMemberRows: ProjectMemberRowView[] = [
   row('user-tenant-3', 'Ben Okafor', 'ben', 'Member, Viewer'),
   row('user-tenant-7', 'Noor Haddad', null, 'Viewer'),
   row('user-tenant-8', `Alexandria ${'Montgomery-Featherstonehaugh '.repeat(3)}`.trim(), 'alexandria', 'Member'),
+  row('user-tenant-9', 'Iris Novak', 'iris', '', false, 'Owner'),
+  row('user-tenant-10', 'Omar Reyes', 'omar', 'Member', false, 'Viewer'),
 ];
 
 export const pagedProjectMemberRows: ProjectMemberRowView[] = [

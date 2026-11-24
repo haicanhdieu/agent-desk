@@ -32,6 +32,10 @@ export const Admin: Story = { args: { row: { ...find((r) => r.handle === 'cleo')
 export const Member: Story = { args: { row: find((r) => r.roles === 'Member' && r.handle === 'cleo') } };
 export const Viewer: Story = { args: { row: find((r) => r.roles === 'Viewer' && r.handle === 'dana') } };
 export const SeveralRoles: Story = { args: { row: find((r) => r.roles === 'Member, Viewer') } };
+/** Access through an org-wide role only: labelled Organization, no actions menu. */
+export const Inherited: Story = { args: { row: find((r) => r.inherited) } };
+/** An org-wide role plus a project role: both shown, the menu changes the project part only. */
+export const OrgAndProjectRole: Story = { args: { row: find((r) => r.orgRoles !== '' && !r.inherited) } };
 /** The own row: tagged You, no actions menu (BR-11). */
 export const You: Story = { args: { row: find((r) => r.you) } };
 export const LongName: Story = { args: { row: find((r) => r.handle === 'alexandria') } };

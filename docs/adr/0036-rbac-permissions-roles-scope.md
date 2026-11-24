@@ -60,6 +60,10 @@ Lists use `visibleProjects`: `all` with an org-scope grant, else the projects wh
 
 "Project admin" is `admin` granted on a project scope, not a separate role. `owner` is assignable only at org scope. Platform permissions (`platform-*`) are never in a tenant role.
 
+### Note: org-wide roles are visible on a project (issue #258, 2026-11-24)
+
+An org-scope role is access to every project, so the project Members page lists the people holding one, read-only and labelled "Organization", next to the people with a project-scope role. The guard is unchanged: `assignment:read` on the project, a project-level permission, 403 before any lookup and 404 for a project out of scope. What a project admin now reads is the role name of an org-scope assignment held by someone in their own org (never its grantor or time, other projects' roles or org-level screens). This does not make any org-level permission come from a project grant: the rows are read-only, and changing or removing an org role stays with `member:update` at org scope. Detail: [project admin space spec](../superpowers/specs/2026-11-23-rbac-project-admin-space-design.md) (BR-4).
+
 ### Not decided here
 
 - Part of the built-in roles' contents was decided in GitHub issue #216 (2026-11-22): `member` and `viewer` hold no Desk configuration read (`agent:read`, `skill:read`, `rule:read`, `setup:read`), removed by migration `0032`; the resulting matrix is in the [Desk access matrix](../superpowers/specs/2026-11-22-desk-access-matrix.md). Still open: whether the lowest role becomes own-runs-only, and whether `run:read` gains an `own` condition. Until a later decision lands, migrations `0026` and `0032` together are the truth.

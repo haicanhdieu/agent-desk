@@ -548,10 +548,8 @@ test.describe('BR-23: API refusals', () => {
       await expect403(await api.remove(cast.c.userId), 'remove');
       const rows = await projectMembersOf(cast.o, cast.p1);
       expect(roleKeysOf(rows.find((m) => m.userId === cast.c.userId)), 'C keeps the same role').toEqual(['member']);
-      expect(
-        rows.some((m) => m.userId === x.userId),
-        'X was not added',
-      ).toBe(false);
+      // X is an org viewer, so the list shows X as inherited; what must not exist is a project role
+      expect(roleKeysOf(rows.find((m) => m.userId === x.userId)), 'X was not added').toEqual([]);
     } finally {
       await quietly(() => x.ctx.close());
     }
@@ -598,7 +596,8 @@ test.describe('BR-23: API refusals', () => {
       expect(res.status(), `owner role: ${res.status()} ${text}`).toBe(422);
       expect(text, 'the error names /roleId').toContain('/roleId');
       const rows = await projectMembersOf(cast.o, cast.p1);
-      expect(rows.some((m) => m.userId === x.userId)).toBe(false);
+      // X is an org viewer, listed as inherited: no project role was added
+      expect(roleKeysOf(rows.find((m) => m.userId === x.userId))).toEqual([]);
     } finally {
       await quietly(() => x.ctx.close());
     }

@@ -10,6 +10,8 @@ const base: ProjectMemberRowView = {
   handle: 'cleo',
   you: false,
   roles: 'Member',
+  orgRoles: '',
+  inherited: false,
 };
 
 function renderRow(over: Partial<ProjectMemberRowView> = {}, props: { busy?: boolean } = {}) {
@@ -77,6 +79,21 @@ describe('ProjectMemberRow', () => {
   it('renders several roles as one list', () => {
     renderRow({ roles: 'Member, Viewer' });
     expect(screen.getByText('Member, Viewer')).toBeInTheDocument();
+  });
+
+  it('labels an org-wide role Organization and gives the inherited row no actions menu', () => {
+    renderRow({ roles: '', orgRoles: 'Viewer', inherited: true });
+    expect(screen.getByText('Viewer')).toBeInTheDocument();
+    expect(screen.getByText('Organization')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^Actions for/ })).toBeNull();
+  });
+
+  it('shows both the project role and the labelled org role, with actions for the project part', () => {
+    renderRow({ roles: 'Admin', orgRoles: 'Viewer', inherited: false });
+    expect(screen.getByText('Admin')).toBeInTheDocument();
+    expect(screen.getByText('Viewer')).toBeInTheDocument();
+    expect(screen.getByText('Organization')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Actions for Cleo Martin' })).toBeInTheDocument();
   });
 
   it('renders a name with markup as text', () => {

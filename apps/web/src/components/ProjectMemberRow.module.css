@@ -33,3 +33,11 @@
   min-width: 160px;
   justify-content: flex-start;
 }
+.orgRoles {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.afterRoles {
+  margin-left: 8px;
+}

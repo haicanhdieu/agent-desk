@@ -40,6 +40,26 @@ describe('project members page: rows (BR-4)', () => {
     expect(ben).toHaveTextContent('Member, Viewer');
   });
 
+  it('an org-wide person is listed with the Organization label and no row menu, with the BR-4 note', async () => {
+    await renderRoute(page(), { scenario: as('projectAdmin') });
+    await ready();
+    const iris = rows().find((r) => within(r).queryByText('Iris Novak') !== null) as HTMLElement;
+    expect(iris).toHaveTextContent('Owner');
+    expect(within(iris).getByText('Organization')).toBeInTheDocument();
+    expect(within(iris).queryByRole('button', { name: /Actions for/ })).not.toBeInTheDocument();
+    expect(screen.getByText(/Those people are labelled Organization/)).toBeInTheDocument();
+  });
+
+  it('a person with an org role and a project role shows both and keeps the row menu', async () => {
+    await renderRoute(page(), { scenario: as('projectAdmin') });
+    await ready();
+    const omar = rows().find((r) => within(r).queryByText('Omar Reyes') !== null) as HTMLElement;
+    expect(omar).toHaveTextContent('Member');
+    expect(omar).toHaveTextContent('Viewer');
+    expect(within(omar).getByText('Organization')).toBeInTheDocument();
+    expect(within(omar).getByRole('button', { name: 'Actions for Omar Reyes' })).toBeInTheDocument();
+  });
+
   it('the signed-in person has no row menu (BR-11)', async () => {
     await renderRoute(page(), { scenario: as('owner') });
     await ready();
