@@ -54,7 +54,8 @@
 //     --fake-bad-transcript-lines (after `session started`, three malformed transcript lines go to log and pane),
 //     --fake-usage (the first turn also writes Claude-shaped usage rows that the adapter turns into `agentdesk: usage`
 //     lines: msg_fake_1 as a placeholder then final row, msg_fake_2, its retry msg_fake_2r and msg_fake_3 on a second
-//     model, 3050 tokens in all; every later turn writes one fake-model-a call with fresh ids, 240 tokens),
+//     model, 3050 tokens in all; every later turn writes one fake-model-a call with fresh ids, 240 tokens; the mode is kept
+//     in $FAKE_VOLUME_DIR/usage-mode because a resumed pod gets no prompt),
 //     --fake-usage-unpriced (like --fake-usage with fake-model-unpriced as the second model).
 // The launch line is `agentdesk: agent claude model <AGENT_MODEL or default> endpoint <scheme://host[:port] of
 // ANTHROPIC_BASE_URL or default>`, built by the same rules as the runner's. The fake pod prints it first (before the
@@ -86,8 +87,23 @@ const TICK_MS = 50;
 const adapterPath =
   process.env.FAKE_TRANSCRIPT_ADAPTER ??
   fileURLToPath(new URL('../../../../images/runner/agents/claude/transcript.mjs', import.meta.url));
-const usageOn = prompt.includes('--fake-usage') || prompt.includes('--fake-usage-unpriced');
-const usageModelB = prompt.includes('--fake-usage-unpriced') ? 'fake-model-unpriced' : 'fake-model-b';
+// A resumed pod gets no prompt (the real job spec sets none), so the usage mode is kept on the volume.
+const usageFile = volumeDir === '' ? '' : volumeFile('usage-mode');
+const usageMode = resume
+  ? usageFile !== '' && existsSync(usageFile)
+    ? readFileSync(usageFile, 'utf8')
+    : ''
+  : prompt.includes('--fake-usage-unpriced')
+    ? 'unpriced'
+    : prompt.includes('--fake-usage')
+      ? 'priced'
+      : '';
+if (!resume && usageMode !== '' && usageFile !== '') {
+  mkdirSync(volumeDir, { recursive: true });
+  writeFileSync(usageFile, usageMode);
+}
+const usageOn = usageMode !== '';
+const usageModelB = usageMode === 'unpriced' ? 'fake-model-unpriced' : 'fake-model-b';
 const bulkMatch = /--fake-transcript-bulk=(\d+)/.exec(prompt);
 const transcriptOn =
   volumeDir !== '' &&

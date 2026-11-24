@@ -790,6 +790,22 @@ describe('fake-pod.mjs', () => {
       ).toEqual([240]);
     });
 
+    it('--fake-usage keeps counting on a resumed pod that gets no prompt, like the real job spec', async () => {
+      await boot(tEnv({ PROMPT: `${PROMPT} --fake-usage` }));
+      advance(TURN_MS);
+      const before = new Set(usages().map((u) => u.id));
+      vi.clearAllTimers();
+      await boot(tEnv({ PROMPT: '', RUN_MODE: 'resume' }));
+      appendFileSync(join(dir, 'input'), 'again\r');
+      advance(TICK_MS);
+      advance(TURN_MS);
+      expect(
+        usages()
+          .filter((u) => !before.has(u.id))
+          .map(total),
+      ).toEqual([240]);
+    });
+
     it('--fake-usage-unpriced swaps the second model for fake-model-unpriced', async () => {
       await boot(tEnv({ PROMPT: `${PROMPT} --fake-usage-unpriced` }));
       advance(TURN_MS);

@@ -5,12 +5,14 @@
  *   2. polling: comment picked up by the poll Schedule (triggered via the Temporal client) -> same assertions
  *   3. crash: comment with `--fake-fail` -> agent exits 3 -> run paused (agent_crashed), volume kept, start + paused comments
  *   4. done: comment with `--fake-done` -> run done -> finish -> succeeded
+ *   5. price-change, price-outage: the price catalog changes (or its source fails) between runs of `--fake-usage`
  *
  * Env: E2E_BASE_URL (default http://localhost:3000); PUBLIC_ORIGIN, TEMPORAL_ADDRESS, TEMPORAL_NAMESPACE come from the
  * repo's .env when set there. Exit code 0 only when every scenario passes.
  */
-import { randomBytes } from 'node:crypto';
-import { existsSync } from 'node:fs';
+import { randomBytes, randomUUID } from 'node:crypto';
+import { existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Client, Connection } from '@temporalio/client';
 import { createParser, type EventSourceMessage } from 'eventsource-parser';
@@ -48,7 +50,11 @@ const TEMPORAL_NAMESPACE = process.env['TEMPORAL_NAMESPACE'] ?? 'agentdesk';
 const REPO = 'dev/demo';
 /** admin@dev.local: seeded by the local stack start. */
 const PLATFORM_ADMIN_HANDLE = 'admin';
-const OVERALL_TIMEOUT_MS = 240_000;
+const OVERALL_TIMEOUT_MS = 600_000;
+const PRICE_SYNC_TIMEOUT_MS = 90_000;
+/** The fake cluster's state dir (the stack's FAKE_STATE_DIR); the fake price source reads `price-source.json` there. */
+const FAKE_STATE_DIR =
+  process.env['E2E_FAKE_STATE_DIR'] ?? fileURLToPath(new URL('../.agentdesk/fake', import.meta.url));
 const IDLE_TIMEOUT_MS = 30_000;
 const FINAL_TIMEOUT_MS = 30_000;
 
@@ -151,14 +157,17 @@ async function setup(name: string, mode: 'webhook' | 'polling'): Promise<Setup> 
   const roles = await admin.json('GET', `/api/platform/orgs/${org.id}/roles`, z.array(PlatformRoleDto));
   const owner = roles.find((r) => r.key === 'owner');
   assert(owner, `org ${org.id} has no owner role`);
-  await admin.json(
+  const invitation = await admin.json(
     'POST',
     `/api/platform/orgs/${org.id}/invitations`,
     PlatformInvitationDto,
     { email: `${handle}@dev.local`, roleId: owner.id, scope: { type: 'org' } },
     [201],
   );
-  const session = await Session.login(handle);
+  let session = await Session.login(handle);
+  await session.call('POST', `/api/me/invitations/${invitation.id}/accept`);
+  // The session picks its active org when it is created: sign in again once the invitation is accepted.
+  session = await Session.login(handle);
   logStep(name, `org ${org.slug}, owner invited, dev-login as ${session.handle}`);
 
   const install = await session.json('POST', '/api/connections/fake/install', InstallResponse, undefined, [200, 201]);
@@ -597,6 +606,297 @@ async function setupFailureScenario(name: string): Promise<void> {
   }
 }
 
+/** A fresh ticket on the scenario's project, so one scenario can start several runs. */
+async function newTicket(s: Setup): Promise<Setup> {
+  const ticketNumber = 100_000 + Math.floor(Math.random() * 900_000_000);
+  await s.session.call('POST', '/dev/fake/tickets', {
+    body: { repoPath: REPO, number: ticketNumber, kind: 'issue', title: `e2e usage ${s.session.handle}` },
+    expect: [201],
+  });
+  return { ...s, ticketNumber };
+}
+
+async function waitForUsageTotal(s: Setup, runId: string, total: number): Promise<RunDto> {
+  const deadline = Date.now() + IDLE_TIMEOUT_MS * 2;
+  for (;;) {
+    const run = await getRun(s, runId);
+    if (run.usage?.totalTokens === total) return run;
+    assert(
+      Date.now() < deadline,
+      `run ${runId}: usage total is ${run.usage?.totalTokens ?? 'none'}, expected ${total} (status ${run.status})`,
+    );
+    await sleep(500);
+  }
+}
+
+/** Starts a `--fake-usage` run and waits until its first turn is recorded (3050 tokens) and the run is idle. */
+async function startUsageRun(s: Setup): Promise<string> {
+  const result = await comment(await newTicket(s), '/code-review --fake-usage', 'webhook');
+  assert(result.runId, `usage run: no runId (outcome ${result.outcome})`);
+  await waitForUsageTotal(s, result.runId, 3050);
+  await waitForRun(s, result.runId, (st) => st === 'idle' || isFinal(st), IDLE_TIMEOUT_MS);
+  return result.runId;
+}
+
+/** What the API shows for a run's cost: the detail (per-model costs and price dates) and the project list's summary. */
+async function costView(s: Setup, runId: string) {
+  const run = await getRun(s, runId);
+  const usage = run.usage;
+  assert(usage, `run ${runId}: no usage`);
+  const list = await s.session.json('GET', `/api/projects/${s.project.id}/runs?filter=all`, RunListResponse);
+  const item = list.items.find((i) => i.id === runId);
+  assert(item, `run ${runId}: not in the project's run list`);
+  return {
+    cost: usage.estimatedCostUsd,
+    modelCosts: usage.models.map((m) => [m.model, m.estimatedCostUsd] as const),
+    earliest: usage.priceAsOfEarliest,
+    latest: usage.priceAsOfLatest,
+    listCost: item.usage?.estimatedCostUsd ?? null,
+    total: usage.totalTokens,
+  };
+}
+type CostView = Awaited<ReturnType<typeof costView>>;
+
+function assertSameCost(what: string, before: CostView, after: CostView): void {
+  assert(
+    JSON.stringify(before) === JSON.stringify(after),
+    `${what}: cost view changed from ${JSON.stringify(before)} to ${JSON.stringify(after)}`,
+  );
+}
+
+function costOf(v: CostView): number {
+  assert(v.cost !== null, 'a priced run has a cost');
+  return v.cost;
+}
+
+function assertClose(what: string, actual: number, expected: number): void {
+  assert(Math.abs(actual - expected) < 1e-9, `${what}: expected ${expected}, got ${actual}`);
+}
+
+/** Starts the price sync workflow on the task queue and awaits its result (rejects when the sync fails). */
+async function runPriceSync(client: Client, input?: { maxAttempts: number }): Promise<unknown> {
+  const handle = await client.workflow.start(PRICE_SYNC_WORKFLOW, {
+    taskQueue: TASK_QUEUE,
+    workflowId: `price-sync-e2e-${randomUUID()}`,
+    ...(input ? { args: [input] } : {}),
+  });
+  let timer: NodeJS.Timeout | undefined;
+  try {
+    return await Promise.race([
+      handle.result(),
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(() => reject(new StepError('price sync: no result within 90 s')), PRICE_SYNC_TIMEOUT_MS);
+      }),
+    ]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/** Every message and detail along a failure's cause chain, to look for the failure kind in. */
+function failureText(err: unknown): string {
+  const parts: string[] = [];
+  let cur: unknown = err;
+  for (let i = 0; i < 6 && cur instanceof Error; i += 1) {
+    parts.push(cur.message);
+    if ('details' in cur) parts.push(JSON.stringify(cur.details));
+    cur = cur.cause;
+  }
+  return parts.join(' | ');
+}
+
+async function assertSyncFails(client: Client, kind: string): Promise<void> {
+  let failure: unknown;
+  try {
+    await runPriceSync(client, { maxAttempts: 1 });
+  } catch (err) {
+    failure = err;
+  }
+  assert(failure !== undefined, `price sync: expected a ${kind} failure, it succeeded`);
+  assert(!(failure instanceof StepError), `price sync: ${failure instanceof Error ? failure.message : ''}`);
+  const text = failureText(failure);
+  assert(text.includes(kind), `price sync: failure does not carry "${kind}": ${text}`);
+}
+
+/** Writes the fake price source's state file; null deletes it (the fake source's own rates). */
+function writeFakePrices(body: unknown): void {
+  const file = join(FAKE_STATE_DIR, FAKE_PRICE_STATE_FILE);
+  if (body === null) {
+    rmSync(file, { force: true });
+    return;
+  }
+  mkdirSync(FAKE_STATE_DIR, { recursive: true });
+  writeFileSync(file, JSON.stringify(body));
+}
+
+// Local copies: root scripts must not import package sources by relative path (architecture.md section 1).
+// Each value names its source; keep them in step with it.
+/** packages/core/src/temporal-names.ts: TASK_QUEUE */
+const TASK_QUEUE = 'agentdesk';
+/** packages/core/src/temporal-names.ts: WORKFLOW.priceSync */
+const PRICE_SYNC_WORKFLOW = 'PriceSyncWorkflow';
+/** packages/core/src/adapters/price-source/fake.ts: FAKE_PRICE_STATE_FILE */
+const FAKE_PRICE_STATE_FILE = 'price-source.json';
+
+interface PriceRecord {
+  provider: string;
+  modelId: string;
+  inputPerMTokUsd: number;
+  outputPerMTokUsd: number;
+  cacheReadPerMTokUsd: number;
+  cacheWritePerMTokUsd: number;
+  cacheWriteLongPerMTokUsd: number;
+}
+/** packages/core/src/adapters/price-source/fake.ts: FAKE_PRICE_RECORDS */
+const FAKE_PRICE_RECORDS: readonly PriceRecord[] = [
+  {
+    provider: 'anthropic',
+    modelId: 'fake-model-a',
+    inputPerMTokUsd: 3,
+    outputPerMTokUsd: 15,
+    cacheReadPerMTokUsd: 0.3,
+    cacheWritePerMTokUsd: 3.75,
+    cacheWriteLongPerMTokUsd: 6,
+  },
+  {
+    provider: 'anthropic',
+    modelId: 'fake-model-b',
+    inputPerMTokUsd: 1,
+    outputPerMTokUsd: 5,
+    cacheReadPerMTokUsd: 0.1,
+    cacheWritePerMTokUsd: 1.25,
+    cacheWriteLongPerMTokUsd: 2,
+  },
+];
+function doubled(r: PriceRecord): PriceRecord {
+  return {
+    ...r,
+    inputPerMTokUsd: r.inputPerMTokUsd * 2,
+    outputPerMTokUsd: r.outputPerMTokUsd * 2,
+    cacheReadPerMTokUsd: r.cacheReadPerMTokUsd * 2,
+    cacheWritePerMTokUsd: r.cacheWritePerMTokUsd * 2,
+    cacheWriteLongPerMTokUsd: r.cacheWriteLongPerMTokUsd * 2,
+  };
+}
+
+/** Restores the fake source's own rates and syncs them; ends the scenario's runs and project. */
+async function priceCleanup(name: string, client: Client, s: Setup | undefined, runs: string[]): Promise<void> {
+  writeFakePrices(null);
+  await runPriceSync(client).catch((err: unknown) => logStep(name, `restore sync failed: ${failureText(err)}`));
+  if (!s) return;
+  // Every run must be final before the project can go: cancel them all, then cleanup deletes the project.
+  for (const id of runs) {
+    const run = await getRun(s, id).catch(() => undefined);
+    if (!run || isFinal(run.status)) continue;
+    await s.session.call('POST', `/api/runs/${id}/cancel`, { expect: [202, 409] }).catch(() => undefined);
+    await waitForRun(s, id, isFinal, FINAL_TIMEOUT_MS).catch(() => undefined);
+  }
+  await cleanup(name, s, undefined);
+}
+
+/** TC-18.2, TC-18.3, TC-19.2: a price change leaves a recorded run alone and prices new calls at the new rates. */
+async function priceChangeScenario(name: string): Promise<void> {
+  let s: Setup | undefined;
+  const runs: string[] = [];
+  const connection = await Connection.connect({ address: TEMPORAL_ADDRESS });
+  const client = new Client({ connection, namespace: TEMPORAL_NAMESPACE });
+  try {
+    s = await setup(name, 'webhook');
+    writeFakePrices(null);
+    await runPriceSync(client);
+    const runA = await startUsageRun(s);
+    runs.push(runA);
+    const a1 = await costView(s, runA);
+    assert(a1.cost !== null && a1.earliest !== null, 'run A: no cost or price date');
+    logStep(name, `run A at the fake rates: ${a1.cost}`);
+
+    writeFakePrices({ records: FAKE_PRICE_RECORDS.map(doubled) });
+    await runPriceSync(client);
+    assertSameCost('TC-18.2: run A after the price change', a1, await costView(s, runA));
+    logStep(name, 'TC-18.2: run A unchanged after the rates doubled');
+
+    const runB = await startUsageRun(s);
+    runs.push(runB);
+    const b = await costView(s, runB);
+    assertClose('TC-18.3: run B costs twice run A', costOf(b), 2 * costOf(a1));
+    logStep(name, `TC-18.3: run B at the new rates: ${b.cost}`);
+
+    // Resume A (stop it, then resume) and send a line: one more 240-token call, at the doubled rates.
+    await s.session.call('POST', `/api/runs/${runA}/stop`, { expect: [200, 202, 204] });
+    await waitForRun(s, runA, (st) => st === 'paused' || isFinal(st), FINAL_TIMEOUT_MS);
+    await s.session.call('POST', `/api/runs/${runA}/resume`, { expect: [200, 202, 204] });
+    await waitForRun(s, runA, (st) => st === 'idle' || isFinal(st), IDLE_TIMEOUT_MS * 2);
+    await terminalEcho(s, runA, `ok ${rand()}`);
+    await waitForUsageTotal(s, runA, 3050 + 240);
+    await waitForRun(s, runA, (st) => st === 'idle' || isFinal(st), IDLE_TIMEOUT_MS);
+    const a2 = await costView(s, runA);
+    assertClose(
+      'TC-19.2: run A = its old cost + the new call at the new rates',
+      costOf(a2),
+      costOf(a1) + (200 * 6 + 40 * 30) / 1e6,
+    );
+    assert(
+      a2.earliest !== null && a2.latest !== null && a2.earliest !== a2.latest,
+      `TC-19.2: expected two different price instants, got ${a2.earliest} and ${a2.latest}`,
+    );
+    logStep(name, `TC-19.2: run A spans the change: ${a2.cost}, ${a2.earliest} to ${a2.latest}`);
+  } finally {
+    await priceCleanup(name, client, s, runs);
+    await connection.close();
+  }
+}
+
+/** TC-21.1 to TC-21.3: a failing price source changes no recorded run; new runs keep the last good rates. */
+async function priceOutageScenario(name: string): Promise<void> {
+  let s: Setup | undefined;
+  const runs: string[] = [];
+  const connection = await Connection.connect({ address: TEMPORAL_ADDRESS });
+  const client = new Client({ connection, namespace: TEMPORAL_NAMESPACE });
+  try {
+    s = await setup(name, 'webhook');
+    writeFakePrices(null);
+    await runPriceSync(client);
+    const runA = await startUsageRun(s);
+    runs.push(runA);
+    const a = await costView(s, runA);
+    assert(a.cost !== null && a.latest !== null, 'run A: no cost or price date');
+
+    writeFakePrices({ mode: 'outage' });
+    await assertSyncFails(client, 'unreachable');
+    assertSameCost('TC-21.1: run A after the outage', a, await costView(s, runA));
+    const runB = await startUsageRun(s);
+    runs.push(runB);
+    const b = await costView(s, runB);
+    assertClose('TC-21.1: run B is priced at the last good rates', costOf(b), costOf(a));
+    assert(b.latest === a.latest, `TC-21.1: run B's price date ${b.latest} is not the last good ${a.latest}`);
+    logStep(name, 'TC-21.1: the outage fails the sync, A unchanged, B at the last good rates and date');
+
+    writeFakePrices({ mode: 'bad_shape' });
+    await assertSyncFails(client, 'bad_shape');
+    assertSameCost('TC-21.2: run A after a bad-shape source', a, await costView(s, runA));
+    assertSameCost('TC-21.2: run B after a bad-shape source', b, await costView(s, runB));
+    logStep(name, 'TC-21.2: bad_shape fails the sync, A and B unchanged');
+
+    // The project runs two sessions at a time: end B (its cost is read already) to free a slot for run C.
+    await s.session.call('POST', `/api/runs/${runB}/cancel`, { expect: [202] });
+    await waitForRun(s, runB, isFinal, FINAL_TIMEOUT_MS);
+    writeFakePrices({ mode: 'ok' });
+    await runPriceSync(client);
+    const runC = await startUsageRun(s);
+    runs.push(runC);
+    const c = await costView(s, runC);
+    assert(
+      c.latest !== null && b.latest !== null && Date.parse(c.latest) > Date.parse(b.latest),
+      `TC-21.3: run C's price date ${c.latest} is not later than B's ${b.latest}`,
+    );
+    assertSameCost('TC-21.3: run A after the source recovered', a, await costView(s, runA));
+    logStep(name, 'TC-21.3: the source recovered, C has a later price date, A unchanged');
+  } finally {
+    await priceCleanup(name, client, s, runs);
+    await connection.close();
+  }
+}
+
 async function main(): Promise<number> {
   console.log(`e2e-local: ${BASE} (origin ${ORIGIN}, temporal ${TEMPORAL_ADDRESS}/${TEMPORAL_NAMESPACE})`);
   const ready = await fetch(`${BASE}/readyz`).catch(() => null);
@@ -612,9 +912,14 @@ async function main(): Promise<number> {
     ['done', doneScenario],
     ['setup', setupScenario],
     ['setup-failure', setupFailureScenario],
+    ['price-change', priceChangeScenario],
+    ['price-outage', priceOutageScenario],
   ];
   const results: [string, boolean][] = [];
+  // E2E_LOCAL_ONLY=name[,name]: run just those scenarios (a small stack cannot hold a long run of them).
+  const only = (process.env['E2E_LOCAL_ONLY'] ?? '').split(',').filter(Boolean);
   for (const [name, fn] of scenarios) {
+    if (only.length > 0 && !only.includes(name)) continue;
     console.log(`scenario ${name}:`);
     const started = Date.now();
     try {
