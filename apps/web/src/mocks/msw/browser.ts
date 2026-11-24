@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { autoResumeEventFixtures, autoResumeRunFixtures } from '../dto/autoResumeRuns';
 import { lifecycleEventFixtures, lifecycleRunFixtures } from '../dto/lifecycleRuns';
 import { AGENT_MODELS_SCENARIO_KEY, type AgentModelsScenario } from './agentModels';
+import { usageRunFixtures } from '../dto/usageRuns';
 import { sessionEventFixtures, sessionRunFixtures, sessionTranscriptFixtures } from '../dto/sessionRuns';
 import { mockDb } from './db';
 import { applyMockLists, MOCK_LISTS_KEY, mockListHandlers, parseMockLists } from './e2eLists';
@@ -183,6 +184,8 @@ export function startMockWorker(opts: { quiet?: boolean } = {}): Promise<unknown
     // Stopped runs and runs with a saved transcript, for the mocked e2e specs (dto/sessionRuns.ts).
     mockDb.addRuns(sessionRunFixtures, sessionEventFixtures);
     mockDb.addTranscripts(sessionTranscriptFixtures);
+    // Runs with recorded token usage and cost, for the mocked e2e specs (dto/usageRuns.ts).
+    mockDb.addRuns(usageRunFixtures, {});
     // After the extra fixtures: a seeded run count replaces every invoicer-api run, these included.
     loadLists();
     // A clean click-through shows a live run: open run 63 and watch it start (stream-handlers.ts).

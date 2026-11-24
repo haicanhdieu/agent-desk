@@ -189,7 +189,7 @@ describe('RunSidePanel placement', () => {
     expect(screen.queryByRole('region', { name: 'Usage' })).toBeNull();
   });
   it('renders no Usage section when the run has none', () => {
-    render(<RunSidePanel data={runDetails.RunSucceeded} />);
+    render(<RunSidePanel data={{ ...runDetails.RunSucceeded, usage: undefined }} />);
     expect(screen.queryByText('Usage')).toBeNull();
   });
 });

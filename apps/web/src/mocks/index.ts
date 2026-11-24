@@ -57,7 +57,8 @@ export { rules, promptSystemLines, TRIAGE_PROMPT } from './rules';
 export { agentSettings } from './agent';
 export { transcriptFixtures, transcriptStateFixtures } from './transcript';
 export { terminalByRun, autoResumedTerminal } from './terminal';
-export { runDetails, runDetailPrMerged } from './runDetail';
+export { usageCellPage2, usageCellPage3 } from './usage';
+export { runDetails, runDetailPrMerged, runUsageDetails } from './runDetail';
 export {
   setupScript,
   setupDraft,

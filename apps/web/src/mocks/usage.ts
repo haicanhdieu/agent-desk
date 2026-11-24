@@ -22,3 +22,15 @@ export const usageCellSubCent: UsageCellView = {
   srSuffix: ' tokens, estimated cost',
 };
 export const usageCellNone: UsageCellView = { text: '—', title: 'No usage data', srSuffix: 'No usage data' };
+
+const cell = (text: string, tokens: string, cost: string): UsageCellView => ({
+  text,
+  title: `${tokens} tokens in total, estimated cost ${cost}, 1 model`,
+  srSuffix: ' tokens, estimated cost',
+});
+/** Cells of the RunsUsage and RunsPageLoadingUsage boards. */
+export const usageCellRun62 = cell('31.9k · ~$0.19', '31,922', '$0.19');
+export const usageCellRun61 = cell('26.6k · ~$0.24', '26,572', '$0.24');
+export const usageCellRun54 = cell('1.2M · ~$2.31', '1,204,118', '$2.31');
+export const usageCellPage2 = cell('9.1k · ~$0.07', '9,100', '$0.07');
+export const usageCellPage3 = cell('3.4k · ~$0.02', '3,400', '$0.02');

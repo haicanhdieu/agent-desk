@@ -90,6 +90,8 @@ export const NOTHING_PAUSED_RUN = 97;
 export const PAUSED_TRANSCRIPT_RUN = 98;
 /** An idle run (Needs you) that has a live terminal. */
 export const IDLE_RUN = 62;
+/** The runs with recorded token usage and cost, by case: id to run number (src/mocks/dto/usageRuns.ts, browser mock only). */
+export { USAGE_RUNS } from '../../src/mocks/dto/usageRuns';
 
 /** The first page load of this test starts signed out (get-session null, API 401). */
 export async function startSignedOut(page: Page): Promise<void> {

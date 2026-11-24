@@ -1,4 +1,5 @@
 import { runsById, tickets } from './runs';
+import { runRunningUsage, runSucceededUsage, usageBoardDetails } from './usageBoards';
 import type { RunDetailData, RunDetailKey } from './types';
 
 // Prototype boards: RunStarting, RunRunning, RunIdle, RunReconnect, RunSucceeded, RunFailed, RunTimedOut, RunCancelled.
@@ -91,6 +92,7 @@ const runDetailsBase: Record<BaseKey, RunDetailData> = {
 
   RunRunning: {
     run: runsById[61],
+    usage: runRunningUsage,
     elapsed: '7:40',
     rule: RULE_BUILD,
     triggerNote: 'comment',
@@ -177,6 +179,7 @@ const runDetailsBase: Record<BaseKey, RunDetailData> = {
 
   RunSucceeded: {
     run: runsById[60],
+    usage: runSucceededUsage,
     elapsed: '6m 12s',
     rule: RULE_BUILD,
     triggerNote: 'comment',
@@ -529,7 +532,8 @@ const pausedAfterCrash = (session: Omit<NonNullable<RunDetailData['session']>, '
 // Prototype boards RunRunningStop and RunIdleEnding (Stop session): the running and idle boards with the keep time.
 export const runDetails: Record<RunDetailKey, RunDetailData> = {
   ...runDetailsBase,
-  RunRunningStop: { ...runDetailsBase.RunRunning, pausedKeep: '7 days' },
+  // The two boards below are not redrawn with usage (design/parity-notes.md), so they show none.
+  RunRunningStop: { ...runDetailsBase.RunRunning, usage: undefined, pausedKeep: '7 days' },
   RunIdleEnding: {
     ...runDetailsBase.RunIdle,
     pausedKeep: '7 days',
@@ -553,6 +557,7 @@ export const runDetails: Record<RunDetailKey, RunDetailData> = {
   // Run 61 again after an automatic resume: the first try, 16 minutes in.
   RunRunningAutoResume: {
     ...runDetailsBase.RunRunning,
+    usage: undefined,
     run: { ...runsById[61], duration: '16m 05s' },
     elapsed: '16:05',
     chain: runningChain.slice(0, 1),
@@ -583,3 +588,6 @@ export const runDetailPrMerged: RunDetailData = {
     diffstat: '+214 −12',
   },
 };
+
+/** The usage boards of Screens/Run detail: RunSucceeded or RunRunning with the usage each board draws. */
+export const runUsageDetails = usageBoardDetails(runDetailsBase.RunSucceeded, runDetailsBase.RunRunning);

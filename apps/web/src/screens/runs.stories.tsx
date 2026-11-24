@@ -15,6 +15,8 @@ import {
   runs,
   ticketGroups,
   tickets,
+  usageCellPage2,
+  usageCellPage3,
   user,
 } from '@/mocks';
 import type { TicketGroup } from '@/mocks/types';
@@ -236,7 +238,9 @@ const pagination = (page: number, total: number, busy?: boolean): PaginationProp
 });
 
 /** Page 4 of 4 of 63 runs: Run 3 and 2 of a ticket whose first runs are on earlier pages, then Run 1. */
-const lastPageRuns = pagedRuns(63).slice(60);
+const lastPageRuns = pagedRuns(63)
+  .slice(60)
+  .map((r) => ({ ...r, usage: r.id === 3 ? usageCellPage3 : r.id === 2 ? usageCellPage2 : undefined }));
 const lastPageGroups: TicketGroup[] = [
   {
     ticket: tickets.issue139,
@@ -540,6 +544,48 @@ export const RunsProblemsPrStates: Story = {
       counts={{ ...counts, ignored: ignoredPrStates.length }}
       ignored={ignoredPrStates}
       warnings={[]}
+    />
+  ),
+};
+
+// The usage boards say the idle run ends after 10 minutes, as the linked boards do.
+const usageNeedsYouRun = linkedNeedsYouRun;
+const usageRunsGroups: TicketGroup[] = ticketGroups.map((g) => ({
+  ...g,
+  runs: g.runs.map((r) => (r.id === 62 ? { ...r, statusNote: linkedRun62Note } : r)),
+}));
+
+/** The Runs list with the Usage column: a value, a partial cost, a missing cost, below a cent, none. */
+export const RunsUsage: Story = {
+  name: 'Runs, usage column',
+  decorators: artboard(1000),
+  globals: viewport(1440, 1000),
+  render: () => (
+    <RunsScreen
+      search={search}
+      {...common}
+      filter="all"
+      counts={counts}
+      groups={usageRunsGroups}
+      needsYouRun={usageNeedsYouRun}
+    />
+  ),
+};
+
+/** Page 3 is loading from page 4: the table is busy and keeps the Usage column. */
+export const RunsPageLoadingUsage: Story = {
+  name: 'Runs, grouped, loading page 3 from page 4, usage column',
+  decorators: artboard(1000),
+  globals: viewport(1440, 1000),
+  render: () => (
+    <RunsScreen
+      search={search}
+      {...pagedCommon}
+      filter="all"
+      counts={pagedCounts}
+      groups={lastPageGroups}
+      needsYouRun={usageNeedsYouRun}
+      pagination={pagination(4, 63, true)}
     />
   ),
 };

@@ -31,6 +31,8 @@ import {
   type RunDto,
   type RunListFilter,
   type RunStatus,
+  type RunUsageDetail,
+  type RunUsageSummary,
   type SetupScriptDto,
   type SetupTestDto,
   type SkillChangeResponse,
@@ -446,11 +448,33 @@ function assertUniqueCommand(projectId: string, command: string, exceptId?: stri
   }
 }
 
+/** As the API: a list item carries the usage totals only, without the per-model split, dates or source. */
+const usageSummary = (detail: RunUsageDetail): RunUsageSummary => ({
+  inputTokens: detail.inputTokens,
+  cacheReadTokens: detail.cacheReadTokens,
+  cacheWriteTokens: detail.cacheWriteTokens,
+  outputTokens: detail.outputTokens,
+  reasoningTokens: detail.reasoningTokens,
+  totalInputTokens: detail.totalInputTokens,
+  totalTokens: detail.totalTokens,
+  modelCount: detail.modelCount,
+  estimatedCostUsd: detail.estimatedCostUsd,
+  partial: detail.partial,
+});
+
 /** As the API: a list item carries how many runs its ticket has had in the project, all statuses. */
-const withTicketRunCount = (run: MockRun): RunDto & { ticketRunCount: number; linkedTickets: LinkedTicketDto[] } => {
+const withTicketRunCount = (
+  run: MockRun,
+): Omit<RunDto, 'usage'> & {
+  usage: RunUsageSummary | null;
+  ticketRunCount: number;
+  linkedTickets: LinkedTicketDto[];
+} => {
   const projectRuns = db().runs.filter((r) => r.projectId === run.projectId);
+  const dto = toDto(run);
   return {
-    ...toDto(run),
+    ...dto,
+    usage: dto.usage ? usageSummary(dto.usage) : null,
     linkedTickets: linkedTicketsFor(run, projectRuns),
     ticketRunCount: projectRuns.filter((r) => r.ticket.ref === run.ticket.ref).length,
   };

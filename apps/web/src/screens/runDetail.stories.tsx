@@ -4,6 +4,7 @@ import {
   orgSwitchFixtures,
   runDetailPrMerged,
   runDetails,
+  runUsageDetails,
   terminalByRun,
   transcriptFixtures,
   transcriptStateFixtures,
@@ -347,4 +348,83 @@ export const RunPrMergedCollapsed: Story = {
   decorators: artboard(1440, 900),
   globals: viewport(1440, 900),
   args: { data: runDetailPrMerged, lines: terminalByRun[62], panelCollapsed: true },
+};
+
+/** Run 60 with the Usage section open: one model. */
+export const RunSucceededUsage: Story = {
+  decorators: artboard(1440, 900),
+  globals: viewport(1440, 900),
+  args: { data: runUsageDetails.RunSucceededUsage, lines: terminalByRun[60] },
+};
+/** The Usage section collapsed to its header. */
+export const RunSucceededUsageCollapsed: Story = {
+  decorators: artboard(1440, 900),
+  globals: viewport(1440, 900),
+  args: { data: runUsageDetails.RunSucceededUsageCollapsed, lines: terminalByRun[60] },
+};
+/** Usage open, the Models table collapsed. */
+export const RunSucceededUsageModelsCollapsed: Story = {
+  decorators: artboard(1440, 900),
+  globals: viewport(1440, 900),
+  args: { data: runUsageDetails.RunSucceededUsageModelsCollapsed, lines: terminalByRun[60] },
+};
+/** Two priced models. */
+export const RunSucceededUsageMultiModel: Story = {
+  decorators: artboard(1440, 900),
+  globals: viewport(1440, 900),
+  args: { data: runUsageDetails.RunSucceededUsageMultiModel, lines: terminalByRun[60] },
+};
+/** One model had no price when recorded: "at least" and the partial note; a long model name is cut. */
+export const RunSucceededUsageUnpriced: Story = {
+  decorators: artboard(1440, 900),
+  globals: viewport(1440, 900),
+  args: { data: runUsageDetails.RunSucceededUsageUnpriced, lines: terminalByRun[60] },
+};
+/** Large totals with a partial note. */
+export const RunSucceededUsagePartial: Story = {
+  decorators: artboard(1440, 900),
+  globals: viewport(1440, 900),
+  args: { data: runUsageDetails.RunSucceededUsagePartial, lines: terminalByRun[60] },
+};
+/** No model was priced: the cost is a dash. */
+export const RunSucceededUsageNonePriced: Story = {
+  decorators: artboard(1440, 900),
+  globals: viewport(1440, 900),
+  args: { data: runUsageDetails.RunSucceededUsageNonePriced, lines: terminalByRun[60] },
+};
+/** The output line shows how many of its tokens were reasoning. */
+export const RunSucceededUsageReasoning: Story = {
+  decorators: artboard(1440, 900),
+  globals: viewport(1440, 900),
+  args: { data: runUsageDetails.RunSucceededUsageReasoning, lines: terminalByRun[60] },
+};
+/** A run that used no tokens: zeros and ~$0.00. */
+export const RunSucceededUsageZero: Story = {
+  decorators: artboard(1440, 900),
+  globals: viewport(1440, 900),
+  args: { data: runUsageDetails.RunSucceededUsageZero, lines: terminalByRun[60] },
+};
+/** No usage recorded for this run. */
+export const RunSucceededUsageNone: Story = {
+  decorators: artboard(1440, 900),
+  globals: viewport(1440, 900),
+  args: { data: runUsageDetails.RunSucceededUsageNone, lines: terminalByRun[60] },
+};
+/** Prices recorded on different days: the note gives the range. */
+export const RunSucceededUsagePriceRange: Story = {
+  decorators: artboard(1440, 900),
+  globals: viewport(1440, 900),
+  args: { data: runUsageDetails.RunSucceededUsagePriceRange, lines: terminalByRun[60] },
+};
+/** Run 61 running: usage so far. */
+export const RunRunningUsage: Story = {
+  decorators: artboard(1440, 900),
+  globals: viewport(1440, 900),
+  args: { data: runUsageDetails.RunRunningUsage, lines: terminalByRun[61] },
+};
+/** Run 61 reconnecting: the cached usage stays on screen. */
+export const RunRunningUsageReconnecting: Story = {
+  decorators: artboard(1440, 900),
+  globals: viewport(1440, 900),
+  args: { data: runUsageDetails.RunRunningUsageReconnecting, lines: terminalByRun[61] },
 };

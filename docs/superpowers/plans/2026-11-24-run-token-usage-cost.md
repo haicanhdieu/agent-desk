@@ -760,11 +760,11 @@ This task and Tasks 17 and 18 are the spec's "Blocker: Storybook first": Task 20
 - Consumes: `UsageCell`, `RunUsage`, view fixtures (Tasks 16, 17).
 - Produces: board stories `Screens/Runs` `RunsUsage`, `RunsPageLoadingUsage` and `Screens/RunDetail` `RunSucceededUsage`, `RunSucceededUsageCollapsed`, `RunSucceededUsageModelsCollapsed`, `RunSucceededUsageMultiModel`, `RunSucceededUsageUnpriced`, `RunSucceededUsagePartial`, `RunSucceededUsageNonePriced`, `RunSucceededUsageReasoning`, `RunSucceededUsageZero`, `RunSucceededUsageNone`, `RunSucceededUsagePriceRange`, `RunRunningUsage`, `RunRunningUsageReconnecting`, each matching its `design/prototype/project/*.dc.html` board. The base fixtures behind `Runs`, `RunsPageLoading`, `RunRunning` and `RunSucceeded` gain usage.
 
-- [ ] **Step 1: Write the failing tests.** `coverage.test.ts`: 322 to 337 in the title and `toHaveLength`. `runs.test.tsx`: the Runs screen has a "Usage" column header after Duration and the row cell text from the fixture, and no row shows a model name, a split or a date. `runDetail.test.tsx`: the RunSucceededUsage data shows the Usage section before "Chain on this ticket", the note once, and a long model name truncated with `title`.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/test/coverage.test.ts src/screens/runs.test.tsx src/screens/runDetail.test.tsx`. Expected: FAIL.
-- [ ] **Step 3: Implement** the fixtures and the fifteen board stories; register the fifteen boards together in `canvas.json` (`boards` and `order`, each after its base board), `boardStories` in `storyIds.ts` and `parity.mjs`; add a `design/parity-notes.md` entry: `Runs`, `RunsPageLoading`, `RunRunning` and `RunSucceeded` stories now show the Usage column or section, the boards are left as drawn because the usage design lives on the new boards. No old board is redrawn.
-- [ ] **Step 4: Run** Step 2 again, `pnpm --filter @agentdesk/web exec vitest run src/test/stories.smoke.test.tsx` and `pnpm --filter @agentdesk/web typecheck`. Expected: PASS. Build Storybook and run `node scripts/parity.mjs` for the fifteen boards if Chromium is available; otherwise say so in the PR.
-- [ ] **Step 5: Commit**: `feat(web): add usage board stories and register the 15 usage boards`.
+- [x] **Step 1: Write the failing tests.** `coverage.test.ts`: 322 to 337 in the title and `toHaveLength`. `runs.test.tsx`: the Runs screen has a "Usage" column header after Duration and the row cell text from the fixture, and no row shows a model name, a split or a date. `runDetail.test.tsx`: the RunSucceededUsage data shows the Usage section before "Chain on this ticket", the note once, and a long model name truncated with `title`.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/test/coverage.test.ts src/screens/runs.test.tsx src/screens/runDetail.test.tsx`. Expected: FAIL.
+- [x] **Step 3: Implement** the fixtures and the fifteen board stories; register the fifteen boards together in `canvas.json` (`boards` and `order`, each after its base board), `boardStories` in `storyIds.ts` and `parity.mjs`; add a `design/parity-notes.md` entry: `Runs`, `RunsPageLoading`, `RunRunning` and `RunSucceeded` stories now show the Usage column or section, the boards are left as drawn because the usage design lives on the new boards. No old board is redrawn.
+- [x] **Step 4: Run** Step 2 again, `pnpm --filter @agentdesk/web exec vitest run src/test/stories.smoke.test.tsx` and `pnpm --filter @agentdesk/web typecheck`. Expected: PASS. Build Storybook and run `node scripts/parity.mjs` for the fifteen boards if Chromium is available; otherwise say so in the PR.
+- [x] **Step 5: Commit**: `feat(web): add usage board stories and register the 15 usage boards`.
 
 ---
 
@@ -797,11 +797,11 @@ This task and Tasks 17 and 18 are the spec's "Blocker: Storybook first": Task 20
   - `olderPrice` (dates `2026-06-01T12:00:00Z`, own cost) and `newerPrice` (dates `2026-11-21T12:00:00Z`, another cost)
   - list items carry `toUsageSummary`-shaped summaries (no models, dates or source)
 
-- [ ] **Step 1: Write the failing test** in `contract.test.ts`: every run DTO and list item served by the handlers parses with `RunDto` / `RunListResponse`; at least one detail has `models.length === 2`, one has `usage: null`, one has `estimatedCostUsd: null`, and every list item's `usage` has no `models` key.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/mocks/msw/contract.test.ts`. Expected: FAIL.
-- [ ] **Step 3: Implement** the DTOs (split rows summing to each total) and `USAGE_RUNS`.
-- [ ] **Step 4: Run** Step 2 again, `pnpm --filter @agentdesk/web exec vitest run src/mocks` and `pnpm --filter @agentdesk/web typecheck`. Expected: PASS.
-- [ ] **Step 5: Commit**: `test(web): serve run usage in the mock API`.
+- [x] **Step 1: Write the failing test** in `contract.test.ts`: every run DTO and list item served by the handlers parses with `RunDto` / `RunListResponse`; at least one detail has `models.length === 2`, one has `usage: null`, one has `estimatedCostUsd: null`, and every list item's `usage` has no `models` key.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/mocks/msw/contract.test.ts`. Expected: FAIL.
+- [x] **Step 3: Implement** the DTOs (split rows summing to each total) and `USAGE_RUNS`.
+- [x] **Step 4: Run** Step 2 again, `pnpm --filter @agentdesk/web exec vitest run src/mocks` and `pnpm --filter @agentdesk/web typecheck`. Expected: PASS.
+- [x] **Step 5: Commit**: `test(web): serve run usage in the mock API`.
 
 ---
 

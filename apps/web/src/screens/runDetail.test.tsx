@@ -2,7 +2,7 @@ import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { type OrgSwitchProps } from '@/components';
 import { orgSwitchFixtures } from '@/mocks';
-import { runDetailPrMerged, runDetails, terminalByRun, transcriptFixtures } from '@/mocks';
+import { runDetailPrMerged, runDetails, runUsageDetails, terminalByRun, transcriptFixtures } from '@/mocks';
 import type { RunDetailKey } from '@/mocks';
 import { RunDetail as RunDetailScreen } from './RunDetail';
 
@@ -889,5 +889,28 @@ describe('RunDetail under the app bar (BR-46)', () => {
     });
     await userEvent.setup().click(screen.getByRole('button', { name: /^Switch project/ }));
     expect(screen.getByRole('link', { name: /docs-site/ })).toHaveAttribute('href', '/p/docs');
+  });
+});
+
+describe('RunDetail usage boards', () => {
+  it('shows the Usage section before the chain, with the note once', () => {
+    render(<RunDetail data={runUsageDetails.RunSucceededUsage} lines={terminalByRun[60]} />);
+    const usage = screen.getByText('Usage', { selector: 'span, div, h2, h3' });
+    const chain = screen.getByText('Chain on this ticket');
+    expect(usage.compareDocumentPosition(chain) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(screen.getAllByText(/Estimate at public API rates/)).toHaveLength(1);
+  });
+
+  it('truncates a long model name and keeps it in the title', () => {
+    render(<RunDetail data={runUsageDetails.RunSucceededUsageUnpriced} lines={terminalByRun[60]} />);
+    const usage = runUsageDetails.RunSucceededUsageUnpriced.usage;
+    if (usage?.state !== 'data') throw new Error('expected data');
+    const long = usage.models[1].name;
+    expect(screen.getByRole('rowheader', { name: long })).toHaveAttribute('title', long);
+  });
+
+  it('shows no usage numbers for a run with none', () => {
+    render(<RunDetail data={runUsageDetails.RunSucceededUsageNone} lines={terminalByRun[60]} />);
+    expect(screen.getByText('No usage data for this run.')).toBeInTheDocument();
   });
 });
