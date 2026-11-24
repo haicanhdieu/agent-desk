@@ -1,7 +1,7 @@
 import type { ConnectionDto, CreateRuleRequest, ProjectDto } from '@agentdesk/contracts';
 import { useQuery, useQueryClient, useSuspenseQueries, useSuspenseQuery } from '@tanstack/react-query';
 import { createFileRoute, notFound, redirect, useNavigate } from '@tanstack/react-router';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { toastFromError } from '@/app/boundaries';
 import { useNow } from '@/app/useNow';
 import type { RuleDraft } from '@/components';
@@ -159,7 +159,11 @@ function RepoStep({ org, projectId, connectionId }: { org: string; projectId?: s
   });
   const { data: connections } = useSuspenseQuery(setupQueries.connections(org));
   const usable = usableConnections(connections, connectionId);
-  const repoLists = useSuspenseQueries({ queries: usable.map((c) => setupQueries.repos(org, c.id)) });
+  // Overrides the global no-refetch-on-focus default: the list is GitHub's and changes in another tab. The stale time
+  // still applies, and it is only wanted while the list is shown (no project yet).
+  const repoLists = useSuspenseQueries({
+    queries: usable.map((c) => ({ ...setupQueries.repos(org, c.id), refetchOnWindowFocus: !projectId })),
+  });
   const save = useSaveRepoStep(org);
   const install = useInstallConnection(org);
   const qc = useQueryClient();
@@ -175,11 +179,6 @@ function RepoStep({ org, projectId, connectionId }: { org: string; projectId?: s
       setRefreshing(false);
     }
   };
-  useEffect(() => {
-    const onFocus = () => void qc.invalidateQueries({ queryKey: setupQueries.connections(org).queryKey });
-    window.addEventListener('focus', onFocus);
-    return () => window.removeEventListener('focus', onFocus);
-  }, [qc, org]);
   const [errors, setErrors] = useState<StepErrors<'name' | 'repo' | 'mode'>>(noErrors);
 
   // The first connection that lists a repo owns it.

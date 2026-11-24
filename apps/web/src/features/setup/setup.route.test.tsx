@@ -1,5 +1,5 @@
-import type { QueryClient } from '@tanstack/react-query';
-import { screen, waitFor, within } from '@testing-library/react';
+import { focusManager, type QueryClient } from '@tanstack/react-query';
+import { act, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ids } from '@/mocks/dto/ids';
 import { mockDb } from '@/mocks/msw/db';
@@ -530,15 +530,26 @@ describe('setup flow fixes', () => {
   });
 
   it('coming back to the tab refreshes the repository list on its own', async () => {
-    await renderRoute(`${base}/repo`);
-    await screen.findByRole('radio', { name: 'harbor-labs/invoicer-api' });
-    mockDb.state.repos[ids.connection.harbor]?.push({
-      repoPath: 'harbor-labs/new-repo',
-      private: true,
-      defaultBranch: 'main',
-    });
-    window.dispatchEvent(new Event('focus'));
-    expect(await screen.findByRole('radio', { name: 'harbor-labs/new-repo' })).toBeInTheDocument();
+    vi.useFakeTimers({ shouldAdvanceTime: true, toFake: ['Date'] });
+    try {
+      await renderRoute(`${base}/repo`);
+      await screen.findByRole('radio', { name: 'harbor-labs/invoicer-api' });
+      mockDb.state.repos[ids.connection.harbor]?.push({
+        repoPath: 'harbor-labs/new-repo',
+        private: true,
+        defaultBranch: 'main',
+      });
+      // The cached list is past its 30 s stale time when the tab comes back.
+      vi.setSystemTime(Date.now() + 60_000);
+      act(() => {
+        focusManager.setFocused(false);
+        focusManager.setFocused(true);
+      });
+      expect(await screen.findByRole('radio', { name: 'harbor-labs/new-repo' })).toBeInTheDocument();
+    } finally {
+      focusManager.setFocused(undefined);
+      vi.useRealTimers();
+    }
   });
 
   it('an install URL that is not https is not followed and an error shows', async () => {
