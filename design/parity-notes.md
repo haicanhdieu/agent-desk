@@ -459,7 +459,9 @@ item reads "Change access".
 - Table widths: the boards draw 34% / rest / 56px; the shared `DataTable` lays the columns out itself (as in the other Members boards).
 - The interactive prototype (`design/prototype/interactive/`) was regenerated with `_tools/build-boards.mjs` (322 boards) and its live
   Members screen now has the Access column and a working Change access dialog (add, change, remove, audit entries). `_checks/nav-check.mjs`
-  was not run (macOS-only script: it hardcodes macOS paths) and the check screenshots are not regenerated.
+  was run unchanged in the runner pod after the last regeneration, with `PW_CORE_DIR` set and a scratch `HOME` whose macOS-style browser path
+  links to the installed Linux headless shell: 322 boards checked, 179 checks passed, 0 failed, no console errors. The `_checks/nav/`
+  screenshots it rewrote were not committed, so they are unchanged.
 - Storybook parity was run in the runner pod (`build-storybook`, then `parity.mjs` with Chromium 158 from `runner-setup.sh` profile `full`).
   `parity.mjs` built the story id from the title with a camelCase split, so every `Screens/OrgSettings` board timed out (the Storybook id is
   `screens-orgsettings--...`); it now lowercases the title without splitting. After that fix only the 26 `OrgMembers*` pairs (23 redrawn and
