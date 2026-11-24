@@ -21,6 +21,11 @@ const kebab = (s) =>
     .replace(/[^a-zA-Z0-9]+/g, '-')
     .replace(/^-|-$/g, '')
     .toLowerCase();
+const slug = (s) =>
+  s
+    .replace(/[^a-zA-Z0-9]+/g, '-')
+    .replace(/^-|-$/g, '')
+    .toLowerCase();
 const stories = {
   Main: ['Screens/Overview', 'Main'],
   NeedsYou: ['Screens/Runs', 'NeedsYou'],
@@ -160,6 +165,9 @@ const stories = {
   OrgMembersRemoving: ['Screens/OrgSettings', 'OrgMembersRemoving'],
   OrgMembersRemoved: ['Screens/OrgSettings', 'OrgMembersRemoved'],
   OrgMembersRemoveLastOwner: ['Screens/OrgSettings', 'OrgMembersRemoveLastOwner'],
+  OrgMembersManyGrants: ['Screens/OrgSettings', 'OrgMembersManyGrants'],
+  OrgMembersChangeAccessMany: ['Screens/OrgSettings', 'OrgMembersChangeAccessMany'],
+  OrgMembersChangeAccessEmpty: ['Screens/OrgSettings', 'OrgMembersChangeAccessEmpty'],
   OrgGeneral: ['Screens/OrgSettings', 'OrgGeneral'],
   OrgGeneralSaving: ['Screens/OrgSettings', 'OrgGeneralSaving'],
   OrgGeneralSaved: ['Screens/OrgSettings', 'OrgGeneralSaved'],
@@ -346,7 +354,8 @@ try {
     const { w, h } = canvas.boards[file];
     const [title, exp] = stories[name] ?? [];
     if (!title) throw new Error(`no story mapped for ${name}`);
-    const id = `${title.split('/').map(kebab).join('-')}--${kebab(exp)}`;
+    // Storybook ids lowercase the title without splitting camelCase (Screens/OrgSettings -> screens-orgsettings).
+    const id = `${title.split('/').map(slug).join('-')}--${kebab(exp)}`;
     const ctx = await browser.newContext({ viewport: { width: w, height: h } });
     const page = await ctx.newPage();
     await page.goto(`${base}/iframe.html?id=${id}&viewMode=story`, { waitUntil: 'networkidle' });

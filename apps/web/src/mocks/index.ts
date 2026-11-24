@@ -71,7 +71,7 @@ export {
 } from './setup';
 export { pagedRuns, pagedIgnored, pagedNeedsYou, pagedProjects, pagedRules, pagedSkills, pagedVersions } from './paged';
 export { orgOptions, orgSwitchFixtures } from './orgs';
-export { memberRows, roleCards } from './members';
+export { accessProjectGrants, accessProjectRoleIds, accessProjects, memberRows, roleCards } from './members';
 export { auditRows, pagedAuditLastPage, pagedAuditRows, platformSuspendAuditRows } from './audit';
 export {
   projectMemberRows,

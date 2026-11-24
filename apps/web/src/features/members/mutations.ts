@@ -1,9 +1,9 @@
-import type { MemberDto } from '@agentdesk/contracts';
 import { ApiError } from '@agentdesk/contracts/client';
 import { useMutation, useQueryClient, type QueryClient, type UseMutationResult } from '@tanstack/react-query';
 import { accessKeys } from '../access/keys';
 import { orgAccessQuery } from '../access/queries';
 import { api } from '../api';
+import type { AccessDiff } from './accessChange';
 import { membersListKey } from './queries';
 
 // No optimistic updates: the list changes when the server has answered, and a mutation stays pending until the
@@ -43,16 +43,68 @@ async function afterFailure(queryClient: QueryClient, org: string, e: unknown): 
   if (e.status === 404 || e.status === 409) await refreshMembers(queryClient, org);
 }
 
-/** `PUT /orgs/:orgId/members/:userId/role` (needs `member:update`, org level). `roleId: null` is "No role". */
-export function useChangeRole(
+/** A failure of a project grant call: the org role (if it changed) was saved already, and so may be some grants. */
+export class ProjectGrantsError extends Error {
+  constructor(readonly failure: unknown) {
+    super('A project grant could not be saved');
+    this.name = 'ProjectGrantsError';
+  }
+}
+
+export interface ChangeAccessInput {
+  userId: string;
+  /** The org role to set, or undefined when it did not change (the route is not called then). */
+  roleId?: string | null;
+  diff: Pick<AccessDiff, 'create' | 'remove'>;
+}
+
+/**
+ * Saves the diff of Change access with the routes that exist: `PUT /orgs/:orgId/members/:userId/role` (needs
+ * `member:update`, org level) first, since it is the call most likely to be refused and then nothing was written;
+ * then `POST /orgs/:orgId/assignments` per added or replaced grant and `DELETE .../assignments/:id` per removed or
+ * replaced one (`assignment:create` / `assignment:delete`, checked per project by the API). The calls run one after
+ * the other and are not atomic: a refusal in the middle leaves the earlier ones saved, so the lists are read again on
+ * every outcome and a failure of the grant calls is thrown as a `ProjectGrantsError`. Creates run before removes, so a
+ * replaced grant is never missing for a moment.
+ */
+export function useChangeAccess(
   org: string,
   orgId: string,
-): UseMutationResult<MemberDto, ApiError, { userId: string; roleId: string | null }> {
+): UseMutationResult<void, ApiError | ProjectGrantsError, ChangeAccessInput> {
   const queryClient = useQueryClient();
-  return useMutation<MemberDto, ApiError, { userId: string; roleId: string | null }>({
-    mutationFn: ({ userId, roleId }) => api.members.updateRole({ params: { orgId, userId }, body: { roleId } }),
-    onSuccess: (_dto, { userId }) => afterSuccess(queryClient, org, userId),
-    onError: (e) => afterFailure(queryClient, org, e),
+  return useMutation<void, ApiError | ProjectGrantsError, ChangeAccessInput>({
+    mutationFn: async ({ userId, roleId, diff }) => {
+      if (roleId !== undefined) await api.members.updateRole({ params: { orgId, userId }, body: { roleId } });
+      try {
+        for (const c of diff.create) {
+          await api.assignments.create({
+            params: { orgId },
+            body: { userId, roleId: c.roleId, scope: { type: 'project', projectId: c.projectId } },
+          });
+        }
+        for (const assignmentId of diff.remove) {
+          await api.assignments.remove({ params: { orgId, assignmentId } });
+        }
+      } catch (e) {
+        throw new ProjectGrantsError(e);
+      }
+    },
+    onSuccess: async (_none, input) => {
+      await Promise.all([
+        afterSuccess(queryClient, org, input.userId),
+        // the project Members pages and Audit logs of the projects touched
+        queryClient.invalidateQueries({ queryKey: ['org', org, 'projects'] }),
+      ]);
+    },
+    onError: async (e) => {
+      // Something may have been saved before the refusal: the list and the audit show what is true now.
+      if (e instanceof ProjectGrantsError) {
+        await Promise.all([
+          refreshMembers(queryClient, org),
+          queryClient.invalidateQueries({ queryKey: auditKey(org) }),
+        ]);
+      } else await afterFailure(queryClient, org, e);
+    },
   });
 }
 

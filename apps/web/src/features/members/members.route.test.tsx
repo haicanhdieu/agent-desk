@@ -23,7 +23,11 @@ const rowOf = (name: string): HTMLElement => {
   if (!row) throw new Error(`no row for ${name}`);
   return row;
 };
-const cells = (row: HTMLElement) => within(row).getAllByRole('cell');
+/** The text of each grant chip of a row ("No role" when there is no org grant). */
+const grantsOf = (name: string) =>
+  within(rowOf(name))
+    .getAllByRole('listitem')
+    .map((i) => i.textContent);
 const hasMenu = (name: string) => screen.queryByRole('button', { name: `Actions for ${name}` }) !== null;
 
 /** Records the org's members requests only: the app bar reads other lists. */
@@ -42,27 +46,18 @@ async function watchMemberLists<T>(run: () => Promise<T>): Promise<{ result: T; 
 }
 
 describe('members page: rows (BR-1)', () => {
-  it('TC-1.1 an owner sees every person with name, handle, role, project roles and the You tag, and no email', async () => {
+  it('TC-1.1 an owner sees every person with name, handle, every grant as scope and role, and the You tag, and no email', async () => {
     await renderRoute('/o/alice/settings/members', { scenario: asRole('twoOwners') });
     await ready();
-    expect(screen.getAllByRole('columnheader').map((h) => h.textContent)).toEqual([
-      'Name',
-      'Role',
-      'Project roles',
-      'Actions',
-    ]);
+    expect(screen.getAllByRole('columnheader').map((h) => h.textContent)).toEqual(['Name', 'Access', 'Actions']);
     expect(rows()).toHaveLength(5);
     const alice = rowOf('Alice Doe');
     expect(alice).toHaveTextContent('You');
-    expect(cells(alice)[1]).toHaveTextContent('Owner');
-    expect(cells(rowOf('Ben Okafor'))[1]).toHaveTextContent('Admin');
-    const cleo = rowOf('Cleo Martin');
-    expect(cells(cleo)[1]).toHaveTextContent('Member');
-    expect(cells(cleo)[2]).toHaveTextContent('invoicer-api (Admin), invoicer-web (Member)');
-    const eli = rowOf('Eli Ford');
-    expect(cells(eli)[1]).toHaveTextContent('No role');
-    expect(cells(eli)[2]).toHaveTextContent('docs-site (Viewer)');
-    expect(cells(rowOf('Priya Raman'))[2]).toHaveTextContent('—');
+    expect(grantsOf('Alice Doe')).toEqual(['Organization · Owner']);
+    expect(grantsOf('Ben Okafor')).toEqual(['Organization · Admin']);
+    expect(grantsOf('Cleo Martin')).toEqual(['Organization · Member', 'invoicer-api · Admin', 'invoicer-web · Member']);
+    expect(grantsOf('Eli Ford')).toEqual(['No role', 'docs-site · Viewer']);
+    expect(grantsOf('Priya Raman')).toEqual(['Organization · Owner']);
     expect(screen.getByRole('main').textContent).not.toContain('@');
   });
 
@@ -70,16 +65,16 @@ describe('members page: rows (BR-1)', () => {
     await renderRoute('/o/alice/settings/members', { scenario: asRole('admin') });
     await ready();
     expect(rows()).toHaveLength(5);
-    expect(cells(rowOf('Priya Raman'))[1]).toHaveTextContent('Owner');
-    expect(cells(rowOf('Ben Okafor'))[1]).toHaveTextContent('Admin');
-    expect(cells(rowOf('Eli Ford'))[1]).toHaveTextContent('No role');
+    expect(grantsOf('Priya Raman')).toEqual(['Organization · Owner']);
+    expect(grantsOf('Ben Okafor')).toEqual(['Organization · Admin']);
+    expect(grantsOf('Eli Ford')[0]).toBe('No role');
   });
 
   it('TC-1.3 several owners all show Owner', async () => {
     await renderRoute('/o/alice/settings/members', { scenario: asRole('twoOwners') });
     await ready();
-    expect(cells(rowOf('Alice Doe'))[1]).toHaveTextContent('Owner');
-    expect(cells(rowOf('Priya Raman'))[1]).toHaveTextContent('Owner');
+    expect(grantsOf('Alice Doe')).toEqual(['Organization · Owner']);
+    expect(grantsOf('Priya Raman')).toEqual(['Organization · Owner']);
   });
 
   it('BR-4 an owner has a menu on the other owner row and on an admin row', async () => {
@@ -95,7 +90,7 @@ describe('members page: rows (BR-1)', () => {
     expect(hasMenu('Alice Doe')).toBe(false);
     await user.click(screen.getByRole('button', { name: 'Actions for Ben Okafor' }));
     const other = screen.getByRole('dialog', { name: 'Actions for Ben Okafor' });
-    expect(within(other).getByRole('button', { name: 'Change role' })).toBeInTheDocument();
+    expect(within(other).getByRole('button', { name: 'Change access' })).toBeInTheDocument();
     expect(within(other).getByRole('button', { name: 'Remove from organization' })).toBeInTheDocument();
   });
 
@@ -105,7 +100,7 @@ describe('members page: rows (BR-1)', () => {
     expect(hasMenu('Alice Doe')).toBe(false);
     await user.click(screen.getByRole('button', { name: 'Actions for Cleo Martin' }));
     const other = screen.getByRole('dialog', { name: 'Actions for Cleo Martin' });
-    expect(within(other).getByRole('button', { name: 'Change role' })).toBeInTheDocument();
+    expect(within(other).getByRole('button', { name: 'Change access' })).toBeInTheDocument();
   });
 
   it('BR-4 an admin has no menu on an owner row or on their own row, and one on every other row', async () => {
@@ -279,7 +274,7 @@ describe('members page: switching org', () => {
       });
       // The other org's list is on screen while its roles are still held.
       expect(await screen.findByText('Acme Cleo Martin')).toBeInTheDocument();
-      expect(screen.queryByRole('dialog', { name: 'Change role for Cleo Martin' })).not.toBeInTheDocument();
+      expect(screen.queryByRole('dialog', { name: 'Change access for Cleo Martin' })).not.toBeInTheDocument();
       expect(dialog).not.toBeInTheDocument();
       expect(screen.queryByRole('radio')).not.toBeInTheDocument();
     } finally {
@@ -429,21 +424,21 @@ describe('members page: access (BR-2, BR-25)', () => {
 
 // --- Change role and remove (BR-3, BR-5, BR-6, BR-8, BR-36, BR-40, BR-42) ---
 
-const orgRoleOf = (name: string) => cells(rowOf(name))[1]?.textContent ?? '';
+const orgRoleOf = (name: string) => grantsOf(name)[0] ?? '';
 const rosterOf = (orgId: string) => mockDb.state.members[orgId] ?? [];
 
 async function openChangeRole(user: UserEvent, name: string): Promise<HTMLElement> {
   await user.click(screen.getByRole('button', { name: `Actions for ${name}` }));
   await user.click(
-    within(screen.getByRole('dialog', { name: `Actions for ${name}` })).getByRole('button', { name: 'Change role' }),
+    within(screen.getByRole('dialog', { name: `Actions for ${name}` })).getByRole('button', { name: 'Change access' }),
   );
-  return screen.findByRole('dialog', { name: `Change role for ${name}` });
+  return screen.findByRole('dialog', { name: `Change access for ${name}` });
 }
 async function pickRole(user: UserEvent, dialog: HTMLElement, card: string) {
   await user.click(within(dialog).getByRole('radio', { name: card }));
 }
 const saveRole = (user: UserEvent, dialog: HTMLElement) =>
-  user.click(within(dialog).getByRole('button', { name: 'Save role' }));
+  user.click(within(dialog).getByRole('button', { name: 'Save access' }));
 async function openRemove(user: UserEvent, name: string): Promise<HTMLElement> {
   await user.click(screen.getByRole('button', { name: `Actions for ${name}` }));
   await user.click(
@@ -463,18 +458,18 @@ describe('members page: change role (BR-3, BR-4, BR-40)', () => {
     // Member is preselected and Save is disabled until the choice differs (TC-3.4); focus is on the current card.
     expect(within(dialog).getByRole('radio', { name: 'Member' })).toBeChecked();
     expect(within(dialog).getByRole('radio', { name: 'Member' })).toHaveFocus();
-    expect(within(dialog).getByRole('button', { name: 'Save role' })).toBeDisabled();
+    expect(within(dialog).getByRole('button', { name: 'Save access' })).toBeDisabled();
     await pickRole(user, dialog, 'Admin');
-    expect(within(dialog).getByRole('button', { name: 'Save role' })).toBeEnabled();
+    expect(within(dialog).getByRole('button', { name: 'Save access' })).toBeEnabled();
     const { listed } = await watchMemberLists(async () => {
       await saveRole(user, dialog);
       expect(await screen.findByText('Role changed')).toBeInTheDocument();
       await waitFor(() => expect(orgRoleOf('Cleo Martin')).toContain('Admin'));
     });
     expect(listed.length).toBeGreaterThan(0);
-    expect(screen.queryByRole('dialog', { name: 'Change role for Cleo Martin' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('dialog', { name: 'Change access for Cleo Martin' })).not.toBeInTheDocument();
     // Project roles stay (TC-3.3 on the data side).
-    expect(cells(rowOf('Cleo Martin'))[2]).toHaveTextContent('invoicer-api (Admin), invoicer-web (Member)');
+    expect(grantsOf('Cleo Martin').slice(1)).toEqual(['invoicer-api · Admin', 'invoicer-web · Member']);
   });
 
   it('TC-3.3 No role keeps the member and the project roles', async () => {
@@ -485,7 +480,7 @@ describe('members page: change role (BR-3, BR-4, BR-40)', () => {
     await saveRole(user, dialog);
     await screen.findByText('Role changed');
     await waitFor(() => expect(orgRoleOf('Cleo Martin')).toContain('No role'));
-    expect(cells(rowOf('Cleo Martin'))[2]).toHaveTextContent('invoicer-api (Admin)');
+    expect(grantsOf('Cleo Martin').slice(1)).toEqual(['invoicer-api · Admin', 'invoicer-web · Member']);
   });
 
   it('Escape and Cancel close the dialog without a request and return focus to the row Actions button', async () => {
@@ -493,7 +488,7 @@ describe('members page: change role (BR-3, BR-4, BR-40)', () => {
     await ready();
     await openChangeRole(user, 'Cleo Martin');
     await user.keyboard('{Escape}');
-    expect(screen.queryByRole('dialog', { name: 'Change role for Cleo Martin' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('dialog', { name: 'Change access for Cleo Martin' })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Actions for Cleo Martin' })).toHaveFocus();
     const again = await openChangeRole(user, 'Cleo Martin');
     await user.click(within(again).getByRole('button', { name: 'Cancel' }));
@@ -529,7 +524,7 @@ describe('members page: change role (BR-3, BR-4, BR-40)', () => {
     await saveRole(user, dialog);
     await screen.findByText('Role changed');
     await waitFor(() => expect(orgRoleOf('Cleo Martin')).toContain('Owner'));
-    expect(cells(rowOf('Cleo Martin'))[2]).toHaveTextContent('invoicer-api (Admin), invoicer-web (Member)');
+    expect(grantsOf('Cleo Martin').slice(1)).toEqual(['invoicer-api · Admin', 'invoicer-web · Member']);
   });
 
   it('roles that cannot be loaded show the problem as an error toast and open no dialog', async () => {
@@ -541,9 +536,9 @@ describe('members page: change role (BR-3, BR-4, BR-40)', () => {
     });
     await ready();
     await user.click(screen.getByRole('button', { name: 'Actions for Cleo Martin' }));
-    await user.click(screen.getByRole('button', { name: 'Change role' }));
+    await user.click(screen.getByRole('button', { name: 'Change access' }));
     expect(await screen.findByRole('alert')).toHaveTextContent('Internal server error');
-    expect(screen.queryByRole('dialog', { name: 'Change role for Cleo Martin' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('dialog', { name: 'Change access for Cleo Martin' })).not.toBeInTheDocument();
   });
 
   it('while the save is in flight the dialog cannot be closed or saved twice', async () => {
@@ -568,10 +563,159 @@ describe('members page: change role (BR-3, BR-4, BR-40)', () => {
     expect(saving).toBeDisabled();
     expect(within(dialog).getByRole('button', { name: 'Cancel' })).toBeDisabled();
     await user.keyboard('{Escape}');
-    expect(screen.getByRole('dialog', { name: 'Change role for Cleo Martin' })).toBeInTheDocument();
+    expect(screen.getByRole('dialog', { name: 'Change access for Cleo Martin' })).toBeInTheDocument();
     await act(async () => release());
     await screen.findByText('Role changed');
     expect(puts).toBe(1);
+  });
+});
+
+/** Records the writes the page sends: "PUT /role", "POST /assignments", "DELETE /assignments/:id". */
+function recordWrites(): { writes: string[]; stop: () => void } {
+  const writes: string[] = [];
+  const listener = ({ request }: { request: Request }) => {
+    const { pathname } = new URL(request.url);
+    if (request.method === 'GET') return;
+    if (pathname.endsWith('/role')) writes.push('PUT role');
+    else if (pathname.includes('/assignments')) writes.push(`${request.method} assignments`);
+  };
+  server.events.on('request:start', listener);
+  return { writes, stop: () => server.events.removeListener('request:start', listener) };
+}
+const projectSection = (dialog: HTMLElement) => within(dialog).getByRole('group', { name: 'Project access' });
+const projectRowIn = (dialog: HTMLElement, project: string) =>
+  within(projectSection(dialog)).getByRole('listitem', { name: project });
+
+describe('members page: change access, project grants (#259)', () => {
+  it('shows the project grants of the member in the dialog, each with its role', async () => {
+    const { user } = await renderRoute('/o/alice/settings/members', { scenario: asRole('twoOwners') });
+    await ready();
+    const dialog = await openChangeRole(user, 'Cleo Martin');
+    expect(within(projectSection(dialog)).getAllByRole('listitem')).toHaveLength(2);
+    const api = within(projectRowIn(dialog, 'invoicer-api')).getByRole('combobox', { name: 'Role in invoicer-api' });
+    expect(api).toHaveDisplayValue('Admin');
+    const web = within(projectRowIn(dialog, 'invoicer-web')).getByRole('combobox', { name: 'Role in invoicer-web' });
+    expect(web).toHaveDisplayValue('Member');
+  });
+
+  it('saves a changed, an added and a removed project grant through the assignments routes, and the list shows them', async () => {
+    const { user } = await renderRoute('/o/alice/settings/members', { scenario: asRole('twoOwners') });
+    await ready();
+    const dialog = await openChangeRole(user, 'Cleo Martin');
+    await user.selectOptions(
+      within(projectRowIn(dialog, 'invoicer-web')).getByRole('combobox', { name: 'Role in invoicer-web' }),
+      'Viewer',
+    );
+    await user.click(
+      within(projectRowIn(dialog, 'invoicer-api')).getByRole('button', { name: 'Remove access to invoicer-api' }),
+    );
+    await user.selectOptions(within(dialog).getByRole('combobox', { name: 'Project to add' }), 'docs-site');
+    await user.selectOptions(within(dialog).getByRole('combobox', { name: 'Role in the project to add' }), 'Admin');
+    await user.click(within(dialog).getByRole('button', { name: 'Add project' }));
+    const sent = recordWrites();
+    try {
+      await saveRole(user, dialog);
+      expect(await screen.findByText('Access changed')).toBeInTheDocument();
+    } finally {
+      sent.stop();
+    }
+    // only the project grants changed: the org role is not written
+    expect(sent.writes).not.toContain('PUT role');
+    expect(sent.writes.filter((w) => w === 'POST assignments')).toHaveLength(2);
+    expect(sent.writes.filter((w) => w === 'DELETE assignments')).toHaveLength(2);
+    await waitFor(() =>
+      expect(grantsOf('Cleo Martin')).toEqual(['Organization · Member', 'docs-site · Admin', 'invoicer-web · Viewer']),
+    );
+    expect(screen.queryByRole('dialog', { name: 'Change access for Cleo Martin' })).not.toBeInTheDocument();
+  });
+
+  it('keeps Save access off until something changed, then on for a project change alone', async () => {
+    const { user } = await renderRoute('/o/alice/settings/members', { scenario: asRole('twoOwners') });
+    await ready();
+    const dialog = await openChangeRole(user, 'Cleo Martin');
+    expect(within(dialog).getByRole('button', { name: 'Save access' })).toBeDisabled();
+    await user.click(
+      within(projectRowIn(dialog, 'invoicer-web')).getByRole('button', { name: 'Remove access to invoicer-web' }),
+    );
+    expect(within(dialog).getByRole('button', { name: 'Save access' })).toBeEnabled();
+  });
+
+  it('changes the org role and a project grant in one save: "Access changed"', async () => {
+    const { user } = await renderRoute('/o/alice/settings/members', { scenario: asRole('twoOwners') });
+    await ready();
+    const dialog = await openChangeRole(user, 'Cleo Martin');
+    await pickRole(user, dialog, 'Viewer');
+    await user.click(
+      within(projectRowIn(dialog, 'invoicer-api')).getByRole('button', { name: 'Remove access to invoicer-api' }),
+    );
+    const sent = recordWrites();
+    try {
+      await saveRole(user, dialog);
+      expect(await screen.findByText('Access changed')).toBeInTheDocument();
+    } finally {
+      sent.stop();
+    }
+    expect(sent.writes).toEqual(['PUT role', 'DELETE assignments']);
+    await waitFor(() => expect(grantsOf('Cleo Martin')).toEqual(['Organization · Viewer', 'invoicer-web · Member']));
+  });
+
+  it('an admin may change project grants too (assignment:create and assignment:delete at org level)', async () => {
+    const { user } = await renderRoute('/o/alice/settings/members', { scenario: asRole('admin') });
+    await ready();
+    const dialog = await openChangeRole(user, 'Cleo Martin');
+    expect(within(dialog).getByRole('combobox', { name: 'Project to add' })).toBeEnabled();
+    await user.click(
+      within(projectRowIn(dialog, 'invoicer-web')).getByRole('button', { name: 'Remove access to invoicer-web' }),
+    );
+    await saveRole(user, dialog);
+    expect(await screen.findByText('Access changed')).toBeInTheDocument();
+    await waitFor(() => expect(grantsOf('Cleo Martin')).toEqual(['Organization · Member', 'invoicer-api · Admin']));
+  });
+
+  it('never offers Owner on a project, even to an owner caller', async () => {
+    const { user } = await renderRoute('/o/alice/settings/members', { scenario: asRole('twoOwners') });
+    await ready();
+    const dialog = await openChangeRole(user, 'Cleo Martin');
+    const select = within(projectRowIn(dialog, 'invoicer-api')).getByRole('combobox', { name: 'Role in invoicer-api' });
+    expect(within(select).queryByRole('option', { name: 'Owner' })).not.toBeInTheDocument();
+    expect(within(dialog).getByRole('radio', { name: 'Owner' })).toBeInTheDocument(); // the org role may be Owner
+  });
+
+  it('a refused project grant (the project is gone) closes the dialog with the problem as a toast and reads the list again', async () => {
+    const { user } = await renderRoute('/o/alice/settings/members', { scenario: asRole('twoOwners') });
+    await ready();
+    const dialog = await openChangeRole(user, 'Cleo Martin');
+    await user.selectOptions(within(dialog).getByRole('combobox', { name: 'Project to add' }), 'docs-site');
+    await user.click(within(dialog).getByRole('button', { name: 'Add project' }));
+    server.use(
+      http.post('*/api/orgs/:orgId/assignments', () =>
+        problemResponse({
+          status: 422,
+          title: 'Project not found',
+          type: 'validation',
+          errors: [{ pointer: '/scope/projectId', detail: 'this project does not exist in the organization' }],
+        }),
+      ),
+    );
+    await saveRole(user, dialog);
+    expect(await screen.findByRole('alert')).toHaveTextContent('Project not found');
+    expect(screen.queryByRole('dialog', { name: 'Change access for Cleo Martin' })).not.toBeInTheDocument();
+  });
+
+  it('a project grant on a project outside the caller scope is refused: the mock API answers 404 and nothing changes', async () => {
+    const { user } = await renderRoute('/o/alice/settings/members', { scenario: asRole('twoOwners') });
+    await ready();
+    const dialog = await openChangeRole(user, 'Cleo Martin');
+    await user.selectOptions(within(dialog).getByRole('combobox', { name: 'Project to add' }), 'docs-site');
+    await user.click(within(dialog).getByRole('button', { name: 'Add project' }));
+    server.use(
+      http.post('*/api/orgs/:orgId/assignments', () =>
+        problemResponse({ status: 404, title: 'Project not found', type: 'not-found' }),
+      ),
+    );
+    await saveRole(user, dialog);
+    expect(await screen.findByRole('alert')).toHaveTextContent('Project not found');
+    expect(grantsOf('Cleo Martin')).toEqual(['Organization · Member', 'invoicer-api · Admin', 'invoicer-web · Member']);
   });
 });
 
@@ -598,7 +742,7 @@ describe('members page: change role errors (BR-5, BR-8, BR-36)', () => {
     await saveRole(user, dialog);
     const toast = await screen.findByRole('alert');
     expect(toast).toHaveTextContent('Member is no longer in the organization');
-    expect(screen.queryByRole('dialog', { name: 'Change role for Cleo Martin' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('dialog', { name: 'Change access for Cleo Martin' })).not.toBeInTheDocument();
     await waitFor(() => expect(screen.queryByText('Cleo Martin')).not.toBeInTheDocument());
     expect(rows()).toHaveLength(4);
   });
@@ -629,9 +773,9 @@ describe('members page: change role errors (BR-5, BR-8, BR-36)', () => {
     expect(banner).toBeInTheDocument();
     expect(within(dialog).getByText(/Request ID: \S+/)).toBeInTheDocument();
     // The refusal stays readable; closing the dialog reads access again and the page turns to no-access.
-    expect(screen.getByRole('dialog', { name: 'Change role for Cleo Martin' })).toBeInTheDocument();
+    expect(screen.getByRole('dialog', { name: 'Change access for Cleo Martin' })).toBeInTheDocument();
     await user.click(within(dialog).getByRole('button', { name: 'Cancel' }));
-    expect(screen.queryByRole('dialog', { name: 'Change role for Cleo Martin' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('dialog', { name: 'Change access for Cleo Martin' })).not.toBeInTheDocument();
     await noAccess();
     expect(screen.queryByRole('row')).not.toBeInTheDocument();
   });
@@ -653,7 +797,7 @@ describe('members page: change role errors (BR-5, BR-8, BR-36)', () => {
     await saveRole(user, dialog);
     expect(await within(dialog).findByText("You don't have access")).toBeInTheDocument();
     expect(within(dialog).getByText(/Request ID: \S+/)).toBeInTheDocument();
-    expect(screen.getByRole('dialog', { name: 'Change role for Cleo Martin' })).toBeInTheDocument();
+    expect(screen.getByRole('dialog', { name: 'Change access for Cleo Martin' })).toBeInTheDocument();
   });
 
   it.each([
@@ -674,7 +818,7 @@ describe('members page: change role errors (BR-5, BR-8, BR-36)', () => {
       await queryClient.invalidateQueries({ queryKey: rolesKey });
       const dialog = await openChangeRole(user, 'Cleo Martin');
       await waitFor(() => expect(queryClient.getQueryState(rolesKey)?.status).toBe('error'));
-      expect(screen.getByRole('dialog', { name: 'Change role for Cleo Martin' })).toBeInTheDocument();
+      expect(screen.getByRole('dialog', { name: 'Change access for Cleo Martin' })).toBeInTheDocument();
       expect(screen.queryByRole('alert')).not.toBeInTheDocument();
       await pickRole(user, dialog, 'Viewer');
       await saveRole(user, dialog);
@@ -718,8 +862,8 @@ describe('members page: change role errors (BR-5, BR-8, BR-36)', () => {
     await pickRole(user, dialog, 'Viewer');
     await saveRole(user, dialog);
     expect(await screen.findByRole('alert')).toHaveTextContent('Role not allowed here');
-    expect(screen.getByRole('dialog', { name: 'Change role for Cleo Martin' })).toBeInTheDocument();
-    expect(within(dialog).getByRole('button', { name: 'Save role' })).toBeEnabled();
+    expect(screen.getByRole('dialog', { name: 'Change access for Cleo Martin' })).toBeInTheDocument();
+    expect(within(dialog).getByRole('button', { name: 'Save access' })).toBeEnabled();
   });
 
   it('the org-mismatch answer shows the switched-tab toast and keeps the dialog and the choice', async () => {

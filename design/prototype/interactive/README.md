@@ -28,7 +28,7 @@ A dashed panel at the bottom right, collapsible (it remembers its state in the b
 
 | Role | Settings tab and org-menu item | Settings side menu | Notes |
 | --- | --- | --- | --- |
-| Org owner | yes | General, Members, Invitations, Audit log | Owner card in Change role; can act on owner rows; step-down warning on own row; cannot remove self |
+| Org owner | yes | General, Members, Invitations, Audit log | Owner card in Change access; can act on owner rows; step-down warning on own row; cannot remove self |
 | Org admin | yes | General, Members, Invitations, Audit log | No Owner card; no actions on owner rows |
 | Project admin | yes | Invitations only | Sees and invites only for projects they administer; other tabs show "You don't have access" inside the Settings layout; sees only their projects |
 | Member, Viewer | no | none | A typed Settings URL shows "You don't have access" under the same bar |
@@ -69,7 +69,7 @@ Clicks, as the proposal promises: Projects <-> Settings is one click with the ta
 - Settings is a tab (org pages) and an org-menu item (every page). The Settings button on the Projects page header is gone by default (a proposal toggle brings it back). The avatar-menu Settings item and its toggle are dropped.
 - The run page crumb "invoicer-api" no longer leads to the all-projects list; the crumbs are now the org and project switchers followed by "Runs" (the project's Runs list).
 - The needs-you page has the bar. My invitations is reached from sign-in, not from the account menu. "Sign out" is now "Logout" everywhere (the code uses "Logout").
-- The 319 static boards are still drawn inside the live bar: the bar of each board's header strip is replaced by the live one (195 org-level, 93 project-level, 21 run-level). Boards drawn without a bar and now given one: the needs-you explainer (org bar) and the page-crash and loading boards (bar of the current area). Boards that stay barless: Main (index), the two sign-in boards, Pagination and RunTranscriptStates (explainers). The check script counts the bars of every board: exactly one, never two.
+- The 322 static boards are still drawn inside the live bar: the bar of each board's header strip is replaced by the live one (198 org-level, 93 project-level, 21 run-level). Boards drawn without a bar and now given one: the needs-you explainer (org bar) and the page-crash and loading boards (bar of the current area). Boards that stay barless: Main (index), the two sign-in boards, Pagination and RunTranscriptStates (explainers). The check script counts the bars of every board: exactly one, never two.
 - Board text changes done at display time (the boards stay untouched): "This list is one click away on the logo." reads "... on the Projects tab." on Projects boards, and the Settings or Invitations button in the head of the Projects boards is hidden unless the first proposal toggle is on.
 
 ### Proposals to review (open questions 2 and 3 of the proposal, not decided)
@@ -124,7 +124,7 @@ Orgs in the data: `harbor-labs` (Harbor Labs, main one), `northwind` (Northwind 
 Real (works and changes what you see):
 - Sign-in as the chosen role, the top bar (org and project switchers, tabs by role, account menu), org switching (with a short loading state), hash routing, back button.
 - Projects list with per-role visibility, checklist, pending-invitation banner, "Switch to polling".
-- Settings: General (validation, slug-taken, slug-change confirmation, rename updates the switcher), Members (paging, row menus, Change role with cards, Owner note, step-down warning, last-owner conflict, Remove), Invitations (filters, paging, invite dialog with whole-org or some-projects, created dialog, revoke, resend, copy link), Audit log (new entries appear at the top for every change above).
+- Settings: General (validation, slug-taken, slug-change confirmation, rename updates the switcher), Members (paging, access chips per scope, row menus, Change access with role cards and a Project access section to add, change and remove project grants, Owner note, step-down warning, last-owner conflict, Remove), Invitations (filters, paging, invite dialog with whole-org or some-projects, created dialog, revoke, resend, copy link), Audit log (new entries appear at the top for every change above).
 - Accepting and declining invitations; creating an organization as platform admin.
 - Desk > Workspace setup: the "Setup script | Environment" tab strip (`?tab=environment`) and the Environment tab: add a variable or secret (name format, reserved names, a name that already exists in either list, a secret under 6 characters, entry limit, 256 KiB size), edit a variable in place (name read-only), Replace a secret (empty "New value", Save disabled while empty), Remove with a confirm dialog, the "Added NAME" toast, paging per list (`varsPage`, `secretsPage`; the other list and an open form stay), the "This entry no longer exists" row message, Show value, Enter submits and Escape cancels a row form. Secret values are never kept after a save and never drawn. Member and viewer get "You don't have access" on this page (no `setup:read`); owner, admin and the project admin of that project get every control.
 - Dialogs, toasts, busy states (about 0.7 s of fake latency), field errors, form banners, failure injection.
@@ -137,7 +137,7 @@ Faked or static:
 
 ## Coverage of every board
 
-There are 319 boards in `design/prototype/project/`. Every one is reproduced: each is reachable through the route in the table and also from the Scenario selector on its screen. "Live screen" means the default route is the working, stateful screen. "Board snapshot" means the route shows the board as drawn inside the live header and navigation. Where a board's states can be produced live, the last column says how. Routes assume `harbor-labs` and `invoicer-api`; the Screen map and the Scenario selector build them for the current org and project.
+There are 322 boards in `design/prototype/project/`. Every one is reproduced: each is reachable through the route in the table and also from the Scenario selector on its screen. "Live screen" means the default route is the working, stateful screen. "Board snapshot" means the route shows the board as drawn inside the live header and navigation. Where a board's states can be produced live, the last column says how. Routes assume `harbor-labs` and `invoicer-api`; the Screen map and the Scenario selector build them for the current org and project.
 
 Three default routes depend on the role: CreateOrg (Platform admin; others see CreateOrgForbidden), MyInvitations (New user with invitations; others see the empty board) and InvitationAccept (New user with invitations; others see "not available"). Their other boards are reachable with `?s=`.
 
@@ -174,7 +174,7 @@ Boards not reproduced: none. Closest to not reproduced: `OrgInvitationsInviteTab
 | `index.html` | Entry; loads the CSS and scripts in order |
 | `board-styles.css` | Union of the boards' shared CSS (generated) |
 | `styles.css` | Prototype-only styles: sticky bar, name truncation in the bar, menus, toasts, controls panel, screen map (tokens only) |
-| `data/boards.js` | The 319 boards' markup (generated) |
+| `data/boards.js` | The 322 boards' markup (generated) |
 | `js/core.js` | Fake data, roles, permission rules, fake API |
 | `js/router.js` | Hash router |
 | `js/boards.js` | Board lookup, board-to-route mapping, generic states |
@@ -352,26 +352,29 @@ No routes changed with the Option A navigation update, so every row below still 
 | `OrgMembers` | `#/o/harbor-labs/settings/members` | Live screen | Live: Settings > Members (any owner/admin) |
 | `OrgMembersAdmin` | `#/o/harbor-labs/settings/members?s=OrgMembersAdmin` | Board snapshot, live header and navigation | Live: sign in as Org admin; no actions on owner rows |
 | `OrgMembersBusy` | `#/o/harbor-labs/settings/members?s=OrgMembersBusy` | Board snapshot, live header and navigation | Live for ~0.7 s while a role change or removal is saving (row dimmed) |
-| `OrgMembersChangeRole` | `#/o/harbor-labs/settings/members?s=OrgMembersChangeRole` | Board snapshot, live header and navigation | Live: row menu > Change role |
-| `OrgMembersChangeRoleAdmin` | `#/o/harbor-labs/settings/members?s=OrgMembersChangeRoleAdmin` | Board snapshot, live header and navigation | Live: as Org admin, Change role (no Owner card) |
-| `OrgMembersChangeRoleError` | `#/o/harbor-labs/settings/members?s=OrgMembersChangeRoleError` | Board snapshot, live header and navigation | Live: Fail next = Server error, then Save role |
-| `OrgMembersChangeRoleSaving` | `#/o/harbor-labs/settings/members?s=OrgMembersChangeRoleSaving` | Board snapshot, live header and navigation | Live: Save role (0.7 s Saving...) |
+| `OrgMembersChangeAccessEmpty` | `#/o/harbor-labs/settings/members?s=OrgMembersChangeAccessEmpty` | Board snapshot, live header and navigation | Live: row menu > Change access on a member with no project grants |
+| `OrgMembersChangeAccessMany` | `#/o/harbor-labs/settings/members?s=OrgMembersChangeAccessMany` | Board snapshot, live header and navigation | Board only: Change access for Fatima Zahra, eight project grants (Fatima is not in the live data) |
+| `OrgMembersChangeRole` | `#/o/harbor-labs/settings/members?s=OrgMembersChangeRole` | Board snapshot, live header and navigation | Live: row menu > Change access |
+| `OrgMembersChangeRoleAdmin` | `#/o/harbor-labs/settings/members?s=OrgMembersChangeRoleAdmin` | Board snapshot, live header and navigation | Live: as Org admin, Change access (no Owner card) |
+| `OrgMembersChangeRoleError` | `#/o/harbor-labs/settings/members?s=OrgMembersChangeRoleError` | Board snapshot, live header and navigation | Live: Fail next = Server error, then Save access |
+| `OrgMembersChangeRoleSaving` | `#/o/harbor-labs/settings/members?s=OrgMembersChangeRoleSaving` | Board snapshot, live header and navigation | Live: Save access (0.7 s Saving...) |
 | `OrgMembersEmpty` | `#/o/harbor-labs/settings/members?s=OrgMembersEmpty` | Board snapshot, live header and navigation | Scenario selector: Empty (also a snapshot) |
 | `OrgMembersError` | `#/o/harbor-labs/settings/members?s=OrgMembersError` | Board snapshot, live header and navigation | Scenario selector: Error |
 | `OrgMembersForbidden` | `#/o/harbor-labs/settings/members?s=OrgMembersForbidden` | Board snapshot, live header and navigation | Live: sign in as Member or Viewer and open the URL; or scenario Forbidden |
-| `OrgMembersGone` | `#/o/harbor-labs/settings/members?s=OrgMembersGone` | Board snapshot, live header and navigation | Live: Fail next = Not found, then Save role |
+| `OrgMembersGone` | `#/o/harbor-labs/settings/members?s=OrgMembersGone` | Board snapshot, live header and navigation | Live: Fail next = Not found, then Save access |
 | `OrgMembersLastOwner` | `#/o/harbor-labs/settings/members?s=OrgMembersLastOwner` | Board snapshot, live header and navigation | Live: make the other owner a member, then step Kim Hale down; or Fail next = Conflict |
 | `OrgMembersLoading` | `#/o/harbor-labs/settings/members?s=OrgMembersLoading` | Board snapshot, live header and navigation | Scenario selector: Loading |
-| `OrgMembersMakeOwner` | `#/o/harbor-labs/settings/members?s=OrgMembersMakeOwner` | Board snapshot, live header and navigation | Live: Change role, pick the Owner card (owner only) |
+| `OrgMembersMakeOwner` | `#/o/harbor-labs/settings/members?s=OrgMembersMakeOwner` | Board snapshot, live header and navigation | Live: Change access, pick the Owner card (owner only) |
+| `OrgMembersManyGrants` | `#/o/harbor-labs/settings/members?s=OrgMembersManyGrants` | Board snapshot, live header and navigation | Board only: adds Fatima Zahra with eight project grants (chips wrap); the live list shows Alexandra, who has four |
 | `OrgMembersPaged` | `#/o/harbor-labs/settings/members?s=OrgMembersPaged` | Board snapshot, live header and navigation | Live: 26 members, 20 per page, page 2 |
 | `OrgMembersRemoveConfirm` | `#/o/harbor-labs/settings/members?s=OrgMembersRemoveConfirm` | Board snapshot, live header and navigation | Live: row menu > Remove from organization |
 | `OrgMembersRemoveLastOwner` | `#/o/harbor-labs/settings/members?s=OrgMembersRemoveLastOwner` | Board snapshot, live header and navigation | Live: Fail next = Conflict, then Remove |
 | `OrgMembersRemoved` | `#/o/harbor-labs/settings/members?s=OrgMembersRemoved` | Board snapshot, live header and navigation | Live: confirm Remove (toast, row gone, audit entry) |
 | `OrgMembersRemoving` | `#/o/harbor-labs/settings/members?s=OrgMembersRemoving` | Board snapshot, live header and navigation | Live: confirm Remove (0.7 s Removing...) |
-| `OrgMembersRoleChanged` | `#/o/harbor-labs/settings/members?s=OrgMembersRoleChanged` | Board snapshot, live header and navigation | Live: Save role (toast, audit entry) |
+| `OrgMembersRoleChanged` | `#/o/harbor-labs/settings/members?s=OrgMembersRoleChanged` | Board snapshot, live header and navigation | Live: Save access (toast, audit entry) |
 | `OrgMembersRowMenu` | `#/o/harbor-labs/settings/members?s=OrgMembersRowMenu` | Board snapshot, live header and navigation | Live: row menu on another member |
 | `OrgMembersRowMenuSelf` | `#/o/harbor-labs/settings/members?s=OrgMembersRowMenuSelf` | Board snapshot, live header and navigation | Live: row menu on your own row |
-| `OrgMembersStepDown` | `#/o/harbor-labs/settings/members?s=OrgMembersStepDown` | Board snapshot, live header and navigation | Live: as owner, Change role on your own row, pick a lower role |
+| `OrgMembersStepDown` | `#/o/harbor-labs/settings/members?s=OrgMembersStepDown` | Board snapshot, live header and navigation | Live: as owner, Change access on your own row, pick a lower role |
 | `OrgSuspended` | `#/o/harbor-labs/projects?s=OrgSuspended` | Board snapshot, live header and navigation | Live: as Platform admin suspend Harbor Labs, then switch persona to Org owner |
 | `OrgSuspendedPlatformAdmin` | `#/o/harbor-labs/projects?s=OrgSuspendedPlatformAdmin` | Board snapshot, live header and navigation | Live: as Platform admin open #/o/harbor-labs/projects after suspending it, then the org switcher |
 | `OrgSuspendedSwitcher` | `#/o/harbor-labs/projects?s=OrgSuspendedSwitcher` | Board snapshot, live header and navigation | Live: on the suspended page open the org switcher |

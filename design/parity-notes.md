@@ -437,3 +437,44 @@ OrgAuditInvitationNoEmail (`Screens/OrgSettings`). Their `canvas.json` entries s
 - OrgAudit*: intentional: invitation sentences name projects (at most 3, then "and N more"; the title keeps the full list).
 - Storybook and `parity.mjs` were not run in the runner pod (no Chromium, low RAM). The 9 pixel pairs are unchecked: none is
   claimed to match.
+
+## Org Members: access by scope and Change access (#259)
+
+Ticket: haicanhdieu/agent-desk#259. Three boards added, so `parity.mjs` finds 285 boards in `canvas.json`:
+OrgMembersManyGrants, OrgMembersChangeAccessMany, OrgMembersChangeAccessEmpty (`Screens/OrgSettings`). The Members table has
+three columns now (Name, Access, Actions): the Role and Project roles columns became one Access column of chips, one per grant
+(`Organization · Admin`, `<project> · Member`, `No role` first when there is no org grant). Every `OrgMembers*` board was redrawn
+for the new cell, the Change role boards became Change access (title, Save access, a Project access section), and the row menu
+item reads "Change access".
+
+- Chips wrap onto more lines (no ellipsis, no "+N more"), so no grant is hidden. The boards draw them as `.lbl` pills in a flex-wrap list.
+- Change access: the org Role cards, then a Project access group: one row per project grant (name, role select Admin / Member /
+  Viewer, remove button) or "No project access.", and an Add project row (project select, role select, Add project). The shared
+  `ChangeRoleDialog` shows the section only when it gets `projectAccess`; the project Members page passes none and keeps
+  "Change role" / "Save role".
+- Intentional: the story fixtures name their people as in the earlier Members stories (Alice, Cleo, Dana); the boards keep the
+  prototype's own cast (Kim Hale, Mira Chen). The new boards use Fatima Zahra (eight project grants) and ari-k (no grants).
+- Intentional: the dialog body of the story scrolls inside the dialog (`max-height: calc(100vh - 220px)`) when the Project
+  access rows outgrow a short window; the static boards do not scroll.
+- Table widths: the boards draw 34% / rest / 56px; the shared `DataTable` lays the columns out itself (as in the other Members boards).
+- The interactive prototype (`design/prototype/interactive/`) was regenerated with `_tools/build-boards.mjs` (322 boards) and its live
+  Members screen now has the Access column and a working Change access dialog (add, change, remove, audit entries). `_checks/nav-check.mjs`
+  was run unchanged in the runner pod after the last regeneration, with `PW_CORE_DIR` set and a scratch `HOME` whose macOS-style browser path
+  links to the installed Linux headless shell: 322 boards checked, 179 checks passed, 0 failed, no console errors. The `_checks/nav/`
+  screenshots it rewrote were not committed, so they are unchanged.
+- Storybook parity was run in the runner pod (`build-storybook`, then `parity.mjs` with Chromium 158 from `runner-setup.sh` profile `full`).
+  `parity.mjs` built the story id from the title with a camelCase split, so every `Screens/OrgSettings` board timed out (the Storybook id is
+  `screens-orgsettings--...`); it now lowercases the title without splitting. After that fix only the 26 `OrgMembers*` pairs (23 redrawn and
+  the 3 new) were rendered and compared, by eye; the other boards were not re-run in this pass. Result:
+  - Fixed: `OrgMembersRowMenu` and `OrgMembersRowMenuSelf` had lost one row and the open row menu, and had Actions labels shifted onto the wrong
+    row. They now have 8 rows, the open menu (Change access and Remove from organization; own row: Change access only) and matching labels.
+  - Compared and matching in layout: the Access column with chips, the Change access title and Save access, the Project access rows, the Add
+    project row, and "No project access." on the empty board.
+  - Remaining differences, none claimed to match pixel for pixel. Each has a reason (frontend.md §8):
+    - Story cast (Alice, Cleo, Dana, Fatima) against board cast (Kim Hale, Mira Chen, ari-k): intentional state difference.
+    - The board dialog body overflows the 900px window while the story scrolls it inside the dialog: intentional state difference (see above).
+    - The story page content and dialog body sit 2px to 8px further in than the board: not fixed; it comes from the shared
+      `OrgSettingsLayout` and `Dialog`, which this PR does not change (the same kind of 1 to 8px layout drift is recorded for other boards above).
+    - The story has no sidebar icons: not fixed; shared `OrgSettingsLayout`, not changed here.
+    - The story shows no menu on the caller's own row, while the `RowMenuSelf` board draws one: not fixed; the board already drew an
+      own-row menu on `main` ("Change role" on Kim Hale's row), and the own-row rule is not changed here.

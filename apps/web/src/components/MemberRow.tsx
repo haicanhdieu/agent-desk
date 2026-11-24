@@ -14,12 +14,11 @@ export interface MemberRowProps {
 
 export const memberColumns: DataTableColumn[] = [
   { key: 'name', header: 'Name' },
-  { key: 'role', header: 'Role' },
-  { key: 'projectRoles', header: 'Project roles' },
+  { key: 'access', header: 'Access' },
   { key: 'actions', header: <span className="sr-only">Actions</span>, align: 'right' },
 ];
 
-/** One row of the org's members table: name and handle, role, project roles and the row menu. Text only, never HTML. */
+/** One row of the org's members table: name and handle, every grant as scope and role, and the row menu. Text only, never HTML. */
 export function MemberRow({ row, busy, onChangeRole, onRemove }: MemberRowProps) {
   const { menuAt, open, moreRef, toggleMenu, closeMenu } = useRowMenu();
   const pick = (action: (r: MemberRowView) => void) => () => {
@@ -47,15 +46,19 @@ export function MemberRow({ row, busy, onChangeRole, onRemove }: MemberRowProps)
           {row.you && <LabelChip name="You" />}
         </span>
       </td>
-      <td className={styles.cell}>{row.role ? row.role.name : <LabelChip name="No role" />}</td>
-      <td className={styles.projectCell}>
-        {row.projectRoles === '—' ? (
-          <span className={styles.faint}>—</span>
-        ) : (
-          <span className={styles.ellipsis} title={row.projectRoles}>
-            {row.projectRoles}
-          </span>
-        )}
+      <td className={styles.accessCell}>
+        <ul className={styles.grants} aria-label={`Access of ${row.name}`}>
+          {row.role === null && (
+            <li>
+              <LabelChip name="No role" />
+            </li>
+          )}
+          {row.grants.map((g) => (
+            <li key={g.id}>
+              <LabelChip name={`${g.scopeName} · ${g.roleName}`} />
+            </li>
+          ))}
+        </ul>
       </td>
       <td className={styles.actionsCell}>
         {hasMenu && (
@@ -76,7 +79,7 @@ export function MemberRow({ row, busy, onChangeRole, onRemove }: MemberRowProps)
             >
               {row.canChangeRole && (
                 <Button variant="ghost" size="sm" className={styles.menuAction} onClick={pick(onChangeRole)}>
-                  Change role
+                  Change access
                 </Button>
               )}
               {row.canRemove && (

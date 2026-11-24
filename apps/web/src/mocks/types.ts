@@ -264,6 +264,12 @@ export interface InviteOption {
 // Tenant admin (Settings → General, Members, Invitations, Audit log).
 export type OrgSettingsTabKey = 'general' | 'members' | 'invitations' | 'audit';
 export type OrgRoleKey = 'owner' | 'admin' | 'member' | 'viewer';
+/** One grant of a member: `scopeName` is "Organization" or a project name. */
+export interface MemberGrantView {
+  id: string;
+  scopeName: string;
+  roleName: string;
+}
 export interface MemberRowView {
   userId: string;
   name: string;
@@ -271,11 +277,24 @@ export interface MemberRowView {
   you: boolean;
   /** null renders "No role". */
   role: { key: OrgRoleKey; name: string } | null;
-  /** "Alpha (Admin), Beta (Member)" or "—". */
-  projectRoles: string;
+  /** Every grant the caller can see, as scope and role: the org grant first, then projects by name. */
+  grants: MemberGrantView[];
   /** From the caller's rights (BR-4, BR-9). */
   canChangeRole: boolean;
   canRemove: boolean;
+}
+/** A project grant the change-access dialog edits (`assignmentId` is the grant it replaces or removes). */
+export interface ProjectGrantView {
+  assignmentId: string;
+  projectId: string;
+  projectName: string;
+  roleId: string;
+  roleName: string;
+}
+/** What the change-access dialog hands back: the org role (null = No role) and the member's project grants as wanted. */
+export interface AccessChange {
+  roleId: string | null;
+  projects: { assignmentId?: string; projectId: string; roleId: string }[];
 }
 export interface RoleCardOption {
   roleId: string | null;

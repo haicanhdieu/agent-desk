@@ -16,12 +16,14 @@ import { useToast } from '@/ds';
 import { requirePermission } from '@/features/access/guards';
 import { orgAccessQuery, toAccess } from '@/features/access/queries';
 import { orgsQuery } from '@/features/auth/session';
+import { diffAccess, orgRoleIdOf, projectGrantsOf } from '@/features/members/accessChange';
 import { callerRights, toMemberRow } from '@/features/members/map';
-import { refreshAccess, useChangeRole, useRemoveMember } from '@/features/members/mutations';
+import { ProjectGrantsError, refreshAccess, useChangeAccess, useRemoveMember } from '@/features/members/mutations';
 import { membersQuery } from '@/features/members/queries';
 import { roleCards } from '@/features/members/roleCards';
+import { projectRoleCards } from '@/features/projectMembers/roleCards';
 import { inviteProjectsQuery, inviteRolesQuery } from '@/features/orgInvitations/queries';
-import type { MemberRowView } from '@/mocks/types';
+import type { AccessChange, InviteOption, MemberRowView, ProjectGrantView } from '@/mocks/types';
 import { OrgMembers, type OrgMembersProps } from '@/screens';
 import { can } from '@agentdesk/contracts';
 
@@ -59,11 +61,15 @@ function MembersContent({ org }: { org: string }) {
 
   // The row a dialog is about is held as it was when the menu item was pressed (its current role id with it), so a
   // refetch behind the open dialog never swaps the member under it.
-  const [changing, setChanging] = useState<{ row: MemberRowView; current: string | null } | null>(null);
+  const [changing, setChanging] = useState<{
+    row: MemberRowView;
+    current: string | null;
+    grants: ProjectGrantView[];
+  } | null>(null);
   const [changeError, setChangeError] = useState<ChangeRoleDialogProps['error']>();
   const [removing, setRemoving] = useState<MemberRowView | null>(null);
   const focusHeading = useRef(false);
-  const change = useChangeRole(org, orgId ?? '');
+  const change = useChangeAccess(org, orgId ?? '');
   const remove = useRemoveMember(org, orgId ?? '');
 
   // After a remove the opener is gone: focus moves to the page heading, once the confirm has left the page.
@@ -122,21 +128,40 @@ function MembersContent({ org }: { org: string }) {
     };
   }
 
+  const projectNames = new Map((projects.data ?? []).map((p) => [p.id, p.name]));
   const openChangeRole = (row: MemberRowView) => {
     const dto = data?.items.find((m) => m.userId === row.userId);
     setChangeError(undefined);
-    setChanging({ row, current: dto?.assignments.find((a) => a.scope.type === 'org')?.role.id ?? null });
+    setChanging({
+      row,
+      current: dto ? orgRoleIdOf(dto) : null,
+      grants: dto ? projectGrantsOf(dto, projectNames) : [],
+    });
   };
 
-  const onSaveRole = async (roleId: string | null) => {
+  const onSaveAccess = async (wanted: AccessChange) => {
     if (changing === null || change.isPending) return;
+    const diff = diffAccess(changing.current, changing.grants, wanted);
     setChangeError(undefined);
     try {
-      await change.mutateAsync({ userId: changing.row.userId, roleId });
+      await change.mutateAsync({
+        userId: changing.row.userId,
+        ...(diff.setOrgRole && { roleId: wanted.roleId }),
+        diff,
+      });
       setChanging(null);
-      toast.show({ tone: 'ok', title: 'Role changed' });
+      toast.show({
+        tone: 'ok',
+        title: diff.create.length === 0 && diff.remove.length === 0 ? 'Role changed' : 'Access changed',
+      });
     } catch (e) {
-      if (isOrgMismatchError(e)) {
+      if (e instanceof ProjectGrantsError) {
+        // The role (and maybe some grants) were saved before the refusal: the dialog would diff against rows that
+        // are stale now, so it closes and the list, read again, shows what is true.
+        toast.show(toastFromError(e.failure));
+        if (e.failure instanceof ApiError && e.failure.status === 403) void refreshAccess(queryClient, org);
+        setChanging(null);
+      } else if (isOrgMismatchError(e)) {
         toast.show(toastFromError(e)); // the choice stays; a second press tries again
       } else if (e instanceof ApiError && e.status === 409) {
         setChangeError({ kind: 'lastOwner' });
@@ -190,10 +215,13 @@ function MembersContent({ org }: { org: string }) {
           orgName={orgName}
           row={changing.row}
           current={changing.current}
+          projectGrants={changing.grants}
+          projects={(projects.data ?? []).map((p): InviteOption => ({ id: p.id, label: p.name }))}
           callerIsOwner={callerRights(access).owner}
+          canEditProjects={callerRights(access).canAssign}
           saving={change.isPending}
           error={changeError}
-          onSave={(roleId) => void onSaveRole(roleId)}
+          onSave={(wanted) => void onSaveAccess(wanted)}
           onCancel={() => {
             if (change.isPending) return;
             // A refused save: the rights may be gone, so the page reads them again now that the Banner was seen.
@@ -216,22 +244,28 @@ interface ChangeRolePanelProps {
   orgName: string;
   row: MemberRowView;
   current: string | null;
+  projectGrants: ProjectGrantView[];
+  projects: InviteOption[];
   callerIsOwner: boolean;
+  canEditProjects: boolean;
   saving: boolean;
   error: ChangeRoleDialogProps['error'];
-  onSave: (roleId: string | null) => void;
+  onSave: (change: AccessChange) => void;
   onCancel: () => void;
   onLoadFailed: (e: unknown) => void;
 }
 
-/** Mounted while the change-role dialog is wanted: loads the role cards, then shows the dialog. */
+/** Mounted while the change-access dialog is wanted: loads the role cards, then shows the dialog. */
 function ChangeRolePanel({
   org,
   orgId,
   orgName,
   row,
   current,
+  projectGrants,
+  projects,
   callerIsOwner,
+  canEditProjects,
   error,
   onLoadFailed,
   ...rest
@@ -252,6 +286,12 @@ function ChangeRolePanel({
       orgName={orgName}
       options={roleCards(roles.data, callerIsOwner)}
       current={current}
+      projectAccess={{
+        grants: projectGrants,
+        projects,
+        roles: projectRoleCards(roles.data),
+        canEdit: canEditProjects,
+      }}
       self={row.you}
       currentIsOwner={row.role?.key === 'owner'}
       {...(error && { error })}

@@ -96,13 +96,21 @@ function get(url: string, cookie: string) {
   return t.app.inject({ method: 'GET', url, headers: { cookie } });
 }
 
+const UUID_RE = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi;
+
+/** Generated ids are random hex and can contain the sentinel digits; mask only full UUIDs before leak matching. */
+function maskUuids(text: string): string {
+  return text.replace(UUID_RE, '<uuid>');
+}
+
 /** The refusal of a suspended org: 403, type org-suspended, the fixed text and nothing about the org. */
 function expectSuspended(res: { statusCode: number; body: string; json: <T>() => T }, why: string): void {
   expect(res.statusCode, why).toBe(403);
   const body = res.json<Record<string, unknown>>();
   expect(body, why).toMatchObject({ type: 'org-suspended', title: 'Forbidden', status: 403, detail: FIXED_DETAIL });
   expect(Object.keys(body).sort(), why).toEqual(['detail', 'requestId', 'status', 'title', 'type']);
-  expect(res.body, why).not.toMatch(/4711|invoice|suspended_at|suspendedAt|reason/i);
+  expect(body.requestId, why).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i);
+  expect(maskUuids(res.body), why).not.toMatch(/4711|invoice|suspended_at|suspendedAt|reason/i);
 }
 
 function expectPlain403(res: { statusCode: number; body: string; json: <T>() => T }, why: string): void {
@@ -360,7 +368,7 @@ describe('a suspended org at the tenant guard', () => {
     const rows = list.json<{ id: string; status?: string }[]>();
     expect(rows.find((o) => o.id === orgA)?.status).toBe('suspended');
     expect(rows.find((o) => o.id === orgB)?.status).toBe('active');
-    expect(list.body).not.toMatch(/suspended_at|suspendedAt|4711/);
+    expect(maskUuids(list.body)).not.toMatch(/suspended_at|suspendedAt|4711/);
     expectSuspended(await get('/api/projects', multi), 'active org is the suspended one');
   });
 

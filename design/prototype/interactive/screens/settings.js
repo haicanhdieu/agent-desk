@@ -151,11 +151,28 @@
     const label = m.name || m.handle;
     let menu = '';
     if (AD.ui.menu === menuId && canAct) {
-      menu = `<div class="pop" role="menu" aria-label="Actions for ${esc(label)}" style="right:12px;top:calc(100% - 4px);width:220px;padding:6px;gap:2px;text-align:left"><button class="btn ghost" role="menuitem" data-act="role-open" data-uid="${esc(m.uid)}" style="justify-content:flex-start;width:100%;color:var(--text)">Change role</button>${you ? '' : `<button class="btn ghost" role="menuitem" data-act="remove-open" data-uid="${esc(m.uid)}" style="justify-content:flex-start;width:100%;color:var(--fail)">Remove from organization</button>`}</div>`;
+      menu = `<div class="pop" role="menu" aria-label="Actions for ${esc(label)}" style="right:12px;top:calc(100% - 4px);width:220px;padding:6px;gap:2px;text-align:left"><button class="btn ghost" role="menuitem" data-act="role-open" data-uid="${esc(m.uid)}" style="justify-content:flex-start;width:100%;color:var(--text)">Change access</button>${you ? '' : `<button class="btn ghost" role="menuitem" data-act="remove-open" data-uid="${esc(m.uid)}" style="justify-content:flex-start;width:100%;color:var(--fail)">Remove from organization</button>`}</div>`;
     }
-    const roles = m.projects.length ? m.projects.map((p) => `${p.name} (${p.role})`).join(', ') : '';
+    const chips = [m.role ? `Organization · ${AD.roleLabel(m.role)}` : 'No role', ...m.projects.map((p) => `${p.name} · ${p.role}`)].map((t) => `<li><span class="lbl">${esc(t)}</span></li>`).join('');
     const act = canAct ? `<button class="btn ghost iconbtn" data-act="rowmenu" data-id="${esc(m.uid)}" aria-label="Actions for ${esc(label)}" aria-haspopup="menu" aria-expanded="${AD.ui.menu === menuId}"${busy ? ' disabled' : ''}>${I.dots}</button>${menu}` : '';
-    return `<tr${busy ? ' aria-busy="true"' : ''}><td>${nameCell(m, you)}</td><td style="font-size:13px">${m.role ? AD.roleLabel(m.role) : '<span class="lbl">No role</span>'}</td><td>${roles ? `<span class="muted" style="display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:13px" title="${esc(roles)}">${esc(roles)}</span>` : '<span class="faint" style="font-size:13px">—</span>'}</td><td style="text-align:right;position:relative">${act}</td></tr>`;
+    return `<tr${busy ? ' aria-busy="true"' : ''}><td>${nameCell(m, you)}</td><td><ul style="display:flex;flex-wrap:wrap;gap:4px;margin:0;padding:0;list-style:none" aria-label="Access of ${esc(label)}">${chips}</ul></td><td style="text-align:right;position:relative">${act}</td></tr>`;
+  }
+
+  const PROJECT_ROLES = ['Admin', 'Member', 'Viewer'];
+  const optionsOf = (list, sel) => list.map((o) => `<option${o === sel ? ' selected' : ''}>${esc(o)}</option>`).join('');
+  // The grants being edited: the person's grants when the dialog opened, with the role picked in each select.
+  const draftOf = (d) => d.projects.map((g, i) => ({ name: g.name, role: d['pr' + i] || g.role }));
+  const sameGrants = (a, b) => a.length === b.length && a.every((g, i) => g.name === b[i].name && g.role === b[i].role);
+  function projectSection(ctx, d, m) {
+    const draft = draftOf(d);
+    const dis = d.busy ? ' disabled' : '';
+    const rows = draft.length
+      ? `<ul style="display:flex;flex-direction:column;gap:6px;margin:0;padding:0;list-style:none">${draft.map((g, i) => `<li aria-label="${esc(g.name)}" style="display:flex;align-items:center;gap:8px"><span style="flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:13px" title="${esc(g.name)}">${esc(g.name)}</span><select class="input" aria-label="Role in ${esc(g.name)}" data-dlg="pr${i}" data-rerender="1" style="flex:0 0 120px;width:120px"${dis}>${optionsOf(PROJECT_ROLES, g.role)}</select><button class="btn ghost iconbtn" data-act="proj-remove" data-i="${i}" aria-label="Remove access to ${esc(g.name)}"${dis}>${I.x}</button></li>`).join('')}</ul>`
+      : '<p class="muted" style="margin:0;font-size:13px">No project access.</p>';
+    const used = new Set(draft.map((g) => g.name));
+    const addable = (AD.state.projects[ctx.orgSlug] || []).map((x) => x.id).filter((id) => !used.has(id));
+    const add = `<div style="display:flex;align-items:center;gap:8px"><select class="input" aria-label="Project to add" data-dlg="toAdd" data-rerender="1" style="flex:1 1 auto;min-width:0"${dis}><option value="">Add a project…</option>${addable.map((id) => `<option${id === d.toAdd ? ' selected' : ''}>${esc(id)}</option>`).join('')}</select><select class="input" aria-label="Role in the project to add" data-dlg="addRole" style="flex:0 0 120px;width:120px"${dis}>${optionsOf(PROJECT_ROLES, d.addRole || 'Member')}</select><button class="btn sm" data-act="proj-add"${dis || (d.toAdd ? '' : ' disabled')}>${I.plus || ''}Add project</button></div>`;
+    return `<div class="field"><span class="flabel" id="cr-projects">Project access</span><div role="group" aria-labelledby="cr-projects" style="display:flex;flex-direction:column;gap:8px">${rows}${add}</div></div>`;
   }
 
   function roleDialog(ctx) {
@@ -174,7 +191,8 @@
     }).join('');
     const err = d.err ? `<div class="banner err" role="alert" style="align-items:center"><span class="b-ico">${I.warn}</span>${d.err.status === 409 ? `<b class="grow" style="font-weight:600">${esc(d.err.title)}</b>` : `<div class="grow" style="display:flex;flex-direction:column;gap:2px"><b style="font-weight:600">${esc(d.err.title)}</b><span style="font-size:12px" class="muted">Request ID: <code class="mono" style="color:var(--text);font-size:12px">${esc(d.err.reqId)}</code></span></div>`}</div>` : '';
     const warn = stepDown ? `<div class="banner warn" id="cr-stepdown" role="status" style="align-items:center"><span class="b-ico">${I.warn}</span><span class="grow" style="font-size:13.5px">You will lose owner rights in ${esc(org.name)}.</span></div>` : '';
-    return AD.dialog({ label: 'Change role for ' + label, w: 520, body: `<h2 style="font-size:18px">Change role for ${esc(label)}</h2>${err}<div class="field"><span class="flabel" id="cr-legend">Role</span><div role="radiogroup" aria-labelledby="cr-legend" style="display:flex;flex-direction:column;gap:8px">${cards}</div></div>${warn}`, foot: `<button class="btn ghost" data-act="dialog-close"${d.busy ? ' disabled' : ''}>Cancel</button><button class="btn primary" data-act="role-save"${d.busy ? ' disabled aria-busy="true"' : d.sel === cur ? ' disabled' : ''}>${d.busy ? 'Saving…' : 'Save role'}</button>` });
+    const unchanged = d.sel === cur && sameGrants(draftOf(d), m.projects);
+    return AD.dialog({ label: 'Change access for ' + label, w: 520, body: `<h2 style="font-size:18px">Change access for ${esc(label)}</h2>${err}<div class="field"><span class="flabel" id="cr-legend">Role</span><div role="radiogroup" aria-labelledby="cr-legend" style="display:flex;flex-direction:column;gap:8px">${cards}</div></div>${warn}${projectSection(ctx, d, m)}`, foot: `<button class="btn ghost" data-act="dialog-close"${d.busy ? ' disabled' : ''}>Cancel</button><button class="btn primary" data-act="role-save"${d.busy ? ' disabled aria-busy="true"' : unchanged ? ' disabled' : ''}>${d.busy ? 'Saving…' : 'Save access'}</button>` });
   }
   function removeDialog(ctx) {
     const d = AD.ui.dialog; const m = AD.memberOf(ctx.orgSlug, d.uid); if (!m) return '';
@@ -184,19 +202,28 @@
 
   AD.acts['role-open'] = (el) => {
     const m = AD.memberOf(AD.cur.params.org, el.dataset.uid); if (!m) return;
-    AD.ui.menu = null; AD.ui.dialog = { type: 'role', uid: m.uid, sel: m.role || 'none', busy: false, err: null }; AD.render();
+    AD.ui.menu = null; AD.ui.dialog = { type: 'role', uid: m.uid, sel: m.role || 'none', projects: m.projects.map((g) => ({ name: g.name, role: g.role })), toAdd: '', addRole: 'Member', busy: false, err: null }; AD.render();
   };
+  // Folds the roles picked in the selects into the draft, so a removed or added row keeps them.
+  const syncProjects = (d) => { d.projects = draftOf(d); d.projects.forEach((_, i) => { delete d['pr' + i]; }); };
+  AD.acts['proj-remove'] = (el) => { const d = AD.ui.dialog; if (d.busy) return; syncProjects(d); d.projects.splice(Number(el.dataset.i), 1); d.err = null; AD.render(); };
+  AD.acts['proj-add'] = () => { const d = AD.ui.dialog; if (d.busy || !d.toAdd) return; syncProjects(d); d.projects.push({ name: d.toAdd, role: d.addRole || 'Member' }); d.toAdd = ''; d.err = null; AD.render(); };
   AD.acts['role-pick'] = (el) => { if (AD.ui.dialog.busy) return; AD.ui.dialog.sel = el.dataset.role; AD.ui.dialog.err = null; AD.render(); };
   AD.acts['role-save'] = () => {
     const d = AD.ui.dialog; const slug = AD.cur.params.org; if (d.busy) return;
     d.busy = true; d.err = null; AD.render();
     setTimeout(() => {
       const wasOwnerSelf = d.uid === AD.state.uid;
-      const r = AD.api.changeRole(slug, d.uid, d.sel === 'none' ? null : d.sel);
+      const m = AD.memberOf(slug, d.uid);
+      const roleChanged = m && d.sel !== (m.role || 'none');
+      const wanted = draftOf(d);
+      const grantsChanged = m && !sameGrants(wanted, m.projects);
+      let r = roleChanged || !grantsChanged ? AD.api.changeRole(slug, d.uid, d.sel === 'none' ? null : d.sel) : { ok: true };
+      if (!r.err && grantsChanged) r = AD.api.setProjectGrants(slug, d.uid, wanted);
       d.busy = false;
       if (r.err && r.err.status === 404) { AD.ui.dialog = null; AD.toast('err', r.err.title); AD.render(); return; }
       if (r.err) { d.err = r.err; AD.render(); return; }
-      AD.ui.dialog = null; AD.toast('ok', 'Role changed');
+      AD.ui.dialog = null; AD.toast('ok', grantsChanged ? 'Access changed' : 'Role changed');
       AD.render();
     }, 600);
   };
@@ -226,7 +253,7 @@
       const rows = pg.rows.map((m) => memberRow(ctx, m)).join('');
       const main = pg.total === 0
         ? `<main style="${MAIN}"><h1 tabindex="-1">Members</h1><div style="display:flex;flex-direction:column;align-items:center;gap:8px;text-align:center;padding:40px 16px"><h3>No members</h3></div></main>`
-        : `<main style="${MAIN}"><h1 tabindex="-1">Members</h1><table style="table-layout:fixed"><colgroup><col style="width:40%"><col style="width:14%"><col><col style="width:56px"></colgroup><thead><tr><th>Name</th><th>Role</th><th>Project roles</th><th><span style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)">Actions</span></th></tr></thead><tbody>${rows}</tbody></table>${AD.pager(pg)}</main>`;
+        : `<main style="${MAIN}"><h1 tabindex="-1">Members</h1><table style="table-layout:fixed"><colgroup><col style="width:34%"><col><col style="width:56px"></colgroup><thead><tr><th>Name</th><th>Access</th><th><span style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)">Actions</span></th></tr></thead><tbody>${rows}</tbody></table>${AD.pager(pg)}</main>`;
       const d = AD.ui.dialog;
       const overlay = d && d.type === 'role' ? roleDialog(ctx) : d && d.type === 'remove' ? removeDialog(ctx) : '';
       return AD.settingsOut(ctx, 'members', main, overlay);

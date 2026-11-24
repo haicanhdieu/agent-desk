@@ -1,14 +1,14 @@
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
-import { roleCards } from '@/mocks';
+import { accessProjectGrants, accessProjectRoleIds, accessProjects, projectRoleCards, roleCards } from '@/mocks';
 import { ChangeRoleDialog, type ChangeRoleDialogProps } from './ChangeRoleDialog';
 
 const owner = roleCards.ownerCaller;
 const admin = roleCards.adminCaller;
 const ids = { admin: owner[1]?.roleId ?? null, member: owner[2]?.roleId ?? null, owner: owner[0]?.roleId ?? null };
 
-function setup(over: Partial<ChangeRoleDialogProps> = {}) {
+function setup(over: Partial<ChangeRoleDialogProps> = {}, opts: { plain?: boolean } = {}) {
   const handlers = { onSave: vi.fn(), onCancel: vi.fn() };
   const props: ChangeRoleDialogProps = {
     memberName: 'Dana Whitfield',
@@ -18,9 +18,11 @@ function setup(over: Partial<ChangeRoleDialogProps> = {}) {
     self: false,
     currentIsOwner: false,
     saving: false,
+    projectAccess: { grants: [], projects: accessProjects, roles: projectRoleCards, canEdit: true },
     ...handlers,
     ...over,
   };
+  if (opts.plain) delete props.projectAccess;
   const view = render(<ChangeRoleDialog {...props} />);
   return { ...handlers, unmount: view.unmount };
 }
@@ -28,7 +30,7 @@ function setup(over: Partial<ChangeRoleDialogProps> = {}) {
 describe('ChangeRoleDialog', () => {
   it('shows the title, a Role radio group and every description', () => {
     setup();
-    expect(screen.getByRole('dialog', { name: 'Change role for Dana Whitfield' })).toBeTruthy();
+    expect(screen.getByRole('dialog', { name: 'Change access for Dana Whitfield' })).toBeTruthy();
     const group = screen.getByRole('group', { name: 'Role' });
     expect(within(group).getAllByRole('radio')).toHaveLength(admin.length);
     for (const c of admin) expect(within(group).getByText(c.description)).toBeTruthy();
@@ -52,14 +54,14 @@ describe('ChangeRoleDialog', () => {
     expect((screen.getByRole('radio', { name: 'No role' }) as HTMLInputElement).checked).toBe(true);
   });
 
-  it('keeps Save role disabled until the choice differs, then saves the picked role', async () => {
+  it('keeps Save access disabled until the choice differs, then saves the picked role', async () => {
     const h = setup();
-    const save = screen.getByRole('button', { name: 'Save role' }) as HTMLButtonElement;
+    const save = screen.getByRole('button', { name: 'Save access' }) as HTMLButtonElement;
     expect(save.disabled).toBe(true);
     await userEvent.click(screen.getByRole('radio', { name: 'Viewer' }));
     expect(save.disabled).toBe(false);
     await userEvent.click(save);
-    expect(h.onSave).toHaveBeenCalledWith(admin[2]?.roleId);
+    expect(h.onSave).toHaveBeenCalledWith({ roleId: admin[2]?.roleId, projects: [] });
     await userEvent.click(screen.getByRole('radio', { name: 'Member' }));
     expect(save.disabled).toBe(true);
   });
@@ -67,8 +69,8 @@ describe('ChangeRoleDialog', () => {
   it('saves null for No role', async () => {
     const h = setup();
     await userEvent.click(screen.getByRole('radio', { name: 'No role' }));
-    await userEvent.click(screen.getByRole('button', { name: 'Save role' }));
-    expect(h.onSave).toHaveBeenCalledWith(null);
+    await userEvent.click(screen.getByRole('button', { name: 'Save access' }));
+    expect(h.onSave).toHaveBeenCalledWith({ roleId: null, projects: [] });
   });
 
   it('BR-3 picking Owner shows the status note, linked from the group', async () => {
@@ -137,6 +139,216 @@ describe('ChangeRoleDialog', () => {
   it('renders the member name as text, never HTML', () => {
     setup({ memberName: '<img src=x onerror=alert(1)>' });
     expect(screen.getByRole('dialog').querySelector('img')).toBeNull();
-    expect(screen.getByText('Change role for <img src=x onerror=alert(1)>')).toBeTruthy();
+    expect(screen.getByText('Change access for <img src=x onerror=alert(1)>')).toBeTruthy();
+  });
+
+  it('without project access (the project Members page) it is the plain role dialog', async () => {
+    const h = setup({}, { plain: true });
+    expect(screen.getByRole('dialog', { name: 'Change role for Dana Whitfield' })).toBeTruthy();
+    expect(screen.queryByRole('group', { name: 'Project access' })).toBeNull();
+    await userEvent.click(screen.getByRole('radio', { name: 'Viewer' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Save role' }));
+    expect(h.onSave).toHaveBeenCalledWith({ roleId: admin[2]?.roleId, projects: [] });
+  });
+
+  describe('project access', () => {
+    const grants = accessProjectGrants;
+    const access = (over: Partial<NonNullable<ChangeRoleDialogProps['projectAccess']>>) => ({
+      grants: [],
+      projects: accessProjects,
+      roles: projectRoleCards,
+      canEdit: true,
+      ...over,
+    });
+    const section = () => screen.getByRole('group', { name: 'Project access' });
+    const rowFor = (project: string) => within(section()).getByRole('listitem', { name: project });
+
+    it('lists each project grant with its role and a remove button, and says so when there is none', () => {
+      const { unmount } = setup({ projectAccess: access({ grants }) });
+      expect(within(section()).getAllByRole('listitem')).toHaveLength(2);
+      expect(
+        (within(rowFor('invoicer-api')).getByRole('combobox', { name: 'Role in invoicer-api' }) as HTMLSelectElement)
+          .value,
+      ).toBe(accessProjectRoleIds.admin);
+      expect(
+        within(rowFor('invoicer-web')).getByRole('button', { name: 'Remove access to invoicer-web' }),
+      ).toBeTruthy();
+      unmount();
+      setup();
+      expect(within(section()).getByText('No project access.')).toBeTruthy();
+    });
+
+    it('offers Admin, Member and Viewer for a project, never Owner', () => {
+      setup({ projectAccess: access({ grants }) });
+      const select = within(rowFor('invoicer-api')).getByRole('combobox', { name: 'Role in invoicer-api' });
+      expect(
+        within(select)
+          .getAllByRole('option')
+          .map((o) => o.textContent),
+      ).toEqual(['Admin', 'Member', 'Viewer']);
+    });
+
+    it('saves a changed project role as the full wanted state, keeping the assignment it replaces', async () => {
+      const h = setup({ projectAccess: access({ grants }) });
+      const save = screen.getByRole('button', { name: 'Save access' }) as HTMLButtonElement;
+      expect(save.disabled).toBe(true);
+      await userEvent.selectOptions(
+        within(rowFor('invoicer-api')).getByRole('combobox', { name: 'Role in invoicer-api' }),
+        accessProjectRoleIds.viewer,
+      );
+      expect(save.disabled).toBe(false);
+      await userEvent.click(save);
+      expect(h.onSave).toHaveBeenCalledWith({
+        roleId: ids.member,
+        projects: [
+          {
+            assignmentId: grants[0]?.assignmentId,
+            projectId: grants[0]?.projectId,
+            roleId: accessProjectRoleIds.viewer,
+          },
+          {
+            assignmentId: grants[1]?.assignmentId,
+            projectId: grants[1]?.projectId,
+            roleId: accessProjectRoleIds.member,
+          },
+        ],
+      });
+    });
+
+    it('removes a grant and saves without it', async () => {
+      const h = setup({ projectAccess: access({ grants }) });
+      await userEvent.click(
+        within(rowFor('invoicer-web')).getByRole('button', { name: 'Remove access to invoicer-web' }),
+      );
+      expect(within(section()).queryByRole('listitem', { name: 'invoicer-web' })).toBeNull();
+      await userEvent.click(screen.getByRole('button', { name: 'Save access' }));
+      expect(h.onSave).toHaveBeenCalledWith({
+        roleId: ids.member,
+        projects: [
+          {
+            assignmentId: grants[0]?.assignmentId,
+            projectId: grants[0]?.projectId,
+            roleId: accessProjectRoleIds.admin,
+          },
+        ],
+      });
+    });
+
+    it('keeps Save access disabled when a removed grant is added back with the same role', async () => {
+      setup({ projectAccess: access({ grants }) });
+      await userEvent.click(
+        within(rowFor('invoicer-web')).getByRole('button', { name: 'Remove access to invoicer-web' }),
+      );
+      const save = screen.getByRole('button', { name: 'Save access' }) as HTMLButtonElement;
+      expect(save.disabled).toBe(false);
+      const web = accessProjects.find((p) => p.label === 'invoicer-web');
+      await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Project to add' }), web?.id ?? '');
+      await userEvent.selectOptions(
+        screen.getByRole('combobox', { name: 'Role in the project to add' }),
+        accessProjectRoleIds.member,
+      );
+      await userEvent.click(screen.getByRole('button', { name: 'Add project' }));
+      expect(save.disabled).toBe(true);
+    });
+
+    it('adds a project with a role (Member by default) and takes it out of the picker', async () => {
+      const h = setup({ projectAccess: access({ grants }) });
+      const picker = screen.getByRole('combobox', { name: 'Project to add' }) as HTMLSelectElement;
+      const labels = within(picker)
+        .getAllByRole('option')
+        .map((o) => o.textContent);
+      expect(labels).not.toContain('invoicer-api');
+      expect(labels).toContain('storefront');
+      const storefront = accessProjects.find((p) => p.label === 'storefront');
+      await userEvent.selectOptions(picker, storefront?.id ?? '');
+      await userEvent.click(screen.getByRole('button', { name: 'Add project' }));
+      expect(within(section()).getByRole('listitem', { name: 'storefront' })).toBeTruthy();
+      expect(
+        within(screen.getByRole('combobox', { name: 'Project to add' })).queryByRole('option', { name: 'storefront' }),
+      ).toBeNull();
+      await userEvent.click(screen.getByRole('button', { name: 'Save access' }));
+      expect(h.onSave).toHaveBeenCalledWith({
+        roleId: ids.member,
+        projects: [
+          expect.objectContaining({ assignmentId: grants[0]?.assignmentId }),
+          expect.objectContaining({ assignmentId: grants[1]?.assignmentId }),
+          { projectId: storefront?.id, roleId: accessProjectRoleIds.member },
+        ],
+      });
+    });
+
+    describe('a member holding two grants in one project', () => {
+      const first = grants[0];
+      const twice = first
+        ? [first, { ...first, assignmentId: 'second-grant', roleId: accessProjectRoleIds.viewer, roleName: 'Viewer' }]
+        : [];
+      const errors: unknown[] = [];
+
+      it('lists both rows without duplicate keys and changes only the row touched', async () => {
+        const spy = vi.spyOn(console, 'error').mockImplementation((...a) => void errors.push(a));
+        const h = setup({ projectAccess: access({ grants: twice }) });
+        expect(errors).toEqual([]);
+        spy.mockRestore();
+        expect(within(section()).getAllByRole('listitem')).toHaveLength(2);
+        const selects = within(section()).getAllByRole('combobox', { name: /^Role in invoicer-api/ });
+        expect(new Set(selects.map((s) => s.getAttribute('aria-label'))).size).toBe(2);
+        await userEvent.selectOptions(selects[1] as HTMLElement, accessProjectRoleIds.member);
+        await userEvent.click(screen.getByRole('button', { name: 'Save access' }));
+        expect(h.onSave).toHaveBeenCalledWith({
+          roleId: ids.member,
+          projects: [
+            { assignmentId: first?.assignmentId, projectId: first?.projectId, roleId: first?.roleId },
+            { assignmentId: 'second-grant', projectId: first?.projectId, roleId: accessProjectRoleIds.member },
+          ],
+        });
+      });
+
+      it('enables Save access when one row is switched to the role the other already has', async () => {
+        const h = setup({ projectAccess: access({ grants: twice }) });
+        const save = screen.getByRole('button', { name: 'Save access' }) as HTMLButtonElement;
+        const selects = within(section()).getAllByRole('combobox', { name: /^Role in invoicer-api/ });
+        await userEvent.selectOptions(selects[1] as HTMLElement, first?.roleId ?? '');
+        expect(save.disabled).toBe(false);
+        await userEvent.click(save);
+        expect(h.onSave).toHaveBeenCalledTimes(1);
+      });
+
+      it('removes only the row whose button was clicked', async () => {
+        const h = setup({ projectAccess: access({ grants: twice }) });
+        const buttons = within(section()).getAllByRole('button', { name: /^Remove access to invoicer-api/ });
+        expect(new Set(buttons.map((b) => b.getAttribute('aria-label'))).size).toBe(2);
+        await userEvent.click(buttons[1] as HTMLElement);
+        await userEvent.click(screen.getByRole('button', { name: 'Save access' }));
+        expect(h.onSave).toHaveBeenCalledWith({
+          roleId: ids.member,
+          projects: [{ assignmentId: first?.assignmentId, projectId: first?.projectId, roleId: first?.roleId }],
+        });
+      });
+
+      it('keeps the project out of the picker', () => {
+        setup({ projectAccess: access({ grants: twice }) });
+        const picker = screen.getByRole('combobox', { name: 'Project to add' });
+        expect(within(picker).queryByRole('option', { name: 'invoicer-api' })).toBeNull();
+      });
+    });
+
+    it('keeps Add project off until a project is picked', async () => {
+      setup();
+      expect((screen.getByRole('button', { name: 'Add project' }) as HTMLButtonElement).disabled).toBe(true);
+    });
+
+    it('shows a read-only project list, with no controls, when the caller may not change project grants', () => {
+      setup({ projectAccess: access({ grants, canEdit: false }) });
+      expect(within(section()).getByText('Admin')).toBeTruthy();
+      expect(within(section()).queryByRole('combobox')).toBeNull();
+      expect(within(section()).queryByRole('button')).toBeNull();
+    });
+
+    it('disables every project control while saving', () => {
+      setup({ projectAccess: access({ grants }), saving: true });
+      for (const c of [...within(section()).getAllByRole('combobox'), ...within(section()).getAllByRole('button')]) {
+        expect((c as HTMLButtonElement | HTMLSelectElement).disabled).toBe(true);
+      }
+    });
   });
 });

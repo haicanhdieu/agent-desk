@@ -24,8 +24,8 @@ const names = new Map([
   ['p-alpha', 'Alpha'],
   ['p-beta', 'Beta'],
 ]);
-const ownerCaller: CallerRights = { userId: 'me', owner: true, canUpdate: true, canDelete: true };
-const adminCaller: CallerRights = { userId: 'me', owner: false, canUpdate: true, canDelete: true };
+const ownerCaller: CallerRights = { userId: 'me', owner: true, canUpdate: true, canDelete: true, canAssign: true };
+const adminCaller: CallerRights = { userId: 'me', owner: false, canUpdate: true, canDelete: true, canAssign: true };
 const org = { type: 'org' } as const;
 
 describe('toMemberRow: role and project roles (BR-1)', () => {
@@ -38,18 +38,42 @@ describe('toMemberRow: role and project roles (BR-1)', () => {
   });
 
   it.each([
-    [[], '—'],
-    [[asg('admin', { type: 'project', projectId: 'p-alpha' })], 'Alpha (Admin)'],
+    [[], []],
+    [[asg('admin', { type: 'project', projectId: 'p-alpha' })], ['Alpha · Admin']],
+    [[asg('admin', org)], ['Organization · Admin']],
     [
       [
         asg('member', { type: 'project', projectId: 'p-beta' }),
         asg('admin', { type: 'project', projectId: 'p-alpha' }),
         asg('owner', org),
       ],
-      'Alpha (Admin), Beta (Member)',
+      ['Organization · Owner', 'Alpha · Admin', 'Beta · Member'],
     ],
-  ])('project roles %#: sorted by project name, dash when none', (assignments, text) => {
-    expect(toMemberRow(member('x', assignments), ownerCaller, names).projectRoles).toBe(text);
+  ])('grants %#: the org grant first, then projects by name, each as scope and role', (assignments, labels) => {
+    const row = toMemberRow(member('x', assignments), ownerCaller, names);
+    expect(row.grants.map((g) => `${g.scopeName} · ${g.roleName}`)).toEqual(labels);
+  });
+
+  it('keeps every grant of a project the member holds twice, in the order given', () => {
+    const alpha = { type: 'project', projectId: 'p-alpha' } as const;
+    const row = toMemberRow(
+      member('x', [
+        { ...asg('member', alpha), id: 'a1' },
+        { ...asg('viewer', alpha), id: 'a2' },
+      ]),
+      ownerCaller,
+      names,
+    );
+    expect(row.grants.map((g) => g.id)).toEqual(['a1', 'a2']);
+  });
+
+  it('shows no grant for a project the caller cannot see (nothing of it leaks)', () => {
+    const row = toMemberRow(
+      member('x', [asg('member', { type: 'project', projectId: 'p-secret' })]),
+      ownerCaller,
+      names,
+    );
+    expect(row.grants).toEqual([]);
   });
 
   it('marks the caller own row and keeps name as given and shows the name alone when there is no handle', () => {
@@ -87,6 +111,7 @@ describe('callerRights', () => {
       owner,
       canUpdate: update,
       canDelete: del,
+      canAssign: update,
     });
   });
 });

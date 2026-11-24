@@ -67,6 +67,8 @@ import { addPlatformOrg, getPlatformOrg, listPlatformOrgs, setPlatformOrgStatus 
 import { linkedTicketsFor, toDto } from './linkedTickets';
 import {
   changeMemberRole,
+  createAssignment,
+  deleteAssignment,
   gate,
   listAudit,
   listMembers,
@@ -1179,8 +1181,18 @@ const impl: Impl = {
     return page;
   },
   'assignments.list': ({ query }) => slicePage(assignmentFixtures, query),
-  'assignments.create': () => assignmentFixtures[0] ?? never('assignment'),
-  'assignments.remove': () => null,
+  'assignments.create': ({ params, body }) => {
+    const { user, orgId } = session();
+    requireActiveOrg(params.orgId, orgId);
+    return createAssignment(mockDb, { userId: user.id, orgId }, body, (projectId) =>
+      db().projects.some((p) => p.id === projectId && p.orgId === orgId),
+    );
+  },
+  'assignments.remove': ({ params }) => {
+    const { user, orgId } = session();
+    requireActiveOrg(params.orgId, orgId);
+    return deleteAssignment(mockDb, { userId: user.id, orgId }, params.assignmentId);
+  },
   'invitations.list': ({ query }) => listInvitations(session().orgId, query),
   'invitations.create': ({ body }) => createInvitation(session().orgId, body),
   'invitations.remove': ({ params }) => revokeInvitation(session().orgId, params.invitationId),

@@ -26,24 +26,17 @@
   max-width: 0;
   width: 34%;
 }
-.cell {
-  font-size: var(--fs-13);
+.accessCell {
+  width: 66%;
 }
-.faint {
-  color: var(--faint);
-  font-size: var(--fs-13);
-}
-.projectCell {
-  max-width: 0;
-  width: 34%;
-}
-.ellipsis {
-  display: block;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: var(--fs-13);
-  color: var(--muted);
+/* Chips wrap onto more lines: no grant is ever cut off. */
+.grants {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
 }
 .actionsCell {
   text-align: right;

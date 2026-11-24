@@ -1231,7 +1231,7 @@
    "y": 37680,
    "w": 1440,
    "h": 900,
-   "title": "Settings \u2014 Members, owner: several owners, No role, project roles",
+   "title": "Settings \u2014 Members, owner: several owners, No role, grants by scope",
    "expand": "fill"
   },
   "OrgMembersAdmin.dc.html": {
@@ -1311,7 +1311,7 @@
    "y": 38960,
    "w": 1440,
    "h": 900,
-   "title": "Change role dialog \u2014 owner caller: Owner card offered, current role preselected",
+   "title": "Change access dialog \u2014 owner caller: Owner card offered, current role preselected",
    "expand": "fill"
   },
   "OrgMembersChangeRoleAdmin.dc.html": {
@@ -1319,7 +1319,7 @@
    "y": 38960,
    "w": 1440,
    "h": 900,
-   "title": "Change role dialog \u2014 org admin caller: no Owner card",
+   "title": "Change access dialog \u2014 org admin caller: no Owner card",
    "expand": "fill"
   },
   "OrgMembersMakeOwner.dc.html": {
@@ -1327,7 +1327,7 @@
    "y": 40240,
    "w": 1440,
    "h": 900,
-   "title": "Change role dialog \u2014 owner caller picks Owner: inline note",
+   "title": "Change access dialog \u2014 owner caller picks Owner: inline note",
    "expand": "fill"
   },
   "OrgMembersStepDown.dc.html": {
@@ -1335,7 +1335,7 @@
    "y": 40240,
    "w": 1440,
    "h": 900,
-   "title": "Change role dialog \u2014 owner on own row picks Admin: step-down warning",
+   "title": "Change access dialog \u2014 owner on own row picks Admin: step-down warning",
    "expand": "fill"
   },
   "OrgMembersChangeRoleSaving.dc.html": {
@@ -1343,7 +1343,7 @@
    "y": 40240,
    "w": 1440,
    "h": 900,
-   "title": "Change role dialog \u2014 saving",
+   "title": "Change access dialog \u2014 saving",
    "expand": "fill"
   },
   "OrgMembersChangeRoleError.dc.html": {
@@ -1351,7 +1351,7 @@
    "y": 40240,
    "w": 1440,
    "h": 900,
-   "title": "Change role dialog \u2014 refused (403): Banner in the dialog",
+   "title": "Change access dialog \u2014 refused (403): Banner in the dialog",
    "expand": "fill"
   },
   "OrgMembersLastOwner.dc.html": {
@@ -1359,7 +1359,7 @@
    "y": 40240,
    "w": 1440,
    "h": 900,
-   "title": "Change role dialog \u2014 sole owner steps down: 409, dialog stays open",
+   "title": "Change access dialog \u2014 sole owner steps down: 409, dialog stays open",
    "expand": "fill"
   },
   "OrgMembersRoleChanged.dc.html": {
@@ -1408,6 +1408,30 @@
    "w": 1440,
    "h": 900,
    "title": "Settings \u2014 Members, remove refused (409 last owner): toast, list refetched",
+   "expand": "fill"
+  },
+  "OrgMembersManyGrants.dc.html": {
+   "x": 9120,
+   "y": 37680,
+   "w": 1440,
+   "h": 900,
+   "title": "Settings \u2014 Members, many grants: the chips wrap, none is cut off",
+   "expand": "fill"
+  },
+  "OrgMembersChangeAccessMany.dc.html": {
+   "x": 9120,
+   "y": 38960,
+   "w": 1440,
+   "h": 900,
+   "title": "Change access dialog \u2014 long list: many project grants",
+   "expand": "fill"
+  },
+  "OrgMembersChangeAccessEmpty.dc.html": {
+   "x": 9120,
+   "y": 40240,
+   "w": 1440,
+   "h": 900,
+   "title": "Change access dialog \u2014 empty project section: no project access yet",
    "expand": "fill"
   },
   "OrgGeneral.dc.html": {
@@ -2450,6 +2474,9 @@
   "OrgMembersRemoving.dc.html",
   "OrgMembersRemoved.dc.html",
   "OrgMembersRemoveLastOwner.dc.html",
+  "OrgMembersManyGrants.dc.html",
+  "OrgMembersChangeAccessMany.dc.html",
+  "OrgMembersChangeAccessEmpty.dc.html",
   "OrgGeneral.dc.html",
   "OrgGeneralSaving.dc.html",
   "OrgGeneralSaved.dc.html",

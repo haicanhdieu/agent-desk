@@ -108,7 +108,7 @@
     const t = e.target;
     if (t.matches && t.matches('[data-pg-size]')) { AD.ui.pageSize = Number(t.value); AD.setQuery({ page: null }); return; }
     if (t.dataset && t.dataset.in && AD.ui.form) { AD.ui.form[t.dataset.in] = t.value; if (t.dataset.rerender) AD.render(); }
-    if (t.dataset && t.dataset.dlg && AD.ui.dialog) AD.ui.dialog[t.dataset.dlg] = t.value;
+    if (t.dataset && t.dataset.dlg && AD.ui.dialog) { AD.ui.dialog[t.dataset.dlg] = t.value; if (t.dataset.rerender) AD.render(); }
   });
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') {

@@ -34,8 +34,14 @@ export const Admin: Story = { args: { row: byHandle('ben') } };
 /** A short-name member: the fixture's plain member rows are the long-name one, so the role is set here. */
 export const Member: Story = { args: { row: { ...byHandle('dana'), role: { key: 'member', name: 'Member' } } } };
 export const Viewer: Story = { args: { row: byHandle('dana') } };
+/** No org grant: a No role chip, then the project grants. */
 export const NoRole: Story = { args: { row: byHandle('eli') } };
-export const ProjectRoles: Story = { args: { row: byHandle('cleo') } };
+/** An org grant and two project grants, each as scope and role. */
+export const MultiScope: Story = { args: { row: byHandle('cleo') } };
+/** Nine grants: the chips wrap onto more lines and none is cut off. */
+export const ManyGrants: Story = { args: { row: find(memberRows.manyGrants, (r) => r.handle === 'fatima') } };
+/** No grant at all: No role alone. */
+export const NoRoleNoGrants: Story = { args: { row: { ...byHandle('eli'), grants: [] } } };
 /** Own row: Change role only, no Remove (BR-9). */
 export const You: Story = { args: { row: byHandle('alice') } };
 /** An owner caller sees actions on another owner's row: the menu is opened to show Change role and Remove. */
