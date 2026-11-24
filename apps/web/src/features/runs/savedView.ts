@@ -5,19 +5,21 @@ import { z } from 'zod';
  * The part of the Runs page's URL that a person chooses: `filter` is a run list filter or `ignored` (anything else
  * falls back to all); `q` is the search text (trimmed; empty or too long is no search).
  */
-export const RunsView = z.object({
-  filter: z
-    .enum([...RunListFilter.options, 'ignored'])
-    .optional()
-    .catch(undefined),
-  q: z
-    .string()
-    .trim()
-    .max(RUN_SEARCH_MAX)
-    .optional()
-    .transform((v) => (v === '' ? undefined : v))
-    .catch(undefined),
-});
+export const RunsView = z
+  .object({
+    filter: z
+      .enum([...RunListFilter.options, 'ignored'])
+      .optional()
+      .catch(undefined),
+    q: z
+      .string()
+      .trim()
+      .max(RUN_SEARCH_MAX)
+      .optional()
+      .transform((v) => (v === '' ? undefined : v))
+      .catch(undefined),
+  })
+  .partial();
 export type RunsView = z.infer<typeof RunsView>;
 
 /** Where one project's Runs page keeps its last filter and search, per browser (like the page size and grouping). */

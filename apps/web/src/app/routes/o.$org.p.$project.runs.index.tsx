@@ -55,7 +55,7 @@ export const Route = createFileRoute('/o/$org/p/$project/runs/')({
     if (cause !== 'enter' || search.filter !== undefined || search.q !== undefined || search.page !== undefined) return;
     const saved = readSavedView(org, project);
     if (saved.filter === undefined && saved.q === undefined) return;
-    throw redirect({ to: '/o/$org/p/$project/runs/', params: { org, project }, search: saved, replace: true });
+    throw redirect({ to: '/o/$org/p/$project/runs', params: { org, project }, search: saved, replace: true });
   },
   loaderDeps: ({ search }) => ({
     filter: search.filter ?? 'all',
