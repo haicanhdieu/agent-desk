@@ -1,6 +1,7 @@
-import { RUN_SEARCH_MAX, RunListFilter, can } from '@agentdesk/contracts';
+import { RunListFilter, can } from '@agentdesk/contracts';
 import { useQueryClient, useSuspenseQuery } from '@tanstack/react-query';
-import { createFileRoute, useNavigate } from '@tanstack/react-router';
+import { createFileRoute, redirect, useNavigate } from '@tanstack/react-router';
+import { useEffect } from 'react';
 import { z } from 'zod';
 import {
   PageSearch,
@@ -37,29 +38,25 @@ import {
 import { runHref, useProjectPage } from '@/features/runs/page';
 import { runsQueries, usePrStates } from '@/features/runs/queries';
 import { useGroupedPref } from '@/features/runs/useGroupedPref';
+import { RunsView, readSavedView, writeSavedView } from '@/features/runs/savedView';
 import { useSearchBox } from '@/features/runs/useSearchBox';
 import { relativeTime } from '@/features/relativeTime';
 import { Runs, RunsProblems, type RunsFilter, type RunsProblemsWarning } from '@/screens';
 
-/** `filter`: a run list filter or `ignored`; anything else falls back to all. `q`: the search text (trimmed; empty or too long is no search). */
-const RunsSearch = z.object({
-  ...PageSearch.shape,
-  filter: z
-    .enum([...RunListFilter.options, 'ignored'])
-    .optional()
-    .catch(undefined),
-  q: z
-    .string()
-    .trim()
-    .max(RUN_SEARCH_MAX)
-    .optional()
-    .transform((v) => (v === '' ? undefined : v))
-    .catch(undefined),
-});
+/** The chosen view (`filter`, `q`; see `RunsView`) and the page. */
+const RunsSearch = z.object({ ...PageSearch.shape, ...RunsView.shape });
 type RunsSearch = z.infer<typeof RunsSearch>;
 
 export const Route = createFileRoute('/o/$org/p/$project/runs/')({
   validateSearch: (search): RunsSearch => RunsSearch.parse(search),
+  beforeLoad: ({ params: { org, project }, search, cause }) => {
+    // Coming to the page (a link, a reload) with no choice in the URL brings back the last filter and search seen here.
+    // Moving inside the page (the All chip, the clear button) never does: that is the person choosing no filter.
+    if (cause !== 'enter' || search.filter !== undefined || search.q !== undefined || search.page !== undefined) return;
+    const saved = readSavedView(org, project);
+    if (saved.filter === undefined && saved.q === undefined) return;
+    throw redirect({ to: '/o/$org/p/$project/runs/', params: { org, project }, search: saved, replace: true });
+  },
   loaderDeps: ({ search }) => ({
     filter: search.filter ?? 'all',
     q: search.q,
@@ -109,6 +106,11 @@ function RunsRoute() {
   const { org, project } = Route.useParams();
   const search = Route.useSearch();
   const now = useNow();
+  // Every filter and search shown is remembered, so the next visit starts from it.
+  useEffect(
+    () => writeSavedView(org, project, { filter: search.filter, q: search.q }),
+    [org, project, search.filter, search.q],
+  );
   return search.filter === 'ignored' ? (
     <IgnoredView org={org} projectId={project} q={search.q} now={now} />
   ) : (
