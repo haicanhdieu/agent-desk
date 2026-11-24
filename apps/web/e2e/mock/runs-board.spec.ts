@@ -5,16 +5,16 @@ import { INVOICER_API, ORG, seedLists, USAGE_RUNS } from './mock';
 const LONG_COMMAND = 'code-build-with-a-very-long-routing-rule-command-name-that-overflows-the-cell';
 
 /**
- * The browser mock adds runs 67-104 (lifecycle, session and auto-resume fixtures) newer than the base fixtures, and the
- * Run List shows 20 runs a page, so the base fixture runs sit on a later page: runs 65-84 (the long routing rule
- * command) on page 2, runs 52-64 on page 3.
+ * The browser mock adds runs 67-120 (lifecycle, session, auto-resume and usage fixtures) newer than the base fixtures,
+ * and the Run List shows 20 runs a page, so the base fixture runs sit on a later page: the long routing rule command
+ * run on page 3, runs 52-64 on page 4. Only the first, last and nearby page buttons exist, so jump with Go to page.
  */
 async function openRunsPage(page: Page, n: number): Promise<void> {
   await page.goto(`/o/${ORG}/p/${INVOICER_API}/runs`);
-  await page
-    .getByRole('navigation', { name: 'Pagination' })
-    .getByRole('button', { name: `Page ${n}`, exact: true })
-    .click();
+  // The page buttons show only the first, last and nearby pages, so jump with the Go to page box.
+  const pagination = page.getByRole('navigation', { name: 'Pagination' });
+  await pagination.getByLabel('Go to page').fill(String(n));
+  await pagination.getByRole('button', { name: 'Go', exact: true }).click();
   await expect(page.getByRole('link', { name: /^Run \d+$/ }).first()).toBeVisible();
 }
 
@@ -64,7 +64,7 @@ test('the Grouped by ticket choice survives a reload of the Run List', async ({ 
 });
 
 test('the Run List shows durations in compact units', async ({ page }) => {
-  await openRunsPage(page, 3);
+  await openRunsPage(page, 4);
   await expect(page.getByRole('cell', { name: '7m 50s', exact: true }).first()).toBeVisible();
   await expect(page.getByRole('cell', { name: '30m', exact: true }).first()).toBeVisible();
   await expect(page.getByRole('cell', { name: /^\d+m 0s$|^0\d/ })).toHaveCount(0);
@@ -93,7 +93,7 @@ test('ticket and PR numbers on the Run Board open GitHub in a new window', async
 });
 
 test('the Run List shows the routing rule command in a Routing rule column instead of Skill', async ({ page }) => {
-  await openRunsPage(page, 3);
+  await openRunsPage(page, 4);
   await expect(page.getByRole('columnheader', { name: 'Routing rule' })).toBeVisible();
   await expect(page.getByRole('columnheader', { name: 'Skill' })).toHaveCount(0);
 
@@ -106,7 +106,7 @@ test('the Run List shows the routing rule command in a Routing rule column inste
 test('a long routing rule command is truncated in the Run List and its full value is in the title', async ({
   page,
 }) => {
-  await openRunsPage(page, 2);
+  await openRunsPage(page, 3);
   const longCommand = `/${LONG_COMMAND}`;
   const cell = page.getByText(longCommand, { exact: true });
   await expect(cell).toBeVisible();
