@@ -164,7 +164,17 @@ function RepoStep({ org, projectId, connectionId }: { org: string; projectId?: s
   const install = useInstallConnection(org);
   const qc = useQueryClient();
   // The repository list is GitHub's: it changes in another tab, so it is read again on return and on request.
-  const refreshRepos = () => void qc.invalidateQueries({ queryKey: setupQueries.connections(org).queryKey });
+  const [refreshing, setRefreshing] = useState(false);
+  const refreshRepos = async () => {
+    setRefreshing(true);
+    try {
+      await qc.refetchQueries({ queryKey: setupQueries.connections(org).queryKey }, { throwOnError: true });
+    } catch (e) {
+      toast.show(toastFromError(e));
+    } finally {
+      setRefreshing(false);
+    }
+  };
   useEffect(() => {
     const onFocus = () => void qc.invalidateQueries({ queryKey: setupQueries.connections(org).queryKey });
     window.addEventListener('focus', onFocus);
@@ -265,7 +275,8 @@ function RepoStep({ org, projectId, connectionId }: { org: string; projectId?: s
       polling={heard.polling}
       onCheckAgain={projectId ? () => void refetchProgress() : undefined}
       onConnect={() => void onConnect()}
-      onRefresh={project ? undefined : refreshRepos}
+      onRefresh={project ? undefined : () => void refreshRepos()}
+      refreshing={refreshing}
       onContinue={(d) => void onContinue(d)}
       saving={save.isPending}
       errors={errors.fields}

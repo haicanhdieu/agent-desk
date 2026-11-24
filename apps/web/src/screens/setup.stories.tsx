@@ -97,6 +97,18 @@ export const Setup1PollingOk: Story = {
   render: () => <Setup1Screen {...setup1} mode="polling" polling={{ state: 'ok', lastChecked: '20s ago' }} />,
 };
 
+export const Setup1RefreshRepos: Story = {
+  name: 'Setup 1, refresh repositories',
+  ...tall,
+  render: () => <Setup1Screen {...setup1} pingAt="14:01:37" onRefresh={() => undefined} />,
+};
+
+export const Setup1Refreshing: Story = {
+  name: 'Setup 1, refreshing repositories',
+  ...tall,
+  render: () => <Setup1Screen {...setup1} pingAt="14:01:37" onRefresh={() => undefined} refreshing />,
+};
+
 export const Setup1PollingFailed: Story = {
   name: 'Setup 1, polling failed',
   ...tall,

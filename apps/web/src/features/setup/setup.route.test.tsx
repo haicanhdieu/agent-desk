@@ -454,6 +454,35 @@ describe('setup flow fixes', () => {
     expect(await screen.findByRole('radio', { name: 'harbor-labs/new-repo' })).toBeInTheDocument();
   });
 
+  it('Refresh repositories is disabled while the list loads again', async () => {
+    const { user } = await renderRoute(`${base}/repo`);
+    await screen.findByRole('radio', { name: 'harbor-labs/invoicer-api' });
+    let release: () => void = () => undefined;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    server.use(
+      routeHandler('connections.repos', async () => {
+        await gate;
+        return jsonResponse([]);
+      }),
+    );
+    await user.click(screen.getByRole('button', { name: 'Refresh repositories' }));
+    expect(await screen.findByRole('button', { name: 'Refreshing repositories' })).toBeDisabled();
+    release();
+    expect(await screen.findByRole('button', { name: 'Refresh repositories' })).toBeEnabled();
+  });
+
+  it('Refresh repositories says so when the list cannot be loaded again', async () => {
+    const { user } = await renderRoute(`${base}/repo`);
+    await screen.findByRole('radio', { name: 'harbor-labs/invoicer-api' });
+    server.use(routeHandler('connections.repos', async () => jsonResponse({ title: 'GitHub is down' }, 502)));
+    await user.click(screen.getByRole('button', { name: 'Refresh repositories' }));
+    expect(await screen.findByRole('alert')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Refresh repositories' })).toBeEnabled();
+    expect(screen.getByRole('radio', { name: 'harbor-labs/invoicer-api' })).toBeInTheDocument();
+  });
+
   it('coming back to the tab refreshes the repository list on its own', async () => {
     await renderRoute(`${base}/repo`);
     await screen.findByRole('radio', { name: 'harbor-labs/invoicer-api' });

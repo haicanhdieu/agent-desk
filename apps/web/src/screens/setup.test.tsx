@@ -109,6 +109,10 @@ describe('Setup1', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Refresh repositories' }));
     expect(onRefresh).toHaveBeenCalledTimes(1);
   });
+  it('while refreshing, Refresh repositories is disabled and says so', () => {
+    render(<Setup1 {...s1Props} onRefresh={vi.fn()} refreshing />);
+    expect(screen.getByRole('button', { name: 'Refreshing repositories' })).toBeDisabled();
+  });
   it('selecting another repo moves the radio', async () => {
     render(s1);
     await userEvent.click(screen.getByRole('radio', { name: /infra-k8s/ }));
