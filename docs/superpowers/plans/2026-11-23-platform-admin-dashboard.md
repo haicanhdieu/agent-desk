@@ -1923,14 +1923,14 @@ export function toPlatformMemberRow(dto: PlatformMemberDto, projectNames: Readon
 // the $orgId layout's org group gains links projects, members, invitations
 ```
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
   - `map.test.ts`: "<Role> (organization)" and "<Role> (<project name>)" joined with ", "; "—"; the nameless member uses the handle.
   - `projects.route.test.tsx` (BR-24, BR-25): side menu Projects opens heading "Projects"; columns Id and Name only, plain text; `?page=2` keeps Members' own page; loading, empty and error with Retry.
   - `members.route.test.tsx` (BR-26 to BR-28): roles as in the map; the row menu "Add assignment" opens the dialog with Owner, Admin, Member, Viewer for the whole organization and Admin, Member, Viewer plus the project select for one project; adding org-wide Owner sends role owner, toasts "Assignment added", the row shows "Owner (organization)"; "Remove Member (Alpha)" asks "Remove <role> from <name>?", Remove toasts "Assignment removed", Cancel keeps it; removing the last owner invalidates `['platform','orgs']`; loading, empty and error with Retry.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/features/platform`. Expected: FAIL.
-- [ ] **Step 3: Implement** both routes (each its own `?page=N`), queries, mutations (invalidate that org's members key and `['platform','orgs']`), the side-menu links; regenerate `routeTree.gen.ts`.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/features/platform`. Expected: FAIL.
+- [x] **Step 3: Implement** both routes (each its own `?page=N`), queries, mutations (invalidate that org's members key and `['platform','orgs']`), the side-menu links; regenerate `routeTree.gen.ts`.
 - [ ] **Step 4: Run** Step 2's command and `pnpm --filter @agentdesk/web typecheck`. Expected: PASS.
-- [ ] **Step 5: Commit**: `feat(web): platform org projects and members pages`.
+- [x] **Step 5: Commit**: `feat(web): platform org projects and members pages`.
 
 ---
 

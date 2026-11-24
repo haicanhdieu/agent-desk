@@ -21,6 +21,7 @@ describe('platform query keys', () => {
       platformKeys.orgList('o1', 'members', q),
       platformKeys.orgList('o1', 'projects', q),
       platformKeys.orgList('o1', 'invitations', q),
+      platformKeys.orgRoles('o1'),
       platformKeys.audit(q),
     ];
     for (const key of keys) expect(key[0]).toBe('platform');

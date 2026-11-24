@@ -2,10 +2,11 @@ import type {
   PlatformAdminDto,
   PlatformAuditAction,
   PlatformAuditEntryDto,
+  PlatformMemberDto,
   PlatformOrgDetailDto,
   PlatformOrgDto,
 } from '@agentdesk/contracts';
-import type { PlatformAdminRowView, PlatformOrgOverviewView, PlatformOrgRowView } from '@/mocks';
+import type { PlatformAdminRowView, PlatformMemberRowView, PlatformOrgOverviewView, PlatformOrgRowView } from '@/mocks';
 import type { AuditRowView, AuditTextPart } from '@/mocks/types';
 import { formatFullDate } from '../invitations/dates';
 import { relativeTime } from '../relativeTime';
@@ -172,5 +173,25 @@ export function toPlatformAuditRow(dto: PlatformAuditEntryDto, now: Date, timeZo
     who: { label: actor, tag: dto.actor === null ? 'deleted' : null },
     what: { kind: 'sentence', parts, title: parts.map((p) => p.text).join('') },
     ...(hasNote && { note: `Reason: ${dto.reason}` }),
+  };
+}
+
+/**
+ * One row of an org's Members tab. Each assignment reads "<Role> (organization)" or "<Role> (<project name>)"; a
+ * project missing from `projectNames` reads "a project", never its id. A member with no name keeps the handle.
+ */
+export function toPlatformMemberRow(
+  dto: PlatformMemberDto,
+  projectNames: ReadonlyMap<string, string>,
+): PlatformMemberRowView {
+  return {
+    userId: dto.userId,
+    name: dto.name === '' ? null : dto.name,
+    handle: dto.handle,
+    email: dto.email,
+    assignments: dto.assignments.map((a) => ({
+      assignmentId: a.id,
+      label: `${a.role.name} (${a.scope.type === 'org' ? 'organization' : (projectNames.get(a.scope.projectId) ?? 'a project')})`,
+    })),
   };
 }

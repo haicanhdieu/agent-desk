@@ -2,6 +2,7 @@ import {
   PlatformAuditAction,
   type PlatformAdminDto,
   type PlatformAuditEntryDto,
+  type PlatformMemberDto,
   type PlatformOrgDetailDto,
   type PlatformOrgDto,
 } from '@agentdesk/contracts';
@@ -10,6 +11,7 @@ import {
   PLATFORM_AUDIT_ACTION_LABELS,
   toPlatformAdminRow,
   toPlatformAuditRow,
+  toPlatformMemberRow,
   toPlatformOrgOverview,
   toPlatformOrgRow,
 } from './map';
@@ -317,5 +319,62 @@ describe('toPlatformAuditRow', () => {
     const row = toPlatformAuditRow(audit(), NOW);
     expect(row.when.iso).toBe('2026-11-23T11:00:00.000Z');
     expect(row.when.label).toBe('1 hour ago');
+  });
+});
+
+describe('toPlatformMemberRow (BR-26)', () => {
+  const ALPHA = 'd1000000-0000-4000-8000-000000000001';
+  const role = (key: string, name: string) => ({ id: `r-${key}`, key, name });
+  const assignment = (id: string, r: ReturnType<typeof role>, projectId: string | null) => ({
+    id,
+    userId: 'user-lee',
+    role: r,
+    scope: projectId === null ? ({ type: 'org' } as const) : ({ type: 'project', projectId } as const),
+    grantedBy: null,
+    grantedAt: '2026-11-01T10:00:00.000Z',
+  });
+  const member = (over: Partial<PlatformMemberDto> = {}): PlatformMemberDto => ({
+    userId: 'user-lee',
+    handle: 'lee',
+    name: 'Lee Park',
+    email: 'lee@example.com',
+    assignments: [],
+    ...over,
+  });
+  const names = new Map([[ALPHA, 'Alpha']]);
+
+  it('labels an org role "<Role> (organization)" and a project role "<Role> (<project name>)", keeping the assignment ids', () => {
+    const row = toPlatformMemberRow(
+      member({
+        assignments: [
+          assignment('a1', role('owner', 'Owner'), null),
+          assignment('a2', role('member', 'Member'), ALPHA),
+        ],
+      }),
+      names,
+    );
+    expect(row.assignments).toEqual([
+      { assignmentId: 'a1', label: 'Owner (organization)' },
+      { assignmentId: 'a2', label: 'Member (Alpha)' },
+    ]);
+    expect(row.assignments.map((a) => a.label).join(', ')).toBe('Owner (organization), Member (Alpha)');
+  });
+
+  it('a member with no assignment has none (the row shows a dash)', () => {
+    expect(toPlatformMemberRow(member(), names).assignments).toEqual([]);
+  });
+
+  it('a nameless member has a null name and keeps the handle', () => {
+    const row = toPlatformMemberRow(member({ name: '' }), names);
+    expect(row.name).toBeNull();
+    expect(row.handle).toBe('lee');
+  });
+
+  it('a project that is not in the name map reads as "a project", never its id', () => {
+    const row = toPlatformMemberRow(
+      member({ assignments: [assignment('a1', role('viewer', 'Viewer'), 'gone')] }),
+      names,
+    );
+    expect(row.assignments[0]?.label).toBe('Viewer (a project)');
   });
 });

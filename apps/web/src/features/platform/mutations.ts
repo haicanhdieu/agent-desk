@@ -1,12 +1,14 @@
 import type {
+  CreateAssignmentRequest,
   GrantPlatformAdminRequest,
   OrgStatus,
   PlatformAdminDto,
+  PlatformAssignmentDto,
   PlatformOrgDetailDto,
   UpdateOrgRequest,
 } from '@agentdesk/contracts';
 import { ApiError } from '@agentdesk/contracts/client';
-import { useMutation, useQueryClient, type UseMutationResult } from '@tanstack/react-query';
+import { useMutation, useQueryClient, type QueryClient, type UseMutationResult } from '@tanstack/react-query';
 import { accessKeys } from '../access/keys';
 import { api } from '../api';
 import { orgsQuery } from '../auth/session';
@@ -97,6 +99,44 @@ export function useUpdatePlatformOrg(
         }),
         queryClient.invalidateQueries({ queryKey: orgsQuery.queryKey }),
       ]);
+    },
+  });
+}
+
+/**
+ * Both assignment changes end the same way: everything under `['platform', 'orgs']` is fetched again (this org's
+ * members first among them, and the directory's owner column when an Owner came or went). The mutation stays pending
+ * until that is done, so a dialog stays unclosable until the rows are fresh.
+ */
+const refreshAfterAssignment = (queryClient: QueryClient) =>
+  queryClient.invalidateQueries({ queryKey: platformKeys.orgsAll() });
+
+/** `POST /api/platform/orgs/:orgId/assignments`: a repeat returns the same assignment, so it ends like a new one. */
+export function useAddPlatformAssignment(
+  orgId: string,
+): UseMutationResult<PlatformAssignmentDto, ApiError, CreateAssignmentRequest> {
+  const queryClient = useQueryClient();
+  return useMutation<PlatformAssignmentDto, ApiError, CreateAssignmentRequest>({
+    mutationFn: (body) => api.platform.createAssignment({ params: { orgId }, body }),
+    onSuccess: () => refreshAfterAssignment(queryClient),
+  });
+}
+
+/**
+ * `DELETE /api/platform/orgs/:orgId/assignments/:assignmentId`. Removing the org's last Owner is allowed here. A 404
+ * means the assignment is already gone: the members are fetched again.
+ */
+export function useRemovePlatformAssignment(
+  orgId: string,
+): UseMutationResult<void, ApiError, { assignmentId: string }> {
+  const queryClient = useQueryClient();
+  return useMutation<void, ApiError, { assignmentId: string }>({
+    mutationFn: async ({ assignmentId }) => {
+      await api.platform.removeAssignment({ params: { orgId, assignmentId } });
+    },
+    onSuccess: () => refreshAfterAssignment(queryClient),
+    onError: async (e) => {
+      if (e instanceof ApiError && e.status === 404) await refreshAfterAssignment(queryClient);
     },
   });
 }

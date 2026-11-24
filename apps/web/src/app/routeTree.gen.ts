@@ -33,6 +33,8 @@ import { Route as OOrgSettingsGeneralRouteImport } from './routes/o.$org.setting
 import { Route as OOrgSettingsInvitationsRouteImport } from './routes/o.$org.settings.invitations';
 import { Route as OOrgSettingsMembersRouteImport } from './routes/o.$org.settings.members';
 import { Route as PlatformOrgsOrgIdIndexRouteImport } from './routes/platform.orgs.$orgId.index';
+import { Route as PlatformOrgsOrgIdMembersRouteImport } from './routes/platform.orgs.$orgId.members';
+import { Route as PlatformOrgsOrgIdProjectsRouteImport } from './routes/platform.orgs.$orgId.projects';
 import { Route as OOrgPProjectNeedsYouRouteImport } from './routes/o.$org.p.$project.needs-you';
 import { Route as OOrgProjectsNewStepRouteImport } from './routes/o.$org.projects.new.$step';
 import { Route as OOrgPProjectDeskAgentRouteImport } from './routes/o.$org.p.$project.desk.agent';
@@ -164,6 +166,18 @@ const PlatformOrgsOrgIdIndexRoute = PlatformOrgsOrgIdIndexRouteImport.update({
   path: '/',
   getParentRoute: () => PlatformOrgsOrgIdRoute,
 } as any);
+const PlatformOrgsOrgIdMembersRoute =
+  PlatformOrgsOrgIdMembersRouteImport.update({
+    id: '/members',
+    path: '/members',
+    getParentRoute: () => PlatformOrgsOrgIdRoute,
+  } as any);
+const PlatformOrgsOrgIdProjectsRoute =
+  PlatformOrgsOrgIdProjectsRouteImport.update({
+    id: '/projects',
+    path: '/projects',
+    getParentRoute: () => PlatformOrgsOrgIdRoute,
+  } as any);
 const OOrgPProjectNeedsYouRoute = OOrgPProjectNeedsYouRouteImport.update({
   id: '/needs-you',
   path: '/needs-you',
@@ -237,6 +251,8 @@ export interface FileRoutesByFullPath {
   '/o/$org/settings/general': typeof OOrgSettingsGeneralRoute;
   '/o/$org/settings/invitations': typeof OOrgSettingsInvitationsRoute;
   '/o/$org/settings/members': typeof OOrgSettingsMembersRoute;
+  '/platform/orgs/$orgId/members': typeof PlatformOrgsOrgIdMembersRoute;
+  '/platform/orgs/$orgId/projects': typeof PlatformOrgsOrgIdProjectsRoute;
   '/o/$org/projects/': typeof OOrgProjectsIndexRoute;
   '/o/$org/settings/': typeof OOrgSettingsIndexRoute;
   '/platform/orgs/$orgId/': typeof PlatformOrgsOrgIdIndexRoute;
@@ -269,6 +285,8 @@ export interface FileRoutesByTo {
   '/o/$org/settings/general': typeof OOrgSettingsGeneralRoute;
   '/o/$org/settings/invitations': typeof OOrgSettingsInvitationsRoute;
   '/o/$org/settings/members': typeof OOrgSettingsMembersRoute;
+  '/platform/orgs/$orgId/members': typeof PlatformOrgsOrgIdMembersRoute;
+  '/platform/orgs/$orgId/projects': typeof PlatformOrgsOrgIdProjectsRoute;
   '/o/$org/projects': typeof OOrgProjectsIndexRoute;
   '/o/$org/settings': typeof OOrgSettingsIndexRoute;
   '/platform/orgs/$orgId': typeof PlatformOrgsOrgIdIndexRoute;
@@ -306,6 +324,8 @@ export interface FileRoutesById {
   '/o/$org/settings/general': typeof OOrgSettingsGeneralRoute;
   '/o/$org/settings/invitations': typeof OOrgSettingsInvitationsRoute;
   '/o/$org/settings/members': typeof OOrgSettingsMembersRoute;
+  '/platform/orgs/$orgId/members': typeof PlatformOrgsOrgIdMembersRoute;
+  '/platform/orgs/$orgId/projects': typeof PlatformOrgsOrgIdProjectsRoute;
   '/o/$org/projects/': typeof OOrgProjectsIndexRoute;
   '/o/$org/settings/': typeof OOrgSettingsIndexRoute;
   '/platform/orgs/$orgId/': typeof PlatformOrgsOrgIdIndexRoute;
@@ -344,6 +364,8 @@ export interface FileRouteTypes {
     | '/o/$org/settings/general'
     | '/o/$org/settings/invitations'
     | '/o/$org/settings/members'
+    | '/platform/orgs/$orgId/members'
+    | '/platform/orgs/$orgId/projects'
     | '/o/$org/projects/'
     | '/o/$org/settings/'
     | '/platform/orgs/$orgId/'
@@ -376,6 +398,8 @@ export interface FileRouteTypes {
     | '/o/$org/settings/general'
     | '/o/$org/settings/invitations'
     | '/o/$org/settings/members'
+    | '/platform/orgs/$orgId/members'
+    | '/platform/orgs/$orgId/projects'
     | '/o/$org/projects'
     | '/o/$org/settings'
     | '/platform/orgs/$orgId'
@@ -412,6 +436,8 @@ export interface FileRouteTypes {
     | '/o/$org/settings/general'
     | '/o/$org/settings/invitations'
     | '/o/$org/settings/members'
+    | '/platform/orgs/$orgId/members'
+    | '/platform/orgs/$orgId/projects'
     | '/o/$org/projects/'
     | '/o/$org/settings/'
     | '/platform/orgs/$orgId/'
@@ -608,6 +634,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PlatformOrgsOrgIdIndexRouteImport;
       parentRoute: typeof PlatformOrgsOrgIdRoute;
     };
+    '/platform/orgs/$orgId/members': {
+      id: '/platform/orgs/$orgId/members';
+      path: '/members';
+      fullPath: '/platform/orgs/$orgId/members';
+      preLoaderRoute: typeof PlatformOrgsOrgIdMembersRouteImport;
+      parentRoute: typeof PlatformOrgsOrgIdRoute;
+    };
+    '/platform/orgs/$orgId/projects': {
+      id: '/platform/orgs/$orgId/projects';
+      path: '/projects';
+      fullPath: '/platform/orgs/$orgId/projects';
+      preLoaderRoute: typeof PlatformOrgsOrgIdProjectsRouteImport;
+      parentRoute: typeof PlatformOrgsOrgIdRoute;
+    };
     '/o/$org/p/$project/needs-you': {
       id: '/o/$org/p/$project/needs-you';
       path: '/needs-you';
@@ -682,10 +722,14 @@ declare module '@tanstack/react-router' {
 }
 
 interface PlatformOrgsOrgIdRouteChildren {
+  PlatformOrgsOrgIdMembersRoute: typeof PlatformOrgsOrgIdMembersRoute;
+  PlatformOrgsOrgIdProjectsRoute: typeof PlatformOrgsOrgIdProjectsRoute;
   PlatformOrgsOrgIdIndexRoute: typeof PlatformOrgsOrgIdIndexRoute;
 }
 
 const PlatformOrgsOrgIdRouteChildren: PlatformOrgsOrgIdRouteChildren = {
+  PlatformOrgsOrgIdMembersRoute: PlatformOrgsOrgIdMembersRoute,
+  PlatformOrgsOrgIdProjectsRoute: PlatformOrgsOrgIdProjectsRoute,
   PlatformOrgsOrgIdIndexRoute: PlatformOrgsOrgIdIndexRoute,
 };
 

@@ -42,11 +42,13 @@ describe('Platform org detail', () => {
     expect(screen.getByText('/o/acme', { selector: 'span' })).toBeInTheDocument();
     expect(screen.getAllByText('Active').length).toBeGreaterThan(0);
     for (const term of ['Slug', 'Owner', 'Members', 'Projects', 'Last activity', 'Created', 'Status']) {
-      expect(screen.getByText(term)).toBeInTheDocument();
+      expect(within(screen.getByRole('main')).getByText(term)).toBeInTheDocument();
     }
     const menu = screen.getByRole('navigation', { name: 'Platform admin' });
     expect(within(menu).getByText('Acme')).toBeInTheDocument();
-    expect(within(menu).getByRole('link', { name: 'Overview' })).toBeInTheDocument();
+    for (const name of ['Overview', 'Projects', 'Members', 'Invitations']) {
+      expect(within(menu).getByRole('link', { name })).toBeInTheDocument();
+    }
   });
 
   it('shows the loading state, then the page', async () => {
