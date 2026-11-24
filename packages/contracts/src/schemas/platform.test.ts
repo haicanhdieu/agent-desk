@@ -123,6 +123,9 @@ describe('UpdateOrgRequest', () => {
     ['101-char name', { name: 'a'.repeat(101) }],
     ['uppercase slug', { slug: 'Acme' }],
     ['leading dash slug', { slug: '-acme' }],
+    ['trailing dash slug', { slug: 'acme-' }],
+    ['underscore slug', { slug: 'ac_me' }],
+    ['empty slug', { slug: '' }],
     ['64-char slug', { slug: 'a'.repeat(64) }],
   ])('rejects %s', (_n, body) => {
     expect(UpdateOrgRequest.safeParse(body).success).toBe(false);
