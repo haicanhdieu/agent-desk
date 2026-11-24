@@ -509,17 +509,10 @@ test('TC-12.2: at a narrow viewport the usage cell stays on one line and the pag
     (el) => getComputedStyle(el).overflowX === 'auto' && el.scrollWidth > el.clientWidth,
   );
   expect(sectionScrolls).toBe(true);
-  // The shell's header settles while the page loads, so read the width until two reads agree.
-  const pageWidth = async () => {
-    let last = -1;
-    for (let i = 0; i < 40; i++) {
-      const w = await page.evaluate(() => document.documentElement.scrollWidth);
-      if (w === last) return w;
-      last = w;
-      await page.waitForTimeout(150);
-    }
-    return last;
-  };
+  // The shell's header is wider while the web fonts still load (714 px against 684 px), so measure both widths only
+  // once the fonts are loaded.
+  await expect.poll(() => page.evaluate(async () => (await document.fonts.ready).status)).toBe('loaded');
+  const pageWidth = () => page.evaluate(() => document.documentElement.scrollWidth);
   const withTable = await pageWidth();
   await section.evaluate((el) => (el.style.display = 'none'));
   expect(withTable).toBeLessThanOrEqual(await pageWidth());

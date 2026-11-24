@@ -144,7 +144,8 @@ async function notFoundTextOf(page: Page, path: string): Promise<string> {
 async function openDetail(page: Page, projectId: string, runId: string): Promise<void> {
   const run = await runOf(page, runId);
   await page.goto(`/o/${cast.slug}/p/${projectId}/runs/${run.number}`);
-  await expect(panel(page)).toBeVisible();
+  await expect(panel(page)).toBeVisible({ timeout: ROUTE_SETTLE_MS });
+  await expect(page.getByRole('status', { name: 'Loading' })).toBeHidden();
 }
 
 /** The value next to a label in the Usage section's list. */
