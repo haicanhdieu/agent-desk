@@ -288,3 +288,49 @@ describe('parseMockLists', () => {
     expect(MOCK_LISTS_KEY).toBe('agentdesk.mock.lists');
   });
 });
+
+describe('applyMockLists env', () => {
+  const entries = () => mockDb.state.environment[projectId] ?? [];
+  const names = (kind: 'plain' | 'secret') =>
+    entries()
+      .filter((e) => e.kind === kind)
+      .map((e) => e.name);
+
+  it('seeds 23 variables and 22 secrets, deterministically, ordered by name', () => {
+    applyMockLists({ env: { variables: 23, secrets: 22 } });
+    expect(names('plain')).toHaveLength(23);
+    expect(names('secret')).toHaveLength(22);
+    expect(names('plain').slice(0, 2)).toEqual(['VAR_001', 'VAR_002']);
+    expect(names('plain').at(-1)).toBe('VAR_023');
+    expect(names('secret').at(-1)).toBe('SEC_022');
+    expect(names('plain')).toEqual([...names('plain')].sort());
+    const first = JSON.stringify(entries());
+    applyMockLists({ env: { variables: 23, secrets: 22 } });
+    expect(JSON.stringify(entries())).toBe(first);
+  });
+
+  it('seeded secrets carry no value and other projects keep their entries', () => {
+    const other = structuredClone(mockDb.state.environment[ids.project.invoicerWeb]);
+    applyMockLists({ env: { variables: 1, secrets: 2 } });
+    expect(
+      entries()
+        .filter((e) => e.kind === 'secret')
+        .every((e) => e.value === null),
+    ).toBe(true);
+    expect(mockDb.state.environment[ids.project.invoicerWeb]).toEqual(other);
+  });
+
+  it('serves the seeded rows through the list route in pages by name', async () => {
+    applyMockLists({ env: { variables: 23, secrets: 22 } });
+    const res = await fetch(api(`/api/projects/${projectId}/env?kind=plain&page=2&pageSize=20`));
+    const body = (await res.json()) as { total: number; items: { name: string }[] };
+    expect(body.total).toBe(23);
+    expect(body.items.map((i) => i.name)).toEqual(['VAR_021', 'VAR_022', 'VAR_023']);
+  });
+
+  it('parses the env key', () => {
+    expect(parseMockLists(JSON.stringify({ env: { variables: 23, secrets: 22 } }))).toEqual({
+      env: { variables: 23, secrets: 22 },
+    });
+  });
+});

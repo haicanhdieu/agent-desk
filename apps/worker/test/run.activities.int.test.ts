@@ -13,6 +13,7 @@ import {
   MemorySecretStore,
   createAdapterRegistry,
   parseConfig,
+  projectEnvSecretName,
   type Clock,
   type Config,
   type KubeGateway,
@@ -902,6 +903,316 @@ describe('createRunSecretAndJob setup script', () => {
       .catch((e: unknown) => e);
     expect(err).toBeInstanceOf(Error);
     expect((err as Error).message).not.toContain('run-path-secret-script-body');
+  });
+});
+
+describe('createRunSecretAndJob project env', () => {
+  const PLAIN = 'plain-value-123';
+  const SECRET_A = 'project-secret-aaaa-1111';
+  const SECRET_B = '  spaced secret value  ';
+  const jobs: unknown[] = [];
+  const capturing = () =>
+    wrapKube({
+      ensureJob: async (j) => {
+        jobs.push(j);
+        return kube.ensureJob(j);
+      },
+    });
+  const rowIds = new Map<string, string>();
+
+  async function setEntry(name: string, kind: 'plain' | 'secret', value: string): Promise<void> {
+    let id = rowIds.get(name);
+    if (id === undefined) {
+      id = await asOwner(async (c) => {
+        const r = await c.query<{ id: string }>(
+          `insert into project_env_vars (org_id, project_id, name, kind, value, size_bytes, updated_by)
+           values ($1, $2, $3, $4, $5, 10, 'tester') returning id`,
+          [ORG, projectId, name, kind, kind === 'plain' ? value : null],
+        );
+        return r.rows[0]?.id ?? '';
+      });
+      rowIds.set(name, id);
+    } else if (kind === 'plain') {
+      const rowId = id;
+      await asOwner((c) => c.query('update project_env_vars set value = $1 where id = $2', [value, rowId]));
+    }
+    if (kind === 'secret') await secrets.put(projectEnvSecretName(ORG, id), { value });
+  }
+
+  afterEach(async () => {
+    await asOwner((c) => c.query('delete from project_env_vars where project_id = $1', [projectId]));
+    for (const id of rowIds.values()) await secrets.delete(projectEnvSecretName(ORG, id));
+    rowIds.clear();
+    jobs.length = 0;
+  });
+
+  const env = (runId: string) => kube.podEnv(`run-${runId}`);
+
+  it('a plain entry is a literal env of the Job and a secret entry is a key of run-{id} behind a secretKeyRef', async () => {
+    await setEntry('E2E_PLAIN', 'plain', PLAIN);
+    await setEntry('E2E_SECRET', 'secret', SECRET_A);
+    const runId = await seedRun('x');
+    const ctx = await ctxFor(runId);
+    const acts = createRunActivities(deps({ kube: capturing() }));
+    await acts.createRunSecretAndJob(ctx);
+    expect(await kube.readSecret(`run-${runId}`)).toMatchObject({ E2E_SECRET: SECRET_A });
+    expect(await env(runId)).toMatchObject({ E2E_PLAIN: PLAIN, E2E_SECRET: SECRET_A });
+    const json = JSON.stringify(jobs);
+    expect(json).toContain(PLAIN);
+    expect(json).toContain('"secretKeyRef"');
+    expect(json).not.toContain(SECRET_A);
+    await acts.deleteJob(ctx);
+  });
+
+  it('an empty project gives the same Secret and no extra env as before', async () => {
+    const runId = await seedRun('x');
+    const ctx = await ctxFor(runId);
+    const acts = createRunActivities(deps({ kube: capturing() }));
+    await acts.createRunSecretAndJob(ctx);
+    expect(await kube.readSecret(`run-${runId}`)).toEqual({
+      REPO_CLONE_URL: 'https://fake.invalid/dev/demo.git',
+      'workspace-token': 'fake-workspace-token',
+      CLAUDE_CODE_OAUTH_TOKEN: CRED,
+    });
+    const refs = JSON.stringify(jobs).match(/"key":"[^"]+"/g) ?? [];
+    expect(new Set(refs)).toEqual(
+      new Set(['"key":"CLAUDE_CODE_OAUTH_TOKEN"', '"key":"REPO_CLONE_URL"', '"key":"workspace-token"']),
+    );
+    await acts.deleteJob(ctx);
+  });
+
+  it('keeps leading and trailing spaces in values verbatim', async () => {
+    await setEntry('E2E_SPACED', 'secret', SECRET_B);
+    await setEntry('E2E_SPACED_PLAIN', 'plain', '  padded  ');
+    const runId = await seedRun('x');
+    const ctx = await ctxFor(runId);
+    const acts = createRunActivities(deps());
+    await acts.createRunSecretAndJob(ctx);
+    expect((await kube.readSecret(`run-${runId}`))?.E2E_SPACED).toBe(SECRET_B);
+    expect(await env(runId)).toMatchObject({ E2E_SPACED: SECRET_B, E2E_SPACED_PLAIN: '  padded  ' });
+    await acts.deleteJob(ctx);
+  });
+
+  it('a retry after a later save re-reads current values, with one Secret and one Job', async () => {
+    await setEntry('E2E_PLAIN', 'plain', 'old-plain');
+    await setEntry('E2E_SECRET', 'secret', 'old-secret-value');
+    const runId = await seedRun('x');
+    const ctx = await ctxFor(runId);
+    const failing = wrapKube({
+      ensureJob: async () => {
+        throw new Error('500 etcd unavailable');
+      },
+    });
+    await createRunActivities(deps({ kube: failing }))
+      .createRunSecretAndJob(ctx)
+      .catch(() => undefined);
+    await setEntry('E2E_PLAIN', 'plain', 'new-plain');
+    await setEntry('E2E_SECRET', 'secret', 'new-secret-value');
+    const acts = createRunActivities(deps());
+    await acts.createRunSecretAndJob(ctx);
+    expect(await env(runId)).toMatchObject({ E2E_PLAIN: 'new-plain', E2E_SECRET: 'new-secret-value' });
+    expect((await kube.processIds()).filter((p) => p.jobName === `run-${runId}`)).toHaveLength(1);
+    await acts.deleteJob(ctx);
+  });
+
+  it('a retry that finds the run Secret from a failed attempt keeps an existing secret value and adds a key saved meanwhile', async () => {
+    await setEntry('E2E_SECRET', 'secret', 'old-secret-value');
+    const runId = await seedRun('x');
+    const ctx = await ctxFor(runId);
+    const failing = wrapKube({
+      ensureVolumeClaim: async () => {
+        throw new Error('500 pvc unavailable');
+      },
+    });
+    await createRunActivities(deps({ kube: failing }))
+      .createRunSecretAndJob(ctx)
+      .catch(() => undefined);
+    expect(await kube.readSecret(`run-${runId}`)).not.toBeNull();
+    await setEntry('E2E_SECRET', 'secret', 'new-secret-value');
+    await setEntry('E2E_LATE', 'secret', 'late-secret-value');
+    const acts = createRunActivities(deps());
+    await acts.createRunSecretAndJob(ctx);
+    // The first value stays (a surviving pod may already hold it, and redaction is built from the Secret).
+    expect(await kube.readSecret(`run-${runId}`)).toMatchObject({
+      E2E_SECRET: 'old-secret-value',
+      E2E_LATE: 'late-secret-value',
+    });
+    expect(await env(runId)).toMatchObject({ E2E_SECRET: 'old-secret-value', E2E_LATE: 'late-secret-value' });
+    await acts.deleteJob(ctx);
+  });
+
+  it('a save after the Job exists leaves the existing Job and Secret untouched', async () => {
+    await setEntry('E2E_PLAIN', 'plain', 'first-plain');
+    await setEntry('E2E_SECRET', 'secret', 'first-secret-value');
+    const runId = await seedRun('x');
+    const ctx = await ctxFor(runId);
+    const acts = createRunActivities(deps());
+    await acts.createRunSecretAndJob(ctx);
+    await setEntry('E2E_PLAIN', 'plain', 'second-plain');
+    await setEntry('E2E_SECRET', 'secret', 'second-secret-value');
+    expect(await env(runId)).toMatchObject({ E2E_PLAIN: 'first-plain', E2E_SECRET: 'first-secret-value' });
+    expect((await kube.readSecret(`run-${runId}`))?.E2E_SECRET).toBe('first-secret-value');
+    await acts.deleteJob(ctx);
+  });
+
+  it('a resume builds the Job from fresh rows and Secrets', async () => {
+    await setEntry('E2E_PLAIN', 'plain', 'before-plain');
+    await setEntry('E2E_SECRET', 'secret', 'before-secret-value');
+    const runId = await seedRun('x');
+    const ctx = await ctxFor(runId);
+    const acts = createRunActivities(deps());
+    await acts.createRunSecretAndJob(ctx);
+    await acts.deleteJob(ctx);
+    await setEntry('E2E_PLAIN', 'plain', 'after-plain');
+    await setEntry('E2E_SECRET', 'secret', 'after-secret-value');
+    await setEntry('E2E_ADDED', 'plain', 'added');
+    await acts.createRunSecretAndJob(ctx, { resume: true });
+    expect(await env(runId)).toMatchObject({
+      E2E_PLAIN: 'after-plain',
+      E2E_SECRET: 'after-secret-value',
+      E2E_ADDED: 'added',
+    });
+    expect((await kube.readSecret(`run-${runId}`))?.E2E_SECRET).toBe('after-secret-value');
+    await acts.deleteJob(ctx);
+  });
+
+  it('a Job-create failure deletes the run Secret again and leaks no value', async () => {
+    await setEntry('E2E_PLAIN', 'plain', PLAIN);
+    await setEntry('E2E_SECRET', 'secret', SECRET_A);
+    const runId = await seedRun('x');
+    const failing = wrapKube({
+      ensureJob: async () => {
+        throw new Error(`apply failed ${SECRET_A} ${PLAIN}`);
+      },
+    });
+    const err = await createRunActivities(deps({ kube: failing }))
+      .createRunSecretAndJob(await ctxFor(runId))
+      .catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(ApplicationFailure);
+    expect((err as Error).message).not.toContain(SECRET_A);
+    expect(await kube.readSecret(`run-${runId}`)).toBeNull();
+  });
+
+  it('a project secret named like the agent credential env fails non-retryably, naming the variable only', async () => {
+    await setEntry('CLAUDE_CODE_OAUTH_TOKEN', 'secret', SECRET_A);
+    const runId = await seedRun('x');
+    const err = await createRunActivities(deps())
+      .createRunSecretAndJob(await ctxFor(runId))
+      .catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(ApplicationFailure);
+    expect((err as ApplicationFailure).nonRetryable).toBe(true);
+    expect((err as Error).message).toContain('CLAUDE_CODE_OAUTH_TOKEN');
+    expect((err as Error).message).not.toContain(SECRET_A);
+    expect((err as Error).message).not.toContain(CRED);
+    expect(await kube.readSecret(`run-${runId}`)).toBeNull();
+    expect(await kube.getRunPod(`run-${runId}`)).toBeNull();
+  });
+
+  it('secrets named __proto__ and toString reach the run Secret and the Job, not a platform clash', async () => {
+    await setEntry('__proto__', 'secret', SECRET_A);
+    await setEntry('toString', 'secret', SECRET_B);
+    const runId = await seedRun('x');
+    const ctx = await ctxFor(runId);
+    // Captured at the gateway call: the fake gateway's own Secret file schema is not what is under test.
+    let data: Record<string, string> = {};
+    const acts = createRunActivities(
+      deps({
+        kube: wrapKube({
+          ensureSecret: async (n, d, l) => {
+            data = d;
+            return kube.ensureSecret(n, d, l);
+          },
+          ensureJob: async (j) => {
+            jobs.push(j);
+            return kube.ensureJob(j);
+          },
+        }),
+      }),
+    );
+    await acts.createRunSecretAndJob(ctx);
+    expect(Object.getOwnPropertyDescriptor(data, '__proto__')?.value).toBe(SECRET_A);
+    expect(data.toString).toBe(SECRET_B);
+    const refs = JSON.stringify(jobs).match(/"key":"[^"]+"/g) ?? [];
+    expect(refs).toContain('"key":"__proto__"');
+    expect(refs).toContain('"key":"toString"');
+    await acts.deleteJob(ctx);
+  });
+
+  it('a plain entry named like a platform env fails non-retryably and leaves no Secret', async () => {
+    await setEntry('PROMPT', 'plain', 'x');
+    const runId = await seedRun('x');
+    const err = await createRunActivities(deps())
+      .createRunSecretAndJob(await ctxFor(runId))
+      .catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(ApplicationFailure);
+    expect((err as ApplicationFailure).nonRetryable).toBe(true);
+    expect((err as Error).message).toContain('PROMPT');
+    expect(await kube.readSecret(`run-${runId}`)).toBeNull();
+  });
+
+  it('a printed secret value is *** in the prompt, failure reason, finish comment, scrollback and events', async () => {
+    const value = 'E2E-printed-secret-value-777';
+    await setEntry('E2E_SECRET', 'secret', value);
+    const runId = await seedRun(`echo ${value}`);
+    const ctx = await ctxFor(runId);
+    const acts = createRunActivities(deps());
+    await acts.createRunSecretAndJob(ctx);
+    // The value is injected into the log stream through the wrapped `streamLogs`, so the test controls exactly when it is printed.
+    const printing = wrapKube({
+      async *streamLogs(n, s) {
+        yield `printed: ${value}`;
+        yield* kube.streamLogs(n, s);
+      },
+    });
+    const f = follow(ctx, deps({ kube: printing }));
+    await until(async () => (await load(runId)).run?.status === 'idle');
+    await acts.endSession(ctx);
+    const result = await f.promise;
+    expect(result.scrollbackTail).toContain('***');
+    expect(result.scrollbackTail).not.toContain(value);
+    const posted = (await store.listPosted()).length;
+    await acts.postComment(ctx, 'finish', {
+      status: 'failed',
+      failureReason: 'exit 3',
+      scrollbackTail: result.scrollbackTail,
+    });
+    const comment = JSON.stringify((await store.listPosted()).slice(posted));
+    expect(comment).toContain('***');
+    expect(comment).not.toContain(value);
+    const { run, events } = await load(runId);
+    expect(run?.finalPrompt).toContain('***');
+    expect(JSON.stringify(run?.finalPrompt)).not.toContain(value);
+    expect(JSON.stringify(events)).not.toContain(value);
+    const transcript = await withOrg(db, ORG, (tx) =>
+      tx.select().from(runTranscriptEntries).where(eq(runTranscriptEntries.runId, runId)),
+    );
+    expect(JSON.stringify(transcript)).not.toContain(value);
+    await acts.deleteJob(ctx);
+  });
+
+  it('no secret value in the run context, the activity result or the Job JSON', async () => {
+    await setEntry('E2E_SECRET', 'secret', SECRET_A);
+    const runId = await seedRun('x');
+    const ctx = await ctxFor(runId);
+    expect(JSON.stringify(ctx)).not.toContain(SECRET_A);
+    const acts = createRunActivities(deps({ kube: capturing() }));
+    const result = await acts.createRunSecretAndJob(ctx);
+    expect(JSON.stringify(result ?? null)).not.toContain(SECRET_A);
+    expect(JSON.stringify(jobs)).not.toContain(SECRET_A);
+    await acts.deleteJob(ctx);
+  });
+
+  it('a secret whose store value is missing fails non-retryably naming the variable only', async () => {
+    await setEntry('E2E_SECRET', 'secret', SECRET_A);
+    await secrets.delete(projectEnvSecretName(ORG, rowIds.get('E2E_SECRET') ?? ''));
+    const runId = await seedRun('x');
+    const err = await createRunActivities(deps())
+      .createRunSecretAndJob(await ctxFor(runId))
+      .catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(ApplicationFailure);
+    expect((err as ApplicationFailure).nonRetryable).toBe(true);
+    expect((err as Error).message).toContain('E2E_SECRET');
+    expect(await kube.readSecret(`run-${runId}`)).toBeNull();
   });
 });
 

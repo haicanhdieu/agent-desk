@@ -117,3 +117,10 @@ describe('redactBody token-shaped values', () => {
     });
   });
 });
+
+describe('redactBody env entries', () => {
+  it('drops value and keeps name', () => {
+    expect(redactBody({ name: 'FOO', value: 'v1' }, 'POST projectEnv.createVar')).toEqual({ name: 'FOO' });
+    expect(redactBody({ value: 'v1' }, 'PUT projectEnv.updateSecret')).toEqual({});
+  });
+});

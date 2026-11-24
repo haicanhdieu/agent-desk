@@ -22,10 +22,12 @@ export {
   DeskSetup,
   SETUP_SCRIPT_STARTER,
   type DeskSetupProps,
+  type DeskSetupTab,
   type LastSetupTest,
   type SavedSetupScript,
   type SetupTestView,
 } from './DeskSetup';
+export { DeskSetupEnvironment, type DeskSetupEnvironmentProps, type EnvListGroup } from './DeskSetupEnvironment';
 export { SetupWorkspace, type SetupStepTest, type SetupWorkspaceProps } from './SetupWorkspace';
 export { MyInvitations, type MyInvitationsProps, type MyInvitationsState } from './MyInvitations';
 export { InvitationAccept, type InvitationAcceptProps, type InvitationAcceptState } from './InvitationAccept';

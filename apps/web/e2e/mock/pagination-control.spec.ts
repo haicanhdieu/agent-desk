@@ -1,5 +1,6 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
-import { INVOICER_API, ORG, seedLists } from './mock';
+import { ids } from '../../src/mocks/dto/ids';
+import { INVOICER_API, ORG, seedLists, seedOnboarding } from './mock';
 
 /*
  * The Pagination control on the Runs screen (spec docs/superpowers/specs/2026-11-19-shared-pagination-design.md,
@@ -817,5 +818,26 @@ test.describe('BR-43: one row down to 240px', () => {
     await openRuns(page);
     expect((await boxOf(nav(page))).width).toBeLessThanOrEqual(375);
     expect(await isOneRow(page)).toBe(true);
+  });
+});
+
+test.describe('Environment lists (workspace setup)', () => {
+  test('BR-27: the Environment lists use the same control and "Rows per page" as the other lists', async ({ page }) => {
+    await seedOnboarding(page, 'owner');
+    await seedLists(page, { env: { variables: 23, secrets: 22 } });
+    await page.goto(`/o/acme/p/${ids.project.invoicerApi}/desk/setup?tab=environment`);
+    const vars = page.getByRole('region', { name: 'Environment variables' });
+    const secrets = page.getByRole('region', { name: 'Secrets' });
+    const bar = (group: Locator) => group.getByRole('navigation', { name: 'Pagination' });
+    await expect(bar(vars).locator('p')).toHaveText('Showing 1–20 of 23');
+    await expect(bar(vars).getByLabel('Rows per page').locator('option')).toHaveText(['20', '50', '100']);
+    await expect(bar(vars).getByRole('button', { name: 'Previous', exact: true })).toBeDisabled();
+    await bar(vars).getByLabel('Go to page').fill('2');
+    await bar(vars).getByRole('button', { name: 'Go', exact: true }).click();
+    await expect(bar(vars).locator('p')).toHaveText('Showing 21–23 of 23');
+    await expect(bar(secrets).locator('p')).toHaveText('Showing 1–20 of 22');
+    await bar(vars).getByLabel('Rows per page').selectOption('50');
+    await expect(bar(vars).locator('p')).toHaveText('Showing 1–23 of 23');
+    expect(new URL(page.url()).searchParams.get('varsPage')).toBeNull();
   });
 });

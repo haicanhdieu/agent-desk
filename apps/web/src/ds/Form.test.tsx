@@ -62,6 +62,26 @@ describe('inputs', () => {
     expect(btn).toHaveAttribute('aria-pressed', 'true');
   });
 
+  it('PasswordInput with hideLabel renames the button while shown and drops aria-pressed', async () => {
+    render(<PasswordInput aria-label="Secret" revealLabel="Show value" hideLabel="Hide value" />);
+    const input = screen.getByLabelText('Secret');
+    const btn = screen.getByRole('button', { name: 'Show value' });
+    expect(btn).not.toHaveAttribute('aria-pressed');
+    await userEvent.click(btn);
+    expect(input).toHaveAttribute('type', 'text');
+    const hide = screen.getByRole('button', { name: 'Hide value' });
+    expect(hide).not.toHaveAttribute('aria-pressed');
+    await userEvent.click(hide);
+    expect(input).toHaveAttribute('type', 'password');
+    expect(screen.getByRole('button', { name: 'Show value' })).toBeInTheDocument();
+  });
+
+  it('PasswordInput without hideLabel keeps its name and aria-pressed while shown', async () => {
+    render(<PasswordInput aria-label="Token" revealLabel="Show token" />);
+    await userEvent.click(screen.getByRole('button', { name: 'Show token' }));
+    expect(screen.getByRole('button', { name: 'Show token' })).toHaveAttribute('aria-pressed', 'true');
+  });
+
   it('PrefixInput, UnitInput, SearchInput, StaticInput render', () => {
     render(
       <>

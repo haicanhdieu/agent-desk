@@ -19,6 +19,7 @@ export * from './schemas/agent-state';
 export * from './schemas/runs';
 export * from './schemas/events';
 export * from './schemas/session';
+export * from './schemas/env';
 export * from './schemas/setup';
 export * from './schemas/tickets';
 export * from './schemas/transcript';

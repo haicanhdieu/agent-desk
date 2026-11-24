@@ -766,3 +766,120 @@ test.describe('BR-26: an org viewer who is also admin on P1', () => {
     }
   });
 });
+
+/** The 7 project env routes on `projectId`: list, then create, update and remove for variables, then for secrets. */
+function envCalls(
+  who: Actor,
+  projectId: string,
+  plain: string,
+  secret: string,
+): { what: string; call: () => Promise<APIResponse> }[] {
+  const base = `/api/projects/${projectId}`;
+  return [
+    { what: 'list', call: () => who.api.get(`${base}/env?kind=plain`) },
+    {
+      what: 'create var',
+      call: () => who.api.post(`${base}/env-vars`, { data: { name: plain, value: 'e2e-new-value' } }),
+    },
+    { what: 'update var', call: () => who.api.put(`${base}/env-vars/${plain}`, { data: { value: 'e2e-changed' } }) },
+    { what: 'remove var', call: () => who.api.delete(`${base}/env-vars/${plain}`) },
+    {
+      what: 'create secret',
+      call: () => who.api.post(`${base}/env-secrets`, { data: { name: secret, value: 'e2e-secret-new' } }),
+    },
+    {
+      what: 'update secret',
+      call: () => who.api.put(`${base}/env-secrets/${secret}`, { data: { value: 'e2e-secret-changed' } }),
+    },
+    { what: 'remove secret', call: () => who.api.delete(`${base}/env-secrets/${secret}`) },
+  ];
+}
+
+type EnvItem = { name: string; kind: string; value: string | null };
+
+async function envList(who: Actor, projectId: string, kind: 'plain' | 'secret'): Promise<EnvItem[]> {
+  const res = await who.api.get(`/api/projects/${projectId}/env?kind=${kind}`);
+  expect(res.status(), await res.text()).toBe(200);
+  return ((await res.json()) as { items: EnvItem[] }).items;
+}
+
+async function addVar(who: Actor, projectId: string, name: string, value: string): Promise<void> {
+  const res = await who.api.post(`/api/projects/${projectId}/env-vars`, { data: { name, value } });
+  expect(res.status(), await res.text()).toBeLessThan(300);
+}
+
+const envPath = (slug: string, projectId: string): string => `/o/${slug}/p/${projectId}/desk/setup?tab=environment`;
+
+test.describe('BR-4: the env of a project is scoped to the project and the org', () => {
+  const rand = randomBytes(3).toString('hex');
+  const p1Name = `E2E_P1_${rand}`;
+  const p2Name = `E2E_P2_${rand}`;
+
+  test.beforeEach(async () => {
+    await addVar(cast.o, cast.p1, p1Name, 'e2e-p1-value');
+    await addVar(cast.o, cast.p2, p2Name, 'e2e-p2-value');
+  });
+
+  test('TC-4.1: the admin of P1 only sees E2E_P1 in the Environment tab and adds E2E_NEW', async () => {
+    const page = cast.a.page;
+    const newName = `E2E_NEW_${rand}`;
+    await page.goto(envPath(cast.slug, cast.p1));
+    await expect(page.getByText(p1Name)).toBeVisible();
+    await expect(page.getByText(p2Name)).toHaveCount(0);
+
+    const vars = page.getByRole('region', { name: 'Environment variables' });
+    await vars.getByRole('button', { name: 'Add variable' }).click();
+    const form = vars.getByRole('group', { name: 'Add variable' });
+    await form.getByRole('textbox', { name: 'Name' }).fill(newName);
+    await form.getByRole('textbox', { name: 'Value' }).fill('e2e-new-value');
+    await form.getByRole('button', { name: 'Add variable' }).click();
+    await expect(vars.getByText(newName, { exact: true })).toBeVisible();
+    await expect(vars.getByText(p1Name, { exact: true })).toBeVisible();
+    expect((await envList(cast.o, cast.p1, 'plain')).map((e) => e.name)).toEqual(
+      expect.arrayContaining([p1Name, newName]),
+    );
+  });
+
+  test("TC-4.2: the admin of P1 only opening P2's Environment tab sees the not-found page, not Forbidden", async () => {
+    const page = cast.a.page;
+    await page.goto(envPath(cast.slug, cast.p2));
+    await expect(page.getByText('Page not found')).toBeVisible();
+    await expect(page.getByText("You don't have access")).toHaveCount(0);
+    await expect(page.getByText(p2Name)).toHaveCount(0);
+  });
+
+  test("TC-4.3: the admin of P1 only gets 404 on the 7 env routes of P2 and P2's list is unchanged", async () => {
+    const before = await envList(cast.o, cast.p2, 'plain');
+    expect(before.map((e) => e.name)).toContain(p2Name);
+    for (const { what, call } of envCalls(cast.a, cast.p2, p2Name, `E2E_SECRET_${rand}`)) {
+      await expect404(await call(), `${what} on P2`, [p2Name, 'e2e-p2-value']);
+    }
+    expect(await envList(cast.o, cast.p2, 'plain')).toEqual(before);
+    expect(await envList(cast.o, cast.p2, 'secret')).toEqual([]);
+  });
+
+  test("TC-4.4: an owner of another org gets the not-found page and 404 on the 7 routes of org A's project", async ({
+    browser,
+  }) => {
+    const second = await secondOrg(browser, cast.pa);
+    try {
+      const aName = `E2E_A_${rand}`;
+      await addVar(cast.o, cast.p1, aName, 'e2e-a-value');
+      const before = await envList(cast.o, cast.p1, 'plain');
+      expect(before.map((e) => e.name)).toContain(aName);
+
+      const page = second.owner.page;
+      await page.goto(envPath(cast.slug, cast.p1));
+      await expect(page.getByText('Page not found')).toBeVisible();
+      await expect(page.getByText("You don't have access")).toHaveCount(0);
+      await expect(page.getByText(aName)).toHaveCount(0);
+
+      for (const { what, call } of envCalls(second.owner, cast.p1, aName, `E2E_SECRET_${rand}`)) {
+        await expect404(await call(), `${what} on org A's project`, [aName, 'e2e-a-value']);
+      }
+      expect(await envList(cast.o, cast.p1, 'plain')).toEqual(before);
+    } finally {
+      await disposeSecondOrg(second);
+    }
+  });
+});

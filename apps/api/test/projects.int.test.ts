@@ -3,7 +3,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { randomUUID } from 'node:crypto';
 import { ScheduleNotFoundError, WorkflowNotFoundError } from '@temporalio/client';
 import type { Page, ProjectDto } from '@agentdesk/contracts';
-import { SIGNAL, credentialSecretName } from '@agentdesk/core';
+import { SIGNAL, credentialSecretName, projectEnvSecretName } from '@agentdesk/core';
 import { createTestApp, type TestApp } from './helpers/app';
 import { createOrg, inviteAndLogin } from './helpers/auth';
 import { expectContract } from './helpers/contract';
@@ -378,6 +378,65 @@ describe('projects', () => {
       expect(await t.secrets.get(secret)).toBeNull();
       const get = await t.app.inject({ method: 'GET', url: `/api/projects/${p.id}`, headers: { cookie: alice } });
       expect(get.statusCode).toBe(404);
+    });
+
+    describe('env entries', () => {
+      async function seedEnv(projectId: string): Promise<{ secretIds: string[]; names: string[] }> {
+        const orgId = await aliceOrgId();
+        const secretIds: string[] = [];
+        await asOrg(
+          orgId,
+          `insert into project_env_vars (org_id, project_id, name, kind, value, size_bytes, updated_by)
+           values ($1, $2, 'PLAIN_ONE', 'plain', 'v', 10, 'u')`,
+          [orgId, projectId],
+        );
+        for (const name of ['SECRET_ONE', 'SECRET_TWO']) {
+          const r = await asOrg(
+            orgId,
+            `insert into project_env_vars (org_id, project_id, name, kind, value, size_bytes, updated_by)
+             values ($1, $2, $3, 'secret', null, 10, 'u') returning id`,
+            [orgId, projectId, name],
+          );
+          const id = String(r.rows[0]?.id);
+          secretIds.push(id);
+          await t.secrets.put(projectEnvSecretName(orgId, id), { type: 'api_key', value: 'sk-env-value' });
+        }
+        return { secretIds, names: secretIds.map((id) => projectEnvSecretName(orgId, id)) };
+      }
+
+      it('env: delete removes the rows and every per-entry Secret', async () => {
+        const p = (await createProject({})).json() as ProjectDto;
+        const orgId = await aliceOrgId();
+        const { names } = await seedEnv(p.id);
+        const res = await t.app.inject({ method: 'DELETE', url: `/api/projects/${p.id}`, headers: { cookie: alice } });
+        expect(res.statusCode).toBe(204);
+        const rows = await asOrg(orgId, 'select id from project_env_vars where project_id = $1', [p.id]);
+        expect(rows.rows).toEqual([]);
+        for (const n of names) expect(await t.secrets.get(n)).toBeNull();
+      });
+
+      it('env: a failing Secret delete does not fail the project delete or skip the other Secret', async () => {
+        const p = (await createProject({})).json() as ProjectDto;
+        const { names } = await seedEnv(p.id);
+        const original = t.secrets.delete.bind(t.secrets);
+        t.secrets.delete = async (name: string) => {
+          if (name === names[0]) throw new Error('boom');
+          return original(name);
+        };
+        try {
+          const res = await t.app.inject({
+            method: 'DELETE',
+            url: `/api/projects/${p.id}`,
+            headers: { cookie: alice },
+          });
+          expect(res.statusCode).toBe(204);
+        } finally {
+          t.secrets.delete = original;
+        }
+        const get = await t.app.inject({ method: 'GET', url: `/api/projects/${p.id}`, headers: { cookie: alice } });
+        expect(get.statusCode).toBe(404);
+        expect(await t.secrets.get(names[1] as string)).toBeNull();
+      });
     });
 
     it('with a succeeded run that keeps its session: deletes the project and signals dropSession to that run', async () => {

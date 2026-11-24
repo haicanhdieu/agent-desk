@@ -1,6 +1,7 @@
 import {
   PutSetupScriptRequest,
   SetupScriptBody,
+  type EnvEntryDto,
   type PluginsDto,
   type RunEventDto,
   type SetupScriptDto,
@@ -8,7 +9,7 @@ import {
   type SetupTestDto,
 } from '@agentdesk/contracts';
 import { z } from 'zod';
-import type { ScriptVersion, SetupPhase, TermLine, TermTone } from '@/components';
+import type { EnvEntryRow, ScriptVersion, SetupPhase, TermLine, TermTone } from '@/components';
 import type { DeskSetupProps, LastSetupTest, SetupStepTest, SetupTestView } from '@/screens';
 import { relativeTime } from '../relativeTime';
 import { plainLines, SCROLLBACK_MAX_LINES } from '../runs/detail.map';
@@ -423,4 +424,33 @@ export function setupWarningOf(script: SetupScriptDto | null, latest: SetupTestD
     title: 'The setup script has not passed a test yet',
     detail: 'Runs use the saved script as it is. Test it in Workspace setup to be sure it works.',
   };
+}
+
+const MINUTE = 60_000;
+const HOUR = 60 * MINUTE;
+const DAY = 24 * HOUR;
+const WEEK_DAYS = 7;
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+/** "just now", "15 min ago", "3 hours ago", "2 days ago", then a short UTC date ("Nov 3"), as the Environment boards. */
+function setAgo(iso: string, now: Date): string {
+  const at = new Date(iso);
+  const diff = now.getTime() - at.getTime();
+  if (diff < MINUTE) return 'just now';
+  if (diff < HOUR) return `${Math.floor(diff / MINUTE)} min ago`;
+  if (diff < DAY) return plural(Math.floor(diff / HOUR), 'hour ago', 'hours ago');
+  if (diff < WEEK_DAYS * DAY) return plural(Math.floor(diff / DAY), 'day ago', 'days ago');
+  return `${MONTHS[at.getUTCMonth()]} ${at.getUTCDate()}`;
+}
+
+/**
+ * The Environment tab's rows (spec: Data on screen). A plain row carries its value (empty stays ''); a secret row
+ * carries only who set it and when, and its `value` is never read, whatever the DTO holds.
+ */
+export function toEnvRows(entries: EnvEntryDto[], now: Date): EnvEntryRow[] {
+  return entries.map((e): EnvEntryRow =>
+    e.kind === 'secret'
+      ? { name: e.name, meta: `Set ${setAgo(e.updatedAt, now)} by ${e.updatedBy}` }
+      : { name: e.name, value: e.value ?? '' },
+  );
 }

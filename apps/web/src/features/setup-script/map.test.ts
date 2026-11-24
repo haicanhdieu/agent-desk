@@ -1,4 +1,5 @@
 import type {
+  EnvEntryDto,
   PluginsDto,
   RunEventDto,
   SetupScriptDto,
@@ -7,7 +8,7 @@ import type {
 } from '@agentdesk/contracts';
 import { describe, expect, it } from 'vitest';
 import { SETUP_SCRIPT_STARTER } from '@/screens/DeskSetup';
-import { setupScriptSaveProblem, setupWarningOf, toDeskSetupProps, toSetupStepTest } from './map';
+import { setupScriptSaveProblem, setupWarningOf, toDeskSetupProps, toEnvRows, toSetupStepTest } from './map';
 
 const ID = 'b0000000-0000-4000-8000-000000000001';
 const PROJECT = 'a0000000-0000-4000-8000-000000000001';
@@ -569,5 +570,66 @@ describe('a failed setup explains itself', () => {
 
   it('a passing or running test has no failure summary', () => {
     expect(props({ latest: test({ status: 'running' }) }).test?.failure).toBeUndefined();
+  });
+});
+
+describe('toEnvRows', () => {
+  const at = new Date('2026-11-12T12:00:00.000Z');
+  const entry = (over: Partial<EnvEntryDto>): EnvEntryDto => ({
+    name: 'NAME',
+    kind: 'plain',
+    value: 'v',
+    updatedAt: '2026-11-12T11:59:40.000Z',
+    updatedBy: 'kim-hale',
+    ...over,
+  });
+
+  it('a plain row carries its value and no meta', () => {
+    expect(toEnvRows([entry({ name: 'DB_HOST', value: 'db.internal' })], at)).toEqual([
+      { name: 'DB_HOST', value: 'db.internal' },
+    ]);
+  });
+
+  it('an empty plain value maps to the empty string', () => {
+    expect(toEnvRows([entry({ value: '' })], at)).toEqual([{ name: 'NAME', value: '' }]);
+  });
+
+  it('a secret row says when and by whom it was set, 2 days ago', () => {
+    const secret = entry({ name: 'NPM_TOKEN', kind: 'secret', value: null, updatedAt: '2026-11-10T11:00:00.000Z' });
+    expect(toEnvRows([secret], at)).toEqual([{ name: 'NPM_TOKEN', meta: 'Set 2 days ago by kim-hale' }]);
+  });
+
+  it('a secret set seconds ago reads "Set just now by ..."', () => {
+    const secret = entry({ kind: 'secret', value: null });
+    expect(toEnvRows([secret], at)).toEqual([{ name: 'NAME', meta: 'Set just now by kim-hale' }]);
+  });
+
+  it('a secret set minutes, hours, a day or long ago', () => {
+    const secret = (updatedAt: string) => entry({ kind: 'secret', value: null, updatedAt });
+    const metas = toEnvRows(
+      [
+        secret('2026-11-12T11:45:00.000Z'),
+        secret('2026-11-12T09:00:00.000Z'),
+        secret('2026-11-11T09:00:00.000Z'),
+        secret('2026-11-03T09:00:00.000Z'),
+      ],
+      at,
+    ).map((r) => r.meta);
+    expect(metas).toEqual([
+      'Set 15 min ago by kim-hale',
+      'Set 3 hours ago by kim-hale',
+      'Set 1 day ago by kim-hale',
+      'Set Nov 3 by kim-hale',
+    ]);
+  });
+
+  it('never reads the value of a secret, even a stray one', () => {
+    const [row] = toEnvRows([entry({ kind: 'secret', value: 'test-token-not-real-1' })], at);
+    expect(row).not.toHaveProperty('value');
+    expect(JSON.stringify(row)).not.toContain('test-token-not-real-1');
+  });
+
+  it('keeps the server order', () => {
+    expect(toEnvRows([entry({ name: 'B' }), entry({ name: 'A' })], at).map((r) => r.name)).toEqual(['B', 'A']);
   });
 });

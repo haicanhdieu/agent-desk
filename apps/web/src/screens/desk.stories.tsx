@@ -1,4 +1,6 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
+import type { ReactElement } from 'react';
+import { fn, userEvent, within } from 'storybook/test';
 import {
   AddProjectMemberDialog,
   AppShell,
@@ -9,6 +11,7 @@ import {
   type ChangeRoleDialogProps,
   type InviteDialogStep,
   type InviteDialogValues,
+  type EnvSaveError,
   type PaginationProps,
 } from '@/components';
 import type { Actor, ProjectMemberRowView } from '@/mocks/types';
@@ -21,6 +24,10 @@ import {
   inviteProjectOptions,
   inviteRoleOptions,
   invitationLink,
+  envBoardSecretRows,
+  envPagedSecretRows,
+  envPagedVariableRows,
+  envVariableRows,
   orgSwitchFixtures,
   pagedRules,
   pagedSkills,
@@ -52,11 +59,12 @@ import { DeskAudit as DeskAuditScreen } from './DeskAudit';
 import { DeskMembers as DeskMembersScreen, type DeskMembersProps } from './DeskMembers';
 import screenStyles from './Screens.module.css';
 import { DeskAgent as DeskAgentBase, type DeskAgentProps } from './DeskAgent';
+import type { DeskSetupEnvironmentProps, EnvListGroup } from './DeskSetupEnvironment';
 import { DeskRules as DeskRulesScreen, RulePane } from './DeskRules';
 import { DeskSkills as DeskSkillsScreen, type DeskSkillsProps } from './DeskSkills';
 import { toModelList } from '@/components';
 import { agentModelsFixtures } from '@/mocks/dto/agentModels';
-import { StatusIcon } from '@/ds';
+import { StatusIcon, Toast, ToastRegion } from '@/ds';
 import { viewport } from './viewports';
 
 // Artboards come from canvas.json: DeskSkills, DeskSkillDelete, DeskRules, DeskSetup, DeskSetupTest 1440x900; DeskAgent 1440x1320;
@@ -1078,4 +1086,251 @@ export const DeskMembersGone: Story = {
   ...members(membersReady(membersWithout('user-tenant-4')), {
     notice: { tone: 'error', title: 'Member is no longer on this project', onDismiss: noop },
   }),
+};
+
+// The Environment tab boards (DeskSetupEnvironment*): the tab body inside the setup page, Environment selected.
+const done = () => Promise.resolve(null);
+const writable = (entries: EnvListGroup['entries'], more: Partial<EnvListGroup> = {}): EnvListGroup => ({
+  entries,
+  canWrite: true,
+  onCreate: fn(done),
+  onUpdate: fn(done),
+  onRemove: fn(done),
+  onRetry: fn(),
+  ...more,
+});
+const envSecrets = () => writable(envBoardSecretRows);
+const envVariables = () => writable(envVariableRows);
+
+const environmentScreen = (
+  environment: DeskSetupEnvironmentProps,
+  more: Partial<DeskSetupProps> = {},
+): ReactElement => (
+  <DeskSetupScreen {...setupProps} tab="environment" onTabChange={noop} environment={environment} {...more} />
+);
+
+const envStory = (name: string, environment: () => DeskSetupEnvironmentProps, play?: Story['play']): Story => ({
+  name: `Workspace setup, environment${name}`,
+  decorators: artboard(900),
+  globals: viewport(1440, 900),
+  render: () => environmentScreen(environment()),
+  ...(play ? { play } : {}),
+});
+
+const envPageSize = 20;
+const envPagination = (page: number, total: number, label: string): PaginationProps => ({
+  ...pagination(page, total),
+  pageSize: envPageSize,
+  label,
+});
+const pagedVariables = (total: number) =>
+  writable(envPagedVariableRows(total).slice(envPageSize), {
+    total,
+    pagination: envPagination(2, total, 'Variables pagination'),
+  });
+
+const groupOf = (canvasElement: HTMLElement, name: string) =>
+  within(within(canvasElement).getByRole('group', { name }));
+
+export const DeskSetupEnvironment: Story = envStory('', () => ({ variables: envVariables(), secrets: envSecrets() }));
+
+export const DeskSetupEnvironmentEmpty: Story = envStory(', no entries yet', () => ({
+  variables: writable([]),
+  secrets: writable([]),
+}));
+
+export const DeskSetupEnvironmentLoading: Story = envStory(', loading', () => ({
+  variables: writable([], { loading: true }),
+  secrets: writable([], { loading: true }),
+}));
+
+export const DeskSetupEnvironmentError: Story = envStory(', variables failed to load', () => ({
+  variables: writable([], {
+    loadError: { message: 'Could not load the environment. Reload to try again.', requestId: 'req_01JDE7Q3M9KT' },
+  }),
+  secrets: envSecrets(),
+}));
+
+export const DeskSetupEnvironmentAdding: Story = envStory(', adding a variable', () => ({
+  variables: writable(envVariableRows, { initial: { adding: true } }),
+  secrets: envSecrets(),
+}));
+
+export const DeskSetupEnvironmentAddSecret: Story = envStory(', adding a secret', () => ({
+  variables: envVariables(),
+  secrets: writable(envBoardSecretRows, { initial: { adding: true } }),
+}));
+
+export const DeskSetupEnvironmentEditing: Story = envStory(', editing a variable', () => ({
+  variables: writable(envVariableRows, { initial: { editing: 'DB_HOST' } }),
+  secrets: envSecrets(),
+}));
+
+export const DeskSetupEnvironmentSaving: Story = envStory(', saving a variable', () => ({
+  variables: writable(envVariableRows, { initial: { editing: 'DB_HOST', saving: true } }),
+  secrets: envSecrets(),
+}));
+
+export const DeskSetupEnvironmentSecretReplace: Story = envStory(', replacing a secret', () => ({
+  variables: envVariables(),
+  secrets: writable(envBoardSecretRows, { initial: { editing: 'NPM_TOKEN' } }),
+}));
+
+export const DeskSetupEnvironmentRemove: Story = envStory(', remove a variable', () => ({
+  variables: writable(envVariableRows, { initial: { removing: 'DB_HOST' } }),
+  secrets: envSecrets(),
+}));
+
+/** A reserved name and a value under 6 characters: both field errors come from the contracts schema. */
+export const DeskSetupEnvironmentFieldErrors: Story = envStory(
+  ', reserved name and short secret',
+  () => ({ variables: envVariables(), secrets: writable(envBoardSecretRows, { initial: { adding: true } }) }),
+  async ({ canvasElement }) => {
+    const form = groupOf(canvasElement, 'Add secret');
+    await userEvent.type(form.getByLabelText('Name'), 'GITHUB_TOKEN');
+    await userEvent.type(form.getByLabelText('Value'), 'abc');
+    await userEvent.click(form.getByRole('button', { name: 'Add secret' }));
+  },
+);
+
+export const DeskSetupEnvironmentNameTaken: Story = envStory(
+  ', name already exists',
+  () => ({
+    variables: writable(envVariableRows, {
+      initial: { adding: true },
+      onCreate: fn(() =>
+        Promise.resolve<EnvSaveError>({
+          field: { name: 'DB_HOST already exists. A name can be used once, as a variable or a secret.' },
+        }),
+      ),
+    }),
+    secrets: envSecrets(),
+  }),
+  async ({ canvasElement }) => {
+    const form = groupOf(canvasElement, 'Add variable');
+    await userEvent.type(form.getByLabelText('Name'), 'DB_HOST');
+    await userEvent.type(form.getByLabelText('Value'), 'db.other');
+    await userEvent.click(form.getByRole('button', { name: 'Add variable' }));
+  },
+);
+
+export const DeskSetupEnvironmentLimit: Story = envStory(
+  ', limit reached',
+  () => ({
+    variables: writable(envVariableRows, {
+      initial: { adding: true },
+      onCreate: fn(() =>
+        Promise.resolve<EnvSaveError>({
+          banner: {
+            title: 'Too many entries',
+            detail: 'This project has 500 entries, the most this deployment allows. Remove one to add another.',
+          },
+        }),
+      ),
+    }),
+    secrets: envSecrets(),
+  }),
+  async ({ canvasElement }) => {
+    const form = groupOf(canvasElement, 'Add variable');
+    await userEvent.type(form.getByLabelText('Name'), 'AWS_REGION');
+    await userEvent.type(form.getByLabelText('Value'), 'eu-central-1');
+    await userEvent.click(form.getByRole('button', { name: 'Add variable' }));
+  },
+);
+
+export const DeskSetupEnvironmentSaveError: Story = envStory(
+  ', save failed',
+  () => ({
+    variables: envVariables(),
+    secrets: writable(envBoardSecretRows, {
+      initial: { adding: true },
+      onCreate: fn(() =>
+        Promise.resolve<EnvSaveError>({
+          banner: { title: 'Internal server error', requestId: 'req_01JDE8A4T2WX' },
+        }),
+      ),
+    }),
+  }),
+  async ({ canvasElement }) => {
+    const form = groupOf(canvasElement, 'Add secret');
+    await userEvent.type(form.getByLabelText('Name'), 'SMTP_PASSWORD');
+    await userEvent.type(form.getByLabelText('Value'), 'hunter2hunter2');
+    await userEvent.click(form.getByRole('button', { name: 'Add secret' }));
+  },
+);
+
+/** The entry was removed by someone else while this row was open. */
+export const DeskSetupEnvironmentGone: Story = envStory(
+  ', entry no longer exists',
+  () => ({
+    variables: writable(envVariableRows, {
+      initial: { editing: 'DB_HOST' },
+      onUpdate: fn(() => Promise.resolve<EnvSaveError>({ gone: true })),
+    }),
+    secrets: envSecrets(),
+  }),
+  async ({ canvasElement }) => {
+    await userEvent.click(groupOf(canvasElement, 'Edit DB_HOST').getByRole('button', { name: 'Save' }));
+  },
+);
+
+export const DeskSetupEnvironmentPaged: Story = envStory(', both lists on page 2', () => ({
+  variables: pagedVariables(23),
+  secrets: writable(envPagedSecretRows(22).slice(envPageSize), {
+    total: 22,
+    pagination: envPagination(2, 22, 'Secrets pagination'),
+  }),
+}));
+
+/** After an add the variables list stays on its page (24 variables, page 2) and the Toast shows. */
+export const DeskSetupEnvironmentAdded: Story = {
+  name: 'Workspace setup, environment, added to another page',
+  decorators: artboard(900),
+  globals: viewport(1440, 900),
+  render: () => (
+    <>
+      {environmentScreen({
+        variables: pagedVariables(24),
+        secrets: writable(envPagedSecretRows(22).slice(envPageSize), {
+          total: 22,
+          pagination: envPagination(2, 22, 'Secrets pagination'),
+        }),
+      })}
+      <ToastRegion>
+        <Toast tone="ok" role="status" title="Added AWS_REGION" onDismiss={noop} />
+      </ToastRegion>
+    </>
+  ),
+};
+
+export const DeskSetupEnvironmentReadOnly: Story = envStory(', read-only', () => ({
+  variables: writable(envVariableRows, { canWrite: false }),
+  secrets: writable(envBoardSecretRows, { canWrite: false }),
+}));
+
+export const DeskSetupEnvironmentSecretsReadOnly: Story = envStory(', secrets read-only', () => ({
+  variables: envVariables(),
+  secrets: writable(envBoardSecretRows, { canWrite: false }),
+}));
+
+/** A setup test is running: the tab strip stays and the running test keeps the values it started with. */
+export const DeskSetupEnvironmentTesting: Story = {
+  name: 'Workspace setup, environment, while a test runs',
+  decorators: artboard(900),
+  globals: viewport(1440, 900),
+  render: () =>
+    environmentScreen(
+      { variables: envVariables(), secrets: envSecrets(), testRunning: true },
+      {
+        test: {
+          status: 'running',
+          phases: setupPhases.running,
+          plugins: setupPlugins.planned,
+          lines: setupTestTerminal.slice(0, 5),
+          scriptLabel: 'Version 4',
+          checkout: 'main a91c3e2',
+          started: '14:31:05 by kim-hale',
+        },
+      },
+    ),
 };

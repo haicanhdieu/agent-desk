@@ -1,5 +1,5 @@
 import type { TermLine, TermTone } from '@/components';
-import type { PluginState, ScriptVersion, SetupPhase } from '@/components';
+import type { EnvEntryRow, PluginState, ScriptVersion, SetupPhase } from '@/components';
 
 // Prototype boards: DeskSetup, DeskSetupTest, SetupWorkspace, RunSetupFailed.
 const t = (text: string, tone?: TermTone) => (tone ? { text, tone } : { text });
@@ -92,4 +92,39 @@ export const setupFailedRunTerminal: TermLine[] = [
   ...restoreFails,
   [],
   [t('[agent-desk] ', 'accent'), t('setup failed at 11:42:51. Claude was not started. Run failed.')],
+];
+
+// Environment tab (EnvEntryList): plain variables carry a value, secrets only who set them and when.
+export const envVariableRows: EnvEntryRow[] = [
+  { name: 'ASPNETCORE_ENVIRONMENT', value: 'Development' },
+  { name: 'DB_HOST', value: 'db.internal' },
+  { name: 'DOTNET_CLI_TELEMETRY_OPTOUT', value: '1' },
+];
+
+export const envSecretRows: EnvEntryRow[] = [
+  { name: 'NPM_TOKEN', meta: 'Set 2 days ago by kim-hale' },
+  { name: 'NUGET_FEED_PASSWORD', meta: 'Set 5 days ago by dana-ortiz' },
+];
+
+const byteOrder = (a: EnvEntryRow, b: EnvEntryRow) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0);
+
+/** `n` variables, sorted by name in byte order (the API sorts `COLLATE "C"`). */
+export function envPagedVariableRows(n: number): EnvEntryRow[] {
+  return Array.from({ length: n }, (_, i): EnvEntryRow => ({ name: `VAR_${i + 1}`, value: `value-${i + 1}` })).sort(
+    byteOrder,
+  );
+}
+
+/** `n` secrets, sorted by name in byte order. */
+export function envPagedSecretRows(n: number): EnvEntryRow[] {
+  return Array.from({ length: n }, (_, i): EnvEntryRow => ({
+    name: `SECRET_${i + 1}`,
+    meta: `Set ${i + 1} days ago by ${i % 2 === 0 ? 'kim-hale' : 'dana-ortiz'}`,
+  })).sort(byteOrder);
+}
+
+/** The secrets of the Environment boards: the second one is set on a fixed date, not "ago". */
+export const envBoardSecretRows: EnvEntryRow[] = [
+  { name: 'NPM_TOKEN', meta: 'Set 2 days ago by kim-hale' },
+  { name: 'NUGET_API_KEY', meta: 'Set Nov 3 by dana-ortiz' },
 ];

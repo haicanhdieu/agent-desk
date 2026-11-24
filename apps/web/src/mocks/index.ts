@@ -63,6 +63,11 @@ export {
   setupPhases,
   setupTestTerminal,
   setupFailedRunTerminal,
+  envVariableRows,
+  envSecretRows,
+  envBoardSecretRows,
+  envPagedVariableRows,
+  envPagedSecretRows,
 } from './setup';
 export { pagedRuns, pagedIgnored, pagedNeedsYou, pagedProjects, pagedRules, pagedSkills, pagedVersions } from './paged';
 export { orgOptions, orgSwitchFixtures } from './orgs';

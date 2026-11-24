@@ -309,6 +309,13 @@
       "when": 1795500700000,
       "tag": "0043_platform_audit_target_org",
       "breakpoints": true
+    },
+    {
+      "idx": 44,
+      "version": "7",
+      "when": 1795500800000,
+      "tag": "0044_project_env_vars",
+      "breakpoints": true
     }
   ]
 }

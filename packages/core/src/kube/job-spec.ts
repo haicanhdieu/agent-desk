@@ -23,6 +23,24 @@ export interface RunPodConfig {
   runtimeClassName?: string;
 }
 
+/**
+ * A project's env for a Job: plain entries become literal env values; each secret name becomes a `secretKeyRef` into
+ * the Job's Secret under the same key (values are never an input here). Names are validated upstream; here they only
+ * must not clash with platform env.
+ */
+export interface ProjectEnvInput {
+  plain: ReadonlyArray<{ name: string; value: string }>;
+  secretNames: readonly string[];
+}
+
+/** A project env name equals a platform env name or another project name. Names the variable only, never a value. */
+export class ProjectEnvClashError extends Error {
+  constructor(readonly envName: string) {
+    super(`project env name clashes with another env var: ${envName}`);
+    this.name = 'ProjectEnvClashError';
+  }
+}
+
 export interface RunJobInput {
   runId: string;
   orgId: string;
@@ -65,6 +83,8 @@ export interface RunJobInput {
   /** The project's saved setup script (untrusted text): an env value only. Null or empty means none. */
   setupScript: string | null;
   pod: RunPodConfig;
+  /** The project's env vars and secret names; absent means none. */
+  projectEnv?: ProjectEnvInput;
 }
 
 /** Key in the run Secret that holds the repo URL (no credentials in it); reaches the pod as env `REPO_CLONE_URL`. */
@@ -136,6 +156,42 @@ function assertUuid(value: string, what: string): void {
 }
 
 /**
+ * The kubelet expands `$(NAME)` in an env `value` against env entries defined earlier in the list (a `secretKeyRef`
+ * entry counts), and `$$` is the escape for a literal `$` anywhere in a value. Project values and untrusted text
+ * (prompt, setup script, refs) must reach the pod unchanged, so every `$` in a plain value is doubled. No platform
+ * value relies on expansion.
+ */
+function literalEnv(e: V1EnvVar): V1EnvVar {
+  return e.value === undefined ? e : { ...e, value: e.value.replaceAll('$', () => '$$') };
+}
+
+/**
+ * Project env entries as container env (plain first, then secret refs into `secretName`). Rejects a name that is
+ * reserved by the platform or repeated. Values are only ever `value:` fields.
+ */
+function projectEnvVars(
+  projectEnv: ProjectEnvInput | undefined,
+  secretName: string,
+  reserved: readonly string[],
+): V1EnvVar[] {
+  if (!projectEnv) return [];
+  const seen = new Set(reserved);
+  const claim = (n: string): void => {
+    if (seen.has(n)) throw new ProjectEnvClashError(n);
+    seen.add(n);
+  };
+  const plain = projectEnv.plain.map((e): V1EnvVar => {
+    claim(e.name);
+    return { name: e.name, value: e.value };
+  });
+  const secret = projectEnv.secretNames.map((key): V1EnvVar => {
+    claim(key);
+    return { name: key, valueFrom: { secretKeyRef: { name: secretName, key } } };
+  });
+  return [...plain, ...secret];
+}
+
+/**
  * The one place a sandbox Job's pod shape lives (security context, resources, volumes, scheduling), so run Jobs and
  * setup-test Jobs cannot drift. `name` is also the Secret the pod reads: the repo URL and `secretEnvKeys` become env
  * vars through explicit `secretKeyRef`s (no `envFrom`, so the workspace token key is never an env var), and the
@@ -154,12 +210,26 @@ function podJob(o: {
   /** A per-run claim to mount as the workspace; without it the workspace is an `emptyDir` (setup-test pods). */
   workspaceClaim?: string;
   pod: RunPodConfig;
+  projectEnv?: ProjectEnvInput;
 }): V1Job {
   const { name, labels, pod: p } = o;
   const secretEnv: V1EnvVar[] = [REPO_URL_KEY, ...o.secretEnvKeys].map((key) => ({
     name: key,
     valueFrom: { secretKeyRef: { name, key } },
   }));
+  const platformEnv: V1EnvVar[] = [
+    ...secretEnv,
+    { name: 'AGENTDESK_TOKEN_FILE', value: `${TOKEN_DIR}/${TOKEN_FILE}` },
+    { name: 'AGENTDESK_GIT_USERNAME', value: o.gitUsername },
+    { name: 'AGENTDESK_GIT_HOST', value: o.gitHost },
+    { name: 'AGENTDESK_CLI_TOKEN_ENV', value: o.cliTokenEnvName },
+    ...o.env,
+  ];
+  const projectEnv = projectEnvVars(o.projectEnv, name, [
+    ...platformEnv.map((e) => e.name),
+    o.cliTokenEnvName,
+    WORKSPACE_TOKEN_KEY,
+  ]);
   return {
     apiVersion: 'batch/v1',
     kind: 'Job',
@@ -188,14 +258,7 @@ function podJob(o: {
             {
               name: RUN_CONTAINER,
               image: o.image,
-              env: [
-                ...secretEnv,
-                { name: 'AGENTDESK_TOKEN_FILE', value: `${TOKEN_DIR}/${TOKEN_FILE}` },
-                { name: 'AGENTDESK_GIT_USERNAME', value: o.gitUsername },
-                { name: 'AGENTDESK_GIT_HOST', value: o.gitHost },
-                { name: 'AGENTDESK_CLI_TOKEN_ENV', value: o.cliTokenEnvName },
-                ...o.env,
-              ],
+              env: [...projectEnv, ...platformEnv].map(literalEnv),
               resources: {
                 requests: { cpu: p.cpuRequest, memory: p.memoryRequest },
                 limits: { cpu: p.cpuLimit, memory: p.memoryLimit, 'ephemeral-storage': p.ephemeralStorageLimit },
@@ -283,6 +346,7 @@ export function buildRunJob(input: RunJobInput): V1Job {
     activeDeadlineSeconds: deadline + DEADLINE_MARGIN_SECONDS,
     workspaceClaim: runVolumeName(input.runId),
     pod: input.pod,
+    projectEnv: input.projectEnv,
   });
 }
 
@@ -305,6 +369,8 @@ export interface SetupTestJobInput {
   /** Env var name the code host's CLI reads its token from (from the adapter). */
   cliTokenEnvName: string;
   pod: RunPodConfig;
+  /** The project's env vars and secret names; absent means none. */
+  projectEnv?: ProjectEnvInput;
 }
 
 export function setupTestLabels(input: {
@@ -346,5 +412,6 @@ export function buildSetupTestJob(input: SetupTestJobInput): V1Job {
     cliTokenEnvName: input.cliTokenEnvName,
     activeDeadlineSeconds: input.setupTimeoutSeconds + SETUP_TEST_DEADLINE_MARGIN_SECONDS,
     pod: input.pod,
+    projectEnv: input.projectEnv,
   });
 }

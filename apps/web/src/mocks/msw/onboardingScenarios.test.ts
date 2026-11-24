@@ -53,8 +53,9 @@ afterEach(() => vi.useRealTimers());
 
 it('the key and every scenario name', () => {
   expect(ONBOARDING_SCENARIO_KEY).toBe('agentdesk.mock.onboarding');
-  expect(ONBOARDING_SCENARIOS).toHaveLength(24);
+  expect(ONBOARDING_SCENARIOS).toHaveLength(25);
   expect(parseOnboardingScenario('owner')).toBe('owner');
+  expect(parseOnboardingScenario('setupReader')).toBe('setupReader');
   expect(parseOnboardingScenario('nope')).toBeUndefined();
   expect(parseOnboardingScenario(null)).toBeUndefined();
 });
@@ -398,4 +399,17 @@ it('applyOnboardingScenario alone seeds the store without handler overrides', ()
   const name: OnboardingScenario = 'twoOrgsSlowSwitch';
   applyOnboardingScenario(name);
   expect(mockDb.state.setActiveDelayMs).toBe(1500);
+});
+
+describe('setupReader', () => {
+  it('signs in as an Acme setup-reader: project:read and setup:read, nothing that writes', async () => {
+    scenarios.onboarding('setupReader');
+    const access = toAccess(await api.me.access());
+    expect(access.grants[0]).toMatchObject({ roleKey: 'setup-reader', scope: { type: 'org' } });
+    expect(holdsAnywhere(access, 'setup:read')).toBe(true);
+    expect(holdsAnywhere(access, 'project:read')).toBe(true);
+    expect(holdsAnywhere(access, 'setup:update')).toBe(false);
+    expect(holdsAnywhere(access, 'secret:update')).toBe(false);
+    expect(mockDb.state.projects.some((p) => p.id === ids.project.invoicerApi && p.orgId === ids.org.acme)).toBe(true);
+  });
 });

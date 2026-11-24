@@ -1,5 +1,6 @@
-import { expect, test, type Page } from '@playwright/test';
-import { INVOICER_API, ORG, seedLists } from './mock';
+import { expect, test, type Locator, type Page } from '@playwright/test';
+import { ids } from '../../src/mocks/dto/ids';
+import { INVOICER_API, ORG, seedLists, seedOnboarding } from './mock';
 
 /*
  * The other paged screens and the readers that need the whole set (spec
@@ -628,4 +629,31 @@ test.describe('Same-ticket runs section', () => {
       expect(numbers).toEqual(Array.from({ length: total }, (_, i) => i + 1));
     });
   }
+});
+
+test.describe('Environment lists (workspace setup)', () => {
+  test('BR-27: the Environment variables and Secrets lists page independently, each with its own control', async ({
+    page,
+  }) => {
+    await seedOnboarding(page, 'owner');
+    await seedLists(page, { env: { variables: 23, secrets: 22 } });
+    await page.goto(`/o/acme/p/${ids.project.invoicerApi}/desk/setup?tab=environment`);
+    const vars = page.getByRole('region', { name: 'Environment variables' });
+    const secrets = page.getByRole('region', { name: 'Secrets' });
+    const bar = (group: Locator) => group.getByRole('navigation', { name: 'Pagination' });
+    const range = (group: Locator) => bar(group).locator('p');
+    const next = (group: Locator) => bar(group).getByRole('button', { name: 'Next', exact: true });
+    await expect(bar(vars)).toBeVisible();
+    await expect(bar(secrets)).toBeVisible();
+    await expect(range(vars)).toHaveText('Showing 1–20 of 23');
+    await expect(range(secrets)).toHaveText('Showing 1–20 of 22');
+    await next(vars).click();
+    await expect(range(vars)).toHaveText('Showing 21–23 of 23');
+    await expect(range(secrets)).toHaveText('Showing 1–20 of 22');
+    await next(secrets).click();
+    await expect(range(secrets)).toHaveText('Showing 21–22 of 22');
+    await expect(range(vars)).toHaveText('Showing 21–23 of 23');
+    expect(new URL(page.url()).searchParams.get('varsPage')).toBe('2');
+    expect(new URL(page.url()).searchParams.get('secretsPage')).toBe('2');
+  });
 });

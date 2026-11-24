@@ -1,4 +1,5 @@
-import { expect, test } from '@playwright/test';
+import { randomBytes } from 'node:crypto';
+import { expect, test, type APIResponse } from '@playwright/test';
 import { SetupTestDto } from '@agentdesk/contracts';
 import { API, ok } from './helpers';
 import { buildCast, disposeCast, openTerminal, streamStatus, type Actor, type Cast } from './rbac-cast';
@@ -147,5 +148,101 @@ test.describe('an owner, an org admin and a project admin', () => {
       expect((await cast.a.api.get(path)).status(), path).toBe(404);
     }
     expect((await cast.a.api.get(`/api/orgs/${cast.orgId}/roles`)).status()).toBe(200);
+  });
+});
+
+/** The 7 project env routes as calls: list, then create, update and remove for variables, then for secrets. */
+function envCalls(
+  who: Actor,
+  projectId: string,
+  plain: string,
+  secret: string,
+): { what: string; call: () => Promise<APIResponse> }[] {
+  const base = `/api/projects/${projectId}`;
+  return [
+    { what: 'list', call: () => who.api.get(`${base}/env?kind=plain`) },
+    {
+      what: 'create var',
+      call: () => who.api.post(`${base}/env-vars`, { data: { name: plain, value: 'e2e-new-value' } }),
+    },
+    { what: 'update var', call: () => who.api.put(`${base}/env-vars/${plain}`, { data: { value: 'e2e-changed' } }) },
+    { what: 'remove var', call: () => who.api.delete(`${base}/env-vars/${plain}`) },
+    {
+      what: 'create secret',
+      call: () => who.api.post(`${base}/env-secrets`, { data: { name: secret, value: 'e2e-secret-new' } }),
+    },
+    {
+      what: 'update secret',
+      call: () => who.api.put(`${base}/env-secrets/${secret}`, { data: { value: 'e2e-secret-changed' } }),
+    },
+    { what: 'remove secret', call: () => who.api.delete(`${base}/env-secrets/${secret}`) },
+  ];
+}
+
+type EnvItem = { name: string; kind: string; value: string | null };
+
+async function expectEnvDenied(res: APIResponse, what: string, leaks: string[]): Promise<void> {
+  const text = await res.text();
+  expect(res.status(), `${what}: ${text}`).toBe(403);
+  expect(text, what).toMatch(/not allowed for your role here/i);
+  for (const leak of leaks) expect(text, `${what} leaks ${leak}`).not.toContain(leak);
+}
+
+test.describe('BR-2: project env routes for a member and a viewer', () => {
+  const rand = randomBytes(3).toString('hex');
+  const plain = `E2E_PLAIN_${rand}`;
+  const secret = `E2E_SECRET_${rand}`;
+  const leaks = [plain, secret, 'e2e-plain-value', 'e2e-secret-value'];
+
+  test.beforeEach(async () => {
+    const v = await cast.o.api.post(`/api/projects/${cast.p1}/env-vars`, {
+      data: { name: plain, value: 'e2e-plain-value' },
+    });
+    expect(v.status(), await v.text()).toBeLessThan(300);
+    const s = await cast.o.api.post(`/api/projects/${cast.p1}/env-secrets`, {
+      data: { name: secret, value: 'e2e-secret-value' },
+    });
+    expect(s.status(), await s.text()).toBeLessThan(300);
+  });
+
+  async function ownerList(kind: 'plain' | 'secret'): Promise<EnvItem[]> {
+    const res = await cast.o.api.get(`/api/projects/${cast.p1}/env?kind=${kind}`);
+    expect(res.status(), await res.text()).toBe(200);
+    return ((await res.json()) as { items: EnvItem[] }).items;
+  }
+
+  /** As owner, the list still holds the same two entries with the same values (a secret has none). */
+  async function expectUnchanged(): Promise<void> {
+    const vars = await ownerList('plain');
+    expect(vars.filter((e) => e.name === plain)).toMatchObject([{ name: plain, value: 'e2e-plain-value' }]);
+    const secrets = await ownerList('secret');
+    expect(secrets.filter((e) => e.name === secret)).toMatchObject([{ name: secret, kind: 'secret', value: null }]);
+  }
+
+  test('TC-2.1: a member gets 403 with the generic body on the 7 calls and the owner still reads both entries', async () => {
+    for (const who of [cast.b, cast.c]) {
+      for (const { what, call } of envCalls(who, cast.p1, plain, secret)) {
+        await expectEnvDenied(await call(), `${what} as ${who.handle}`, leaks);
+      }
+    }
+    await expectUnchanged();
+  });
+
+  test('TC-2.2: a viewer gets 403 with the generic body on the 7 calls and nothing was written', async () => {
+    for (const { what, call } of envCalls(cast.v, cast.p1, plain, secret)) {
+      await expectEnvDenied(await call(), `${what} as viewer`, leaks);
+    }
+    await expectUnchanged();
+  });
+
+  test('TC-2.3: a member gets the same 403 for a made-up uuid and a malformed id, not 404 or 400', async () => {
+    for (const who of [cast.b, cast.c]) {
+      const calls = [
+        await who.api.get(`/api/projects/${RANDOM}/env?kind=plain`),
+        await who.api.get('/api/projects/not-a-uuid/env?kind=plain'),
+        await who.api.post(`/api/projects/${RANDOM}/env-vars`, { data: { name: plain, value: 'x' } }),
+      ];
+      for (const [i, res] of calls.entries()) await expectEnvDenied(res, `call ${i + 1} as ${who.handle}`, leaks);
+    }
   });
 });

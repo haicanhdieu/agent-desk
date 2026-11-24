@@ -1,0 +1,142 @@
+.root {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+}
+.header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 26px;
+}
+.count {
+  color: var(--faint);
+  font-size: var(--fs-12_5);
+}
+.grow {
+  flex: 1 1 auto;
+}
+.list {
+  margin: 0;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-8);
+  overflow: hidden;
+}
+.row {
+  list-style: none;
+  display: grid;
+  grid-template-columns: minmax(0, 260px) minmax(0, 1fr) auto;
+  gap: 16px;
+  align-items: center;
+  padding: 7px 8px 7px 12px;
+}
+.row + .row {
+  border-top: 1px solid var(--line);
+}
+.row > .form {
+  grid-column: 1 / -1;
+}
+.name,
+.value {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+.value {
+  color: var(--muted);
+}
+.faint {
+  color: var(--faint);
+  font-size: var(--fs-12_5);
+}
+.secretInfo {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  color: var(--muted);
+}
+.secretInfo > svg {
+  flex: 0 0 auto;
+}
+.mask {
+  letter-spacing: 1px;
+}
+.rowActions {
+  display: flex;
+  gap: 2px;
+}
+.empty {
+  margin: 0;
+  padding: 12px 14px;
+  border: 1px dashed var(--line2);
+  border-radius: var(--radius-8);
+  color: var(--muted);
+  font-size: var(--fs-13);
+}
+.loading {
+  padding: 8px 0;
+}
+.form {
+  padding: 16px;
+  border: 1px solid var(--select-line);
+  border-radius: var(--radius-8);
+  background: var(--select-bg);
+}
+.row > .form {
+  margin: 4px 0;
+}
+.fields {
+  display: grid;
+  grid-template-columns: minmax(0, 260px) minmax(0, 1fr);
+  gap: 16px;
+  align-items: start;
+}
+.fixedName {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+.fixedLabel {
+  font-size: var(--fs-12_5);
+  color: var(--muted);
+}
+.mono {
+  font-family: var(--mono);
+}
+.actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  justify-content: flex-end;
+}
+.reqId {
+  display: block;
+  margin-top: 4px;
+  color: var(--faint);
+  font-family: var(--mono);
+  font-size: var(--fs-12);
+}
+.confirmText {
+  margin: 0 0 12px;
+  color: var(--muted);
+  font-size: var(--fs-13);
+}
+@media (max-width: 640px) {
+  .row {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 4px;
+  }
+  .fields {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+.formInner {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
