@@ -275,6 +275,7 @@ describe('skills: protected default branch', () => {
   it.each([
     ['a branch name collision', new SkillBranchExistsError('x'), 409],
     ['a branch creation failure', new SkillChangeRequestError('branch', 'x'), 502],
+    ['a commit failure', new SkillChangeRequestError('commit', 'x'), 502],
     ['a change request creation failure', new SkillChangeRequestError('change_request', 'x'), 502],
     ['a permission failure', new SkillChangeRequestError('permission', 'x'), 502],
   ])('%s is an actionable problem that is not a stale-edit message', async (_label, err, status) => {

@@ -364,6 +364,19 @@ describe('desk skills submit and review', () => {
       await waitFor(() => expect(screen.getByLabelText('SKILL.md source')).toHaveValue('their version'));
     });
 
+    it('a failed later submit clears the earlier submitted notice', async () => {
+      scenarios.skillReviewRequired();
+      const { user } = await renderRoute(`${base}/skills?skill=code-review`);
+      await edit(user);
+      await user.click(screen.getByRole('button', { name: 'Submit changes' }));
+      await screen.findByText('Changes submitted for review');
+      scenarios.serverError('skills.put');
+      await user.click(screen.getByRole('button', { name: 'Submit changes' }));
+      await screen.findByRole('alert');
+      expect(screen.queryByText('Changes submitted for review')).toBeNull();
+      expect(screen.queryByRole('link', { name: /View change request/ })).toBeNull();
+    });
+
     it('opening another skill clears the notice', async () => {
       scenarios.skillReviewRequired();
       const { user } = await renderRoute(`${base}/skills?skill=code-review`);

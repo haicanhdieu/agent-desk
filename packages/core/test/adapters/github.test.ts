@@ -952,6 +952,19 @@ describe('github code host', () => {
       agent.assertNoPendingInterceptors();
     });
 
+    it('a failed commit to the new branch is reported as a commit failure, not a change request one', async () => {
+      mockInstallationToken();
+      mockBranch(true);
+      mockRefCreate();
+      gh().intercept({ path: SKILL, method: 'PUT' }).reply(404, '{"message":"nope"}', { headers: JSON_HEADERS });
+      mockRefDelete();
+      await expect(host().writeSkill(project, 'fix', 'v1', 'm')).rejects.toMatchObject({
+        name: 'SkillChangeRequestError',
+        stage: 'commit',
+      });
+      agent.assertNoPendingInterceptors();
+    });
+
     it('a failed PR creation surfaces and deletes the orphan branch', async () => {
       mockInstallationToken();
       mockBranch(true);

@@ -384,8 +384,10 @@ export class GithubCodeHostAdapter implements CodeHostAdapter {
     } catch (e) {
       throw refCreateError(e, name);
     }
+    let stage: 'commit' | 'change_request' = 'commit';
     try {
       await commit(sourceBranch);
+      stage = 'change_request';
       const verb = action[0]?.toUpperCase() + action.slice(1);
       const pr = PullResponse.parse(
         (
@@ -403,7 +405,7 @@ export class GithubCodeHostAdapter implements CodeHostAdapter {
     } catch (e) {
       await this.dropBranch(octokit, owner, repo, sourceBranch);
       if (e instanceof SkillConflictError) throw e;
-      throw new SkillChangeRequestError(isPermissionStatus(errorStatus(e)) ? 'permission' : 'change_request', name);
+      throw new SkillChangeRequestError(isPermissionStatus(errorStatus(e)) ? 'permission' : stage, name);
     }
   }
 

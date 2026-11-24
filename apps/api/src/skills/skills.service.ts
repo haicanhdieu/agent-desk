@@ -116,11 +116,12 @@ function mapSkillError(err: unknown): unknown {
         'The code host refused the change request. Check that the connection can write to this repository.',
       );
     }
-    return new BadGatewayException(
-      err.stage === 'branch'
-        ? 'Could not create a branch for the change request. Try again, or check the repository.'
-        : 'Could not open the change request. Try again, or check the repository.',
-    );
+    const texts = {
+      branch: 'Could not create a branch for the change request. Try again, or check the repository.',
+      commit: 'Could not save the skill to the new branch. Try again, or check the repository.',
+      change_request: 'Could not open the change request. Try again, or check the repository.',
+    } as const;
+    return new BadGatewayException(texts[err.stage]);
   }
   return err;
 }

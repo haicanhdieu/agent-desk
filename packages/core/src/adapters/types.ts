@@ -168,7 +168,7 @@ export class SkillBranchExistsError extends Error {
  */
 export class SkillChangeRequestError extends Error {
   constructor(
-    readonly stage: 'branch' | 'change_request' | 'permission',
+    readonly stage: 'branch' | 'commit' | 'change_request' | 'permission',
     name: string,
   ) {
     super(`skill ${name} change request failed at ${stage}`);

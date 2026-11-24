@@ -126,6 +126,8 @@ function DeskSkillsPage() {
   const onCommit = (body: string, message: string) => {
     if (!detail || activeName === undefined || committing.current) return;
     committing.current = true;
+    // A new attempt replaces the last notice, so a failure never leaves a stale "submitted" banner.
+    setSubmission(undefined);
     const sha = base?.key === editorKey ? base.sha : detail.sha;
     commit.mutate(
       { name: activeName, body, message: message.trim() || `Update ${activeName} skill`, sha },
