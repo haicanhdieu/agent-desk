@@ -119,6 +119,49 @@ describe('projects route', () => {
     expect(calls).toBe(1);
   });
 
+  it('still reports a failed delete and allows a retry after another project delete started meanwhile', async () => {
+    let release: () => void = () => undefined;
+    const held = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const apiCalls: string[] = [];
+    server.use(
+      http.delete('*/api/projects/:projectId', async ({ params }) => {
+        const id = String(params['projectId']);
+        apiCalls.push(id);
+        if (id === ids.project.invoicerApi) {
+          await held;
+          return problemResponse({ status: 500, title: 'Internal server error', type: 'internal' });
+        }
+        return new Response(null, { status: 204 });
+      }),
+    );
+    await renderRoute('/o/alice/projects');
+    const confirmDelete = async (name: string) => {
+      await userEvent.click(await screen.findByRole('button', { name: `More for ${name}` }));
+      await userEvent.click(
+        within(screen.getByRole('dialog', { name: `Actions for ${name}` })).getByRole('button', {
+          name: 'Delete project',
+        }),
+      );
+      await userEvent.click(
+        within(await screen.findByRole('dialog', { name: 'Delete project' })).getByRole('button', {
+          name: 'Delete project',
+        }),
+      );
+    };
+    await confirmDelete('invoicer-api');
+    await waitFor(() => expect(apiCalls).toEqual([ids.project.invoicerApi]));
+    await confirmDelete('invoicer-web');
+    await waitFor(() => expect(apiCalls).toHaveLength(2));
+    release();
+    expect(await screen.findByText('Internal server error')).toBeInTheDocument();
+    await confirmDelete('invoicer-api');
+    await waitFor(() =>
+      expect(apiCalls).toEqual([ids.project.invoicerApi, ids.project.invoicerWeb, ids.project.invoicerApi]),
+    );
+  });
+
   it('keeps the row and shows the problem when deleting a project fails', async () => {
     scenarios.serverError('projects.remove');
     await renderRoute('/o/alice/projects');

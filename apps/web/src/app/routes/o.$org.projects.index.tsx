@@ -92,16 +92,18 @@ function ProjectsPage() {
   const mayDelete = can(access, 'project:delete');
   // One request per project while its delete is in flight (a second confirm on the still-listed row is ignored).
   const deleting = useRef(new Set<string>());
-  const onDeleteProject = (p: { id: string }) => {
+  const onDeleteProject = async (p: { id: string }) => {
     if (deleting.current.has(p.id)) return;
     deleting.current.add(p.id);
-    remove.mutate(p.id, {
-      onSuccess: () => forgetProject(qc, org, p.id),
-      onError: (e) => toast.show(toastFromError(e)),
-      onSettled: () => {
-        deleting.current.delete(p.id);
-      },
-    });
+    try {
+      // mutateAsync, not per-call mutate callbacks: the shared observer drops those when a second delete starts.
+      await remove.mutateAsync(p.id);
+      forgetProject(qc, org, p.id);
+    } catch (e) {
+      toast.show(toastFromError(e));
+    } finally {
+      deleting.current.delete(p.id);
+    }
   };
   const checklist = useChecklistState(org, bar.org.current?.id, can(access, 'project:create'));
   // A failed invitations list hides the banner; it never breaks the page.
@@ -139,7 +141,8 @@ function ProjectsPage() {
       org={bar.org}
       {...(pending > 0 && { invitationsBanner: { count: pending, href: '/invitations' } })}
       canCreate={can(access, 'project:create')}
-      {...(mayDelete && { onDeleteProject })}
+      // Errors are handled inside onDeleteProject (toast), so the returned promise never rejects.
+      {...(mayDelete && { onDeleteProject: (p) => void onDeleteProject(p) })}
       {...(checklist && { checklist })}
     />
   );
