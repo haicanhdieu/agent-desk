@@ -263,7 +263,7 @@ describe('setup flow', () => {
 
   it('with no connection, Connect asks the API for the install page and goes there', async () => {
     mockDb.state.connections = mockDb.state.connections.filter((c) => c.orgId !== ids.org.alice);
-    const assign = vi.spyOn(browserLocation, 'assign').mockImplementation(() => undefined);
+    const assign = vi.spyOn(browserLocation, 'openExternal').mockImplementation(() => undefined);
     const { user } = await renderRoute(`${base}/repo`);
     await user.click(await screen.findByRole('button', { name: 'Connect GitHub' }));
     await waitFor(() => expect(assign).toHaveBeenCalledWith('https://github.com/apps/agent-desk/installations/new'));
@@ -378,7 +378,7 @@ describe('setup flow fixes', () => {
         return jsonResponse(alreadyInstalled, 201);
       }),
     );
-    const assign = vi.spyOn(browserLocation, 'assign').mockImplementation(() => undefined);
+    const assign = vi.spyOn(browserLocation, 'openExternal').mockImplementation(() => undefined);
     const { user } = await renderRoute(`${base}/repo`);
     await user.click(await screen.findByRole('button', { name: 'Connect GitHub' }));
     expect(await screen.findByRole('radio', { name: 'harbor-labs/invoicer-api' })).toBeInTheDocument();
@@ -395,7 +395,7 @@ describe('setup flow fixes', () => {
         return jsonResponse(mine, 201);
       }),
     );
-    const assign = vi.spyOn(browserLocation, 'assign').mockImplementation(() => undefined);
+    const assign = vi.spyOn(browserLocation, 'openExternal').mockImplementation(() => undefined);
     const { user } = await renderRoute(`${base}/repo`);
     await user.click(await screen.findByRole('button', { name: 'Connect GitHub' }));
     expect(await screen.findByRole('radio', { name: 'harbor-labs/invoicer-api' })).toBeInTheDocument();
@@ -404,7 +404,7 @@ describe('setup flow fixes', () => {
   });
 
   it('Change which repositories the app can access still opens the install page when the org is already connected', async () => {
-    const assign = vi.spyOn(browserLocation, 'assign').mockImplementation(() => undefined);
+    const assign = vi.spyOn(browserLocation, 'openExternal').mockImplementation(() => undefined);
     const { user } = await renderRoute(`${base}/repo`);
     await user.click(await screen.findByRole('link', { name: 'Change which repositories the app can access' }));
     await waitFor(() => expect(assign).toHaveBeenCalledWith('https://github.com/apps/agent-desk/installations/new'));
@@ -414,17 +414,62 @@ describe('setup flow fixes', () => {
   it('Connect still opens the install page when linking what the account can see fails', async () => {
     mockDb.state.connections = mockDb.state.connections.filter((c) => c.orgId !== ids.org.alice);
     server.use(routeHandler('connections.sync', async () => jsonResponse({ title: 'boom' }, 500)));
-    const assign = vi.spyOn(browserLocation, 'assign').mockImplementation(() => undefined);
+    const assign = vi.spyOn(browserLocation, 'openExternal').mockImplementation(() => undefined);
     const { user } = await renderRoute(`${base}/repo`);
     await user.click(await screen.findByRole('button', { name: 'Connect GitHub' }));
     await waitFor(() => expect(assign).toHaveBeenCalledWith('https://github.com/apps/agent-desk/installations/new'));
     expect(mockDb.requests('POST', '/api/connections/github/install')).toBe(1);
   });
 
+  it('opening GitHub keeps the setup step in this tab: the install page opens beside it', async () => {
+    const same = vi.spyOn(browserLocation, 'assign').mockImplementation(() => undefined);
+    const open = vi.spyOn(window, 'open').mockReturnValue({ opener: {} } as Window);
+    const { user } = await renderRoute(`${base}/repo`);
+    await user.click(await screen.findByRole('link', { name: 'Change which repositories the app can access' }));
+    await waitFor(() =>
+      expect(open).toHaveBeenCalledWith('https://github.com/apps/agent-desk/installations/new', '_blank'),
+    );
+    expect(same).not.toHaveBeenCalled();
+    expect(screen.getByRole('heading', { level: 1, name: 'Connect a repository' })).toBeInTheDocument();
+  });
+
+  it('a blocked new tab falls back to this tab', async () => {
+    const same = vi.spyOn(browserLocation, 'assign').mockImplementation(() => undefined);
+    vi.spyOn(window, 'open').mockReturnValue(null);
+    const { user } = await renderRoute(`${base}/repo`);
+    await user.click(await screen.findByRole('link', { name: 'Change which repositories the app can access' }));
+    await waitFor(() => expect(same).toHaveBeenCalledWith('https://github.com/apps/agent-desk/installations/new'));
+  });
+
+  it('Refresh repositories lists a repository added on GitHub after the page loaded', async () => {
+    const { user } = await renderRoute(`${base}/repo`);
+    await screen.findByRole('radio', { name: 'harbor-labs/invoicer-api' });
+    mockDb.state.repos[ids.connection.harbor]?.push({
+      repoPath: 'harbor-labs/new-repo',
+      private: true,
+      defaultBranch: 'main',
+    });
+    expect(screen.queryByRole('radio', { name: 'harbor-labs/new-repo' })).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Refresh repositories' }));
+    expect(await screen.findByRole('radio', { name: 'harbor-labs/new-repo' })).toBeInTheDocument();
+  });
+
+  it('coming back to the tab refreshes the repository list on its own', async () => {
+    await renderRoute(`${base}/repo`);
+    await screen.findByRole('radio', { name: 'harbor-labs/invoicer-api' });
+    mockDb.state.repos[ids.connection.harbor]?.push({
+      repoPath: 'harbor-labs/new-repo',
+      private: true,
+      defaultBranch: 'main',
+    });
+    window.dispatchEvent(new Event('focus'));
+    expect(await screen.findByRole('radio', { name: 'harbor-labs/new-repo' })).toBeInTheDocument();
+  });
+
   it('an install URL that is not https is not followed and an error shows', async () => {
     mockDb.state.connections = mockDb.state.connections.filter((c) => c.orgId !== ids.org.alice);
     server.use(routeHandler('connections.install', async () => jsonResponse({ url: 'javascript:alert(1)' })));
-    const assign = vi.spyOn(browserLocation, 'assign').mockImplementation(() => undefined);
+    const assign = vi.spyOn(browserLocation, 'openExternal').mockImplementation(() => undefined);
     const { user } = await renderRoute(`${base}/repo`);
     await user.click(await screen.findByRole('button', { name: 'Connect GitHub' }));
     expect(await screen.findByRole('alert')).toHaveTextContent('not a valid https address');

@@ -3,6 +3,18 @@ export const browserLocation = {
   assign(url: string): void {
     window.location.assign(url);
   },
+  /**
+   * A page outside the app (the provider's install page) in a new tab, so the step the person is on stays open to
+   * come back to. Where the browser blocks the new tab, it opens in this one.
+   */
+  openExternal(url: string): void {
+    const tab = window.open(url, '_blank');
+    if (!tab) {
+      browserLocation.assign(url);
+      return;
+    }
+    tab.opener = null;
+  },
   /** An in-app page in a new tab, so the step the person is on stays open. */
   openInNewTab(path: string): void {
     window.open(path, '_blank', 'noopener');

@@ -103,6 +103,12 @@ describe('Setup1', () => {
     expect(screen.getByText('If the ping does not arrive')).toBeInTheDocument();
     expect(screen.getByText('Contents')).toBeInTheDocument();
   });
+  it('Refresh repositories calls onRefresh', async () => {
+    const onRefresh = vi.fn();
+    render(<Setup1 {...s1Props} onRefresh={onRefresh} />);
+    await userEvent.click(screen.getByRole('button', { name: 'Refresh repositories' }));
+    expect(onRefresh).toHaveBeenCalledTimes(1);
+  });
   it('selecting another repo moves the radio', async () => {
     render(s1);
     await userEvent.click(screen.getByRole('radio', { name: /infra-k8s/ }));
