@@ -328,3 +328,16 @@ export const SetupReadyPolling: Story = {
     />
   ),
 };
+
+export const SetupReadyNoRule: Story = {
+  name: 'Setup, ready, no rule',
+  render: () => (
+    <SetupReadyScreen
+      {...ready}
+      command={undefined}
+      label={undefined}
+      lastEvent={{ mode: 'webhook', at: 'ping, 14:01:37' }}
+      summary={readySummary(connectionCopy.triggerSummary('webhook'))}
+    />
+  ),
+};

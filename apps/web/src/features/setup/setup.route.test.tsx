@@ -167,6 +167,23 @@ describe('setup flow', () => {
     expect(mockDb.state.rules.filter((r) => r.projectId === id)).toHaveLength(0);
   });
 
+  it('skipping steps 3, 4 and 5 in a row reaches Ready with no script, skills or rule', async () => {
+    const id = seedAt('setup');
+    mockDb.state.rules = mockDb.state.rules.filter((r) => r.projectId !== id);
+    mockDb.state.skills[id] = [];
+    const { router, user } = await renderRoute(`${base}/setup?project=${id}`);
+    await user.click(await screen.findByRole('button', { name: 'Skip' }));
+    await waitFor(() => expect(router.state.location.pathname).toBe(`${base}/skills`));
+    await user.click(await screen.findByRole('button', { name: 'Skip' }));
+    await waitFor(() => expect(router.state.location.pathname).toBe(`${base}/rules`));
+    await user.click(await screen.findByRole('button', { name: 'Skip' }));
+    await waitFor(() => expect(router.state.location.pathname).toBe(`${base}/ready`));
+    expect(projectRow(id).setupStep).toBe('ready');
+    expect(await screen.findByText('No rule yet')).toBeInTheDocument();
+    expect(screen.queryByText('/code-build', { selector: 'pre' })).toBeNull();
+    expect(screen.getByRole('link', { name: 'Add a rule' })).toHaveAttribute('href', `/o/alice/p/${id}/desk/rules`);
+  });
+
   it('the first rule can be a custom prompt and saves with kind prompt', async () => {
     const id = seedAt('rules');
     const { router, user } = await renderRoute(`${base}/rules?project=${id}`);
@@ -356,7 +373,7 @@ describe('setup warnings on the Ready step', () => {
     const id = ids.project.docsSite;
     projectRow(id).setupStep = 'ready';
     await renderRoute(`${base}/ready?project=${id}`);
-    await screen.findByRole('heading', { name: 'Trigger your first run from GitHub' });
+    await screen.findByRole('heading', { name: 'Add a rule to trigger runs' });
     await waitFor(() => expect(mockDb.requests('GET', `/api/projects/${id}/setup-script`)).toBeGreaterThan(0));
     expect(
       screen.queryByText(/workspace setup test failed|changed since the last passing|has not passed a test/),

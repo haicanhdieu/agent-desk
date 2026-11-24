@@ -393,6 +393,23 @@ describe('Setup4', () => {
 });
 
 describe('SetupReady', () => {
+  it('without a rule, shows an empty state with a link to add one instead of a command', () => {
+    render(
+      <SetupReady
+        user={user}
+        projectName="invoicer-api"
+        repo={repo}
+        summary={[]}
+        lastEvent={{ mode: 'webhook', at: 'ping, 14:01:37' }}
+        rulesHref="/o/alice/p/p1/desk/rules"
+      />,
+    );
+    expect(screen.getByText('No rule yet')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Add a rule' })).toHaveAttribute('href', '/o/alice/p/p1/desk/rules');
+    expect(screen.queryByRole('button', { name: 'Copy' })).toBeNull();
+    expect(screen.getByRole('link', { name: 'Go to runs' })).toBeInTheDocument();
+  });
+
   it('shows the command, a Copy button and the summary', () => {
     render(ready);
     const code = screen.getByText('/code-build', { selector: 'pre' });

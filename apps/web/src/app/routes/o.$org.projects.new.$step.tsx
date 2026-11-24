@@ -564,12 +564,13 @@ function ReadyStep({ org, projectId }: { org: string; projectId: string }) {
       projectName={project.name}
       repo={project.repoPath}
       label={label ? { name: label } : undefined}
-      command={`/${first?.command ?? 'code-build'}`}
+      command={first ? `/${first.command}` : undefined}
       summary={summary}
       lastEvent={lastEvent(connection, now)}
       skills={skillList}
       credentialDetail={credentialDetail(agent)}
       runsHref={`/o/${encodeURIComponent(org)}/p/${encodeURIComponent(projectId)}/runs`}
+      rulesHref={projectPaths(org, projectId).rules}
       {...(warning && {
         warning: { title: warning.title, detail: warning.detail, href: projectPaths(org, projectId).setup },
       })}

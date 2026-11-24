@@ -15,7 +15,8 @@ export interface SetupReadyProps {
   repo: string;
   /** The label the first rule needs, if any. */
   label?: { name: string; color?: string };
-  command: string;
+  /** The comment that triggers the first rule. Absent when setup finished without a rule. */
+  command?: string;
   summary: { term: string; value: ReactNode }[];
   /** What was heard last: a webhook delivery, or the last polling check. */
   lastEvent: { mode: TriggerMode; at: string };
@@ -23,6 +24,8 @@ export interface SetupReadyProps {
   credentialDetail?: string;
   issuesHref?: string;
   runsHref?: string;
+  /** Where to add a rule later; shown when there is no rule yet. */
+  rulesHref?: string;
   /** Workspace setup warning (warn, don't block): the project still goes live. */
   warning?: { title: string; detail: string; href?: string };
 }
@@ -40,6 +43,7 @@ export function SetupReady({
   credentialDetail = DEFAULT_CREDENTIAL_DETAIL,
   issuesHref = `https://github.com/${repo}/issues`,
   runsHref = '#',
+  rulesHref = '#',
   warning,
 }: SetupReadyProps) {
   return (
@@ -55,10 +59,22 @@ export function SetupReady({
           <InlineStatus tone="ok" icon={<StatusIcon status="succeeded" size={16} />}>
             Project ready
           </InlineStatus>
-          <h1 className={styles.readyTitle}>Trigger your first run from GitHub</h1>
-          <p className={`muted ${styles.readyIntro}`}>
-            Open or create an issue in <span className="mono">{repo}</span>, add the label, and post this comment:
-          </p>
+          {command ? (
+            <>
+              <h1 className={styles.readyTitle}>Trigger your first run from GitHub</h1>
+              <p className={`muted ${styles.readyIntro}`}>
+                Open or create an issue in <span className="mono">{repo}</span>, add the label, and post this comment:
+              </p>
+            </>
+          ) : (
+            <>
+              <h1 className={styles.readyTitle}>Add a rule to trigger runs</h1>
+              <p className={`muted ${styles.readyIntro}`}>
+                Nothing in <span className="mono">{repo}</span> can start a run until a rule maps a comment command to a
+                skill or prompt.
+              </p>
+            </>
+          )}
         </div>
       }
     >
@@ -79,25 +95,37 @@ export function SetupReady({
           {warning.detail}
         </Banner>
       )}
-      <CodeBlock
-        caption={
-          label ? (
-            <>
-              Comment on an issue labelled <LabelChip name={label.name} color={label.color} />
-            </>
-          ) : (
-            'Comment on an issue'
-          )
-        }
-        code={command}
-        onCopy={() => {
-          void navigator.clipboard?.writeText(command);
-        }}
-      />
+      {command ? (
+        <CodeBlock
+          caption={
+            label ? (
+              <>
+                Comment on an issue labelled <LabelChip name={label.name} color={label.color} />
+              </>
+            ) : (
+              'Comment on an issue'
+            )
+          }
+          code={command}
+          onCopy={() => {
+            void navigator.clipboard?.writeText(command);
+          }}
+        />
+      ) : (
+        <Banner tone="off" icon={<Icon name="warning" size={16} />} title="No rule yet">
+          You skipped this step. Add a rule to let a comment command start a run.
+        </Banner>
+      )}
       <div className={styles.actions}>
-        <Button variant="primary" icon="external" href={issuesHref}>
-          Open issues in GitHub
-        </Button>
+        {command ? (
+          <Button variant="primary" icon="external" href={issuesHref}>
+            Open issues in GitHub
+          </Button>
+        ) : (
+          <Button variant="primary" href={rulesHref}>
+            Add a rule
+          </Button>
+        )}
         <Button href={runsHref}>Go to runs</Button>
       </div>
       <Banner tone="off" icon={<StatusIcon status="starting" size={16} />} iconColor="var(--run)">
