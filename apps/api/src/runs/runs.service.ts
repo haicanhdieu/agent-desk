@@ -37,6 +37,7 @@ import {
   type PageQuery,
   type RunDto,
   type RunListItem,
+  type RunUsageDetail,
   type RunListQuery,
   type RunListFilter,
   type RunListResponse,
@@ -45,12 +46,13 @@ import {
   type RunTranscriptResponse,
   type RunStatsDto,
 } from '@agentdesk/contracts';
-import { SIGNAL, TASK_QUEUE, UPDATE, WORKFLOW, runWorkflowId } from '@agentdesk/core';
+import { SIGNAL, TASK_QUEUE, UPDATE, WORKFLOW, runWorkflowId, toUsageSummary } from '@agentdesk/core';
 import type { OrgContext } from '../auth/org-context';
 import { DB } from '../db/db.module';
 import { TEMPORAL_CLIENT } from '../temporal/temporal-client.module';
 import { assembleLinkedTickets, newestLinks, newestSnapshots } from './linked-tickets';
 import { runSearchCondition } from './run-search';
+import { usageFor } from './run-usage';
 
 /** The log endpoint has no pagination in the contract: it returns at most the newest LOG_CAP events, oldest first. */
 export const LOG_CAP = 5000;
@@ -76,8 +78,8 @@ export class RunsService {
     @Inject(TEMPORAL_CLIENT) private readonly temporal: Client,
   ) {}
 
-  private toDto(row: RunRow, agent: AgentInfo | undefined): RunDto {
-    return { ...this.toBase(row, agent), prompt: row.prompt, finalPrompt: row.finalPrompt, usage: null };
+  private toDto(row: RunRow, agent: AgentInfo | undefined, usage: RunUsageDetail | null): RunDto {
+    return { ...this.toBase(row, agent), prompt: row.prompt, finalPrompt: row.finalPrompt, usage };
   }
 
   /** The run without its prompt texts, and with the list-only ticket count and linked tickets. */
@@ -85,9 +87,15 @@ export class RunsService {
     row: RunRow,
     agent: AgentInfo | undefined,
     ticketRunCount: number,
+    usage: RunUsageDetail | null,
     linkedTickets: LinkedTicketDto[] = [],
   ): RunListItem {
-    return { ...this.toBase(row, agent), usage: null, ticketRunCount, linkedTickets };
+    return {
+      ...this.toBase(row, agent),
+      usage: usage === null ? null : toUsageSummary(usage),
+      ticketRunCount,
+      linkedTickets,
+    };
   }
 
   private toBase(
@@ -159,7 +167,8 @@ export class RunsService {
   }
 
   private async dto(tx: Tx, row: RunRow): Promise<RunDto> {
-    return this.toDto(row, row.agentId === null ? undefined : (await this.agentsFor(tx, [row])).get(row.agentId));
+    const agent = row.agentId === null ? undefined : (await this.agentsFor(tx, [row])).get(row.agentId);
+    return this.toDto(row, agent, (await usageFor(tx, [row.id])).get(row.id) ?? null);
   }
 
   /** Runs each ticket has had in the project, all statuses: one grouped query for the tickets on the page. */
@@ -188,11 +197,16 @@ export class RunsService {
     const counts = await this.ticketRunCountsFor(tx, projectId, [...rows.map((r) => r.ticketRef), ...linkedRefs]);
     const snapshots = await newestSnapshots(tx, projectId, linkedRefs);
     const linked = assembleLinkedTickets(rows, links, counts, snapshots);
+    const usage = await usageFor(
+      tx,
+      rows.map((r) => r.id),
+    );
     return rows.map((r) =>
       this.toListItem(
         r,
         r.agentId === null ? undefined : ag.get(r.agentId),
         counts.get(r.ticketRef) ?? 1,
+        usage.get(r.id) ?? null,
         linked.get(r.id) ?? [],
       ),
     );

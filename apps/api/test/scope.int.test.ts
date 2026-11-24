@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { runs, setupTests, withOrg } from '@agentdesk/db';
+import { runs, runUsageEntries, setupTests, withOrg } from '@agentdesk/db';
 import {
   flattenRoutes,
   routeAccess,
@@ -11,11 +11,14 @@ import {
   type RoleDto,
   type RouteKey,
   type RuleDto,
+  type RunDto,
+  type RunListResponse,
 } from '@agentdesk/contracts';
 import { ProjectsService } from '../src/projects/projects.service';
 import { createTestApp, type TestApp } from './helpers/app';
 import { createOrg, inviteAndLogin, userIdOf } from './helpers/auth';
 import { expectContract } from './helpers/contract';
+import { makeUsageEntry } from './helpers/usage';
 import { freshStateDir, installFake, makeProject, wideFakeRepos } from './helpers/fixtures';
 
 /**
@@ -59,6 +62,7 @@ async function seedRun(projectId: string, ref: string): Promise<{ id: string; nu
       })
       .returning({ id: runs.id, number: runs.number });
     if (!row) throw new Error('no run');
+    await tx.insert(runUsageEntries).values({ ...makeUsageEntry(), orgId, runId: row.id });
     return row;
   });
 }
@@ -264,6 +268,23 @@ describe('BR-28: a project outside the caller scope is 404', () => {
     const res = await send('GET', `/api/projects/${p1}`, adm);
     expect(res.statusCode).toBe(200);
     expect((await send('GET', `/api/runs/${runP1}`, adm)).statusCode).toBe(200);
+  });
+});
+
+describe('run usage stays inside the caller scope', () => {
+  it('gives an admin on P1 a 404 on the P2 run and no P2 usage in the P1 list', async () => {
+    const res = await send('GET', `/api/runs/${runP2}`, adm);
+    expect(res.statusCode).toBe(404);
+    expect(res.body).not.toContain('totalTokens');
+    expect((await send('GET', `/api/projects/${p2}/runs`, adm)).statusCode).toBe(404);
+    const list = expectContract('runs.list', await send('GET', `/api/projects/${p1}/runs`, adm)) as RunListResponse;
+    expect(list.items.map((r) => r.id)).toEqual([runP1]);
+    expect(list.items[0]?.usage?.totalTokens).toBeGreaterThan(0);
+  });
+
+  it('lets an org viewer read the usage of a run', async () => {
+    const run = expectContract('runs.get', await send('GET', `/api/runs/${runP1}`, vw)) as RunDto;
+    expect(run.usage?.models.length).toBeGreaterThan(0);
   });
 });
 

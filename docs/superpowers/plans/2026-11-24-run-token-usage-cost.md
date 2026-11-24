@@ -602,11 +602,11 @@ graph LR
   - `interface PriceSyncInput { maxAttempts?: number }`; `PriceSyncWorkflow(input?: PriceSyncInput): Promise<SyncModelPricesResult>`: rejects `maxAttempts` outside 1..5 with a non-retryable failure; one activity call with `startToCloseTimeout: '120 seconds'` and `retry: { maximumAttempts: input?.maxAttempts ?? 5 }`
   - `scheduleDefinitions()` gains `{ id: 'price-sync', every '6h', overlap SKIP, startWorkflow PriceSyncWorkflow, workflowId 'price-sync-run' }`; `ensureSchedules` passes `triggerImmediately: true` on create for it
 
-- [ ] **Step 1: Write the failing tests.** `schedules.test.ts`: the `price-sync` definition (6 h, SKIP, workflow type and id) and `triggerImmediately` on create; `ensureSchedules` twice is idempotent for it. `price-sync.workflow.test.ts` (time-skipping environment, stub activities): no input calls the activity until it succeeds on the 5th attempt and fails after 5; `{ maxAttempts: 1 }` calls exactly once and the result rejects with `PriceSyncFailed` details `['unreachable']`; `{ maxAttempts: 0 }` and `{ maxAttempts: 6 }` reject without calling; a replay of `fixtures/price-sync-history.json` (recorded with input `{ maxAttempts: 1 }` and a success) passes `Worker.runReplayHistory`.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/worker exec vitest run test/schedules.test.ts test/price-sync.workflow.test.ts`. Expected: FAIL.
-- [ ] **Step 3: Implement** the workflow, the export, the schedule entry; record the history fixture from a passing run (as the other `*-history.json` fixtures were).
-- [ ] **Step 4: Run** Step 2 again, `pnpm --filter @agentdesk/worker typecheck` and `pnpm --filter @agentdesk/worker exec vitest run test/workflows-in-process.test.ts`. Expected: PASS.
-- [ ] **Step 5: Commit**: `feat(worker): schedule the price sync workflow every 6 hours`.
+- [x] **Step 1: Write the failing tests.** `schedules.test.ts`: the `price-sync` definition (6 h, SKIP, workflow type and id) and `triggerImmediately` on create; `ensureSchedules` twice is idempotent for it. `price-sync.workflow.test.ts` (time-skipping environment, stub activities): no input calls the activity until it succeeds on the 5th attempt and fails after 5; `{ maxAttempts: 1 }` calls exactly once and the result rejects with `PriceSyncFailed` details `['unreachable']`; `{ maxAttempts: 0 }` and `{ maxAttempts: 6 }` reject without calling; a replay of `fixtures/price-sync-history.json` (recorded with input `{ maxAttempts: 1 }` and a success) passes `Worker.runReplayHistory`.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/worker exec vitest run test/schedules.test.ts test/price-sync.workflow.test.ts`. Expected: FAIL.
+- [x] **Step 3: Implement** the workflow, the export, the schedule entry; record the history fixture from a passing run (as the other `*-history.json` fixtures were).
+- [x] **Step 4: Run** Step 2 again, `pnpm --filter @agentdesk/worker typecheck` and `pnpm --filter @agentdesk/worker exec vitest run test/workflows-in-process.test.ts`. Expected: PASS.
+- [x] **Step 5: Commit**: `feat(worker): schedule the price sync workflow every 6 hours`.
 
 ---
 
@@ -631,7 +631,7 @@ graph LR
   - `RunsService.dto` sets `usage` from `usageFor(tx, [row.id])`; `listItems` calls it once for the page and sets `usage: toUsageSummary(detail)` or `null`.
   - Test helpers: `makeUsageEntry(over?: Partial<UsageInsert>): UsageInsert` (neutral defaults: `model-a`, priced at `{3, 15, 0.3, 3.75, 6}`, `price_as_of` `2026-01-01T12:00:00Z`, source `fake`), `insertUsage(db: Db, orgId: string, runId: string, rows: UsageInsert[]): Promise<void>` (through `withOrg`), `insertManyUsage(db, orgId, runId, n: number)` (one `insert ... select generate_series` statement).
 
-- [ ] **Step 1: Write the failing tests** in `runs.int.test.ts` (all through `expectContract`):
+- [x] **Step 1: Write the failing tests** in `runs.int.test.ts` (all through `expectContract`):
   - BR-5: a run with no rows has `usage: null` on `runs.get`, `runs.byNumber` and in `runs.list`; zero counters on a priced row give totals 0 and `estimatedCostUsd: 0`;
   - BR-1 / BR-12: list items and `runs.stats` `idleRun` carry the summary only (no `models`, dates or source);
   - BR-2: the split sums to `totalTokens` on both single-run reads; cache write long folds into `cacheWriteTokens`;
@@ -647,10 +647,10 @@ graph LR
   - grouped read: inside `withOrg`, `vi.spyOn(tx, 'select')` sees one call from `usageFor` for 1 run id and for 20 run ids;
   - BR-10 and security: org B gets 404 on org A's usage-bearing run and none of its usage in B's list.
   - `scope.int.test.ts` and `authz.int.test.ts`: the existing run-read cases use a run with usage rows: admin of P1 gets 404 on the P2 run and no P2 usage in the P1 list; a viewer reads usage; a role without `run:read` gets 403 before any lookup.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/api exec vitest run test/runs.int.test.ts test/scope.int.test.ts test/authz.int.test.ts`. Expected: FAIL.
-- [ ] **Step 3: Implement** `run-usage.ts` and the service changes (replace the Task 1 `usage: null` placeholders).
-- [ ] **Step 4: Run** Step 2 again and `pnpm --filter @agentdesk/api typecheck`. Expected: PASS.
-- [ ] **Step 5: Commit**: `feat(api): return run usage and estimated cost on run reads`. Label `review:sensitive` (tenant reads).
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/api exec vitest run test/runs.int.test.ts test/scope.int.test.ts test/authz.int.test.ts`. Expected: FAIL.
+- [x] **Step 3: Implement** `run-usage.ts` and the service changes (replace the Task 1 `usage: null` placeholders).
+- [x] **Step 4: Run** Step 2 again and `pnpm --filter @agentdesk/api typecheck`. Expected: PASS.
+- [x] **Step 5: Commit**: `feat(api): return run usage and estimated cost on run reads`. Label `review:sensitive` (tenant reads).
 
 ---
 
@@ -660,14 +660,14 @@ graph LR
 
 **Files:**
 
-- Create: `docs/adr/0039-usage-wire-line-price-source-and-price-snapshots.md`
+- Create: `docs/adr/0040-usage-wire-line-price-source-and-price-snapshots.md`
 - Modify: `docs/adr/README.md`
 
 **Interfaces:** none (documents only).
 
-- [ ] **Step 1: Write the ADR** "Agent-neutral usage wire line, a pluggable price-source adapter and a price snapshot per usage entry" with every item the spec's "ADR" paragraph lists (bucket meanings and total; snapshot at first record, never re-applied; `PriceSource` port, registry, `litellm` first, alternatives OpenRouter, models.dev, static list; catalog validation and change guards with their thresholds; `price-sync` and `PriceSyncWorkflow` ids; the org-less price tables; `MODEL_PRICES_SOURCE`, `MODEL_PRICES_URL` and their validation; accepted forged-line risk). Status accepted; amends ADR 0027, extends ADR 0026. Add the index row to `docs/adr/README.md`.
-- [ ] **Step 2: Verify** `rg -n "0039" docs/adr/README.md` prints the new row. Do not edit ADR 0026 or 0027.
-- [ ] **Step 3: Commit**: `docs(adr): record the usage wire line, price source adapter and price snapshots`.
+- [x] **Step 1: Write the ADR** "Agent-neutral usage wire line, a pluggable price-source adapter and a price snapshot per usage entry" with every item the spec's "ADR" paragraph lists (bucket meanings and total; snapshot at first record, never re-applied; `PriceSource` port, registry, `litellm` first, alternatives OpenRouter, models.dev, static list; catalog validation and change guards with their thresholds; `price-sync` and `PriceSyncWorkflow` ids; the org-less price tables; `MODEL_PRICES_SOURCE`, `MODEL_PRICES_URL` and their validation; accepted forged-line risk). Status accepted; amends ADR 0027, extends ADR 0026. Add the index row to `docs/adr/README.md`.
+- [x] **Step 2: Verify** `rg -n "0040" docs/adr/README.md` prints the new row. Do not edit ADR 0026 or 0027.
+- [x] **Step 3: Commit**: `docs(adr): record the usage wire line, price source adapter and price snapshots`.
 
 ---
 

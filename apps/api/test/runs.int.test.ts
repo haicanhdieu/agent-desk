@@ -1,8 +1,9 @@
 import { randomUUID } from 'node:crypto';
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import pg from 'pg';
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ApplicationFailure, WorkflowNotFoundError, WorkflowUpdateFailedError } from '@temporalio/client';
 import { eq, inArray, sql } from 'drizzle-orm';
-import { UPDATE } from '@agentdesk/core';
+import { UPDATE, validateSourceRecords, writePriceVersion } from '@agentdesk/core';
 import { agents, inboundEvents, runEvents, runTranscriptEntries, runs, withOrg } from '@agentdesk/db';
 import type {
   IgnoredEventDto,
@@ -12,11 +13,15 @@ import type {
   RunLogResponse,
   RunStatsDto,
   RunTranscriptResponse,
+  RunUsageDetail,
+  RunUsageSummary,
 } from '@agentdesk/contracts';
 import { createTestApp, type TestApp } from './helpers/app';
 import { createOrg, inviteAndLogin, userIdOf } from './helpers/auth';
 import { expectContract } from './helpers/contract';
 import { freshStateDir, installFake, makeProject, wideFakeRepos } from './helpers/fixtures';
+import { insertManyUsage, insertUsage, makeUsageEntry, type UsageInsert } from './helpers/usage';
+import { usageFor } from '../src/runs/run-usage';
 
 let t: TestApp;
 let alice: string;
@@ -1651,5 +1656,242 @@ describe('run controls by role, scope and ownership', () => {
       expect(res.statusCode).toBe(202);
       expect(t.temporal.callsOfKind('scheduleTrigger').map((c) => c.scheduleId)).toEqual([`poll-${pollingId}`]);
     });
+  });
+});
+
+describe('run usage and estimated cost', () => {
+  const rates = (n: number) => ({
+    provider: 'anthropic',
+    modelId: 'model-a',
+    inputPerMTokUsd: n,
+    outputPerMTokUsd: n * 5,
+    cacheReadPerMTokUsd: n / 10,
+    cacheWritePerMTokUsd: n * 1.25,
+    cacheWriteLongPerMTokUsd: n * 2,
+  });
+  const usageOf = async (runId: string, cookie = alice): Promise<RunUsageDetail | null> =>
+    (expectContract('runs.get', await get(`/api/runs/${runId}`, cookie)) as RunDto).usage;
+  const byNumberUsage = async (pid: string, number: number): Promise<RunUsageDetail | null> =>
+    (expectContract('runs.byNumber', await get(`/api/projects/${pid}/runs/${number}`)) as RunDto).usage;
+  const unpriced = (over: Partial<UsageInsert> = {}): UsageInsert =>
+    makeUsageEntry({
+      priceInput: null,
+      priceOutput: null,
+      priceCacheRead: null,
+      priceCacheWrite: null,
+      priceCacheWriteLong: null,
+      priceAsOf: null,
+      priceSource: null,
+      ...over,
+    });
+  const tokensOnly = { outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0 };
+  const listUsage = async (pid = projectId): Promise<Map<string, RunUsageSummary | null>> =>
+    new Map(
+      (expectContract('runs.list', await listRuns('', pid)) as RunListResponse).items.map((r) => [r.id, r.usage]),
+    );
+  const agentOfProject = async (pid: string): Promise<string> => {
+    const id = (
+      await withOrg(t.db, orgId, (tx) =>
+        tx.select({ id: agents.id }).from(agents).where(eq(agents.projectId, pid)).limit(1),
+      )
+    )[0]?.id;
+    if (!id) throw new Error('no agent');
+    return id;
+  };
+  const newProjectId = async (): Promise<string> =>
+    (await makeProject(t, alice, await installFake(t, alice))).projectId;
+
+  it('BR-5: no rows is usage null on get, byNumber and list; zero counters on a priced row cost 0', async () => {
+    const pid = await newProjectId();
+    const r = await insertRun({}, pid);
+    expect(await usageOf(r.id)).toBeNull();
+    expect(await byNumberUsage(pid, r.number)).toBeNull();
+    expect((await listUsage(pid)).get(r.id)).toBeNull();
+
+    const z = await insertRun({}, pid);
+    await insertUsage(t.db, orgId, z.id, [makeUsageEntry({ inputTokens: 0, ...tokensOnly })]);
+    expect(await usageOf(z.id)).toMatchObject({ totalTokens: 0, estimatedCostUsd: 0, partial: false });
+  });
+
+  it('BR-1 / BR-12: list items and stats.idleRun carry the summary only', async () => {
+    const pid = await newProjectId();
+    const r = await insertRun({ status: 'idle' }, pid);
+    await insertUsage(t.db, orgId, r.id, [makeUsageEntry()]);
+    const item = (await listUsage(pid)).get(r.id);
+    expect(item).toMatchObject({ totalTokens: 1800 });
+    for (const k of ['models', 'priceAsOfEarliest', 'priceAsOfLatest', 'priceSource']) {
+      expect(item).not.toHaveProperty(k);
+    }
+    const stats = expectContract(
+      'runs.stats',
+      await get(`/api/projects/${pid}/runs/stats?since=2020-01-01T00:00:00.000Z`),
+    ) as RunStatsDto;
+    expect(stats.idleRun?.usage).toMatchObject({ totalTokens: 1800 });
+    expect(stats.idleRun?.usage).not.toHaveProperty('models');
+  });
+
+  it('BR-2: the split sums to totalTokens on both single-run reads; cache write long folds into cache write', async () => {
+    const pid = await newProjectId();
+    const r = await insertRun({}, pid);
+    await insertUsage(t.db, orgId, r.id, [makeUsageEntry({ cacheWriteTokens: 100, cacheWriteLongTokens: 50 })]);
+    for (const u of [await usageOf(r.id), await byNumberUsage(pid, r.number)]) {
+      expect(u?.cacheWriteTokens).toBe(150);
+      expect(u?.totalTokens).toBe(1000 + 200 + 150 + 500);
+      expect(
+        (u?.inputTokens ?? 0) + (u?.cacheReadTokens ?? 0) + (u?.cacheWriteTokens ?? 0) + (u?.outputTokens ?? 0),
+      ).toBe(u?.totalTokens);
+    }
+  });
+
+  it('BR-3: models sort by tokens desc then name, with per-model costPartial', async () => {
+    const r = await insertRun();
+    await insertUsage(t.db, orgId, r.id, [
+      makeUsageEntry({ model: 'm-b', inputTokens: 10, ...tokensOnly }),
+      makeUsageEntry({ model: 'm-a', inputTokens: 10, ...tokensOnly }),
+      unpriced({ model: 'm-a', inputTokens: 5, ...tokensOnly }),
+      makeUsageEntry({ model: 'm-big', inputTokens: 1000 }),
+    ]);
+    const u = await usageOf(r.id);
+    expect(u?.models.map((m) => m.model)).toEqual(['m-big', 'm-a', 'm-b']);
+    expect(u?.models.map((m) => m.costPartial)).toEqual([false, true, false]);
+  });
+
+  it('BR-6 / BR-21: an unpriced row sets partial; all unpriced gives a null cost, dates and source', async () => {
+    const mixed = await insertRun();
+    await insertUsage(t.db, orgId, mixed.id, [makeUsageEntry(), unpriced()]);
+    const m = await usageOf(mixed.id);
+    expect(m?.partial).toBe(true);
+    expect(m?.estimatedCostUsd).not.toBeNull();
+
+    const none = await insertRun();
+    await insertUsage(t.db, orgId, none.id, [unpriced()]);
+    expect(await usageOf(none.id)).toMatchObject({
+      partial: true,
+      estimatedCostUsd: null,
+      priceAsOfEarliest: null,
+      priceAsOfLatest: null,
+      priceSource: null,
+    });
+  });
+
+  it('BR-11 / P2: rows under two rate sets cost id1 at v1 plus id2 at v2', async () => {
+    const r = await insertRun();
+    const t1 = new Date('2026-01-01T12:00:00Z');
+    const t2 = new Date('2026-02-01T12:00:00Z');
+    await insertUsage(t.db, orgId, r.id, [
+      makeUsageEntry({ inputTokens: 1_000_000, ...tokensOnly }),
+      makeUsageEntry({ inputTokens: 1_000_000, ...tokensOnly, priceInput: '4', priceAsOf: t2 }),
+    ]);
+    const u = await usageOf(r.id);
+    expect(u?.estimatedCostUsd).toBeCloseTo((1_000_000 * 3) / 1e6 + (1_000_000 * 4) / 1e6, 9);
+    expect(u?.priceAsOfEarliest).toBe(t1.toISOString());
+    expect(u?.priceAsOfLatest).toBe(t2.toISOString());
+  });
+
+  it('P1 / BR-18: a newer current price version leaves the stored cost and dates unchanged', async () => {
+    const r = await insertRun();
+    await insertUsage(t.db, orgId, r.id, [makeUsageEntry()]);
+    const before = await usageOf(r.id);
+    expect(before?.estimatedCostUsd).toBeGreaterThan(0);
+    const { records } = validateSourceRecords([rates(30)]);
+    await writePriceVersion(t.db, { source: 'fake', records, now: new Date('2026-03-01T00:00:00Z') });
+    expect(await usageOf(r.id)).toEqual(before);
+    expect(await byNumberUsage(projectId, r.number)).toEqual(before);
+    expect((await listUsage()).get(r.id)?.estimatedCostUsd).toBe(before?.estimatedCostUsd);
+  });
+
+  it('P5: the same cost and dates after the price tables are truncated and the agent deleted', async () => {
+    const pid = await newProjectId();
+    const agentId = await agentOfProject(pid);
+    const r = await insertRun({ agentId }, pid);
+    await insertUsage(t.db, orgId, r.id, [makeUsageEntry()]);
+    const before = await usageOf(r.id);
+    expect(before?.estimatedCostUsd).toBeGreaterThan(0);
+    const owner = new pg.Pool({ connectionString: t.pg.ownerUrl, max: 1 });
+    try {
+      // a plain truncate would also empty the usage rows that reference a version, so delete (the reference is set null)
+      await owner.query('delete from model_prices');
+      await owner.query('delete from model_price_versions');
+      await owner.query('delete from agents where id = $1', [agentId]);
+    } finally {
+      await owner.end();
+    }
+    expect(await usageOf(r.id)).toEqual(before);
+    expect((await listUsage(pid)).get(r.id)?.estimatedCostUsd).toBe(before?.estimatedCostUsd);
+  });
+
+  it('BR-14: the same rows give the same estimate on an oauth_token and an api_key agent', async () => {
+    const costs: Array<number | null | undefined> = [];
+    for (const credentialType of ['oauth_token', 'api_key']) {
+      const pid = await newProjectId();
+      const agentId = await agentOfProject(pid);
+      await withOrg(t.db, orgId, (tx) =>
+        tx
+          .update(agents)
+          .set({ credentialSecretName: `org-x-${credentialType}`, credentialType })
+          .where(eq(agents.id, agentId)),
+      );
+      const r = await insertRun({ agentId }, pid);
+      await insertUsage(t.db, orgId, r.id, [makeUsageEntry()]);
+      costs.push((await usageOf(r.id))?.estimatedCostUsd);
+    }
+    expect(typeof costs[0]).toBe('number');
+    expect(costs[0]).toBe(costs[1]);
+  });
+
+  it('BR-15: 20000 entries are partial', async () => {
+    const r = await insertRun();
+    await insertManyUsage(t.db, orgId, r.id, 20000);
+    expect(await usageOf(r.id)).toMatchObject({ partial: true });
+  });
+
+  it('Review Focus 1: 30 rows of 100,000,000 output tokens sum to 3,000,000,000 as a number', async () => {
+    const r = await insertRun();
+    await insertUsage(
+      t.db,
+      orgId,
+      r.id,
+      Array.from({ length: 30 }, () => makeUsageEntry({ outputTokens: 100_000_000 })),
+    );
+    const u = await usageOf(r.id);
+    expect(u?.outputTokens).toBe(3_000_000_000);
+    expect(typeof u?.outputTokens).toBe('number');
+  });
+
+  it('Review Focus 2: price dates are ISO strings with a zone', async () => {
+    const r = await insertRun();
+    await insertUsage(t.db, orgId, r.id, [makeUsageEntry()]);
+    const u = await usageOf(r.id);
+    for (const d of [u?.priceAsOfEarliest, u?.priceAsOfLatest]) {
+      expect(typeof d).toBe('string');
+      expect(new Date(d ?? '').toISOString()).toBe('2026-01-01T12:00:00.000Z');
+      expect(d).toMatch(/(Z|[+-]\d{2}:\d{2})$/);
+    }
+  });
+
+  it('grouped read: usageFor runs one select for 1 run id and for 20', async () => {
+    const ids: string[] = [];
+    for (let i = 0; i < 20; i++) {
+      const r = await insertRun();
+      await insertUsage(t.db, orgId, r.id, [makeUsageEntry(), makeUsageEntry({ model: 'm-x' })]);
+      ids.push(r.id);
+    }
+    for (const subset of [ids.slice(0, 1), ids]) {
+      await withOrg(t.db, orgId, async (tx) => {
+        const spy = vi.spyOn(tx, 'select');
+        const out = await usageFor(tx, subset);
+        expect(spy).toHaveBeenCalledTimes(1);
+        expect(out.size).toBe(subset.length);
+      });
+    }
+  });
+
+  it('BR-10: another org gets 404 on a usage-bearing run and none of its usage in its list', async () => {
+    const r = await insertRun();
+    await insertUsage(t.db, orgId, r.id, [makeUsageEntry()]);
+    expect((await get(`/api/runs/${r.id}`, bob)).statusCode).toBe(404);
+    const list = await listRuns('', projectId, bob);
+    expect(list.statusCode).toBe(404);
+    expect(list.body).not.toContain('totalTokens');
   });
 });
