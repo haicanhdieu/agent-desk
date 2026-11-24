@@ -474,7 +474,10 @@ test.describe('BR-36: a live status change', () => {
     await page.evaluate(
       ([projectId, runId]) => {
         const sources: EventSource[] = Reflect.get(window, '__eventSources');
-        const stream = sources.find((s) => s.url.endsWith(`/api/projects/${projectId}/events`) && s.readyState !== 2);
+        // The stream URL carries `?orgId=`, so match on the pathname.
+        const stream = sources.find(
+          (s) => new URL(s.url, location.href).pathname === `/api/projects/${projectId}/events` && s.readyState !== 2,
+        );
         if (!stream) throw new Error('the project event stream is not open');
         const data = JSON.stringify({ runId, number: 30, status: 'failed', seq: 1000 });
         stream.dispatchEvent(new MessageEvent('run', { data }));
