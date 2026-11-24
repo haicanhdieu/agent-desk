@@ -1,8 +1,9 @@
-import { useEffect, useId, useRef, useState, type KeyboardEvent } from 'react';
+import { useId, useRef, useState } from 'react';
 import { AppLink, Button, Icon, Popover } from '@/ds';
 import type { OrgStatusView } from '@/mocks/platform/orgs';
 import { OrgStatus } from './OrgStatus';
 import styles from './PlatformOrgHeader.module.css';
+import { useMenuNav } from './useMenuNav';
 
 export interface PlatformOrgHeaderProps {
   name: string;
@@ -16,9 +17,6 @@ export interface PlatformOrgHeaderProps {
   /** Absent: no "Edit organization" button. */
   onEdit?: () => void;
 }
-
-const MENU_ITEMS = 'a[href],button:not([disabled])';
-const ARROW_KEYS = ['ArrowDown', 'ArrowUp', 'Home', 'End'];
 
 /**
  * Header of a platform org detail page: name, slug, status and the actions. Text only, never HTML.
@@ -38,36 +36,7 @@ export function PlatformOrgHeader({
   const wrapRef = useRef<HTMLDivElement>(null);
   const menuId = useId();
 
-  // An outside press closes the menu; Escape is handled by the Popover, which also returns focus to the trigger.
-  useEffect(() => {
-    if (!open) return undefined;
-    const onPointerDown = (e: PointerEvent) => {
-      if (e.target instanceof Node && !wrapRef.current?.contains(e.target)) setOpen(false);
-    };
-    document.addEventListener('pointerdown', onPointerDown);
-    return () => document.removeEventListener('pointerdown', onPointerDown);
-  }, [open]);
-
-  const onTriggerKeyDown = (e: KeyboardEvent<HTMLButtonElement>) => {
-    if (e.key === 'ArrowDown' && !open) {
-      e.preventDefault();
-      setOpen(true);
-    }
-  };
-
-  // Arrow keys, Home and End move between the menu items.
-  const onMenuKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
-    if (!ARROW_KEYS.includes(e.key)) return;
-    const items = Array.from(e.currentTarget.querySelectorAll<HTMLElement>(MENU_ITEMS));
-    if (items.length === 0) return;
-    e.preventDefault();
-    const at = items.findIndex((el) => el === document.activeElement);
-    let next = 0;
-    if (e.key === 'End') next = items.length - 1;
-    else if (e.key === 'ArrowDown') next = (at + 1) % items.length;
-    else if (e.key === 'ArrowUp') next = (at <= 0 ? items.length : at) - 1;
-    items[next]?.focus();
-  };
+  const { onTriggerKeyDown, onMenuKeyDown } = useMenuNav(open, setOpen, wrapRef);
 
   const close = () => setOpen(false);
 
