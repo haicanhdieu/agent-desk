@@ -1,15 +1,16 @@
 import { useEffect, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { OrgStatusChangeRequest, type OrgStatus } from '@agentdesk/contracts';
+import { OrgStatusChangeRequest, type OrgStatus, type UpdateOrgRequest } from '@agentdesk/contracts';
 import { ApiError } from '@agentdesk/contracts/client';
 import { revalidateLogic, useField, useForm, useStore } from '@tanstack/react-form';
 import { createFileRoute, Outlet, useNavigate } from '@tanstack/react-router';
 import { useNow } from '@/app/useNow';
-import type { SuspendOrgDialogProps } from '@/components';
+import { EditOrgDialog, SlugChangeConfirm, type SuspendOrgDialogProps } from '@/components';
 import { useToast } from '@/ds';
 import { fieldErrorsFromProblem } from '@/features/desk/problem';
+import { generalProblem, useGeneralForm, type GeneralControls } from '@/features/orgSettings/general.form';
 import { toPlatformOrgOverview } from '@/features/platform/map';
-import { useSetOrgStatus } from '@/features/platform/mutations';
+import { useSetOrgStatus, useUpdatePlatformOrg } from '@/features/platform/mutations';
 import { platformOrgQuery } from '@/features/platform/queries';
 import { PlatformOrgDetail, type PlatformOrgDetailProps } from '@/screens';
 
@@ -95,12 +96,96 @@ function useStatusForm(
   };
 }
 
+/**
+ * The Edit organization dialog and the URL-change confirm. Mounted per opening, so each opening starts from the saved
+ * values. A slug change asks first; the answer's messages land at the field or in the Banner.
+ */
+function EditOrgModals({
+  org,
+  onDone,
+  onGone,
+  onClose,
+}: {
+  org: { id: string; name: string; slug: string };
+  onDone: () => void;
+  onGone: () => void;
+  onClose: () => void;
+}) {
+  const update = useUpdatePlatformOrg(org.id);
+  const [formError, setFormError] = useState<{ title: string; requestId?: string }>();
+  const [confirm, setConfirm] = useState<{ body: UpdateOrgRequest; to: string; controls: GeneralControls }>();
+
+  async function send(body: UpdateOrgRequest, controls: GeneralControls) {
+    setFormError(undefined);
+    try {
+      await update.mutateAsync(body);
+      onDone();
+    } catch (e) {
+      if (e instanceof ApiError && e.status === 404) {
+        onGone();
+        return;
+      }
+      const problem = generalProblem(e);
+      controls.setServerErrors(problem.fields);
+      setFormError(problem.formError);
+    }
+  }
+
+  const form = useGeneralForm(org, (body, controls) => {
+    if (body.slug !== undefined) setConfirm({ body, to: body.slug, controls });
+    else return send(body, controls);
+  });
+
+  // The first field with a message takes the focus (the dialog sits in a portal, so look it up in the document).
+  const { name: nameError, slug: slugError } = form.errors;
+  useEffect(() => {
+    if (nameError || slugError) {
+      document.querySelector<HTMLInputElement>('[role="dialog"] input[aria-invalid="true"]')?.focus();
+    }
+  }, [nameError, slugError]);
+
+  if (confirm !== undefined) {
+    return (
+      <SlugChangeConfirm
+        from={org.slug}
+        to={confirm.to}
+        closing="Share the new link with its members."
+        busy={update.isPending}
+        onConfirm={() => {
+          const { body, controls } = confirm;
+          setConfirm(undefined);
+          void send(body, controls);
+        }}
+        onCancel={() => setConfirm(undefined)}
+      />
+    );
+  }
+  return (
+    <EditOrgDialog
+      open
+      values={form.values}
+      errors={form.errors}
+      dirty={form.dirty}
+      saving={form.saving || update.isPending}
+      {...(formError !== undefined && { formError })}
+      onChange={(v) => {
+        if (v.name !== form.values.name) form.change('name', v.name);
+        if (v.slug !== form.values.slug) form.change('slug', v.slug);
+      }}
+      onSubmit={form.submit}
+      onClose={onClose}
+    />
+  );
+}
+
 function PlatformOrgLayout() {
   const { orgId } = Route.useParams();
   const navigate = useNavigate();
   const toast = useToast();
   const now = useNow();
   const [mode, setMode] = useState<OrgStatus | null>(null);
+  const [editing, setEditing] = useState(false);
+  const focusEdit = useRef(false);
   const focusHeading = useRef(false);
   const detail = useQuery(platformOrgQuery(orgId));
 
@@ -132,6 +217,15 @@ function PlatformOrgLayout() {
     document.querySelector<HTMLElement>('main h1')?.focus();
   }, [mode]);
 
+  // After the edit dialog leaves, focus returns to "Edit organization".
+  useEffect(() => {
+    if (editing || !focusEdit.current) return;
+    focusEdit.current = false;
+    [...document.querySelectorAll<HTMLElement>('main button')]
+      .find((b) => b.textContent === 'Edit organization')
+      ?.focus();
+  }, [editing]);
+
   const data = detail.data;
   let view: PlatformOrgDetailProps['view'];
   if (detail.error instanceof ApiError && detail.error.status === 403) {
@@ -156,6 +250,7 @@ function PlatformOrgLayout() {
         slug: data.slug,
         status: data.status,
         auditHref: `/platform/audit?org=${encodeURIComponent(data.id)}`,
+        onEdit: () => setEditing(true),
         onSuspend: () => open('suspended'),
         onReactivate: () => open('active'),
       },
@@ -167,6 +262,28 @@ function PlatformOrgLayout() {
     <PlatformOrgDetail
       view={view}
       children={<Outlet />}
+      {...(editing &&
+        data !== undefined && {
+          editSlot: (
+            <EditOrgModals
+              org={data}
+              onDone={() => {
+                focusEdit.current = true;
+                setEditing(false);
+                toast.show({ tone: 'ok', title: 'Organization updated' });
+              }}
+              onGone={() => {
+                setEditing(false);
+                toast.show({ tone: 'err', title: 'Organization not found' });
+                void navigate({ to: '/platform/orgs' });
+              }}
+              onClose={() => {
+                focusEdit.current = true;
+                setEditing(false);
+              }}
+            />
+          ),
+        })}
       {...(mode !== null &&
         data !== undefined && {
           dialog: {

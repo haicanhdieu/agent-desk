@@ -3,11 +3,13 @@ import type {
   OrgStatus,
   PlatformAdminDto,
   PlatformOrgDetailDto,
+  UpdateOrgRequest,
 } from '@agentdesk/contracts';
 import { ApiError } from '@agentdesk/contracts/client';
 import { useMutation, useQueryClient, type UseMutationResult } from '@tanstack/react-query';
 import { accessKeys } from '../access/keys';
 import { api } from '../api';
+import { orgsQuery } from '../auth/session';
 import { platformKeys } from './keys';
 
 // No optimistic updates: the list changes when the server has answered, and a mutation stays pending until the
@@ -71,6 +73,30 @@ export function useSetOrgStatus(
         queryKey: platformKeys.orgsAll(),
         predicate: (q) => !(q.queryKey.length === own.length && q.queryKey.every((part, i) => part === own[i])),
       });
+    },
+  });
+}
+
+/**
+ * `PATCH /api/platform/orgs/:orgId`: the answer is the new detail and becomes the cached org at once; the directory
+ * pages (and other orgs' details) and the caller's own org list are fetched again. No navigation: the page stays.
+ */
+export function useUpdatePlatformOrg(
+  orgId: string,
+): UseMutationResult<PlatformOrgDetailDto, ApiError, UpdateOrgRequest> {
+  const queryClient = useQueryClient();
+  return useMutation<PlatformOrgDetailDto, ApiError, UpdateOrgRequest>({
+    mutationFn: (body) => api.platform.updateOrg({ params: { orgId }, body }),
+    onSuccess: async (detail) => {
+      queryClient.setQueryData(platformKeys.org(orgId), detail);
+      const own = platformKeys.org(orgId);
+      await Promise.all([
+        queryClient.invalidateQueries({
+          queryKey: platformKeys.orgsAll(),
+          predicate: (q) => !(q.queryKey.length === own.length && q.queryKey.every((part, i) => part === own[i])),
+        }),
+        queryClient.invalidateQueries({ queryKey: orgsQuery.queryKey }),
+      ]);
     },
   });
 }
