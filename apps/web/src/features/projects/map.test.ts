@@ -100,6 +100,7 @@ describe('toProject', () => {
     createdAt: ago(30 * DAY),
     counts: { needsYou: 1, running: 2, queued: 3 },
     lastRunAt: ago(2 * 60_000),
+    defaultBranch: 'main',
   };
   const conn = { mode: 'webhook', tone: 'ok', text: 'Connected' } as const;
 
@@ -133,6 +134,7 @@ describe('toProjectMenuItems', () => {
     setupStep: 'ready',
     createdAt: ago(30 * DAY),
     lastRunAt: null,
+    defaultBranch: 'main',
   } as const;
   const dtos: ProjectDto[] = [
     {

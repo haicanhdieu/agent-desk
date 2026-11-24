@@ -173,6 +173,8 @@ export interface MockState {
   prStates: Record<string, Record<string, PrState>>;
   prStatesScenario?: PrStatesScenario;
   skills: Record<string, SkillDto[]>;
+  /** When set, skill writes and deletes answer with a pending change request instead of a commit (a protected default branch). */
+  skillReviewRequired?: boolean;
   rules: RuleDto[];
   runs: MockRun[];
   runEvents: Record<string, RunEventDto[]>;

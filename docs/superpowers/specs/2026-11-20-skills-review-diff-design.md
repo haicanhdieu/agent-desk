@@ -119,8 +119,8 @@ keep Edit as the raw-code editor, and changing its marks is outside the ticket.
 
 Agent call: the baseline follows the newest loaded main, not the version the draft started from. Reason: it matches
 the chip and Discard, and it needs no route change. The case is rare (the skill refetches only after the query goes
-stale). When it happens, Commit already gets a 409 and restarts the draft from the new main, so Diff then shows the
-right thing again.
+stale). When it happens, Commit gets a 409 and the draft is kept on its old base, so Diff keeps showing the
+newer main against the draft until the user discards or reopens the skill.
 - **Layout (human):** one column, every line of the file once, in order:
   - unchanged lines plain;
   - removed lines (in main, not in the draft) on `--term-del-bg`, with a `−` glyph in `--err`;

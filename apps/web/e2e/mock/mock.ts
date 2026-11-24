@@ -1,5 +1,6 @@
 import type { Locator, Page } from '@playwright/test';
 import { AGENT_MODELS_SCENARIO_KEY, type AgentModelsScenario } from '../../src/mocks/msw/agentModels';
+import { SKILL_REVIEW_KEY } from '../../src/mocks/msw/skillReview';
 import { PR_STATES_SCENARIO_KEY, type PrStatesScenario } from '../../src/mocks/msw/prStates';
 import { ids } from '../../src/mocks/dto/ids';
 import { MOCK_LISTS_KEY, type MockLists } from '../../src/mocks/msw/e2eLists';
@@ -125,6 +126,19 @@ export async function setPrStates(page: Page, scenario: PrStatesScenario): Promi
       sessionStorage.setItem(key, value);
     },
     [PR_STATES_SCENARIO_KEY, scenario] as const,
+  );
+}
+
+/**
+ * The default branch needs review for this test: skill saves and deletes answer with a pending change request. Call
+ * before the first `page.goto`: browser.ts reads the key once when the mock worker starts.
+ */
+export async function setSkillReviewRequired(page: Page): Promise<void> {
+  await page.addInitScript(
+    ([key]) => {
+      sessionStorage.setItem(key, '1');
+    },
+    [SKILL_REVIEW_KEY] as const,
   );
 }
 

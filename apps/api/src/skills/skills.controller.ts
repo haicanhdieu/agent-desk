@@ -1,7 +1,8 @@
-import { Body, Controller, Delete, Get, HttpCode, Inject, Param, Put, Query } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Inject, Param, Put, Query } from '@nestjs/common';
 import {
   routes,
   type DeleteSkillQuery,
+  type DeleteSkillResponse,
   type Page,
   type PageQuery,
   type PutSkillRequest,
@@ -53,12 +54,11 @@ export class SkillsController {
   }
 
   @Delete(routePath(routes.skills.remove))
-  @HttpCode(204)
   remove(
     @CurrentOrg() org: OrgContext,
     @Param(SkillParams) p: SkillParams,
     @Query(DeleteQuery) q: DeleteSkillQuery,
-  ): Promise<void> {
+  ): Promise<DeleteSkillResponse> {
     return this.service.remove(org, p.projectId, p.name, q.message);
   }
 }

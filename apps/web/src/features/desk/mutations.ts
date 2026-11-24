@@ -9,7 +9,8 @@ import { projectsListKey, projectsQueries } from '../projects/queries';
 import { waitForPoll } from './checkNow';
 import { deskQueries, rulesKey, skillsKey } from './queries';
 
-// Skill commit and delete (spec §4.3): no optimistic update; the affected desk keys are invalidated on success.
+// Skill submit and delete (spec §4.3): no optimistic update. A direct commit invalidates the affected desk keys. A
+// change request is pending, not merged: the live skill is unchanged, so nothing is refetched or replaced.
 
 export const STALE_SKILL_TOAST = 'Skill changed elsewhere — reload';
 
@@ -30,7 +31,8 @@ export function useCommitSkill(org: string, projectId: string) {
   return useMutation({
     mutationFn: ({ name, body, message, sha }: CommitSkillInput) =>
       api.skills.put({ params: { projectId, name }, body: { body, message, sha } }),
-    onSuccess: async (_res, { name }) => {
+    onSuccess: async (res, { name }) => {
+      if (res.kind !== 'commit') return;
       await Promise.all([
         qc.invalidateQueries({ queryKey: skillsKey(org, projectId) }),
         qc.invalidateQueries({ queryKey: deskQueries.skill(org, projectId, name).queryKey }),
@@ -49,7 +51,8 @@ export function useDeleteSkill(org: string, projectId: string) {
   return useMutation({
     mutationFn: ({ name, message }: { name: string; message: string }) =>
       api.skills.remove({ params: { projectId, name }, query: { message } }),
-    onSuccess: async (_res, { name }) => {
+    onSuccess: async (res, { name }) => {
+      if (res.kind !== 'commit') return;
       // The deleted skill is only marked stale: refetching it now would 404 while the page still shows it.
       await Promise.all([
         qc.invalidateQueries({ queryKey: skillsKey(org, projectId) }),

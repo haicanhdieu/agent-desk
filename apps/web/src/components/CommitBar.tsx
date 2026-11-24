@@ -4,12 +4,13 @@ import styles from './Composites.module.css';
 export interface CommitBarProps {
   message: string;
   onMessageChange?(v: string): void;
-  branch: string;
+  /** The branch the changes target (the project's default branch); null when it is not known. */
+  branch: string | null;
   dirty: boolean;
   onDiscard?(): void;
   onCommit?(): void;
   note: string;
-  /** A commit is in flight: Commit stays disabled so a double click cannot send two. */
+  /** A submission is in flight: the action stays disabled so a double click cannot send two. */
   pending?: boolean;
 }
 
@@ -37,12 +38,18 @@ export function CommitBar({
             />
           )}
         </Field>
-        <Field className={styles.commitTo} label="Commit to" labelAs="span">
+        <Field className={styles.commitTo} label="Target" labelAs="span">
           {({ labelId }) => (
             <StaticInput icon="branch" aria-labelledby={labelId}>
               <span className={styles.branchSpan}>
-                <span className={styles.monoText}>{branch}</span>
-                <span className={styles.faintText}>default branch</span>
+                {branch === null ? (
+                  <span className={styles.monoText}>Default branch</span>
+                ) : (
+                  <>
+                    <span className={styles.monoText}>{branch}</span>
+                    <span className={styles.faintText}>default branch</span>
+                  </>
+                )}
               </span>
             </StaticInput>
           )}
@@ -57,7 +64,7 @@ export function CommitBar({
           aria-busy={pending || undefined}
           onClick={onCommit}
         >
-          Commit to {branch}
+          {pending ? 'Submitting…' : 'Submit changes'}
         </Button>
       </div>
       <p className={styles.note}>{note}</p>

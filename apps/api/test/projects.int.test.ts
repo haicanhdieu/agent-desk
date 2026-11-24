@@ -88,6 +88,7 @@ describe('projects', () => {
       triggerMode: 'webhook',
       codeConnectionId: connectionId,
       boardConnectionId: connectionId,
+      defaultBranch: expect.any(String),
       counts: { needsYou: 0, running: 0, queued: 0 },
       lastRunAt: null,
     });

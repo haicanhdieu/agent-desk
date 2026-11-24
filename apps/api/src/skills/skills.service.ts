@@ -1,4 +1,4 @@
-import { ConflictException, Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { BadGatewayException, ConflictException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { eq } from 'drizzle-orm';
 import { connections, projects, withOrg, type Db } from '@agentdesk/db';
 import {
@@ -7,11 +7,14 @@ import {
   type Page,
   type PageQuery,
   type PutSkillRequest,
+  type DeleteSkillResponse,
   type PutSkillResponse,
   type SkillDto,
   type SkillSummaryDto,
 } from '@agentdesk/contracts';
 import {
+  SkillBranchExistsError,
+  SkillChangeRequestError,
   SkillConflictError,
   SkillNotFoundError,
   toAdapterProject,
@@ -85,10 +88,15 @@ export class SkillsService {
     }
   }
 
-  async remove(org: OrgContext, projectId: string, name: string, message: string | undefined): Promise<void> {
+  async remove(
+    org: OrgContext,
+    projectId: string,
+    name: string,
+    message: string | undefined,
+  ): Promise<DeleteSkillResponse> {
     const { host, project } = await this.codeHostFor(org, projectId);
     try {
-      await host.deleteSkill(project, name, message ?? `Delete skill ${name}`);
+      return await host.deleteSkill(project, name, message ?? `Delete skill ${name}`);
     } catch (err) {
       throw mapSkillError(err);
     }
@@ -98,5 +106,22 @@ export class SkillsService {
 function mapSkillError(err: unknown): unknown {
   if (err instanceof SkillNotFoundError) return new NotFoundException('Skill not found');
   if (err instanceof SkillConflictError) return new ConflictException('Skill changed since it was read');
+  if (err instanceof SkillBranchExistsError) {
+    return new ConflictException('A change request branch with that name already exists. Submit again.');
+  }
+  // Fixed texts only: provider errors never reach the client.
+  if (err instanceof SkillChangeRequestError) {
+    if (err.stage === 'permission') {
+      return new BadGatewayException(
+        'The code host refused the change request. Check that the connection can write to this repository.',
+      );
+    }
+    const texts = {
+      branch: 'Could not create a branch for the change request. Try again, or check the repository.',
+      commit: 'Could not save the skill to the new branch. Try again, or check the repository.',
+      change_request: 'Could not open the change request. Try again, or check the repository.',
+    } as const;
+    return new BadGatewayException(texts[err.stage]);
+  }
   return err;
 }

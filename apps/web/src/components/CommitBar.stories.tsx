@@ -8,7 +8,7 @@ const meta = {
     message: 'code-build: run dotnet format before opening the PR',
     branch: 'main',
     dirty: true,
-    note: 'Commits as agent-desk[bot]. Runs that start after the commit use the new version; running runs keep the old one.',
+    note: 'Submitted as agent-desk[bot]. If the target branch requires review, the changes are submitted for review instead of saved.',
   },
   decorators: [
     (S) => (
@@ -24,3 +24,4 @@ type Story = StoryObj<typeof meta>;
 export const Dirty: Story = {};
 export const Clean: Story = { args: { dirty: false } };
 export const Committing: Story = { args: { pending: true } };
+export const UnknownBranch: Story = { args: { branch: null } };

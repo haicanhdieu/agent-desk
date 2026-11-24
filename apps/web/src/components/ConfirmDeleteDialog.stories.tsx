@@ -27,6 +27,14 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 export const Open: Story = {};
+export const Submitting: Story = {
+  args: { pending: true },
+  play: async ({ canvasElement }) => {
+    const c = within(canvasElement);
+    await userEvent.type(c.getByLabelText(/Type code-e2e to confirm/), 'code-e2e');
+    await expect(c.getByRole('button', { name: 'Submitting…' })).toBeDisabled();
+  },
+};
 export const WithRuleWarning: Story = {
   args: {
     warning: (
@@ -38,7 +46,7 @@ export const WithRuleWarning: Story = {
   },
   play: async ({ canvasElement }) => {
     const c = within(canvasElement);
-    const btn = c.getByRole('button', { name: 'Delete and commit' });
+    const btn = c.getByRole('button', { name: 'Submit changes' });
     await expect(btn).toBeDisabled();
     await userEvent.type(c.getByLabelText(/Type code-e2e to confirm/), 'code-e2e');
     await expect(btn).toBeEnabled();

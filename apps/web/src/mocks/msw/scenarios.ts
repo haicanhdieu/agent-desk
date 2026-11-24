@@ -45,6 +45,10 @@ export const scenarios = {
   prStates(scenario: PrStatesScenario | undefined): void {
     mockDb.state.prStatesScenario = scenario;
   },
+  /** The default branch needs review: skill writes and deletes answer with a pending change request until the store resets. */
+  skillReviewRequired(required = true): void {
+    mockDb.state.skillReviewRequired = required;
+  },
   /** No session: get-session returns null, org routes and every API route return 401. */
   signedOut(): void {
     mockDb.signOut();

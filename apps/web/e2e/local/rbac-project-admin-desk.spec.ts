@@ -101,7 +101,7 @@ test('TC-22.2 A changes a skill on P1, commits it, and the change shows after a 
     await expect(editor()).toHaveValue(original);
     await editor().fill(changed);
     const saved = answerTo(a.page, 'PUT', /^\/api\/projects\/[^/]+\/skills\/[^/]+$/);
-    await a.page.getByRole('button', { name: 'Commit to main' }).click();
+    await a.page.getByRole('button', { name: 'Submit changes' }).click();
     expect((await saved).status(), 'the skill commit is accepted').toBe(200);
 
     await a.page.goto(`${desk('skills')}?skill=${skill}`);

@@ -14,7 +14,13 @@ import { normalizeLinkedRefs } from '../../src/adapters/linked-refs';
 import { GithubCodeHostAdapter } from '../../src/adapters/github/codehost';
 import { GithubClients, assertSafeRef } from '../../src/adapters/github/app';
 import { verifyGithubSignature } from '../../src/adapters/github/webhook';
-import { RepoFileError, type AdapterProject } from '../../src/adapters/types';
+import {
+  RepoFileError,
+  SkillBranchExistsError,
+  SkillChangeRequestError,
+  SkillConflictError,
+  type AdapterProject,
+} from '../../src/adapters/types';
 
 const fixture = (name: string): string => readFileSync(join(__dirname, '../fixtures/github', name), 'utf8');
 
@@ -54,6 +60,15 @@ function mockInstallationToken(): void {
     .intercept({ path: '/app/installations/4242/access_tokens', method: 'POST' })
     .reply(201, fixture('installation.token.json'), { headers: JSON_HEADERS })
     .persist();
+}
+
+/** Intercepts the default-branch metadata read that decides between a direct commit and a change request. */
+function mockBranch(isProtected: boolean, branch = 'main'): void {
+  gh()
+    .intercept({ path: `/repos/acme/widgets/branches/${branch}`, method: 'GET' })
+    .reply(200, JSON.stringify({ name: branch, protected: isProtected, commit: { sha: 'basesha' } }), {
+      headers: JSON_HEADERS,
+    });
 }
 
 describe('github webhook', () => {
@@ -723,6 +738,7 @@ describe('github code host', () => {
 
   it('writes a skill with sha and committer identity', async () => {
     mockInstallationToken();
+    mockBranch(false);
     gh()
       .intercept({
         path: '/repos/acme/widgets/contents/.agent/skills/fix/SKILL.md',
@@ -738,7 +754,238 @@ describe('github code host', () => {
         },
       })
       .reply(200, '{"content":{"sha":"new"},"commit":{"sha":"abc123"}}', { headers: JSON_HEADERS });
-    expect(await host().writeSkill(project, 'fix', 'v2', 'edit', 'old')).toEqual({ commitSha: 'abc123' });
+    expect(await host().writeSkill(project, 'fix', 'v2', 'edit', 'old')).toEqual({
+      kind: 'commit',
+      commitSha: 'abc123',
+      targetBranch: 'main',
+    });
+  });
+
+  it('deletes a skill and returns a commit result', async () => {
+    mockInstallationToken();
+    mockBranch(false);
+    const path = '/repos/acme/widgets/contents/.agent/skills/fix/SKILL.md';
+    gh().intercept({ path, method: 'GET' }).reply(200, fixture('contents.skill-file.json'), { headers: JSON_HEADERS });
+    gh()
+      .intercept({ path: (p) => p.startsWith('/repos/acme/widgets/commits'), method: 'GET' })
+      .reply(200, fixture('commits.skill.json'), { headers: JSON_HEADERS });
+    gh()
+      .intercept({ path, method: 'DELETE' })
+      .reply(200, '{"content":null,"commit":{"sha":"del456"}}', { headers: JSON_HEADERS });
+    expect(await host().deleteSkill(project, 'fix', 'rm')).toEqual({
+      kind: 'commit',
+      commitSha: 'del456',
+      targetBranch: 'main',
+    });
+  });
+
+  describe('skill changes on a protected default branch', () => {
+    const SKILL = '/repos/acme/widgets/contents/.agent/skills/fix/SKILL.md';
+    const REFS = '/repos/acme/widgets/git/refs';
+    const bodyOf = (b: unknown): Record<string, unknown> => JSON.parse(String(b)) as Record<string, unknown>;
+    const BRANCH_RE = /^agent-desk\/skill-(create|update|delete)-fix-[a-z0-9]+$/;
+    const mockRefCreate = (status = 201, message = 'Reference already exists') =>
+      gh()
+        .intercept({
+          path: REFS,
+          method: 'POST',
+          body: (b) => {
+            const o = bodyOf(b);
+            return BRANCH_RE.test(String(o.ref).replace('refs/heads/', '')) && o.sha === 'basesha';
+          },
+        })
+        .reply(status, status === 201 ? '{}' : JSON.stringify({ message }), { headers: JSON_HEADERS });
+    const mockRefDelete = () =>
+      gh()
+        .intercept({ path: (p) => p.startsWith(REFS + '/heads/agent-desk/skill-'), method: 'DELETE' })
+        .reply(204, '');
+    const mockPr = (check: (o: Record<string, unknown>) => boolean, status = 201) =>
+      gh()
+        .intercept({ path: '/repos/acme/widgets/pulls', method: 'POST', body: (b) => check(bodyOf(b)) })
+        .reply(
+          status,
+          status === 201 ? '{"number":12,"html_url":"https://github.com/acme/widgets/pull/12"}' : '{"message":"x"}',
+          {
+            headers: JSON_HEADERS,
+          },
+        );
+    const mockExisting = () => {
+      gh()
+        .intercept({ path: SKILL, method: 'GET' })
+        .reply(200, fixture('contents.skill-file.json'), { headers: JSON_HEADERS });
+      gh()
+        .intercept({ path: (p) => p.startsWith('/repos/acme/widgets/commits'), method: 'GET' })
+        .reply(200, fixture('commits.skill.json'), { headers: JSON_HEADERS });
+    };
+
+    it('creates a branch from the default head, commits to it there, and opens a PR', async () => {
+      mockInstallationToken();
+      mockBranch(true);
+      mockRefCreate();
+      let branch = '';
+      gh()
+        .intercept({
+          path: SKILL,
+          method: 'PUT',
+          body: (b) => {
+            const o = bodyOf(b);
+            branch = String(o.branch);
+            return BRANCH_RE.test(branch) && o.message === 'add fix' && o.sha === undefined;
+          },
+        })
+        .reply(201, '{"commit":{"sha":"c1"}}', { headers: JSON_HEADERS });
+      mockPr(
+        (o) =>
+          o.title === 'Create skill: fix' &&
+          o.head === branch &&
+          o.base === 'main' &&
+          String(o.body).includes('.agent/skills/fix/SKILL.md') &&
+          String(o.body).includes('add fix'),
+      );
+      const r = await host().writeSkill(project, 'fix', 'v1', 'add fix');
+      expect(r).toEqual({
+        kind: 'change_request',
+        sourceBranch: branch,
+        targetBranch: 'main',
+        url: 'https://github.com/acme/widgets/pull/12',
+        id: '12',
+      });
+    });
+
+    it('edits through a PR and passes the sha so a stale edit still conflicts', async () => {
+      mockInstallationToken();
+      mockBranch(true);
+      mockRefCreate();
+      gh()
+        .intercept({ path: SKILL, method: 'PUT', body: (b) => bodyOf(b).sha === 'old' })
+        .reply(200, '{"commit":{"sha":"c1"}}', { headers: JSON_HEADERS });
+      mockPr((o) => o.title === 'Update skill: fix');
+      expect(await host().writeSkill(project, 'fix', 'v2', 'edit', 'old')).toMatchObject({ kind: 'change_request' });
+    });
+
+    it('deletes through a PR', async () => {
+      mockInstallationToken();
+      mockBranch(true);
+      mockExisting();
+      mockRefCreate();
+      gh()
+        .intercept({ path: SKILL, method: 'DELETE', body: (b) => BRANCH_RE.test(String(bodyOf(b).branch)) })
+        .reply(200, '{"commit":{"sha":"c1"}}', { headers: JSON_HEADERS });
+      mockPr((o) => o.title === 'Delete skill: fix');
+      expect(await host().deleteSkill(project, 'fix', 'rm')).toMatchObject({ kind: 'change_request', id: '12' });
+    });
+
+    it('targets the configured default branch, not main', async () => {
+      mockInstallationToken();
+      mockBranch(true, 'trunk');
+      mockRefCreate();
+      gh().intercept({ path: SKILL, method: 'PUT' }).reply(201, '{"commit":{"sha":"c1"}}', { headers: JSON_HEADERS });
+      mockPr((o) => o.base === 'trunk');
+      expect(await host().writeSkill({ ...project, defaultBranch: 'trunk' }, 'fix', 'v1', 'm')).toMatchObject({
+        targetBranch: 'trunk',
+      });
+    });
+
+    it('a branch name collision is its own error, not a stale edit', async () => {
+      mockInstallationToken();
+      mockBranch(true);
+      mockRefCreate(422);
+      const err = await host()
+        .writeSkill(project, 'fix', 'v1', 'm')
+        .catch((e: unknown) => e);
+      expect(err).toBeInstanceOf(SkillBranchExistsError);
+      expect(err).not.toBeInstanceOf(SkillConflictError);
+    });
+
+    it('another 422 on branch creation is a branch-creation error, not a stale edit', async () => {
+      mockInstallationToken();
+      mockBranch(true);
+      mockRefCreate(422, 'Object does not exist');
+      const err = await host()
+        .writeSkill(project, 'fix', 'v1', 'm')
+        .catch((e: unknown) => e);
+      expect(err).toBeInstanceOf(SkillChangeRequestError);
+      expect(err).toMatchObject({ stage: 'branch' });
+      expect(err).not.toBeInstanceOf(SkillConflictError);
+    });
+
+    it('a failed branch creation is a branch-creation error and writes nothing', async () => {
+      mockInstallationToken();
+      mockBranch(true);
+      mockRefCreate(500);
+      await expect(host().writeSkill(project, 'fix', 'v1', 'm')).rejects.toMatchObject({
+        name: 'SkillChangeRequestError',
+        stage: 'branch',
+      });
+    });
+
+    it('a forbidden branch creation is reported as a permission failure', async () => {
+      mockInstallationToken();
+      mockBranch(true);
+      mockRefCreate(403, 'Resource not accessible by integration');
+      await expect(host().writeSkill(project, 'fix', 'v1', 'm')).rejects.toMatchObject({
+        name: 'SkillChangeRequestError',
+        stage: 'permission',
+      });
+    });
+
+    it('a stale sha on the branch commit conflicts, deletes the new branch, and opens no PR', async () => {
+      mockInstallationToken();
+      mockBranch(true);
+      mockRefCreate();
+      gh().intercept({ path: SKILL, method: 'PUT' }).reply(409, '{"message":"sha"}', { headers: JSON_HEADERS });
+      mockRefDelete();
+      await expect(host().writeSkill(project, 'fix', 'v2', 'm', 'old')).rejects.toBeInstanceOf(SkillConflictError);
+      agent.assertNoPendingInterceptors();
+    });
+
+    it('a failed commit of another kind surfaces its error and cleans up the branch', async () => {
+      mockInstallationToken();
+      mockBranch(true);
+      mockRefCreate();
+      gh().intercept({ path: SKILL, method: 'PUT' }).reply(403, '{"message":"no"}', { headers: JSON_HEADERS });
+      mockRefDelete();
+      await expect(host().writeSkill(project, 'fix', 'v1', 'm')).rejects.toMatchObject({
+        name: 'SkillChangeRequestError',
+        stage: 'permission',
+      });
+      agent.assertNoPendingInterceptors();
+    });
+
+    it('a failed commit to the new branch is reported as a commit failure, not a change request one', async () => {
+      mockInstallationToken();
+      mockBranch(true);
+      mockRefCreate();
+      gh().intercept({ path: SKILL, method: 'PUT' }).reply(404, '{"message":"nope"}', { headers: JSON_HEADERS });
+      mockRefDelete();
+      await expect(host().writeSkill(project, 'fix', 'v1', 'm')).rejects.toMatchObject({
+        name: 'SkillChangeRequestError',
+        stage: 'commit',
+      });
+      agent.assertNoPendingInterceptors();
+    });
+
+    it('a failed PR creation surfaces and deletes the orphan branch', async () => {
+      mockInstallationToken();
+      mockBranch(true);
+      mockRefCreate();
+      gh().intercept({ path: SKILL, method: 'PUT' }).reply(201, '{"commit":{"sha":"c1"}}', { headers: JSON_HEADERS });
+      mockPr(() => true, 500);
+      mockRefDelete();
+      await expect(host().writeSkill(project, 'fix', 'v1', 'm')).rejects.toMatchObject({
+        name: 'SkillChangeRequestError',
+        stage: 'change_request',
+      });
+      agent.assertNoPendingInterceptors();
+    });
+
+    it('an unrelated failure reading the branch is not turned into a PR', async () => {
+      mockInstallationToken();
+      gh()
+        .intercept({ path: '/repos/acme/widgets/branches/main', method: 'GET' })
+        .reply(403, '{"message":"forbidden"}', { headers: JSON_HEADERS });
+      await expect(host().writeSkill(project, 'fix', 'v1', 'm')).rejects.toMatchObject({ status: 403 });
+    });
   });
 
   it('completeInstall requires the installation to be visible to the user linked account', async () => {

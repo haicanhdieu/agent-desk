@@ -11,6 +11,7 @@ import {
   type CodeHostAdapter,
   type InstallUser,
   type NewConnection,
+  type SkillChangeResult,
 } from '../types';
 import { FAKE_EXTERNAL_ID } from './board';
 import { FAKE_REPOS, sha1, type FakeStore } from './store';
@@ -98,18 +99,55 @@ export class FakeCodeHostAdapter implements CodeHostAdapter {
     project: AdapterProject,
     name: string,
     body: string,
-    _message: string,
+    message: string,
     sha?: string,
-  ): Promise<{ commitSha: string }> {
+  ): Promise<SkillChangeResult> {
     const existing = await this.store.readSkillFile(project.repoPath, name);
     // GitHub semantics: updating needs the current sha; creating must not carry one.
     const given = sha === '' ? undefined : sha; // empty sha is treated as absent, like GitHub
     if (existing ? given !== existing.sha : given !== undefined) throw new SkillConflictError(name);
-    return { commitSha: await this.store.writeSkillFile(project.repoPath, name, body) };
+    if (await this.store.isBranchProtected(project.repoPath)) {
+      return this.changeRequest(project, existing ? 'update' : 'create', name, message);
+    }
+    const commitSha = await this.store.writeSkillFile(project.repoPath, name, body);
+    return { kind: 'commit', commitSha, targetBranch: project.defaultBranch ?? 'main' };
   }
 
-  async deleteSkill(project: AdapterProject, name: string, _message: string): Promise<void> {
+  async deleteSkill(project: AdapterProject, name: string, message: string): Promise<SkillChangeResult> {
+    if (await this.store.isBranchProtected(project.repoPath)) {
+      if (!(await this.store.readSkillFile(project.repoPath, name))) throw new SkillNotFoundError(name);
+      return this.changeRequest(project, 'delete', name, message);
+    }
     if (!(await this.store.deleteSkillFile(project.repoPath, name))) throw new SkillNotFoundError(name);
+    return {
+      kind: 'commit',
+      commitSha: sha1(`delete:${name}:${message}`),
+      targetBranch: project.defaultBranch ?? 'main',
+    };
+  }
+
+  private async changeRequest(
+    project: AdapterProject,
+    action: 'create' | 'update' | 'delete',
+    name: string,
+    message: string,
+  ): Promise<SkillChangeResult> {
+    const targetBranch = project.defaultBranch ?? 'main';
+    const sourceBranch = `agent-desk/skill-${action}-${name}-${this.clock.now().getTime().toString(36)}`;
+    const id = await this.store.addChangeRequest({
+      repoPath: project.repoPath,
+      sourceBranch,
+      targetBranch,
+      title: `${action[0]?.toUpperCase()}${action.slice(1)} skill: ${name}`,
+      message,
+    });
+    return {
+      kind: 'change_request',
+      sourceBranch,
+      targetBranch,
+      url: `${this.publicOrigin}/fake/${project.repoPath}/pulls/${id}`,
+      id,
+    };
   }
 
   private summary(name: string, f: { body: string; sha: string; mtime: string }): SkillSummaryDto {

@@ -38,7 +38,7 @@ test('the page fits the viewport; the Desk nav, the skill list and the editor ea
   const nav = page.getByRole('navigation', { name: 'Desk' });
   const list = page.getByRole('navigation', { name: 'Skills' });
   const editor = page.getByRole('main');
-  const commit = editor.getByRole('button', { name: 'Commit' });
+  const commit = editor.getByRole('button', { name: 'Submit changes' });
   await expect(commit).toBeVisible();
 
   // The page does not grow with its columns, and the top bar stays put.

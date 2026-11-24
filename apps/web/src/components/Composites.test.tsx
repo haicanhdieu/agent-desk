@@ -305,9 +305,9 @@ describe('CommitBar', () => {
   it('disables Commit when not dirty and enables when dirty', async () => {
     const onCommit = vi.fn();
     const { rerender } = render(<CommitBar {...base} dirty={false} onCommit={onCommit} />);
-    expect(screen.getByRole('button', { name: 'Commit to main' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Submit changes' })).toBeDisabled();
     rerender(<CommitBar {...base} dirty onCommit={onCommit} />);
-    await userEvent.click(screen.getByRole('button', { name: 'Commit to main' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Submit changes' }));
     expect(onCommit).toHaveBeenCalled();
   });
   it('message edit, discard, branch and note', async () => {
@@ -320,6 +320,49 @@ describe('CommitBar', () => {
     expect(onDiscard).toHaveBeenCalled();
     expect(screen.getByText('default branch')).toBeInTheDocument();
     expect(screen.getByText(base.note)).toBeInTheDocument();
+  });
+  it('names the target branch and the neutral Submit changes action', () => {
+    render(<CommitBar {...base} branch="develop" dirty />);
+    expect(screen.getByText('Target')).toBeInTheDocument();
+    expect(screen.getByText('develop')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Submit changes' })).toBeEnabled();
+    expect(screen.queryByText(/pull request|merge request/i)).toBeNull();
+  });
+  it('pending shows Submitting…, disables the action and ignores clicks', async () => {
+    const onCommit = vi.fn();
+    render(<CommitBar {...base} dirty pending onCommit={onCommit} />);
+    const btn = screen.getByRole('button', { name: 'Submitting…' });
+    expect(btn).toBeDisabled();
+    expect(btn).toHaveAttribute('aria-busy', 'true');
+    await userEvent.click(btn);
+    expect(onCommit).not.toHaveBeenCalled();
+  });
+  it('without a known branch it says Default branch', () => {
+    render(<CommitBar {...base} branch={null} dirty />);
+    expect(screen.getByText('Default branch')).toBeInTheDocument();
+  });
+});
+
+describe('ConfirmDeleteDialog pending', () => {
+  it('shows Submitting… and disables the confirm while the request runs', async () => {
+    const onConfirm = vi.fn();
+    render(
+      <ConfirmDeleteDialog
+        open
+        pending
+        name="code-e2e"
+        path="p"
+        branch="main"
+        defaultMessage="m"
+        onClose={() => {}}
+        onConfirm={onConfirm}
+      />,
+    );
+    await userEvent.type(screen.getByLabelText(/Type code-e2e to confirm/), 'code-e2e');
+    const btn = screen.getByRole('button', { name: 'Submitting…' });
+    expect(btn).toBeDisabled();
+    await userEvent.click(btn);
+    expect(onConfirm).not.toHaveBeenCalled();
   });
 });
 
@@ -464,7 +507,7 @@ describe('ConfirmDeleteDialog', () => {
     return {
       onConfirm,
       onClose,
-      btn: () => screen.getByRole('button', { name: 'Delete and commit' }),
+      btn: () => screen.getByRole('button', { name: 'Submit changes' }),
       typed: () => screen.getByLabelText(/Type code-e2e to confirm/),
     };
   };
@@ -514,10 +557,10 @@ describe('ConfirmDeleteDialog', () => {
     const props = { path: 'p', branch: 'main', defaultMessage: 'm', onClose: () => {}, onConfirm: () => {} };
     const { rerender } = render(<ConfirmDeleteDialog open name="code-e2e" {...props} />);
     await userEvent.type(screen.getByLabelText(/Type code-e2e to confirm/), 'code-e2e');
-    expect(screen.getByRole('button', { name: 'Delete and commit' })).toBeEnabled();
+    expect(screen.getByRole('button', { name: 'Submit changes' })).toBeEnabled();
     rerender(<ConfirmDeleteDialog open name="qa-e2e" {...props} />);
     expect(screen.getByLabelText(/Type qa-e2e to confirm/)).toHaveValue('');
-    expect(screen.getByRole('button', { name: 'Delete and commit' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Submit changes' })).toBeDisabled();
   });
   it('shows the warning banner and Keep skill closes', async () => {
     const { onClose } = setup({ warning: <>Rule uses this skill.</> });

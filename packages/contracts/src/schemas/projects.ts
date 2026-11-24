@@ -6,6 +6,8 @@ export const ProjectDto = z.object({
   id: Id,
   name: z.string(),
   repoPath: z.string(),
+  /** The repo's default branch as recorded when the project was created; null for projects that predate it. */
+  defaultBranch: z.string().nullable(),
   codeConnectionId: Id,
   boardConnectionId: Id,
   triggerMode: TriggerMode,

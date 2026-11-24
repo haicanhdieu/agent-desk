@@ -155,6 +155,7 @@ export class ProjectsService {
       id: row.id,
       name: row.name,
       repoPath: row.repoPath,
+      defaultBranch: row.defaultBranch,
       codeConnectionId: row.codeConnectionId,
       boardConnectionId: row.boardConnectionId,
       triggerMode: TriggerMode.parse(row.triggerMode),
