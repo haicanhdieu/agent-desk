@@ -8,8 +8,6 @@ import {
   type MemberDto,
   type PermissionLineDto,
   type PlatformAdminDto,
-  type PlatformMemberDto,
-  type PlatformProjectDto,
   type RoleDto,
 } from '@agentdesk/contracts';
 import { ids, MOCK_NOW } from './ids';
@@ -141,16 +139,6 @@ export const accessFixture: AccessDto = {
   platformAdmin: false,
   assignments: [{ roleKey: 'owner', scope: { type: 'org' }, permissions: TENANT_PERMISSIONS.map(any) }],
 };
-
-export const platformProjectFixtures: PlatformProjectDto[] = [
-  { id: ids.project.invoicerApi, name: 'invoicer-api' },
-  { id: ids.project.invoicerWeb, name: 'invoicer-web' },
-];
-
-export const platformMemberFixtures: PlatformMemberDto[] = memberFixtures.map((m) => ({
-  ...m,
-  email: `${m.handle ?? 'user'}@example.com`,
-}));
 
 const platformAdminId = (n: number) => uuid('b5000000', n);
 

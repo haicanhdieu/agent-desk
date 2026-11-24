@@ -1182,8 +1182,8 @@ Not e2e: the stack cannot hold a run between created and sandbox start; proved b
 
 | Case | Type | Env | Given | Steps | Expected |
 | ---- | ---- | --- | ----- | ----- | -------- |
-| TC-44.1 | state | local | A fresh org. | 1. Suspend it with a reason. 2. Reactivate it with a reason. 3. Open `/platform/audit?org=<id>`. | Exactly two entries for that org: "Organization reactivated" above "Organization suspended". |
-| TC-44.2 | negative | local | A fresh org. | 1. Submit suspend with an empty reason (refused). 2. Open `/platform/audit?org=<id>`. | No entry for it ("No audit entries"). |
+| TC-44.1 | state | local | A fresh org. | 1. Suspend it with a reason. 2. Reactivate it with a reason. 3. Open `/platform/audit?org=<id>`. | Exactly two suspend and reactivate entries for that org: "Organization reactivated" above "Organization suspended" (the "Organization created" entry from BR-44 sits below them). |
+| TC-44.2 | negative | local | A fresh org. | 1. Submit suspend with an empty reason (refused). 2. Open `/platform/audit?org=<id>`. | No suspend or reactivate entry for it (only its "Organization created" entry). |
 
 #### BR-45: Audit list
 

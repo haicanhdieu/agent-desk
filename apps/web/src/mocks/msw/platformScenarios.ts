@@ -12,7 +12,7 @@ import { problemResponse, routeHandler } from './http';
 import { applyOnboardingScenario } from './onboardingScenarios';
 import { seedPlatformAdmins } from './platformAdmins';
 import { seedPlatformAudit } from './platformAudit';
-import { addPlatformOrg, seedPlatformOrgs, setPlatformOrgStatus } from './platformOrgs';
+import { addPlatformOrg, seedPlatformOrgs, seedPlatformOrgTabs, setPlatformOrgStatus } from './platformOrgs';
 
 // The platform-admin mock scenarios: one module for the route tests and the mocked e2e specs. A spec picks a scenario
 // through sessionStorage (`PLATFORM_SCENARIO_KEY`, written by e2e/mock/mock.ts `seedPlatform`); browser.ts reads it once
@@ -224,6 +224,7 @@ const seeders: Record<PlatformScenario, () => void> = {
     applyOnboardingScenario('platformAdminOneOrg');
     seedPlatformAdmins([]);
     seedPlatformOrgs([]);
+    seedPlatformOrgTabs({ projects: [], members: [] });
     seedPlatformAudit([]);
   },
 };

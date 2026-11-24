@@ -40,7 +40,7 @@ import { authHandlers } from './auth-handlers';
 import { agentModelsAnswer } from './agentModels';
 import { PR_STATES_SLOW_MS, prStateItems } from './prStates';
 import type { MockRun } from '../dto/runs';
-import { assignmentFixtures, platformMemberFixtures, platformProjectFixtures, roleFixtures } from '../dto/access';
+import { assignmentFixtures, roleFixtures } from '../dto/access';
 import { checklistFixtures } from '../dto/invitations';
 import { promptPreviewFixture } from '../dto/rules';
 import { slowActionRuns, transcriptBehaviours } from '../dto/sessionRuns';
@@ -66,8 +66,13 @@ import { grantPlatformAdmin, listPlatformAdmins, revokePlatformAdmin } from './p
 import { listPlatformAudit } from './platformAudit';
 import {
   addPlatformOrg,
+  createPlatformAssignment,
   getPlatformOrg,
+  listPlatformMembers,
   listPlatformOrgs,
+  listPlatformProjects,
+  listPlatformRoles,
+  removePlatformAssignment,
   setPlatformOrgStatus,
   updatePlatformOrg,
 } from './platformOrgs';
@@ -1282,12 +1287,12 @@ const impl: Impl = {
     setPlatformOrgStatus(params.orgId, 'suspended', body.reason, actorOf(sessionUser())),
   'platform.reactivateOrg': ({ params, body }) =>
     setPlatformOrgStatus(params.orgId, 'active', body.reason, actorOf(sessionUser())),
-  'platform.listProjects': ({ query }) => slicePage(platformProjectFixtures, query),
-  'platform.listRoles': () => roleFixtures.filter((r) => r.builtIn),
-  'platform.listMembers': ({ query }) => slicePage(platformMemberFixtures, query),
+  'platform.listProjects': ({ params, query }) => listPlatformProjects(params.orgId, query),
+  'platform.listRoles': ({ params }) => listPlatformRoles(params.orgId),
+  'platform.listMembers': ({ params, query }) => listPlatformMembers(params.orgId, query),
   'platform.listAssignments': ({ query }) => slicePage(assignmentFixtures, query),
-  'platform.createAssignment': () => assignmentFixtures[0] ?? never('assignment'),
-  'platform.removeAssignment': () => null,
+  'platform.createAssignment': ({ params, body }) => createPlatformAssignment(params.orgId, body, sessionUser().id),
+  'platform.removeAssignment': ({ params }) => removePlatformAssignment(params.orgId, params.assignmentId),
   'platform.listInvitations': ({ params, query }) => listInvitations(requireOrg(params.orgId), query),
   'platform.createInvitation': ({ params, body }) => createInvitation(requireOrg(params.orgId), body),
   'platform.removeInvitation': ({ params }) => revokeInvitation(requireOrg(params.orgId), params.invitationId),

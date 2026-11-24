@@ -1745,9 +1745,9 @@ Covers: BR-4 (TC-4.7, TC-4.8, TC-4.9), BR-45 (TC-45.1 to TC-45.4), BR-50 (TC-50.
 
 Covers: BR-44 (TC-44.1, TC-44.2), BR-45 (TC-45.5), BR-50 (TC-50.4), BR-60 (TC-60.1, TC-60.2) in `platform-audit.spec.ts`; BR-3 (TC-3.2), BR-46 (TC-46.1, TC-46.2, TC-46.3) in `platform-access.spec.ts`. BR-44's same-transaction, redaction and completeness parts are Not e2e (Task 42). Role-based cases: TC-3.2, TC-46.1 to TC-46.3.
 
-- [ ] **Step 1: Write the specs**: entries asserted only through `?org=<fresh id>`, never by global position; fresh orgs reactivated and renamed back in `finally`.
-- [ ] **Step 2: Run** with the stack up: `pnpm --filter @agentdesk/web exec playwright test e2e/local/platform-audit.spec.ts e2e/local/platform-access.spec.ts`. Expected: PASS.
-- [ ] **Step 3: Commit**: `test(web): local e2e for the platform audit log and platform refusals`.
+- [x] **Step 1: Write the specs**: entries asserted only through `?org=<fresh id>`, never by global position; fresh orgs reactivated and renamed back in `finally`.
+- [x] **Step 2: Run** with the stack up: `pnpm --filter @agentdesk/web exec playwright test e2e/local/platform-audit.spec.ts e2e/local/platform-access.spec.ts`. Expected: PASS.
+- [x] **Step 3: Commit**: `test(web): local e2e for the platform audit log and platform refusals`.
 
 ---
 
@@ -1764,11 +1764,11 @@ Covers: BR-44 (TC-44.1, TC-44.2), BR-45 (TC-45.5), BR-50 (TC-50.4), BR-60 (TC-60
 
 - Produces (`platformOrgs.ts`): per-org stores answering `platform.listProjects`, `platform.listMembers`, `platform.listRoles`, `platform.createAssignment` (422 for Owner on project scope, as the API) and `platform.removeAssignment` (the last owner too; the directory row then has `owner: null`); fixtures: an org with 25 projects, members with "Owner (organization)" plus "Member (Alpha)", one with no assignment, one with no name; `platformEmpty` gives empty tabs.
 
-- [ ] **Step 1: Write the failing tests** in `contract.test.ts`: DTOs parse; adding Owner org-wide shows in the member's assignments; removing the last owner empties the directory owner; Owner on a project is 422; paging over 25 projects.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/mocks/msw/contract.test.ts`. Expected: FAIL.
-- [ ] **Step 3: Implement** the stores and handler wiring (the invitation handlers already use the org's store).
+- [x] **Step 1: Write the failing tests** in `contract.test.ts`: DTOs parse; adding Owner org-wide shows in the member's assignments; removing the last owner empties the directory owner; Owner on a project is 422; paging over 25 projects.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/mocks/msw/contract.test.ts`. Expected: FAIL.
+- [x] **Step 3: Implement** the stores and handler wiring (the invitation handlers already use the org's store).
 - [ ] **Step 4: Run** `pnpm --filter @agentdesk/web exec vitest run src/mocks`, `pnpm --filter @agentdesk/web typecheck`. Expected: PASS.
-- [ ] **Step 5: Commit**: `feat(web): mock org projects, members and assignments for the platform detail`.
+- [x] **Step 5: Commit**: `feat(web): mock org projects, members and assignments for the platform detail`.
 
 ---
 

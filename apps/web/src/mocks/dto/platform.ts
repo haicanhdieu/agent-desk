@@ -1,4 +1,11 @@
-import type { PlatformAuditEntryDto, PlatformOrgDto } from '@agentdesk/contracts';
+import type {
+  AssignmentDto,
+  PlatformAuditEntryDto,
+  PlatformMemberDto,
+  PlatformOrgDto,
+  PlatformProjectDto,
+} from '@agentdesk/contracts';
+import { roleFixtures } from './access';
 
 // Fixtures of the platform organizations directory: the cases its screens and e2e specs need.
 const uuid = (n: number) => `b8000000-0000-4000-8000-${String(n).padStart(12, '0')}`;
@@ -160,4 +167,57 @@ export const platformAuditFixtures: PlatformAuditEntryDto[] = [
     org: null,
     target: { type: 'invitation', id: auditId(109), label: 'new@example.com' },
   }),
+];
+
+// The org detail tabs. Every directory org serves these until a scenario seeds others (a new org starts with none).
+// Projects: 25 (more than a page), "Alpha" first. Members: one with Owner (organization) and Member (Alpha), one with an
+// org role only, one with no assignment, one with no name (the contract's `name` is a string, so the empty one).
+const detailId = (prefix: string, n: number) => `${prefix}-0000-4000-8000-${String(n).padStart(12, '0')}`;
+const roleRef = (key: string) => {
+  const role = roleFixtures.find((r) => r.key === key);
+  if (!role) throw new Error(`no ${key} role fixture`);
+  return { id: role.id, key: role.key, name: role.name };
+};
+
+export const platformProjectFixtures: PlatformProjectDto[] = Array.from({ length: 25 }, (_, i) => ({
+  id: detailId('b8100000', i + 1),
+  name: i === 0 ? 'Alpha' : `Project ${String(i + 1).padStart(2, '0')}`,
+}));
+
+const alphaId = platformProjectFixtures[0]?.id ?? '';
+const grant = (n: number, userId: string, roleKey: string, projectId: string | null, at: string): AssignmentDto => ({
+  id: detailId('b8200000', n),
+  userId,
+  role: roleRef(roleKey),
+  scope: projectId === null ? { type: 'org' } : { type: 'project', projectId },
+  grantedBy: null,
+  grantedAt: at,
+});
+
+export const platformMemberFixtures: PlatformMemberDto[] = [
+  {
+    userId: 'user-detail-alice',
+    handle: 'alice',
+    name: 'Alice Acme',
+    email: 'alice@example.com',
+    assignments: [
+      grant(1, 'user-detail-alice', 'owner', null, '2026-09-01T09:00:00.000Z'),
+      grant(2, 'user-detail-alice', 'member', alphaId, '2026-09-02T09:00:00.000Z'),
+    ],
+  },
+  {
+    userId: 'user-detail-bob',
+    handle: 'bob',
+    name: 'Bob Builder',
+    email: 'bob@example.com',
+    assignments: [grant(3, 'user-detail-bob', 'admin', null, '2026-10-05T10:30:00.000Z')],
+  },
+  { userId: 'user-detail-cara', handle: 'cara', name: 'Cara Idle', email: 'cara@example.com', assignments: [] },
+  {
+    userId: 'user-detail-noname',
+    handle: 'noname',
+    name: '',
+    email: 'noname@example.com',
+    assignments: [grant(4, 'user-detail-noname', 'viewer', null, '2026-10-06T10:30:00.000Z')],
+  },
 ];
