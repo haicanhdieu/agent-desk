@@ -12,7 +12,7 @@ This is the step before `dev-build`: when the PR merges, CI links the spec and p
 ## Input
 
 - **Requirement** (required): a GitHub issue URL or number of this repo, a file path, or plain text. If none is given, ask for it. Ask nothing else up front, except the tier ask below.
-- **`--brainstorm-tier`**, **`--spec-tier`**, **`--plan-tier`** (optional, default `medium`): the tier for the four Analysts, the Spec writer and the Planner. A tier is `high`, `medium` or `low`; anything else is a usage error. When none of the three is given, phase 0 asks the human once which tiers to use.
+- **`--brainstorm-tier`**, **`--spec-tier`**, **`--prototype-tier`**, **`--plan-tier`** (optional, default `medium`): the tier for the four Analysts, the Spec writer, the Prototyper and the Planner. A tier is `high`, `medium` or `low`; anything else is a usage error. When none of the four is given, phase 0 asks the human once which tiers to use.
 
 ## Phases
 
