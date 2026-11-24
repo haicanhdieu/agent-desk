@@ -1463,11 +1463,11 @@ export function EditOrgDialog(props: EditOrgDialogProps): JSX.Element; // URL fi
 PlatformOrgHeaderProps.onEdit present → "Edit organization" button first in the actions
 ```
 
-- [ ] **Step 1: Write the failing tests**: dialog title "Edit organization", labels "Name" and "URL", URL help `Links that use the old URL will show "not found".`, "Save" disabled until `dirty`, "Saving…", field errors, Banner, focus on Name when opened, prefix linked by `aria-describedby`; confirm title "Change the organization URL?" with the old and new URL and the `closing` sentence, button "Change URL"; header shows "Edit organization" only with `onEdit`; `orgGeneral.test.tsx` stays green with the extracted confirm.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/components/EditOrgDialog.test.tsx src/components/SlugChangeConfirm.test.tsx src/components/PlatformOrgHeader.test.tsx src/screens/orgGeneral.test.tsx`. Expected: FAIL.
-- [ ] **Step 3: Implement** the extraction (`OrgGeneral` imports `@/components/SlugChangeConfirm`, renders unchanged), the dialog, the header button, stories (dialog: Idle, Dirty, Saving, FieldErrors, SlugTaken, FormError; confirm: Default, Busy; header: WithEdit).
-- [ ] **Step 4: Run** Step 2's command and `pnpm --filter @agentdesk/web exec vitest run src/test/stories.smoke.test.tsx`. Expected: PASS.
-- [ ] **Step 5: Commit**: `feat(web): edit organization dialog and shared slug confirm in Storybook`.
+- [x] **Step 1: Write the failing tests**: dialog title "Edit organization", labels "Name" and "URL", URL help `Links that use the old URL will show "not found".`, "Save" disabled until `dirty`, "Saving…", field errors, Banner, focus on Name when opened, prefix linked by `aria-describedby`; confirm title "Change the organization URL?" with the old and new URL and the `closing` sentence, button "Change URL"; header shows "Edit organization" only with `onEdit`; `orgGeneral.test.tsx` stays green with the extracted confirm.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/components/EditOrgDialog.test.tsx src/components/SlugChangeConfirm.test.tsx src/components/PlatformOrgHeader.test.tsx src/screens/orgGeneral.test.tsx`. Expected: FAIL.
+- [x] **Step 3: Implement** the extraction (`OrgGeneral` imports `@/components/SlugChangeConfirm`, renders unchanged), the dialog, the header button, stories (dialog: Idle, Dirty, Saving, FieldErrors, SlugTaken, FormError; confirm: Default, Busy; header: WithEdit).
+- [x] **Step 4: Run** Step 2's command and `pnpm --filter @agentdesk/web exec vitest run src/test/stories.smoke.test.tsx`. Expected: PASS.
+- [x] **Step 5: Commit**: `feat(web): edit organization dialog and shared slug confirm in Storybook`.
 
 ---
 
@@ -1484,11 +1484,11 @@ PlatformOrgHeaderProps.onEdit present → "Edit organization" button first in th
 
 - Produces: `PlatformOrgDetailProps.editDialog?: EditOrgDialogProps` and `slugConfirm?: SlugChangeConfirmProps` (one modal at a time: the confirm replaces the dialog).
 
-- [ ] **Step 1: Write the failing test** in `platform.test.tsx`: with `slugConfirm`, the edit dialog is not rendered; with `editDialog`, the header and Overview stay behind it.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/screens/platform.test.tsx`. Expected: FAIL.
-- [ ] **Step 3: Implement** stories `PlatformOrgEdit`, `PlatformOrgEditFieldErrors`, `PlatformOrgEditSlugTaken`, `PlatformOrgEditSaving`, `PlatformOrgEditSlugConfirm`, `PlatformOrgEditError` and `OrgAuditPlatformEdit` (tenant row for a platform edit, tagged "Platform admin", old and new name and URL, the existing `org.updated` sentence); barrel lines for Task 36; register the 7 boards; coverage 225 to 232; regenerate the interactive prototype; parity notes.
+- [x] **Step 1: Write the failing test** in `platform.test.tsx`: with `slugConfirm`, the edit dialog is not rendered; with `editDialog`, the header and Overview stay behind it.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/screens/platform.test.tsx`. Expected: FAIL.
+- [x] **Step 3: Implement** stories `PlatformOrgEdit`, `PlatformOrgEditFieldErrors`, `PlatformOrgEditSlugTaken`, `PlatformOrgEditSaving`, `PlatformOrgEditSlugConfirm`, `PlatformOrgEditError` and `OrgAuditPlatformEdit` (tenant row for a platform edit, tagged "Platform admin", old and new name and URL, the existing `org.updated` sentence); barrel lines for Task 36; register the 7 boards; coverage 225 to 232; regenerate the interactive prototype; parity notes.
 - [ ] **Step 4: Run** the same commands as Task 5 Step 4 for these 7 boards. Expected: PASS.
-- [ ] **Step 5: Commit**: `feat(web): edit organization boards in Storybook`.
+- [x] **Step 5: Commit**: `feat(web): edit organization boards in Storybook`.
 
 ---
 

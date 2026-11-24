@@ -2,6 +2,8 @@ import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import {
   activeOrgOverview,
+  editOrgDirtyValues,
+  editOrgValues,
   pagedPlatformOrgRows,
   platformAdminRows,
   platformOrgRows,
@@ -358,6 +360,43 @@ describe('PlatformOrgDetail', () => {
       screen.getByRole('link', { name: 'View audit log' }),
     ];
     expect(names[0].compareDocumentPosition(names[1]) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  const editDialog = {
+    open: true,
+    values: editOrgValues,
+    errors: {},
+    dirty: false,
+    saving: false,
+    onChange: noop,
+    onSubmit: noop,
+    onClose: noop,
+  };
+  const slugConfirm = {
+    from: 'acme',
+    to: 'acme-robotics',
+    closing: 'Share the new link.',
+    onConfirm: noop,
+    onCancel: noop,
+  };
+
+  it('editDialog opens the Edit organization dialog with the header and Overview behind it', () => {
+    render(<PlatformOrgDetail view={ready()} editDialog={editDialog} />);
+    expect(screen.getByRole('dialog', { name: 'Edit organization' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 1, name: 'Acme', hidden: true })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 2, name: 'Overview', hidden: true })).toBeInTheDocument();
+  });
+
+  it('slugConfirm replaces the edit dialog: only one modal at a time', () => {
+    render(
+      <PlatformOrgDetail
+        view={ready()}
+        editDialog={{ ...editDialog, values: editOrgDirtyValues, dirty: true }}
+        slugConfirm={slugConfirm}
+      />,
+    );
+    expect(screen.getByRole('dialog', { name: 'Change the organization URL?' })).toBeInTheDocument();
+    expect(screen.queryByRole('dialog', { name: 'Edit organization' })).not.toBeInTheDocument();
   });
 
   it('suspended: warning banner with the date, actor and reason', () => {

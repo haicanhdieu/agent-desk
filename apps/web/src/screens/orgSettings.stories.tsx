@@ -6,6 +6,7 @@ import {
   memberRows,
   orgSettingsFixtures,
   pagedAuditLastPage,
+  platformEditAuditRows,
   platformSuspendAuditRows,
   roleCards,
 } from '@/mocks';
@@ -362,6 +363,11 @@ export const OrgAuditForbidden: Story = {
 export const OrgAuditPlatformSuspend: Story = {
   name: 'Audit log after reactivation: a platform admin suspended and reactivated the organization, no reason',
   render: () => audit({ kind: 'ready', rows: platformSuspendAuditRows }),
+};
+
+export const OrgAuditPlatformEdit: Story = {
+  name: 'Audit log after a platform edit: name and URL changes marked Platform admin, old and new values',
+  render: () => audit({ kind: 'ready', rows: platformEditAuditRows }),
 };
 
 const titleOf = (r: (typeof auditRows)[number]): string => (r.what.kind === 'sentence' ? r.what.title : r.what.key);

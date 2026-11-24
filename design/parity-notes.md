@@ -412,6 +412,43 @@ Org detail boards.
 - Storybook and `parity.mjs` were not run in the runner pod (no Chromium). The 4 pixel pairs are unchecked: none is claimed
   to match. The interactive prototype (`_tools/build-boards.mjs`) was regenerated and came out unchanged: it already had these boards.
 
+## Platform admin: Edit organization boards
+
+Spec: `docs/superpowers/specs/2026-11-23-platform-admin-dashboard-design.md` (UI and Storybook). Seven boards added, so
+`coverage.test.ts` counts 269 (the plan's 225 to 232 counted from a stale base of 189; the repo had 262 before this task):
+PlatformOrgEdit, PlatformOrgEditFieldErrors, PlatformOrgEditSlugTaken, PlatformOrgEditSaving, PlatformOrgEditSlugConfirm and
+PlatformOrgEditError (`Screens/Platform`), and OrgAuditPlatformEdit (`Screens/OrgSettings`). The boards were missing from
+`canvas.json`; their entries are added after the Reactivate dialog board (the six edit boards) and after OrgAuditPlatformSuspend.
+
+- Edit boards: the org detail with the header's Edit organization button and the Overview behind the shared `EditOrgDialog`.
+  The URL-change confirm is the shared `SlugChangeConfirm` and replaces the dialog (one modal at a time); the platform copy
+  ends "Share the new link with its members." The stories use the shared fixtures, so names differ from the boards' samples.
+- OrgAuditPlatformEdit: the shared `OrgAudit` screen with two rows from `platformEditAuditRows`, actor tagged "Platform
+  admin": the name change and the URL change with old and new values. The board shows more rows around them; the story keeps
+  only the two platform rows.
+- Verification (runner pod, headless Chromium from `scripts/runner-env.sh`): `build-storybook` passed; `coverage.test.ts`,
+  `stories.smoke.test.tsx` and `platform.test.tsx` passed (1960 tests). `parity.mjs` prints only "N pairs written", no numbers, so
+  the pairs were compared by eye. A full `parity.mjs` run did not finish in the pod's memory budget, so the 7 boards were run with
+  a temporary copy of the script filtered to them (not committed). OrgAuditPlatformEdit needed one more change in that copy: the
+  script derives the id `screens-org-settings--...` but Storybook's id for `Screens/OrgSettings` is `screens-orgsettings--...`, so
+  the unmodified script times out on that board (the same applies to every `Screens/OrgSettings` board). The tool is not changed here.
+- Result: none of the 7 pairs matches pixel for pixel, so none is claimed to match. The edit dialog and the confirm dialog line up
+  with the boards (box position within 1 px, same fields, buttons, errors and copy, except the URL format message, which the board
+  words "..., with no dash at the start or end."). What differs, on all six `Screens/Platform` pairs, is the frame around them:
+  the story's left menu has no icons, no "Platform admin" or org group headings and no Projects, Members, Invitations links, the
+  top bar has no org switcher box, "View audit log" has no clock icon, the owner has no handle, and the sample org differs (Acme vs
+  Harbor Labs, by design). The focused input also shows a focus ring that the boards do not, and the Error pair shows the request
+  id in the body font where the board uses mono. OrgAuditPlatformEdit has the right two rows, but the board has 10 rows, the side
+  menu has no icons and the "Platform admin" tag is plain text, not a bordered pill. The menu and header differences come from the
+  shared `platformFrame` and `OrgAudit`, not from this unit's dialogs, so they are left for a separate change.
+- Interactive prototype: `canvas.json` gained the 7 board entries (they were missing) and `_tools/build-boards.mjs` was
+  regenerated; `design/prototype/interactive/` came out unchanged (it already had these boards). `_checks/nav-check.mjs` was
+  run after the fact and passed: "boards checked: 319", "passed 179, failed 0", "console errors: none" (exit 0). The script
+  hardcodes a macOS browser path (`$HOME/Library/Caches/ms-playwright/.../chrome-headless-shell-mac-arm64`) and a
+  `playwright-core` path, so on this Linux runner it was run unedited with `PW_CORE_DIR` set to the repo's
+  `playwright-core` and a temporary `HOME` whose macOS-style path symlinks to the installed Linux headless shell. Its
+  screenshots under `_checks/nav/` were discarded, not committed.
+
 ## Project admin space: Desk side menu and DeskAgentProjectAdmin
 
 Spec: `docs/superpowers/specs/2026-11-23-rbac-project-admin-space-design.md` (UI and Storybook). One board added, so

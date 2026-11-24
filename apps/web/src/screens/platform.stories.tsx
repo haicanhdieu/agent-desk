@@ -1,7 +1,12 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
-import { AppShell, type SuspendOrgDialogProps } from '@/components';
+import { AppShell, type EditOrgDialogProps, type SuspendOrgDialogProps } from '@/components';
 import {
   activeOrgOverview,
+  editOrgDirtyValues,
+  editOrgFieldErrors,
+  editOrgFormError,
+  editOrgSlugTaken,
+  editOrgValues,
   pagedPlatformAdminRows,
   pagedPlatformOrgRows,
   platformAdminRows,
@@ -298,4 +303,69 @@ export const PlatformOrgOverviewSuspendSaving: Story = {
 export const PlatformOrgOverviewReactivateDialog: Story = {
   name: 'Organization detail, Reactivate dialog on a suspended org',
   render: () => detail({ view: suspendedView, dialog: dialog({ mode: 'reactivate' }) }),
+};
+
+const editDialog = (over: Partial<EditOrgDialogProps> = {}): EditOrgDialogProps => ({
+  open: true,
+  values: editOrgValues,
+  errors: {},
+  dirty: false,
+  saving: false,
+  onChange: noop,
+  onSubmit: noop,
+  onClose: noop,
+  ...over,
+});
+const editView: PlatformOrgDetailProps['view'] = {
+  kind: 'ready',
+  header: { ...header, status: 'active', onEdit: noop },
+  overview: activeOrgOverview,
+};
+const editing = (over: Partial<PlatformOrgDetailProps>) => detail({ view: editView, ...over });
+
+export const PlatformOrgEdit: Story = {
+  name: 'Organization detail, Edit organization: Name and URL prefilled, Save disabled until something changes',
+  render: () => editing({ editDialog: editDialog() }),
+};
+export const PlatformOrgEditFieldErrors: Story = {
+  name: 'Organization detail, Edit organization: name empty and URL outside the format',
+  render: () =>
+    editing({
+      editDialog: editDialog({ values: { name: '', slug: '-acme-' }, dirty: true, errors: editOrgFieldErrors }),
+    }),
+};
+export const PlatformOrgEditSlugTaken: Story = {
+  name: 'Organization detail, Edit organization: URL taken by another org (409)',
+  render: () =>
+    editing({
+      editDialog: editDialog({ values: { name: 'Acme', slug: 'northwind' }, dirty: true, errors: editOrgSlugTaken }),
+    }),
+};
+export const PlatformOrgEditSaving: Story = {
+  name: 'Organization detail, Edit organization: saving',
+  render: () => editing({ editDialog: editDialog({ values: editOrgDirtyValues, dirty: true, saving: true }) }),
+};
+export const PlatformOrgEditSlugConfirm: Story = {
+  name: 'Organization detail, Edit organization: confirm the URL change (old links stop working)',
+  render: () =>
+    editing({
+      slugConfirm: {
+        from: 'acme',
+        to: 'acme-robotics',
+        closing: 'Share the new link with its members.',
+        onConfirm: noop,
+        onCancel: noop,
+      },
+    }),
+};
+export const PlatformOrgEditError: Story = {
+  name: 'Organization detail, Edit organization: server error banner in the dialog (403 or 5xx)',
+  render: () =>
+    editing({
+      editDialog: editDialog({
+        values: editOrgDirtyValues,
+        dirty: true,
+        formError: { ...editOrgFormError, requestId: 'req_01JDP6H2K9TS' },
+      }),
+    }),
 };

@@ -2105,6 +2105,62 @@
    "h": 900,
    "title": "Settings \u2014 Audit log after reactivation: platform admin suspended and reactivated the organization (no reason)",
    "expand": "fill"
+  },
+  "PlatformOrgEdit.dc.html": {
+   "x": 0,
+   "y": 67120,
+   "w": 1440,
+   "h": 900,
+   "title": "Organization detail \u2014 Edit organization: Name and URL prefilled, Save disabled until something changes",
+   "expand": "fill"
+  },
+  "PlatformOrgEditFieldErrors.dc.html": {
+   "x": 1520,
+   "y": 67120,
+   "w": 1440,
+   "h": 900,
+   "title": "Organization detail \u2014 Edit organization: name empty and URL outside the format",
+   "expand": "fill"
+  },
+  "PlatformOrgEditSlugTaken.dc.html": {
+   "x": 3040,
+   "y": 67120,
+   "w": 1440,
+   "h": 900,
+   "title": "Organization detail \u2014 Edit organization: URL taken by another org (409)",
+   "expand": "fill"
+  },
+  "PlatformOrgEditSaving.dc.html": {
+   "x": 4560,
+   "y": 67120,
+   "w": 1440,
+   "h": 900,
+   "title": "Organization detail \u2014 Edit organization: saving",
+   "expand": "fill"
+  },
+  "PlatformOrgEditSlugConfirm.dc.html": {
+   "x": 0,
+   "y": 68400,
+   "w": 1440,
+   "h": 900,
+   "title": "Organization detail \u2014 Edit organization: confirm the URL change (old links stop working)",
+   "expand": "fill"
+  },
+  "PlatformOrgEditError.dc.html": {
+   "x": 1520,
+   "y": 68400,
+   "w": 1440,
+   "h": 900,
+   "title": "Organization detail \u2014 Edit organization: server error banner in the dialog (403 or 5xx)",
+   "expand": "fill"
+  },
+  "OrgAuditPlatformEdit.dc.html": {
+   "x": 3040,
+   "y": 68400,
+   "w": 1440,
+   "h": 900,
+   "title": "Settings \u2014 Audit log: a platform admin renamed the organization (marked Platform admin)",
+   "expand": "fill"
   }
  },
  "order": [
@@ -2366,10 +2422,17 @@
   "PlatformOrgOverviewSuspendFormError.dc.html",
   "PlatformOrgOverviewSuspendSaving.dc.html",
   "PlatformOrgOverviewReactivateDialog.dc.html",
+  "PlatformOrgEdit.dc.html",
+  "PlatformOrgEditFieldErrors.dc.html",
+  "PlatformOrgEditSlugTaken.dc.html",
+  "PlatformOrgEditSaving.dc.html",
+  "PlatformOrgEditSlugConfirm.dc.html",
+  "PlatformOrgEditError.dc.html",
   "OrgSuspended.dc.html",
   "OrgSuspendedSwitcher.dc.html",
   "OrgSuspendedPlatformAdmin.dc.html",
-  "OrgAuditPlatformSuspend.dc.html"
+  "OrgAuditPlatformSuspend.dc.html",
+  "OrgAuditPlatformEdit.dc.html"
  ],
  "notes": {
   "t-intro": {

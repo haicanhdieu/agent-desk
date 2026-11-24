@@ -1,6 +1,6 @@
 import { useEffect, useId, useRef } from 'react';
-import { Banner, Button, Dialog, Field, Icon, PrefixInput, TextInput, Toast, ToastRegion } from '@/ds';
-import { SettingsSection } from '@/components';
+import { Banner, Button, Field, Icon, PrefixInput, TextInput, Toast, ToastRegion } from '@/ds';
+import { SettingsSection, SlugChangeConfirm } from '@/components';
 import styles from './Screens.module.css';
 
 interface FieldProps {
@@ -22,39 +22,6 @@ export interface OrgGeneralProps {
   slugConfirm?: { from: string; to: string; onConfirm: () => void; onCancel: () => void };
   /** The outcome of the last save, shown as a dismissible toast. */
   notice?: { tone: 'ok'; title: string; onDismiss: () => void };
-}
-
-/** The dialog opens on "Change URL", so Enter confirms; the focus trap's own first-button focus runs earlier. */
-function SlugConfirm({ from, to, onConfirm, onCancel }: NonNullable<OrgGeneralProps['slugConfirm']>) {
-  const root = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    root.current?.querySelector<HTMLButtonElement>('button[data-initial-focus]')?.focus();
-  }, []);
-  return (
-    <div ref={root}>
-      <Dialog
-        open
-        title="Change the organization URL?"
-        width={480}
-        onClose={onCancel}
-        footer={
-          <>
-            <Button variant="ghost" onClick={onCancel}>
-              Cancel
-            </Button>
-            <Button variant="primary" data-initial-focus onClick={onConfirm}>
-              Change URL
-            </Button>
-          </>
-        }
-      >
-        <p className="muted">
-          <span className="mono">/o/{from}</span> becomes <span className="mono">/o/{to}</span>. Links that use{' '}
-          <span className="mono">/o/{from}</span> will show &quot;not found&quot;. Share the new link with your members.
-        </p>
-      </Dialog>
-    </div>
-  );
 }
 
 /** The org's General page: name and URL in one Organization section. Every value is text, never HTML. */
@@ -140,7 +107,7 @@ export function OrgGeneral({
           </SettingsSection>
         </form>
       </main>
-      {slugConfirm && <SlugConfirm {...slugConfirm} />}
+      {slugConfirm && <SlugChangeConfirm {...slugConfirm} closing="Share the new link with your members." />}
       {notice && (
         <ToastRegion>
           <Toast tone="ok" role="status" title={notice.title} onDismiss={notice.onDismiss} />
