@@ -305,6 +305,8 @@ export interface RoleCardOption {
 export interface AuditTextPart {
   text: string;
   strong: boolean;
+  /** Shown in the mono face (URLs); never combined with `strong`. */
+  mono?: boolean;
 }
 export interface AuditRowView {
   id: string;
@@ -312,6 +314,8 @@ export interface AuditRowView {
   who: { label: string; tag: 'deleted' | 'platform' | null };
   what:
     { kind: 'sentence'; parts: AuditTextPart[]; title: string } | { kind: 'raw'; key: string; target: string | null };
+  /** Muted line under the sentence, for example "Reason: <text>". */
+  note?: string;
 }
 
 // Project space (Settings → Members and Audit log of one project).

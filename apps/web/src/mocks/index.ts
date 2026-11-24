@@ -72,7 +72,13 @@ export {
 export { pagedRuns, pagedIgnored, pagedNeedsYou, pagedProjects, pagedRules, pagedSkills, pagedVersions } from './paged';
 export { orgOptions, orgSwitchFixtures } from './orgs';
 export { accessProjectGrants, accessProjectRoleIds, accessProjects, memberRows, roleCards } from './members';
-export { auditRows, pagedAuditLastPage, pagedAuditRows, platformSuspendAuditRows } from './audit';
+export {
+  auditRows,
+  pagedAuditLastPage,
+  pagedAuditRows,
+  platformEditAuditRows,
+  platformSuspendAuditRows,
+} from './audit';
 export {
   projectMemberRows,
   pagedProjectMemberRows,
@@ -96,4 +102,22 @@ export {
 } from './invitations';
 export { platformAdminRows, pagedPlatformAdminRows, type PlatformAdminRowView } from './platform/admins';
 export { platformOrgRows, pagedPlatformOrgRows, type PlatformOrgRowView, type OrgStatusView } from './platform/orgs';
+export { pagedPlatformAuditRows, platformAuditActions, platformAuditRows } from './platform/audit';
+export { assignmentProjects, assignmentRoles } from './platform/assignment';
 export { activeOrgOverview, suspendedOrgOverview, type PlatformOrgOverviewView } from './platform/detail';
+export {
+  editOrgDirtyValues,
+  editOrgFieldErrors,
+  editOrgFormError,
+  editOrgSlugTaken,
+  editOrgValues,
+} from './platform/edit';
+export {
+  platformProjectRows,
+  pagedPlatformProjectRows,
+  platformMemberRows,
+  pagedPlatformMemberRows,
+  type PlatformProjectRowView,
+  type PlatformMemberRowView,
+  type PlatformMemberAssignmentView,
+} from './platform/tabs';

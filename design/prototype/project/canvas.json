@@ -2289,6 +2289,302 @@
    "h": 900,
    "title": "Desk \u2014 workspace setup, environment, while a test runs",
    "expand": "fill"
+  },
+  "PlatformOrgEdit.dc.html": {
+   "x": 0,
+   "y": 72240,
+   "w": 1440,
+   "h": 900,
+   "title": "Organization detail \u2014 Edit organization: Name and URL prefilled, Save disabled until something changes",
+   "expand": "fill"
+  },
+  "PlatformOrgEditFieldErrors.dc.html": {
+   "x": 1520,
+   "y": 72240,
+   "w": 1440,
+   "h": 900,
+   "title": "Organization detail \u2014 Edit organization: name empty and URL outside the format",
+   "expand": "fill"
+  },
+  "PlatformOrgEditSlugTaken.dc.html": {
+   "x": 3040,
+   "y": 72240,
+   "w": 1440,
+   "h": 900,
+   "title": "Organization detail \u2014 Edit organization: URL taken by another org (409)",
+   "expand": "fill"
+  },
+  "PlatformOrgEditSaving.dc.html": {
+   "x": 4560,
+   "y": 72240,
+   "w": 1440,
+   "h": 900,
+   "title": "Organization detail \u2014 Edit organization: saving",
+   "expand": "fill"
+  },
+  "PlatformOrgEditSlugConfirm.dc.html": {
+   "x": 6080,
+   "y": 72240,
+   "w": 1440,
+   "h": 900,
+   "title": "Organization detail \u2014 Edit organization: confirm the URL change (old links stop working)",
+   "expand": "fill"
+  },
+  "PlatformOrgEditError.dc.html": {
+   "x": 0,
+   "y": 73520,
+   "w": 1440,
+   "h": 900,
+   "title": "Organization detail \u2014 Edit organization: server error banner in the dialog (403 or 5xx)",
+   "expand": "fill"
+  },
+  "OrgAuditPlatformEdit.dc.html": {
+   "x": 1520,
+   "y": 73520,
+   "w": 1440,
+   "h": 900,
+   "title": "Settings \u2014 Audit log: a platform admin renamed the organization (marked Platform admin)",
+   "expand": "fill"
+  },
+  "PlatformAudit.dc.html": {
+   "x": 3040,
+   "y": 73520,
+   "w": 1440,
+   "h": 900,
+   "title": "Platform audit log \u2014 newest first, reason on suspend and reactivate",
+   "expand": "fill"
+  },
+  "PlatformAuditLoading.dc.html": {
+   "x": 4560,
+   "y": 73520,
+   "w": 1440,
+   "h": 900,
+   "title": "Platform audit log \u2014 loading",
+   "expand": "fill"
+  },
+  "PlatformAuditEmpty.dc.html": {
+   "x": 6080,
+   "y": 73520,
+   "w": 1440,
+   "h": 900,
+   "title": "Platform audit log \u2014 no entries",
+   "expand": "fill"
+  },
+  "PlatformAuditEmptyFiltered.dc.html": {
+   "x": 0,
+   "y": 74800,
+   "w": 1440,
+   "h": 900,
+   "title": "Platform audit log \u2014 action filter matches nothing",
+   "expand": "fill"
+  },
+  "PlatformAuditError.dc.html": {
+   "x": 1520,
+   "y": 74800,
+   "w": 1440,
+   "h": 900,
+   "title": "Platform audit log \u2014 failed to load",
+   "expand": "fill"
+  },
+  "PlatformAuditPaged.dc.html": {
+   "x": 3040,
+   "y": 74800,
+   "w": 1440,
+   "h": 900,
+   "title": "Platform audit log \u2014 page 2 of 2",
+   "expand": "fill"
+  },
+  "PlatformAuditOrgChip.dc.html": {
+   "x": 4560,
+   "y": 74800,
+   "w": 1440,
+   "h": 900,
+   "title": "Platform audit log \u2014 from \"View audit log\": filtered to one org, removable chip",
+   "expand": "fill"
+  },
+  "PlatformAuditOrgChipUnknown.dc.html": {
+   "x": 6080,
+   "y": 74800,
+   "w": 1440,
+   "h": 900,
+   "title": "Platform audit log \u2014 org filter with an unknown id",
+   "expand": "fill"
+  },
+  "PlatformOrgProjects.dc.html": {
+   "x": 4560,
+   "y": 70960,
+   "w": 1440,
+   "h": 900,
+   "title": "Organization detail \u2014 Projects: id and name only",
+   "expand": "fill"
+  },
+  "PlatformOrgProjectsLoading.dc.html": {
+   "x": 0,
+   "y": 72240,
+   "w": 1440,
+   "h": 900,
+   "title": "Organization detail \u2014 Projects: loading",
+   "expand": "fill"
+  },
+  "PlatformOrgProjectsEmpty.dc.html": {
+   "x": 1520,
+   "y": 72240,
+   "w": 1440,
+   "h": 900,
+   "title": "Organization detail \u2014 Projects: none",
+   "expand": "fill"
+  },
+  "PlatformOrgProjectsError.dc.html": {
+   "x": 3040,
+   "y": 72240,
+   "w": 1440,
+   "h": 900,
+   "title": "Organization detail \u2014 Projects: failed to load",
+   "expand": "fill"
+  },
+  "PlatformOrgProjectsPaged.dc.html": {
+   "x": 4560,
+   "y": 72240,
+   "w": 1440,
+   "h": 900,
+   "title": "Organization detail \u2014 Projects: page 2 of 2",
+   "expand": "fill"
+  },
+  "PlatformOrgMembers.dc.html": {
+   "x": 0,
+   "y": 73520,
+   "w": 1440,
+   "h": 900,
+   "title": "Organization detail \u2014 Members: names, emails, roles with scopes",
+   "expand": "fill"
+  },
+  "PlatformOrgMembersLoading.dc.html": {
+   "x": 1520,
+   "y": 73520,
+   "w": 1440,
+   "h": 900,
+   "title": "Organization detail \u2014 Members: loading",
+   "expand": "fill"
+  },
+  "PlatformOrgMembersEmpty.dc.html": {
+   "x": 3040,
+   "y": 73520,
+   "w": 1440,
+   "h": 900,
+   "title": "Organization detail \u2014 Members: none",
+   "expand": "fill"
+  },
+  "PlatformOrgMembersError.dc.html": {
+   "x": 4560,
+   "y": 73520,
+   "w": 1440,
+   "h": 900,
+   "title": "Organization detail \u2014 Members: failed to load",
+   "expand": "fill"
+  },
+  "PlatformOrgMembersPaged.dc.html": {
+   "x": 0,
+   "y": 74800,
+   "w": 1440,
+   "h": 900,
+   "title": "Organization detail \u2014 Members: page 2 of 2",
+   "expand": "fill"
+  },
+  "PlatformOrgMembersRowMenu.dc.html": {
+   "x": 1520,
+   "y": 74800,
+   "w": 1440,
+   "h": 900,
+   "title": "Organization detail \u2014 Members: row menu (Add assignment, remove one assignment)",
+   "expand": "fill"
+  },
+  "PlatformOrgMembersAddAssignment.dc.html": {
+   "x": 3040,
+   "y": 74800,
+   "w": 1440,
+   "h": 900,
+   "title": "Organization detail \u2014 Members: Add assignment dialog (whole organization: Owner, Admin, Member, Viewer)",
+   "expand": "fill"
+  },
+  "PlatformOrgMembersRemoveConfirm.dc.html": {
+   "x": 4560,
+   "y": 74800,
+   "w": 1440,
+   "h": 900,
+   "title": "Organization detail \u2014 Members: remove an assignment (confirm)",
+   "expand": "fill"
+  },
+  "PlatformOrgMembersRemoving.dc.html": {
+   "x": 0,
+   "y": 76080,
+   "w": 1440,
+   "h": 900,
+   "title": "Organization detail \u2014 Members: removing an assignment (busy)",
+   "expand": "fill"
+  },
+  "PlatformOrgInvitations.dc.html": {
+   "x": 1520,
+   "y": 76080,
+   "w": 1440,
+   "h": 900,
+   "title": "Organization detail \u2014 Invitations: pending by default",
+   "expand": "fill"
+  },
+  "PlatformOrgInvitationsLoading.dc.html": {
+   "x": 3040,
+   "y": 76080,
+   "w": 1440,
+   "h": 900,
+   "title": "Organization detail \u2014 Invitations: loading",
+   "expand": "fill"
+  },
+  "PlatformOrgInvitationsEmpty.dc.html": {
+   "x": 4560,
+   "y": 76080,
+   "w": 1440,
+   "h": 900,
+   "title": "Organization detail \u2014 Invitations: none",
+   "expand": "fill"
+  },
+  "PlatformOrgInvitationsError.dc.html": {
+   "x": 0,
+   "y": 77360,
+   "w": 1440,
+   "h": 900,
+   "title": "Organization detail \u2014 Invitations: failed to load",
+   "expand": "fill"
+  },
+  "PlatformOrgInvitationsPaged.dc.html": {
+   "x": 1520,
+   "y": 77360,
+   "w": 1440,
+   "h": 900,
+   "title": "Organization detail \u2014 Invitations: page 2 of 2",
+   "expand": "fill"
+  },
+  "PlatformOrgInvitationsInvite.dc.html": {
+   "x": 3040,
+   "y": 77360,
+   "w": 1440,
+   "h": 900,
+   "title": "Organization detail \u2014 Invitations: invite dialog (a platform admin may invite an owner)",
+   "expand": "fill"
+  },
+  "PlatformOrgInvitationsResending.dc.html": {
+   "x": 4560,
+   "y": 77360,
+   "w": 1440,
+   "h": 900,
+   "title": "Organization detail \u2014 Invitations: resending (row busy)",
+   "expand": "fill"
+  },
+  "PlatformOrgInvitationsCopyFailed.dc.html": {
+   "x": 0,
+   "y": 78640,
+   "w": 1440,
+   "h": 900,
+   "title": "Organization detail \u2014 Invitations: copy link blocked by the browser",
+   "expand": "fill"
   }
  },
  "order": [
@@ -2576,7 +2872,44 @@
   "DeskSetupEnvironmentAdded.dc.html",
   "DeskSetupEnvironmentReadOnly.dc.html",
   "DeskSetupEnvironmentSecretsReadOnly.dc.html",
-  "DeskSetupEnvironmentTesting.dc.html"
+  "DeskSetupEnvironmentTesting.dc.html",
+  "PlatformOrgEdit.dc.html",
+  "PlatformOrgEditFieldErrors.dc.html",
+  "PlatformOrgEditSlugTaken.dc.html",
+  "PlatformOrgEditSaving.dc.html",
+  "PlatformOrgEditSlugConfirm.dc.html",
+  "PlatformOrgEditError.dc.html",
+  "OrgAuditPlatformEdit.dc.html",
+  "PlatformAudit.dc.html",
+  "PlatformAuditLoading.dc.html",
+  "PlatformAuditEmpty.dc.html",
+  "PlatformAuditEmptyFiltered.dc.html",
+  "PlatformAuditError.dc.html",
+  "PlatformAuditPaged.dc.html",
+  "PlatformAuditOrgChip.dc.html",
+  "PlatformAuditOrgChipUnknown.dc.html",
+  "PlatformOrgProjects.dc.html",
+  "PlatformOrgProjectsLoading.dc.html",
+  "PlatformOrgProjectsEmpty.dc.html",
+  "PlatformOrgProjectsError.dc.html",
+  "PlatformOrgProjectsPaged.dc.html",
+  "PlatformOrgMembers.dc.html",
+  "PlatformOrgMembersLoading.dc.html",
+  "PlatformOrgMembersEmpty.dc.html",
+  "PlatformOrgMembersError.dc.html",
+  "PlatformOrgMembersPaged.dc.html",
+  "PlatformOrgMembersRowMenu.dc.html",
+  "PlatformOrgMembersAddAssignment.dc.html",
+  "PlatformOrgMembersRemoveConfirm.dc.html",
+  "PlatformOrgMembersRemoving.dc.html",
+  "PlatformOrgInvitations.dc.html",
+  "PlatformOrgInvitationsLoading.dc.html",
+  "PlatformOrgInvitationsEmpty.dc.html",
+  "PlatformOrgInvitationsError.dc.html",
+  "PlatformOrgInvitationsPaged.dc.html",
+  "PlatformOrgInvitationsInvite.dc.html",
+  "PlatformOrgInvitationsResending.dc.html",
+  "PlatformOrgInvitationsCopyFailed.dc.html"
  ],
  "notes": {
   "t-intro": {

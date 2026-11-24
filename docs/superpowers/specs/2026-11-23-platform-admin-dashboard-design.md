@@ -557,7 +557,7 @@ Copy (sentence case, no full stop on titles). Agent call: all copy below (ui-ux:
 - Suspend dialog: title "Suspend <org>?"; body "People in this organization cannot open it and no new runs start. Runs already in progress finish. Nothing is deleted."; label "Reason"; reason error "Enter a reason."; buttons "Cancel", "Suspend"/"Suspending…"; toast "Organization suspended". Reactivate: title "Reactivate <org>?", body "People can open it again.", button "Reactivate"/"Reactivating…", toast "Organization reactivated". 404 toast "Organization not found".
 - Assignment: dialog title "Add assignment", labels "Role" (Owner, Admin, Member, Viewer for the whole organization; Admin, Member, Viewer for one project), "Access" ("Whole organization", "One project"), "Project" (one project only); button "Add assignment"; remove confirm "Remove <role> from <name>?" with "Cancel", "Remove"/"Removing…"; toasts "Assignment added", "Assignment removed".
 - Audit: h1 "Audit log"; columns When, Who, What; Action select "All actions" plus one label per `PlatformAuditAction` value (a test requires every enum value to have one): "Platform admin added", "Platform admin revoked", "Organization created", "Organization updated", "Organization suspended", "Organization reactivated", "Assignment added", "Assignment removed", "Invitation created", "Invitation resent", "Invitation revoked"; chip "Organization: <name>" or "Unknown organization" (remove button labelled "Remove filter <chip text>"); empty "No audit entries"; empty filtered "No audit entries match" with "Clear filters"; a gone actor reads "Deleted user"; reason shown as a muted "Reason: <text>" note under suspend and reactivate entries.
-- Platform audit sentences (actor and org in bold): "<actor> created <org>"; "<actor> changed the name of <org> from <old name> to <new name> and the URL from /o/<old> to /o/<new>" (an edit of both fields; URLs in mono); "<actor> suspended <org>"; "<actor> reactivated <org>"; "<actor> added <email> as a platform admin"; "<actor> revoked platform access for <email>"; "<actor> gave <name> the <Role> role in <org>"; "<actor> removed <name>'s <Role> role on <project> in <org>"; "<actor> invited <email> to <org> as <Role>"; "<actor> resent the invitation for <email> to <org>"; "<actor> revoked the invitation for <email> to <org>".
+- Platform audit sentences (actor and org in bold): "<actor> created <org>"; "<actor> changed the name of <org> from <old name> to <new name> and the URL from /o/<old> to /o/<new>" (an edit of both fields; URLs in mono); "<actor> suspended <org>"; "<actor> reactivated <org>"; "<actor> added <email> as a platform admin"; "<actor> revoked platform access for <email>"; "<actor> gave <name> the <Role> role in <org>"; "<actor> removed <name>'s <Role> role in <org>"; "<actor> invited <email> to <org> as <Role>"; "<actor> resent the invitation for <email> to <org>"; "<actor> revoked the invitation for <email> to <org>".
 - `OrgSuspended`: title "This organization is suspended", body "You can't open <org> right now. Contact your Agent Desk administrator." (no reason shown, human T2).
 - Tenant audit sentences (Settings > Audit, actor tagged "Platform admin"): "<actor> suspended the organization", "<actor> reactivated the organization", and for a platform edit the existing `org.updated` sentence, for example "<actor> changed the organization name from <old> to <new>" (and "changed the organization URL from /o/<old> to /o/<new>").
 
@@ -998,7 +998,7 @@ Common setup. mock: the mock Playwright stack seeded with `seedPlatform(page, sc
 | Case | Type | Env | Given | Steps | Expected |
 | ---- | ---- | --- | ----- | ----- | -------- |
 | TC-23.1 | permission | local | `admin@dev.local` is not a member of a fresh org that has a project. | 1. Type `/o/<fresh slug>/projects` in the address bar. | No project, member or other org data is shown (the page is the same refusal as for any non-member). |
-| TC-23.2 | permission | local | Same. | 1. Request `GET /api/orgs/<org id>` as `admin@dev.local` with the org pinned. | The response is 403 and carries no org data. |
+| TC-23.2 | permission | local | Same. | 1. Request `GET /api/orgs/<org id>/checklist` as `admin@dev.local` with the org pinned. | The response is 409 `org-mismatch` and carries no org data. |
 
 #### BR-24: Org detail from the directory
 
@@ -1182,8 +1182,8 @@ Not e2e: the stack cannot hold a run between created and sandbox start; proved b
 
 | Case | Type | Env | Given | Steps | Expected |
 | ---- | ---- | --- | ----- | ----- | -------- |
-| TC-44.1 | state | local | A fresh org. | 1. Suspend it with a reason. 2. Reactivate it with a reason. 3. Open `/platform/audit?org=<id>`. | Exactly two entries for that org: "Organization reactivated" above "Organization suspended". |
-| TC-44.2 | negative | local | A fresh org. | 1. Submit suspend with an empty reason (refused). 2. Open `/platform/audit?org=<id>`. | No entry for it ("No audit entries"). |
+| TC-44.1 | state | local | A fresh org. | 1. Suspend it with a reason. 2. Reactivate it with a reason. 3. Open `/platform/audit?org=<id>`. | Exactly two suspend and reactivate entries for that org: "Organization reactivated" above "Organization suspended" (the "Organization created" entry from BR-44 sits below them). |
+| TC-44.2 | negative | local | A fresh org. | 1. Submit suspend with an empty reason (refused). 2. Open `/platform/audit?org=<id>`. | No suspend or reactivate entry for it (only its "Organization created" entry). |
 
 #### BR-45: Audit list
 

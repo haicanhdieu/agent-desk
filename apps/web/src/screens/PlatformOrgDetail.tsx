@@ -1,13 +1,17 @@
 import type { ReactNode } from 'react';
 import { Banner, Button, Icon, Skeleton } from '@/ds';
 import {
+  EditOrgDialog,
   EmptyState,
   KeyValue,
   OrgStatus,
   PlatformOrgHeader,
   RouteLoadError,
+  SlugChangeConfirm,
   SuspendOrgDialog,
+  type EditOrgDialogProps,
   type PlatformOrgHeaderProps,
+  type SlugChangeConfirmProps,
   type SuspendOrgDialogProps,
 } from '@/components';
 import type { PlatformOrgOverviewView } from '@/mocks';
@@ -23,6 +27,10 @@ export interface PlatformOrgDetailProps {
   view: PlatformOrgDetailView;
   /** The suspend or reactivate dialog, when one is open. */
   dialog?: SuspendOrgDialogProps;
+  /** The Edit organization dialog, when open. The header and the page stay behind it. */
+  editDialog?: EditOrgDialogProps;
+  /** The URL-change confirm. It replaces the edit dialog: one modal at a time. */
+  slugConfirm?: SlugChangeConfirmProps;
   /** Where the route mounts its Edit organization dialog. */
   editSlot?: ReactNode;
   /** The page below the header and the banner (a route's child page). Without it the Overview facts show. */
@@ -30,7 +38,14 @@ export interface PlatformOrgDetailProps {
 }
 
 /** Platform org detail: header, the suspended warning and the Overview facts. Names and reasons are text, never HTML. */
-export function PlatformOrgDetail({ view, dialog, editSlot, children }: PlatformOrgDetailProps) {
+export function PlatformOrgDetail({
+  view,
+  dialog,
+  editDialog,
+  slugConfirm,
+  editSlot,
+  children,
+}: PlatformOrgDetailProps) {
   return (
     <main className={styles.platformMain}>
       {view.kind === 'loading' && (
@@ -78,6 +93,8 @@ export function PlatformOrgDetail({ view, dialog, editSlot, children }: Platform
         </>
       )}
       {dialog && <SuspendOrgDialog {...dialog} />}
+      {editDialog && !slugConfirm && <EditOrgDialog {...editDialog} />}
+      {slugConfirm && <SlugChangeConfirm {...slugConfirm} />}
       {editSlot}
     </main>
   );

@@ -34,13 +34,16 @@ describe('contracts', () => {
   });
   it('every platform route lives under /api/platform/', () => {
     const platform = Object.entries(flattenRoutes(routes)).filter(([k]) => k.startsWith('platform.'));
-    expect(platform).toHaveLength(18);
+    expect(platform).toHaveLength(20);
     for (const [, r] of platform) expect(r.path.startsWith('/api/platform/')).toBe(true);
   });
   it('platform.getOrg reads one org by id', () => {
     expect(routes.platform.getOrg).toMatchObject({ method: 'GET', path: '/api/platform/orgs/:orgId' });
   });
   it('platform suspend and reactivate are POSTs under the org with a reason body', () => {
+    expect(routes.platform.updateOrg).toMatchObject({ method: 'PATCH', path: '/api/platform/orgs/:orgId' });
+    expect(routes.platform.updateOrg.body.safeParse({ name: 'Acme' }).success).toBe(true);
+    expect(routes.platform.updateOrg.body.safeParse({}).success).toBe(false);
     expect(routes.platform.suspendOrg).toMatchObject({ method: 'POST', path: '/api/platform/orgs/:orgId/suspend' });
     expect(routes.platform.reactivateOrg).toMatchObject({
       method: 'POST',
@@ -48,6 +51,10 @@ describe('contracts', () => {
     });
     expect(routes.platform.suspendOrg.body.safeParse({ reason: 'x' }).success).toBe(true);
     expect(routes.platform.reactivateOrg.body.safeParse({}).success).toBe(false);
+  });
+  it('platform.listAudit is a GET of /api/platform/audit with an org and action filter (BR-45)', () => {
+    expect(routes.platform.listAudit).toMatchObject({ method: 'GET', path: '/api/platform/audit' });
+    expect(routes.platform.listAudit.query.parse({ action: 'org.updated' }).action).toBe('org.updated');
   });
   it('platform admin routes are listed, granted and revoked under /api/platform/admins', () => {
     expect(routes.platform.listAdmins).toMatchObject({ method: 'GET', path: '/api/platform/admins' });
@@ -74,7 +81,7 @@ describe('contracts', () => {
       method: 'POST',
       path: '/api/projects/:projectId/connection/poll',
     });
-    expect(Object.keys(flat)).toHaveLength(100);
+    expect(Object.keys(flat)).toHaveLength(102);
     expect(flat['assignments.remove']).toMatchObject({
       method: 'DELETE',
       path: '/api/orgs/:orgId/assignments/:assignmentId',

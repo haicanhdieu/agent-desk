@@ -19,6 +19,6 @@ export class OrgsController {
     @Param(UpdateParams) p: { orgId: string },
     @Body(UpdateBody) body: UpdateOrgRequest,
   ): Promise<OrgDto> {
-    return this.orgs.update(authz.access.userId, p.orgId, body);
+    return this.orgs.update({ userId: authz.access.userId, kind: 'member' }, p.orgId, body);
   }
 }

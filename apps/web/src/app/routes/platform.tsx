@@ -45,8 +45,11 @@ const NO_ORG: OrgSwitchProps = {
 
 function useActive(): PlatformLayoutProps['active'] {
   const segment = useRouterState({ select: (s) => /^\/platform\/([^/]+)/.exec(s.location.pathname)?.[1] });
-  const inOrg = useRouterState({ select: (s) => /^\/platform\/orgs\/[^/]+/.test(s.location.pathname) });
-  if (inOrg) return 'overview';
+  const orgPage = useRouterState({ select: (s) => /^\/platform\/orgs\/[^/]+(?:\/([^/]+))?/.exec(s.location.pathname) });
+  if (orgPage) {
+    const section = orgPage[1];
+    return section === 'projects' || section === 'members' || section === 'invitations' ? section : 'overview';
+  }
   return segment === 'orgs' || segment === 'audit' ? segment : 'admins';
 }
 
@@ -56,7 +59,16 @@ function useOrgGroup(): PlatformLayoutProps['org'] {
   const orgId = match?.params.orgId ?? '';
   const { data } = useQuery({ ...platformOrgQuery(orgId), enabled: match !== undefined });
   if (match === undefined || data === undefined) return undefined;
-  return { name: data.name, links: { overview: `/platform/orgs/${encodeURIComponent(data.id)}` } };
+  const base = `/platform/orgs/${encodeURIComponent(data.id)}`;
+  return {
+    name: data.name,
+    links: {
+      overview: base,
+      projects: `${base}/projects`,
+      members: `${base}/members`,
+      invitations: `${base}/invitations`,
+    },
+  };
 }
 
 function PlatformShell() {

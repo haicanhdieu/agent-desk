@@ -168,6 +168,8 @@ const MATRIX: Record<RouteKey, Row> = {
   'platform.listAdmins': NOBODY,
   'platform.grantAdmin': NOBODY,
   'platform.revokeAdmin': NOBODY,
+  'platform.updateOrg': NOBODY,
+  'platform.listAudit': NOBODY,
   'platform.suspendOrg': NOBODY,
   'platform.reactivateOrg': NOBODY,
 };

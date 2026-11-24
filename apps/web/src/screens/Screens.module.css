@@ -753,6 +753,26 @@
 .platformSearch {
   width: 320px;
 }
+.platformAction {
+  width: 220px;
+}
+.platformChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  max-width: 100%;
+  height: 28px;
+  padding: 0 4px 0 10px;
+  border: 1px solid var(--line2);
+  border-radius: 999px;
+  background: var(--raised);
+  font-size: var(--fs-13);
+}
+.platformChipLabel {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .platformStatus {
   width: 170px;
 }

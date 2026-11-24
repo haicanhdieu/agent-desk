@@ -1,12 +1,24 @@
 import type { HttpHandler } from 'msw';
-import { PAGE_SIZE_DEFAULT, type PlatformAdminDto, type PlatformOrgDto } from '@agentdesk/contracts';
+import {
+  PAGE_SIZE_DEFAULT,
+  type PlatformAdminDto,
+  type PlatformAuditEntryDto,
+  type PlatformOrgDto,
+} from '@agentdesk/contracts';
 import { platformAdminFixtures } from '../dto/access';
+import {
+  platformInvitationFixtures,
+  platformMemberFixtures,
+  platformOrgDtoFixtures,
+  platformProjectFixtures,
+} from '../dto/platform';
 import { ids } from '../dto/ids';
 import { mockDb } from './db';
 import { problemResponse, routeHandler } from './http';
 import { applyOnboardingScenario } from './onboardingScenarios';
 import { seedPlatformAdmins } from './platformAdmins';
-import { addPlatformOrg, seedPlatformOrgs, setPlatformOrgStatus } from './platformOrgs';
+import { seedPlatformAudit } from './platformAudit';
+import { addPlatformOrg, seedPlatformOrgs, seedPlatformOrgTabs, setPlatformOrgStatus } from './platformOrgs';
 
 // The platform-admin mock scenarios: one module for the route tests and the mocked e2e specs. A spec picks a scenario
 // through sessionStorage (`PLATFORM_SCENARIO_KEY`, written by e2e/mock/mock.ts `seedPlatform`); browser.ts reads it once
@@ -28,6 +40,11 @@ export const PLATFORM_SCENARIOS = [
   'manyOrgs',
   'suspendedMember',
   'suspendedPlatformAdmin',
+  'platformOrgEdit',
+  'platformOrgEditSuspended',
+  'manyAudit',
+  'platformOrgTabsEmpty',
+  'platformOrgFewProjects',
 ] as const;
 
 export type PlatformScenario = (typeof PLATFORM_SCENARIOS)[number];
@@ -71,6 +88,23 @@ function lastAdminEntries(workingOnFirstPage: boolean): PlatformAdminDto[] {
   return [...pending.slice(0, at), working, ...pending.slice(at)];
 }
 
+/** Two active orgs to edit: "Acme" (acme) and "Beta" (beta), so a slug can be taken. */
+function platformOrgEditEntries(): PlatformOrgDto[] {
+  const org = (n: number, name: string, slug: string): PlatformOrgDto => ({
+    id: `b9100000-0000-4000-8000-${String(n).padStart(12, '0')}`,
+    name,
+    slug,
+    memberCount: 1,
+    createdAt: new Date(Date.UTC(2026, 0, n)).toISOString(),
+    status: 'active',
+    suspendedAt: null,
+    projectCount: 0,
+    lastActivityAt: null,
+    owner: null,
+  });
+  return [org(1, 'Acme', 'acme'), org(2, 'Beta', 'beta')];
+}
+
 /** More organizations than two pages: "Many Org 01" is the oldest and "Many Org 45" the newest. */
 const MANY_ORGS = PAGE_SIZE_DEFAULT * 2 + 5;
 
@@ -92,6 +126,23 @@ function manyOrgEntries(): PlatformOrgDto[] {
   });
 }
 
+/** More audit entries than a page (25, page size 20): "Audit entry 01" is the oldest, one minute apart. */
+function manyAuditEntries(): PlatformAuditEntryDto[] {
+  return Array.from({ length: 25 }, (_, i): PlatformAuditEntryDto => {
+    const n = String(i + 1).padStart(2, '0');
+    return {
+      id: `ba100000-0000-4000-8000-${String(i + 1).padStart(12, '0')}`,
+      at: new Date(Date.UTC(2026, 10, 19, 9, i)).toISOString(),
+      actor: { userId: 'user-dev-admin', name: 'Dev Admin', handle: 'dev-admin' },
+      action: 'platform_admin.granted',
+      org: null,
+      target: { type: 'platform_admin', id: `admin${n}@example.com`, label: `admin${n}@example.com` },
+      reason: null,
+      changes: [],
+    };
+  });
+}
+
 /** Lists the signed-in user's mock orgs in the directory, then suspends one with a reason. */
 function suspendMockOrg(orgId: string, reason: string): void {
   for (const org of mockDb.state.orgs) {
@@ -101,7 +152,15 @@ function suspendMockOrg(orgId: string, reason: string): void {
 }
 
 const seeders: Record<PlatformScenario, () => void> = {
-  platformAdminOrgs: () => applyOnboardingScenario('platformAdminOneOrg'),
+  // The directory's Acme holds a pending and a revoked invitation.
+  platformAdminOrgs() {
+    applyOnboardingScenario('platformAdminOneOrg');
+    const acme = platformOrgDtoFixtures.find((o) => o.slug === 'acme');
+    if (!acme) throw new Error('no acme fixture');
+    mockDb.state.invitations.push(
+      ...platformInvitationFixtures.map((i) => ({ ...structuredClone(i), orgId: acme.id })),
+    );
+  },
   platformAdminNoOrg: () => applyOnboardingScenario('platformAdminNoOrg'),
   ownerNoPlatform: () => applyOnboardingScenario('singleOrg'),
   lastAdmin() {
@@ -156,6 +215,33 @@ const seeders: Record<PlatformScenario, () => void> = {
     suspendMockOrg(ids.org.alice, 'Billing hold');
   },
   revoke409: () => applyOnboardingScenario('platformAdminOneOrg'),
+  platformOrgEdit() {
+    applyOnboardingScenario('platformAdminOneOrg');
+    seedPlatformOrgs(platformOrgEditEntries());
+  },
+  // `platformOrgEdit` with "Acme" suspended (reason `Billing hold`); "Beta" stays active.
+  platformOrgEditSuspended() {
+    applyOnboardingScenario('platformAdminOneOrg');
+    const entries = platformOrgEditEntries();
+    seedPlatformOrgs(entries);
+    const acme = entries.find((o) => o.slug === 'acme');
+    if (!acme) throw new Error('seed has no acme org');
+    setPlatformOrgStatus(acme.id, 'suspended', 'Billing hold');
+  },
+  // The directory fixtures, but every org's Projects, Members and Invitations are empty.
+  platformOrgTabsEmpty() {
+    applyOnboardingScenario('platformAdminOneOrg');
+    seedPlatformOrgTabs({ projects: [], members: [] });
+  },
+  // The directory fixtures with two projects ("Alpha" first) and the usual members.
+  platformOrgFewProjects() {
+    applyOnboardingScenario('platformAdminOneOrg');
+    seedPlatformOrgTabs({ projects: platformProjectFixtures.slice(0, 2), members: platformMemberFixtures });
+  },
+  manyAudit() {
+    applyOnboardingScenario('platformAdminOneOrg');
+    seedPlatformAudit(manyAuditEntries());
+  },
   manyOrgs() {
     applyOnboardingScenario('platformAdminOneOrg');
     seedPlatformOrgs(manyOrgEntries());
@@ -164,6 +250,8 @@ const seeders: Record<PlatformScenario, () => void> = {
     applyOnboardingScenario('platformAdminOneOrg');
     seedPlatformAdmins([]);
     seedPlatformOrgs([]);
+    seedPlatformOrgTabs({ projects: [], members: [] });
+    seedPlatformAudit([]);
   },
 };
 

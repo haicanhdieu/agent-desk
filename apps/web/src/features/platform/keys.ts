@@ -13,5 +13,6 @@ export const platformKeys = {
   org: (orgId: string) => ['platform', 'orgs', orgId] as const,
   orgList: (orgId: string, list: 'members' | 'projects' | 'invitations', q: object) =>
     ['platform', 'orgs', orgId, list, q] as const,
+  orgRoles: (orgId: string) => ['platform', 'orgs', orgId, 'roles'] as const,
   audit: (q: object) => ['platform', 'audit', q] as const,
 };

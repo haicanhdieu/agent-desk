@@ -1378,15 +1378,15 @@ export function updatePlatformOrg(orgId: string, body: UpdateOrgRequest): Platfo
 PLATFORM_SCENARIOS + 'platformOrgEdit' // orgs "Acme" (acme) and "Beta" (beta), one of them suspended in a variant
 ```
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
   - `platform.test.ts` (BR-53 to BR-55): `UpdateOrgRequest` needs at least one field; name empty, spaces only (after the form trims) and 101 characters rejected, 100 accepted; slug uppercase, leading or trailing dash, `ac_me`, 0 and 64 characters rejected, 63 accepted.
   - `routes.test.ts`, `route-access.test.ts`: the PATCH route and entry; counts +1.
   - `authz.int.test.ts`: `'platform.updateOrg': platformRoute(200)`, in `NOT_REGISTERED_YET`, body `{ name: 'Denial Rename' }`.
   - `contract.test.ts`: rename changes the store and the directory row; a taken slug is 409 at `/slug`; equal values change nothing; editing a suspended org keeps `suspended`.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/contracts exec vitest run`. Expected: FAIL.
-- [ ] **Step 3: Implement** the contracts and the mock store, handler and scenario.
-- [ ] **Step 4: Run** Step 2's command, `pnpm --filter @agentdesk/api typecheck`, `pnpm --filter @agentdesk/api exec vitest run test/authz.int.test.ts`, `pnpm --filter @agentdesk/web exec vitest run src/mocks`, `pnpm --filter @agentdesk/web typecheck`. Expected: PASS.
-- [ ] **Step 5: Commit**: `feat(contracts): platform route to edit an organization`. Label `review:sensitive` (routeAccess).
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/contracts exec vitest run`. Expected: FAIL.
+- [x] **Step 3: Implement** the contracts and the mock store, handler and scenario.
+- [x] **Step 4: Run** Step 2's command, `pnpm --filter @agentdesk/api typecheck`, `pnpm --filter @agentdesk/api exec vitest run test/authz.int.test.ts`, `pnpm --filter @agentdesk/web exec vitest run src/mocks`, `pnpm --filter @agentdesk/web typecheck`. Expected: PASS.
+- [x] **Step 5: Commit**: `feat(contracts): platform route to edit an organization`. Label `review:sensitive` (routeAccess).
 
 ---
 
@@ -1415,7 +1415,7 @@ OrgsService.update(actor: OrgActor, orgId: string, req: UpdateOrgRequest): Promi
 PlatformOrgsController.update(@CurrentPlatformAdmin() admin, @Param() p: { orgId: string }, @Body() body: UpdateOrgRequest): Promise<PlatformOrgDetailDto>;
 ```
 
-- [ ] **Step 1: Write the failing tests** in `platform-org-edit.int.test.ts`:
+- [x] **Step 1: Write the failing tests** in `platform-org-edit.int.test.ts`:
   - BR-52: 403 before any lookup for the org's owner, org admin, project admin, member, viewer, another org's owner and a no-org user; an unknown id gives a non-admin the same 403; 401 signed out; `X-Org` ignored; a body `orgId` or `actorKind` is rejected or ignored; 404 unknown or malformed id for the admin.
   - BR-53: 200 `PlatformOrgDetailDto` with the new name and slug; a second org untouched; `platform.listOrgs` shows the new values.
   - BR-54, BR-55: 400 with pointer `/name` or `/slug`, nothing written, no audit rows.
@@ -1427,10 +1427,10 @@ PlatformOrgsController.update(@CurrentPlatformAdmin() admin, @Param() p: { orgId
   - A name with markup or SQL text is stored as typed.
   - `org-settings.int.test.ts`: the tenant PATCH still writes `actorKind: 'member'` (existing cases stay green; add the assertion if missing).
   - `authz.int.test.ts`: remove the key from `NOT_REGISTERED_YET`.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/api exec vitest run test/platform-org-edit.int.test.ts test/org-settings.int.test.ts`. Expected: FAIL.
-- [ ] **Step 3: Implement** the actor parameter (tenant controller passes `{ userId, kind: 'member' }`), the platform write in the same transaction, the platform controller (`update` then `getOrg` for the response), info log `{ requestId, actorUserId, orgId, action }`.
-- [ ] **Step 4: Run** Step 2's command, `pnpm --filter @agentdesk/api exec vitest run test/authz.int.test.ts src/audit`, `pnpm --filter @agentdesk/api typecheck`. Expected: PASS.
-- [ ] **Step 5: Commit**: `feat(api): platform admins edit an organization's name and slug`. Label `review:sensitive`.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/api exec vitest run test/platform-org-edit.int.test.ts test/org-settings.int.test.ts`. Expected: FAIL.
+- [x] **Step 3: Implement** the actor parameter (tenant controller passes `{ userId, kind: 'member' }`), the platform write in the same transaction, the platform controller (`update` then `getOrg` for the response), info log `{ requestId, actorUserId, orgId, action }`.
+- [x] **Step 4: Run** Step 2's command, `pnpm --filter @agentdesk/api exec vitest run test/authz.int.test.ts src/audit`, `pnpm --filter @agentdesk/api typecheck`. Expected: PASS.
+- [x] **Step 5: Commit**: `feat(api): platform admins edit an organization's name and slug`. Label `review:sensitive`.
 
 ---
 
@@ -1463,11 +1463,11 @@ export function EditOrgDialog(props: EditOrgDialogProps): JSX.Element; // URL fi
 PlatformOrgHeaderProps.onEdit present → "Edit organization" button first in the actions
 ```
 
-- [ ] **Step 1: Write the failing tests**: dialog title "Edit organization", labels "Name" and "URL", URL help `Links that use the old URL will show "not found".`, "Save" disabled until `dirty`, "Saving…", field errors, Banner, focus on Name when opened, prefix linked by `aria-describedby`; confirm title "Change the organization URL?" with the old and new URL and the `closing` sentence, button "Change URL"; header shows "Edit organization" only with `onEdit`; `orgGeneral.test.tsx` stays green with the extracted confirm.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/components/EditOrgDialog.test.tsx src/components/SlugChangeConfirm.test.tsx src/components/PlatformOrgHeader.test.tsx src/screens/orgGeneral.test.tsx`. Expected: FAIL.
-- [ ] **Step 3: Implement** the extraction (`OrgGeneral` imports `@/components/SlugChangeConfirm`, renders unchanged), the dialog, the header button, stories (dialog: Idle, Dirty, Saving, FieldErrors, SlugTaken, FormError; confirm: Default, Busy; header: WithEdit).
-- [ ] **Step 4: Run** Step 2's command and `pnpm --filter @agentdesk/web exec vitest run src/test/stories.smoke.test.tsx`. Expected: PASS.
-- [ ] **Step 5: Commit**: `feat(web): edit organization dialog and shared slug confirm in Storybook`.
+- [x] **Step 1: Write the failing tests**: dialog title "Edit organization", labels "Name" and "URL", URL help `Links that use the old URL will show "not found".`, "Save" disabled until `dirty`, "Saving…", field errors, Banner, focus on Name when opened, prefix linked by `aria-describedby`; confirm title "Change the organization URL?" with the old and new URL and the `closing` sentence, button "Change URL"; header shows "Edit organization" only with `onEdit`; `orgGeneral.test.tsx` stays green with the extracted confirm.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/components/EditOrgDialog.test.tsx src/components/SlugChangeConfirm.test.tsx src/components/PlatformOrgHeader.test.tsx src/screens/orgGeneral.test.tsx`. Expected: FAIL.
+- [x] **Step 3: Implement** the extraction (`OrgGeneral` imports `@/components/SlugChangeConfirm`, renders unchanged), the dialog, the header button, stories (dialog: Idle, Dirty, Saving, FieldErrors, SlugTaken, FormError; confirm: Default, Busy; header: WithEdit).
+- [x] **Step 4: Run** Step 2's command and `pnpm --filter @agentdesk/web exec vitest run src/test/stories.smoke.test.tsx`. Expected: PASS.
+- [x] **Step 5: Commit**: `feat(web): edit organization dialog and shared slug confirm in Storybook`.
 
 ---
 
@@ -1484,11 +1484,11 @@ PlatformOrgHeaderProps.onEdit present → "Edit organization" button first in th
 
 - Produces: `PlatformOrgDetailProps.editDialog?: EditOrgDialogProps` and `slugConfirm?: SlugChangeConfirmProps` (one modal at a time: the confirm replaces the dialog).
 
-- [ ] **Step 1: Write the failing test** in `platform.test.tsx`: with `slugConfirm`, the edit dialog is not rendered; with `editDialog`, the header and Overview stay behind it.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/screens/platform.test.tsx`. Expected: FAIL.
-- [ ] **Step 3: Implement** stories `PlatformOrgEdit`, `PlatformOrgEditFieldErrors`, `PlatformOrgEditSlugTaken`, `PlatformOrgEditSaving`, `PlatformOrgEditSlugConfirm`, `PlatformOrgEditError` and `OrgAuditPlatformEdit` (tenant row for a platform edit, tagged "Platform admin", old and new name and URL, the existing `org.updated` sentence); barrel lines for Task 36; register the 7 boards; coverage 225 to 232; regenerate the interactive prototype; parity notes.
+- [x] **Step 1: Write the failing test** in `platform.test.tsx`: with `slugConfirm`, the edit dialog is not rendered; with `editDialog`, the header and Overview stay behind it.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/screens/platform.test.tsx`. Expected: FAIL.
+- [x] **Step 3: Implement** stories `PlatformOrgEdit`, `PlatformOrgEditFieldErrors`, `PlatformOrgEditSlugTaken`, `PlatformOrgEditSaving`, `PlatformOrgEditSlugConfirm`, `PlatformOrgEditError` and `OrgAuditPlatformEdit` (tenant row for a platform edit, tagged "Platform admin", old and new name and URL, the existing `org.updated` sentence); barrel lines for Task 36; register the 7 boards; coverage 225 to 232; regenerate the interactive prototype; parity notes.
 - [ ] **Step 4: Run** the same commands as Task 5 Step 4 for these 7 boards. Expected: PASS.
-- [ ] **Step 5: Commit**: `feat(web): edit organization boards in Storybook`.
+- [x] **Step 5: Commit**: `feat(web): edit organization boards in Storybook`.
 
 ---
 
@@ -1506,11 +1506,11 @@ PlatformOrgHeaderProps.onEdit present → "Edit organization" button first in th
 - Consumes: `routes.platform.updateOrg` (Task 34); `validateGeneral`, `changedFields`, `generalProblem`, `GENERAL_ERRORS` (`features/orgSettings/general.form.ts`); `EditOrgDialog`, `SlugChangeConfirm` (Task 36).
 - Produces: `export function useUpdatePlatformOrg(orgId: string): UseMutationResult<PlatformOrgDetailDto, ApiError, UpdateOrgRequest>;` (`setQueryData` on `platformKeys.org(orgId)`, invalidate `['platform','orgs']` and `orgsQuery`; no navigation).
 
-- [ ] **Step 1: Write the failing tests** in `orgEdit.route.test.tsx`: dialog prefilled, "Save" disabled until dirty and again when values equal the current ones (BR-59, no request); name-only save shows no confirm, toasts "Organization updated", stays on `/platform/orgs/<id>`, header and directory cache show the new name (BR-53, BR-57); a slug change shows the confirm first, Cancel returns to the dialog with input kept and sends nothing, "Change URL" saves (BR-57); "Enter a name.", "Use 100 characters or fewer." and the slug format message at the field, first invalid field focused (BR-54, BR-55); 409 lands "This URL is taken. Try another." at URL with input kept (BR-56); 404 toasts "Organization not found" and goes to the directory; 403/5xx show the Banner with the request id; on a suspended org Edit is enabled and the header keeps "Suspended" after save (BR-62); only changed fields are sent.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/features/platform/orgEdit.route.test.tsx`. Expected: FAIL.
-- [ ] **Step 3: Implement** the dialog state in the `$orgId` layout (errors on submit, then on blur after first touch; Enter submits, Escape cancels, focus returns to "Edit organization").
-- [ ] **Step 4: Run** `pnpm --filter @agentdesk/web exec vitest run src/features/platform src/features/orgSettings` and `pnpm --filter @agentdesk/web typecheck`. Expected: PASS.
-- [ ] **Step 5: Commit**: `feat(web): edit an organization from the platform detail`.
+- [x] **Step 1: Write the failing tests** in `orgEdit.route.test.tsx`: dialog prefilled, "Save" disabled until dirty and again when values equal the current ones (BR-59, no request); name-only save shows no confirm, toasts "Organization updated", stays on `/platform/orgs/<id>`, header and directory cache show the new name (BR-53, BR-57); a slug change shows the confirm first, Cancel returns to the dialog with input kept and sends nothing, "Change URL" saves (BR-57); "Enter a name.", "Use 100 characters or fewer." and the slug format message at the field, first invalid field focused (BR-54, BR-55); 409 lands "This URL is taken. Try another." at URL with input kept (BR-56); 404 toasts "Organization not found" and goes to the directory; 403/5xx show the Banner with the request id; on a suspended org Edit is enabled and the header keeps "Suspended" after save (BR-62); only changed fields are sent.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/features/platform/orgEdit.route.test.tsx`. Expected: FAIL.
+- [x] **Step 3: Implement** the dialog state in the `$orgId` layout (errors on submit, then on blur after first touch; Enter submits, Escape cancels, focus returns to "Edit organization").
+- [x] **Step 4: Run** `pnpm --filter @agentdesk/web exec vitest run src/features/platform src/features/orgSettings` and `pnpm --filter @agentdesk/web typecheck`. Expected: PASS.
+- [x] **Step 5: Commit**: `feat(web): edit an organization from the platform detail`.
 
 ---
 
@@ -1526,9 +1526,9 @@ PlatformOrgHeaderProps.onEdit present → "Edit organization" button first in th
 
 Covers: BR-52 (TC-52.3), BR-53 (TC-53.1, TC-53.2), BR-54 (TC-54.1 to TC-54.4), BR-55 (TC-55.1 to TC-55.5), BR-56 (TC-56.1), BR-57 (TC-57.1, TC-57.2, TC-57.3), BR-59 (TC-59.1), BR-62 (TC-62.1). Role-based case: TC-52.3.
 
-- [ ] **Step 1: Write the spec** with the spec's strings; TC-59.1 asserts "Save" is disabled and no PATCH was sent (spec open question Q5: the no-audit part is Task 35).
-- [ ] **Step 2: Run** the mock build, then `pnpm --filter @agentdesk/web exec playwright test e2e/mock/platform-org-edit.spec.ts`. Expected: PASS.
-- [ ] **Step 3: Commit**: `test(web): mock e2e for editing an organization`.
+- [x] **Step 1: Write the spec** with the spec's strings; TC-59.1 asserts "Save" is disabled and no PATCH was sent (spec open question Q5: the no-audit part is Task 35).
+- [x] **Step 2: Run** the mock build, then `pnpm --filter @agentdesk/web exec playwright test e2e/mock/platform-org-edit.spec.ts`. Expected: PASS.
+- [x] **Step 3: Commit**: `test(web): mock e2e for editing an organization`.
 
 ---
 
@@ -1545,9 +1545,9 @@ Covers: BR-52 (TC-52.3), BR-53 (TC-53.1, TC-53.2), BR-54 (TC-54.1 to TC-54.4), B
 
 Covers: BR-53 (TC-53.3), BR-56 (TC-56.2), BR-58 (TC-58.1, TC-58.2, TC-58.3), BR-61 (TC-61.1) in `platform-org-edit.spec.ts`; BR-52 (TC-52.1, TC-52.2) in `platform-access.spec.ts`. BR-59, BR-62 and BR-56's race are Not e2e on local (Task 35, Task 39). Role-based cases: TC-52.1, TC-52.2.
 
-- [ ] **Step 1: Write the specs**: fresh `e2e-<rand>` orgs only; restore the original name and slug in `finally` (errors swallowed); the org created on the freed slug is cleaned up the same way.
-- [ ] **Step 2: Run** with the stack up: `pnpm --filter @agentdesk/web exec playwright test e2e/local/platform-org-edit.spec.ts e2e/local/platform-access.spec.ts`. Expected: PASS.
-- [ ] **Step 3: Commit**: `test(web): local e2e for editing an organization`.
+- [x] **Step 1: Write the specs**: fresh `e2e-<rand>` orgs only; restore the original name and slug in `finally` (errors swallowed); the org created on the freed slug is cleaned up the same way.
+- [x] **Step 2: Run** with the stack up: `pnpm --filter @agentdesk/web exec playwright test e2e/local/platform-org-edit.spec.ts e2e/local/platform-access.spec.ts`. Expected: PASS.
+- [x] **Step 3: Commit**: `test(web): local e2e for editing an organization`.
 
 ---
 
@@ -1581,16 +1581,16 @@ routeAccess['platform.listAudit'] = platform('platform-audit:read')
 export const platformAuditFixtures: PlatformAuditEntryDto[]; // every action, one gone actor, one gone org, suspend/reactivate with reasons, an edit with name and slug
 ```
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
   - `access.test.ts`: the permission is platform level; count +1.
   - `platform.test.ts` (BR-45, BR-50): the DTO keys; `actor` and `org` nullable; the query accepts `orgId` (uuid) and each action, rejects a non-uuid `orgId` and an unknown action.
   - `routes.test.ts`, `route-access.test.ts`: route and entry; counts +1.
   - `authz.int.test.ts`: `'platform.listAudit': platformRoute(200)` and in `NOT_REGISTERED_YET`.
   - `contract.test.ts`: fixtures parse; the handler filters by `orgId`, by `action` and both, newest first; `platformEmpty` lists none.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/contracts exec vitest run`. Expected: FAIL.
-- [ ] **Step 3: Implement** the contracts, fixtures, handler and scenario data.
-- [ ] **Step 4: Run** Step 2's command, `pnpm --filter @agentdesk/api typecheck`, `pnpm --filter @agentdesk/api exec vitest run test/authz.int.test.ts`, `pnpm --filter @agentdesk/web exec vitest run src/mocks`, `pnpm --filter @agentdesk/web typecheck`. Expected: PASS.
-- [ ] **Step 5: Commit**: `feat(contracts): platform audit list route and permission`. Label `review:sensitive` (permission, routeAccess).
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/contracts exec vitest run`. Expected: FAIL.
+- [x] **Step 3: Implement** the contracts, fixtures, handler and scenario data.
+- [x] **Step 4: Run** Step 2's command, `pnpm --filter @agentdesk/api typecheck`, `pnpm --filter @agentdesk/api exec vitest run test/authz.int.test.ts`, `pnpm --filter @agentdesk/web exec vitest run src/mocks`, `pnpm --filter @agentdesk/web typecheck`. Expected: PASS.
+- [x] **Step 5: Commit**: `feat(contracts): platform audit list route and permission`. Label `review:sensitive` (permission, routeAccess).
 
 ---
 
@@ -1609,14 +1609,14 @@ export const platformAuditFixtures: PlatformAuditEntryDto[]; // every action, on
 - Consumes: `writePlatformAuditEntry` with `targetOrgId` (Tasks 22, 35), `routeAccess`, `flattenRoutes`.
 - Produces: in the transaction that already writes the tenant row, when `actor.kind === 'platform_admin'`: `org.created` (target `org`), `assignment.granted`/`assignment.revoked` (target `assignment`, payload user id, role key, scope), `invitation.created`/`invitation.resent`/`invitation.revoked` (target `invitation`, payload invitee email, role key, scope), each with `target_org_id`. Responses unchanged.
 
-- [ ] **Step 1: Write the failing tests** in `platform-audit.int.test.ts` (BR-44):
+- [x] **Step 1: Write the failing tests** in `platform-audit.int.test.ts` (BR-44):
   - Table-driven over every mutating `scope: 'platform'` route key (org create, `platform.updateOrg`, suspend, reactivate, assignment create and remove, invitation create, resend and remove, admin grant and revoke): one row, the right `action`, `target_org_id` (null for admin rows), actor from the session, payload redacted (a seeded `ghp_`-style value is never stored); none on a 4xx and none on a no-op repeat.
   - Completeness: every mutating platform route key of `flattenRoutes(routes)` has a case, so a new one without an audit action fails.
   - Same transaction: an owner-added CHECK on a fresh DB that refuses the platform insert makes an assignment create fail and leaves no assignment and no tenant row.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/api exec vitest run test/platform-audit.int.test.ts`. Expected: FAIL.
-- [ ] **Step 3: Implement** the writer calls in the three services and the entry types.
-- [ ] **Step 4: Run** Step 2's command, `pnpm --filter @agentdesk/api exec vitest run test/assignments.int.test.ts test/invitations.int.test.ts test/invitation-resend.int.test.ts test/platform.int.test.ts src/audit`, `pnpm --filter @agentdesk/api typecheck`. Expected: PASS.
-- [ ] **Step 5: Commit**: `feat(api): audit every platform write`. Label `review:sensitive` (audit writes).
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/api exec vitest run test/platform-audit.int.test.ts`. Expected: FAIL.
+- [x] **Step 3: Implement** the writer calls in the three services and the entry types.
+- [x] **Step 4: Run** Step 2's command, `pnpm --filter @agentdesk/api exec vitest run test/assignments.int.test.ts test/invitations.int.test.ts test/invitation-resend.int.test.ts test/platform.int.test.ts src/audit`, `pnpm --filter @agentdesk/api typecheck`. Expected: PASS.
+- [x] **Step 5: Commit**: `feat(api): audit every platform write`. Label `review:sensitive` (audit writes).
 
 ---
 
@@ -1634,14 +1634,14 @@ export const platformAuditFixtures: PlatformAuditEntryDto[]; // every action, on
 - Consumes: `PlatformAuditListQuery`, `PlatformAuditEntryDto` (Task 41), rows written by Tasks 22, 35, 42.
 - Produces: `PlatformAuditService.list(q: PlatformAuditListQuery): Promise<Page<PlatformAuditEntryDto>>` (plain `db.orm`; left join `user` for the actor and `organization` for the org name, null when gone; `target.label` built on read from the payload: admin email, org name, member name or invitee email; `reason` only for `org.suspended`/`org.reactivated`; `changes` from `{ from, to }` for `org.updated`; never the raw payload).
 
-- [ ] **Step 1: Write the failing tests** in `platform-audit-list.int.test.ts` (rows made through the real routes):
+- [x] **Step 1: Write the failing tests** in `platform-audit-list.int.test.ts` (rows made through the real routes):
   - BR-45: order `created_at desc, id desc`; filter by org, by action, both; `total` matches the filter; actor and org null after the user is deleted (org rows of a never-created target org as well); `reason` on suspend and reactivate rows only; `changes` for an edit; no payload key leaks.
   - BR-46: 403 before lookup for owner, admin, project admin, member, viewer, another org's owner and a no-org user, with `?orgId=<unknown>` giving the same 403; 401 signed out; no tenant route (`audit.list` for that org) returns a platform row or its reason.
   - `authz.int.test.ts`: remove the key from `NOT_REGISTERED_YET`.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/api exec vitest run test/platform-audit-list.int.test.ts`. Expected: FAIL.
-- [ ] **Step 3: Implement** the service and controller, register them.
-- [ ] **Step 4: Run** Step 2's command, `pnpm --filter @agentdesk/api exec vitest run test/authz.int.test.ts test/audit.int.test.ts`, `pnpm --filter @agentdesk/api typecheck`. Expected: PASS.
-- [ ] **Step 5: Commit**: `feat(api): platform audit list with org and action filters`. Label `review:sensitive`.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/api exec vitest run test/platform-audit-list.int.test.ts`. Expected: FAIL.
+- [x] **Step 3: Implement** the service and controller, register them.
+- [x] **Step 4: Run** Step 2's command, `pnpm --filter @agentdesk/api exec vitest run test/authz.int.test.ts test/audit.int.test.ts`, `pnpm --filter @agentdesk/api typecheck`. Expected: PASS.
+- [x] **Step 5: Commit**: `feat(api): platform audit list with org and action filters`. Label `review:sensitive`.
 
 ---
 
@@ -1672,11 +1672,11 @@ export function PlatformAudit(props: PlatformAuditProps): JSX.Element;
 // mocks/platform/audit.ts: platformAuditRows (every action, a "Deleted user", reasons on suspend/reactivate, an edit), pagedPlatformAuditRows
 ```
 
-- [ ] **Step 1: Write the failing tests**: `AuditRow.test.tsx` renders `note` muted under the sentence and nothing without it; `platform.test.tsx`: h1 "Audit log", columns When, Who, What, Action select "All actions", chip "Organization: <name>" with a remove button labelled "Remove filter Organization: <name>", "No audit entries", "No audit entries match" with "Clear filters".
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/components/AuditRow.test.tsx src/screens/platform.test.tsx`. Expected: FAIL.
-- [ ] **Step 3: Implement** the note, the screen and stories `PlatformAudit`, `…Loading`, `…Empty`, `…EmptyFiltered`, `…Error`, `…Paged`, `…OrgChip`, `…OrgChipUnknown`; `AuditRow` story WithNote; register the 8 boards; coverage 232 to 240; regenerate the interactive prototype; parity notes.
-- [ ] **Step 4: Run** the same commands as Task 5 Step 4 for these 8 boards plus `OrgAudit*` (the shared `AuditRow`). Expected: PASS.
-- [ ] **Step 5: Commit**: `feat(web): platform audit log boards in Storybook`.
+- [x] **Step 1: Write the failing tests**: `AuditRow.test.tsx` renders `note` muted under the sentence and nothing without it; `platform.test.tsx`: h1 "Audit log", columns When, Who, What, Action select "All actions", chip "Organization: <name>" with a remove button labelled "Remove filter Organization: <name>", "No audit entries", "No audit entries match" with "Clear filters".
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/components/AuditRow.test.tsx src/screens/platform.test.tsx`. Expected: FAIL.
+- [x] **Step 3: Implement** the note, the screen and stories `PlatformAudit`, `…Loading`, `…Empty`, `…EmptyFiltered`, `…Error`, `…Paged`, `…OrgChip`, `…OrgChipUnknown`; `AuditRow` story WithNote; register the 8 boards; coverage 232 to 240; regenerate the interactive prototype; parity notes.
+- [x] **Step 4: Run** the same commands as Task 5 Step 4 for these 8 boards plus `OrgAudit*` (the shared `AuditRow`). Expected: PASS.
+- [x] **Step 5: Commit**: `feat(web): platform audit log boards in Storybook`.
 
 ---
 
@@ -1701,13 +1701,13 @@ export function toPlatformAuditRow(dto: PlatformAuditEntryDto, now: Date): Audit
 // route search: { page?: number; action?: PlatformAuditAction; org?: string } — `org` maps to the API `orgId`
 ```
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
   - `map.test.ts`: every `PlatformAuditAction` value has a label; each sentence of the spec's "Platform audit sentences" (actor and org bold, edit URLs in mono, "renamed X to Y" from `changes`); a gone actor reads "Deleted user"; the note only on suspend and reactivate rows; markup in a reason or org name renders as text.
   - `audit.route.test.tsx` (BR-45, BR-50): newest first; the Action select puts `action` in the URL and "All actions" removes it; empty filtered shows "Clear filters"; `?org=<id>` shows chip "Organization: <name>" and sends `orgId`; removing the chip drops `org` and lists all; an unknown id shows "Unknown organization" and an empty list; no org picker; "View audit log" on the detail opens `/platform/audit?org=<id>`; loading, empty and `serverError` with Retry (BR-4); Review Focus 3: `?org=abc` shows "Unknown organization", an empty list and sends no audit request.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/features/platform`. Expected: FAIL.
-- [ ] **Step 3: Implement** the route, query, mapper and the header's `auditHref`; regenerate `routeTree.gen.ts`.
-- [ ] **Step 4: Run** Step 2's command and `pnpm --filter @agentdesk/web typecheck`. Expected: PASS.
-- [ ] **Step 5: Commit**: `feat(web): platform audit log with action and org filters`.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/features/platform`. Expected: FAIL.
+- [x] **Step 3: Implement** the route, query, mapper and the header's `auditHref`; regenerate `routeTree.gen.ts`.
+- [x] **Step 4: Run** Step 2's command and `pnpm --filter @agentdesk/web typecheck`. Expected: PASS.
+- [x] **Step 5: Commit**: `feat(web): platform audit log with action and org filters`.
 
 ---
 
@@ -1723,9 +1723,9 @@ export function toPlatformAuditRow(dto: PlatformAuditEntryDto, now: Date): Audit
 
 Covers: BR-4 (TC-4.7, TC-4.8, TC-4.9), BR-45 (TC-45.1 to TC-45.4), BR-50 (TC-50.1, TC-50.2, TC-50.3).
 
-- [ ] **Step 1: Write the spec** with the spec's sentences and labels.
-- [ ] **Step 2: Run** the mock build, then `pnpm --filter @agentdesk/web exec playwright test e2e/mock/platform-audit.spec.ts`. Expected: PASS.
-- [ ] **Step 3: Commit**: `test(web): mock e2e for the platform audit log`.
+- [x] **Step 1: Write the spec** with the spec's sentences and labels.
+- [x] **Step 2: Run** the mock build, then `pnpm --filter @agentdesk/web exec playwright test e2e/mock/platform-audit.spec.ts`. Expected: PASS.
+- [x] **Step 3: Commit**: `test(web): mock e2e for the platform audit log`.
 
 ---
 
@@ -1745,9 +1745,9 @@ Covers: BR-4 (TC-4.7, TC-4.8, TC-4.9), BR-45 (TC-45.1 to TC-45.4), BR-50 (TC-50.
 
 Covers: BR-44 (TC-44.1, TC-44.2), BR-45 (TC-45.5), BR-50 (TC-50.4), BR-60 (TC-60.1, TC-60.2) in `platform-audit.spec.ts`; BR-3 (TC-3.2), BR-46 (TC-46.1, TC-46.2, TC-46.3) in `platform-access.spec.ts`. BR-44's same-transaction, redaction and completeness parts are Not e2e (Task 42). Role-based cases: TC-3.2, TC-46.1 to TC-46.3.
 
-- [ ] **Step 1: Write the specs**: entries asserted only through `?org=<fresh id>`, never by global position; fresh orgs reactivated and renamed back in `finally`.
-- [ ] **Step 2: Run** with the stack up: `pnpm --filter @agentdesk/web exec playwright test e2e/local/platform-audit.spec.ts e2e/local/platform-access.spec.ts`. Expected: PASS.
-- [ ] **Step 3: Commit**: `test(web): local e2e for the platform audit log and platform refusals`.
+- [x] **Step 1: Write the specs**: entries asserted only through `?org=<fresh id>`, never by global position; fresh orgs reactivated and renamed back in `finally`.
+- [x] **Step 2: Run** with the stack up: `pnpm --filter @agentdesk/web exec playwright test e2e/local/platform-audit.spec.ts e2e/local/platform-access.spec.ts`. Expected: PASS.
+- [x] **Step 3: Commit**: `test(web): local e2e for the platform audit log and platform refusals`.
 
 ---
 
@@ -1764,11 +1764,11 @@ Covers: BR-44 (TC-44.1, TC-44.2), BR-45 (TC-45.5), BR-50 (TC-50.4), BR-60 (TC-60
 
 - Produces (`platformOrgs.ts`): per-org stores answering `platform.listProjects`, `platform.listMembers`, `platform.listRoles`, `platform.createAssignment` (422 for Owner on project scope, as the API) and `platform.removeAssignment` (the last owner too; the directory row then has `owner: null`); fixtures: an org with 25 projects, members with "Owner (organization)" plus "Member (Alpha)", one with no assignment, one with no name; `platformEmpty` gives empty tabs.
 
-- [ ] **Step 1: Write the failing tests** in `contract.test.ts`: DTOs parse; adding Owner org-wide shows in the member's assignments; removing the last owner empties the directory owner; Owner on a project is 422; paging over 25 projects.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/mocks/msw/contract.test.ts`. Expected: FAIL.
-- [ ] **Step 3: Implement** the stores and handler wiring (the invitation handlers already use the org's store).
+- [x] **Step 1: Write the failing tests** in `contract.test.ts`: DTOs parse; adding Owner org-wide shows in the member's assignments; removing the last owner empties the directory owner; Owner on a project is 422; paging over 25 projects.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/mocks/msw/contract.test.ts`. Expected: FAIL.
+- [x] **Step 3: Implement** the stores and handler wiring (the invitation handlers already use the org's store).
 - [ ] **Step 4: Run** `pnpm --filter @agentdesk/web exec vitest run src/mocks`, `pnpm --filter @agentdesk/web typecheck`. Expected: PASS.
-- [ ] **Step 5: Commit**: `feat(web): mock org projects, members and assignments for the platform detail`.
+- [x] **Step 5: Commit**: `feat(web): mock org projects, members and assignments for the platform detail`.
 
 ---
 
@@ -1801,11 +1801,11 @@ export function PlatformMemberRow(props: { row: PlatformMemberRowView; busy?: bo
   onRemove: (row: PlatformMemberRowView, a: PlatformMemberAssignmentView) => void }): JSX.Element;
 ```
 
-- [ ] **Step 1: Write the failing tests**: project id in mono with ellipsis and full value in `title`, name as plain text, no link and no action (BR-25); member name with the handle under it, the handle alone when there is no name, roles joined with ", ", "—" when none; the row menu button "Actions for <name or handle>" offers "Add assignment" then one "Remove <Role> (<scope>)" per assignment; busy disables it; markup in names renders as text.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/components/PlatformProjectRow.test.tsx src/components/PlatformMemberRow.test.tsx`. Expected: FAIL.
-- [ ] **Step 3: Implement** both with stories (project: Default, LongId; member: Default, NoAssignment, NoName, MenuOpen, Busy) using `useRowMenu`/`menuKeyDown`.
-- [ ] **Step 4: Run** Step 2's command and `pnpm --filter @agentdesk/web exec vitest run src/test/stories.smoke.test.tsx`. Expected: PASS.
-- [ ] **Step 5: Commit**: `feat(web): platform project and member rows in Storybook`.
+- [x] **Step 1: Write the failing tests**: project id in mono with ellipsis and full value in `title`, name as plain text, no link and no action (BR-25); member name with the handle under it, the handle alone when there is no name, roles joined with ", ", "—" when none; the row menu button "Actions for <name or handle>" offers "Add assignment" then one "Remove <Role> (<scope>)" per assignment; busy disables it; markup in names renders as text.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/components/PlatformProjectRow.test.tsx src/components/PlatformMemberRow.test.tsx`. Expected: FAIL.
+- [x] **Step 3: Implement** both with stories (project: Default, LongId; member: Default, NoAssignment, NoName, MenuOpen, Busy) using `useRowMenu`/`menuKeyDown`.
+- [x] **Step 4: Run** Step 2's command and `pnpm --filter @agentdesk/web exec vitest run src/test/stories.smoke.test.tsx`. Expected: PASS.
+- [x] **Step 5: Commit**: `feat(web): platform project and member rows in Storybook`.
 
 ---
 
@@ -1835,11 +1835,11 @@ export function AssignmentDialog(props: AssignmentDialogProps): JSX.Element;
 // mocks/platform/assignment.ts: assignmentRoles, assignmentProjects
 ```
 
-- [ ] **Step 1: Write the failing tests** (BR-27): title "Add assignment", the person's name and handle; Access radio "Whole organization" (default) and "One project"; Role offers Owner, Admin, Member, Viewer for the whole organization and Admin, Member, Viewer for one project (Owner removed and a picked Owner cleared); the "Project" select shows only for one project; "Cancel", "Add assignment"/"Adding…", not closable while saving.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/components/AssignmentDialog.test.tsx`. Expected: FAIL.
-- [ ] **Step 3: Implement** with stories Org, Project, Saving, FormError.
-- [ ] **Step 4: Run** Step 2's command and `pnpm --filter @agentdesk/web exec vitest run src/test/stories.smoke.test.tsx`. Expected: PASS.
-- [ ] **Step 5: Commit**: `feat(web): assignment dialog in Storybook`.
+- [x] **Step 1: Write the failing tests** (BR-27): title "Add assignment", the person's name and handle; Access radio "Whole organization" (default) and "One project"; Role offers Owner, Admin, Member, Viewer for the whole organization and Admin, Member, Viewer for one project (Owner removed and a picked Owner cleared); the "Project" select shows only for one project; "Cancel", "Add assignment"/"Adding…", not closable while saving.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/components/AssignmentDialog.test.tsx`. Expected: FAIL.
+- [x] **Step 3: Implement** with stories Org, Project, Saving, FormError.
+- [x] **Step 4: Run** Step 2's command and `pnpm --filter @agentdesk/web exec vitest run src/test/stories.smoke.test.tsx`. Expected: PASS.
+- [x] **Step 5: Commit**: `feat(web): assignment dialog in Storybook`.
 
 ---
 
@@ -1869,11 +1869,11 @@ export interface PlatformOrgMembersProps {
 export function PlatformOrgMembers(props: PlatformOrgMembersProps): JSX.Element;
 ```
 
-- [ ] **Step 1: Write the failing tests** in `platform.test.tsx`: section headings "Projects" and "Members"; empty "No projects" and "No members"; the muted note "Platform view: names and emails only. Tickets, runs and secrets are never shown here." on Members; remove confirm "Remove <role> from <name>?" with "Cancel", "Remove"/"Removing…".
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/screens/platform.test.tsx`. Expected: FAIL.
-- [ ] **Step 3: Implement** both screens and stories `PlatformOrgProjects`, `…Loading`, `…Empty`, `…Error`, `…Paged`, `PlatformOrgMembers`, `…Loading`, `…Empty`, `…Error`, `…Paged`, `…RowMenu`, `…AddAssignment`, `…RemoveConfirm`, `…Removing` (org group with all four items); barrel lines for Tasks 49 and 50; register the 14 boards; coverage 240 to 254; regenerate the interactive prototype; parity notes.
+- [x] **Step 1: Write the failing tests** in `platform.test.tsx`: section headings "Projects" and "Members"; empty "No projects" and "No members"; the muted note "Platform view: names and emails only. Tickets, runs and secrets are never shown here." on Members; remove confirm "Remove <role> from <name>?" with "Cancel", "Remove"/"Removing…".
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/screens/platform.test.tsx`. Expected: FAIL.
+- [x] **Step 3: Implement** both screens and stories `PlatformOrgProjects`, `…Loading`, `…Empty`, `…Error`, `…Paged`, `PlatformOrgMembers`, `…Loading`, `…Empty`, `…Error`, `…Paged`, `…RowMenu`, `…AddAssignment`, `…RemoveConfirm`, `…Removing` (org group with all four items); barrel lines for Tasks 49 and 50; register the 14 boards; coverage 240 to 254; regenerate the interactive prototype; parity notes.
 - [ ] **Step 4: Run** the same commands as Task 5 Step 4 for these 14 boards. Expected: PASS.
-- [ ] **Step 5: Commit**: `feat(web): platform org projects and members boards in Storybook`.
+- [x] **Step 5: Commit**: `feat(web): platform org projects and members boards in Storybook`.
 
 ---
 
@@ -1891,11 +1891,11 @@ export function PlatformOrgMembers(props: PlatformOrgMembersProps): JSX.Element;
 
 - Produces: `export function PlatformOrgInvitations(props: { view: ListView<OrgInvitationRowView>; status: InvitationStatusView | 'all'; onStatus: (s) => void; onInvite: () => void; resendingId?: string; inviteDialog?: ReactNode; linkDialog?: ReactNode; copyFailed?: boolean; rowActions: (row: OrgInvitationRowView) => ReactNode }): JSX.Element;` reusing `InvitationRow`, the invitation status filter and `InviteDialog`.
 
-- [ ] **Step 1: Write the failing tests** in `platform.test.tsx`: heading "Invitations", "Invite people", the status filter Pending (default), Accepted, Declined, Revoked, Expired, All; columns Email, Role, Access, Status, Expires, Invited by, Actions; empty "No invitations" with "Invite people"; copy failed "Could not copy. Select the link and copy it."; the platform note.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/screens/platform.test.tsx`. Expected: FAIL.
-- [ ] **Step 3: Implement** the screen and stories `PlatformOrgInvitations`, `…Loading`, `…Empty`, `…Error`, `…Paged`, `…Invite`, `…Resending`, `…CopyFailed`; register the 8 boards; coverage 254 to 262; regenerate the interactive prototype; parity notes.
-- [ ] **Step 4: Run** the same commands as Task 5 Step 4 for these 8 boards. Expected: PASS.
-- [ ] **Step 5: Commit**: `feat(web): platform org invitations boards in Storybook`.
+- [x] **Step 1: Write the failing tests** in `platform.test.tsx`: heading "Invitations", "Invite people", the status filter Pending (default), Accepted, Declined, Revoked, Expired, All; columns Email, Role, Access, Status, Expires, Invited by, Actions; empty "No invitations" with "Invite people"; copy failed "Could not copy. Select the link and copy it."; the platform note.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/screens/platform.test.tsx`. Expected: FAIL.
+- [x] **Step 3: Implement** the screen and stories `PlatformOrgInvitations`, `…Loading`, `…Empty`, `…Error`, `…Paged`, `…Invite`, `…Resending`, `…CopyFailed`; register the 8 boards; coverage 254 to 262; regenerate the interactive prototype; parity notes.
+- [x] **Step 4: Run** the same commands as Task 5 Step 4 for these 8 boards. Expected: PASS.
+- [x] **Step 5: Commit**: `feat(web): platform org invitations boards in Storybook`.
 
 ---
 
@@ -1923,14 +1923,14 @@ export function toPlatformMemberRow(dto: PlatformMemberDto, projectNames: Readon
 // the $orgId layout's org group gains links projects, members, invitations
 ```
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
   - `map.test.ts`: "<Role> (organization)" and "<Role> (<project name>)" joined with ", "; "—"; the nameless member uses the handle.
   - `projects.route.test.tsx` (BR-24, BR-25): side menu Projects opens heading "Projects"; columns Id and Name only, plain text; `?page=2` keeps Members' own page; loading, empty and error with Retry.
   - `members.route.test.tsx` (BR-26 to BR-28): roles as in the map; the row menu "Add assignment" opens the dialog with Owner, Admin, Member, Viewer for the whole organization and Admin, Member, Viewer plus the project select for one project; adding org-wide Owner sends role owner, toasts "Assignment added", the row shows "Owner (organization)"; "Remove Member (Alpha)" asks "Remove <role> from <name>?", Remove toasts "Assignment removed", Cancel keeps it; removing the last owner invalidates `['platform','orgs']`; loading, empty and error with Retry.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/features/platform`. Expected: FAIL.
-- [ ] **Step 3: Implement** both routes (each its own `?page=N`), queries, mutations (invalidate that org's members key and `['platform','orgs']`), the side-menu links; regenerate `routeTree.gen.ts`.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/features/platform`. Expected: FAIL.
+- [x] **Step 3: Implement** both routes (each its own `?page=N`), queries, mutations (invalidate that org's members key and `['platform','orgs']`), the side-menu links; regenerate `routeTree.gen.ts`.
 - [ ] **Step 4: Run** Step 2's command and `pnpm --filter @agentdesk/web typecheck`. Expected: PASS.
-- [ ] **Step 5: Commit**: `feat(web): platform org projects and members pages`.
+- [x] **Step 5: Commit**: `feat(web): platform org projects and members pages`.
 
 ---
 
@@ -1948,11 +1948,11 @@ export function toPlatformMemberRow(dto: PlatformMemberDto, projectNames: Readon
 - Consumes: existing `platform.listInvitations`, `createInvitation`, `resendInvitation`, `removeInvitation`; `useInviteForm` and the invitation mappers of `features/orgInvitations`; `PlatformOrgInvitations` (Task 52).
 - Produces: `platformOrgInvitationsQuery(orgId, q: InvitationListQuery)`, `useCreatePlatformInvitation`, `useResendPlatformInvitation`, `useRevokePlatformInvitation` (invalidate that org's invitations key; invitation links never cached).
 
-- [ ] **Step 1: Write the failing tests** in `invitations.route.test.tsx` (BR-29 to BR-31): pending by default with `status` in the URL, Revoked and All filters; "Invite people" with Role Owner and "Whole organization" creates a pending row and shows "Invitation link" with "Done"; resend shows the row busy then a fresh expiry; revoke with confirm leaves the pending list; empty, not-an-email and 255-character emails show an error at Email and send nothing, a 254-character email is accepted; copy failure shows the copy message; loading, empty (with "Invite people") and error with Retry.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/features/platform/invitations.route.test.tsx`. Expected: FAIL.
-- [ ] **Step 3: Implement** the route over the platform routes; regenerate `routeTree.gen.ts`.
+- [x] **Step 1: Write the failing tests** in `invitations.route.test.tsx` (BR-29 to BR-31): pending by default with `status` in the URL, Revoked and All filters; "Invite people" with Role Owner and "Whole organization" creates a pending row and shows "Invitation link" with "Done"; resend shows the row busy then a fresh expiry; revoke with confirm leaves the pending list; empty, not-an-email and 255-character emails show an error at Email and send nothing, a 254-character email is accepted; copy failure shows the copy message; loading, empty (with "Invite people") and error with Retry.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/features/platform/invitations.route.test.tsx`. Expected: FAIL.
+- [x] **Step 3: Implement** the route over the platform routes; regenerate `routeTree.gen.ts`.
 - [ ] **Step 4: Run** `pnpm --filter @agentdesk/web exec vitest run src/features/platform src/features/orgInvitations` and `pnpm --filter @agentdesk/web typecheck`. Expected: PASS.
-- [ ] **Step 5: Commit**: `feat(web): platform org invitations page`.
+- [x] **Step 5: Commit**: `feat(web): platform org invitations page`.
 
 ---
 
@@ -1968,9 +1968,9 @@ export function toPlatformMemberRow(dto: PlatformMemberDto, projectNames: Readon
 
 Covers: BR-4 (TC-4.10), BR-24 (TC-24.1, TC-24.2), BR-25 (TC-25.1, TC-25.3), BR-26 (TC-26.1), BR-27 (TC-27.1, TC-27.2, TC-27.3), BR-28 (TC-28.1, TC-28.2), BR-29 (TC-29.1, TC-29.2), BR-30 (TC-30.1, TC-30.2, TC-30.3), BR-31 (TC-31.1 to TC-31.4).
 
-- [ ] **Step 1: Write the spec**; TC-30.2 and TC-30.3 find the row actions by purpose (spec open question Q6); TC-31.x assert an error at Email (Q1).
-- [ ] **Step 2: Run** the mock build, then `pnpm --filter @agentdesk/web exec playwright test e2e/mock/platform-org-detail.spec.ts`. Expected: PASS.
-- [ ] **Step 3: Commit**: `test(web): mock e2e for the platform org detail tabs`.
+- [x] **Step 1: Write the spec**; TC-30.2 and TC-30.3 find the row actions by purpose (spec open question Q6); TC-31.x assert an error at Email (Q1).
+- [x] **Step 2: Run** the mock build, then `pnpm --filter @agentdesk/web exec playwright test e2e/mock/platform-org-detail.spec.ts`. Expected: PASS.
+- [x] **Step 3: Commit**: `test(web): mock e2e for the platform org detail tabs`.
 
 ---
 
@@ -1986,6 +1986,6 @@ Covers: BR-4 (TC-4.10), BR-24 (TC-24.1, TC-24.2), BR-25 (TC-25.1, TC-25.3), BR-2
 
 Covers: BR-24 (TC-24.3), BR-25 (TC-25.2), BR-27 (TC-27.4), BR-28 (TC-28.3), BR-30 (TC-30.4). Role-based case: TC-27.4 (a member's next request follows the new assignment).
 
-- [ ] **Step 1: Write the spec**: fresh orgs and users only; invitations revoked and assignments removed in `finally`.
-- [ ] **Step 2: Run** with the stack up: `pnpm --filter @agentdesk/web exec playwright test e2e/local/platform-org-detail.spec.ts`. Expected: PASS.
-- [ ] **Step 3: Commit**: `test(web): local e2e for the platform org detail tabs`.
+- [x] **Step 1: Write the spec**: fresh orgs and users only; invitations revoked and assignments removed in `finally`.
+- [x] **Step 2: Run** with the stack up: `pnpm --filter @agentdesk/web exec playwright test e2e/local/platform-org-detail.spec.ts`. Expected: PASS.
+- [x] **Step 3: Commit**: `test(web): local e2e for the platform org detail tabs`.

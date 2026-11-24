@@ -1,6 +1,6 @@
 import { render, screen, within } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
-import { auditRows } from '@/mocks';
+import { auditRows, platformAuditRows } from '@/mocks';
 import type { AuditRowView } from '@/mocks/types';
 import { AuditRow, auditColumns } from './AuditRow';
 
@@ -103,5 +103,43 @@ describe('AuditRow', () => {
     const second = renderRow(mail);
     expect(second.container.querySelector('a')).toBeNull();
     expect(second.container).toHaveTextContent('sam.reyes@contractor.io');
+  });
+
+  it('renders the note muted under the sentence', () => {
+    const row = platformAuditRows.find((r) => r.note);
+    if (!row?.note) throw new Error('no platform audit row with a note');
+    renderRow(row);
+    const what = screen.getAllByRole('cell')[2] as HTMLElement;
+    const note = within(what).getByText(row.note);
+    expect(note).toHaveAttribute('title', row.note);
+    expect(note.tagName).toBe('SPAN');
+  });
+
+  it('renders nothing extra without a note', () => {
+    renderRow(rowAt(0));
+    expect(screen.queryByText(/^Reason: /)).not.toBeInTheDocument();
+  });
+
+  it('renders a mono part in the mono face, not bold, and others as plain text', () => {
+    renderRow({
+      id: 'x',
+      when: { label: 'now', exact: 'now', iso: '2026-11-23T11:00:00.000Z' },
+      who: { label: 'Dev Admin', tag: null },
+      what: {
+        kind: 'sentence',
+        parts: [
+          { text: 'from ', strong: false },
+          { text: '/o/a', strong: false, mono: true },
+          { text: ' by ', strong: false },
+          { text: 'Acme', strong: true },
+        ],
+        title: 'from /o/a by Acme',
+      },
+    });
+    const mono = screen.getByText('/o/a');
+    expect(mono).toHaveClass('mono');
+    expect(mono.tagName).toBe('SPAN');
+    expect(screen.getByText('Acme').tagName).toBe('B');
+    expect(screen.getByText('Acme')).not.toHaveClass('mono');
   });
 });

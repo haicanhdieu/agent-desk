@@ -26,6 +26,8 @@ import {
   CreateOrgResponse,
   GrantPlatformAdminRequest,
   PlatformAdminDto,
+  PlatformAuditEntryDto,
+  PlatformAuditListQuery,
   OrgDto,
   UpdateOrgRequest,
   PlatformAssignmentDto,
@@ -601,6 +603,13 @@ export const routes = {
       response: pageOf(PlatformOrgDto),
     },
     getOrg: { method: 'GET', path: '/api/platform/orgs/:orgId', params: orgParams, response: PlatformOrgDetailDto },
+    updateOrg: {
+      method: 'PATCH',
+      path: '/api/platform/orgs/:orgId',
+      params: orgParams,
+      body: UpdateOrgRequest,
+      response: PlatformOrgDetailDto,
+    },
     suspendOrg: {
       method: 'POST',
       path: '/api/platform/orgs/:orgId/suspend',
@@ -682,6 +691,12 @@ export const routes = {
       response: PlatformInvitationDto,
     },
     listAdmins: { method: 'GET', path: '/api/platform/admins', query: PageQuery, response: pageOf(PlatformAdminDto) },
+    listAudit: {
+      method: 'GET',
+      path: '/api/platform/audit',
+      query: PlatformAuditListQuery,
+      response: pageOf(PlatformAuditEntryDto),
+    },
     grantAdmin: {
       method: 'POST',
       path: '/api/platform/admins',

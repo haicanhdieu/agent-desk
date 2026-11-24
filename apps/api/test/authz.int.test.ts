@@ -838,6 +838,7 @@ const DENIAL_TABLE: Record<HttpKey, Expected> = {
   'platform.createOrg': platformRoute(201),
   'platform.listOrgs': platformRoute(200),
   'platform.getOrg': platformRoute(200),
+  'platform.updateOrg': platformRoute(200),
   'platform.suspendOrg': platformRoute(200),
   'platform.reactivateOrg': platformRoute(200),
   'platform.listProjects': platformRoute(200),
@@ -852,6 +853,7 @@ const DENIAL_TABLE: Record<HttpKey, Expected> = {
   'platform.resendInvitation': platformRoute(200),
   'platform.removeInvitation': platformRoute(204),
   'platform.listAdmins': platformRoute(200),
+  'platform.listAudit': platformRoute(200),
   'platform.grantAdmin': platformRoute(201),
   'platform.revokeAdmin': platformRoute(204),
 };
@@ -1162,6 +1164,7 @@ describe('denial table over every route, stream and terminal', () => {
       'members.updateRole': { roleId: viewerRole },
       'invitations.create': { email: 'dt-denied@dev.local', roleId: viewerRole, scope: { type: 'org' } },
       'platform.createOrg': { name: 'Denial New', slug: 'denial-new' },
+      'platform.updateOrg': { name: 'Denial Rename' },
       'platform.suspendOrg': { reason: 'x' },
       'platform.reactivateOrg': { reason: 'x' },
       'platform.createAssignment': { userId: spareId, roleId: memberRole, scope: { type: 'project', projectId: p1 } },

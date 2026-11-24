@@ -40,7 +40,7 @@ import { authHandlers } from './auth-handlers';
 import { agentModelsAnswer } from './agentModels';
 import { PR_STATES_SLOW_MS, prStateItems } from './prStates';
 import type { MockRun } from '../dto/runs';
-import { assignmentFixtures, platformMemberFixtures, platformProjectFixtures, roleFixtures } from '../dto/access';
+import { assignmentFixtures, roleFixtures } from '../dto/access';
 import { checklistFixtures } from '../dto/invitations';
 import { promptPreviewFixture } from '../dto/rules';
 import { slowActionRuns, transcriptBehaviours } from '../dto/sessionRuns';
@@ -63,7 +63,20 @@ import {
   type RouteKey,
 } from './http';
 import { grantPlatformAdmin, listPlatformAdmins, revokePlatformAdmin } from './platformAdmins';
-import { addPlatformOrg, getPlatformOrg, listPlatformOrgs, setPlatformOrgStatus } from './platformOrgs';
+import { listPlatformAudit } from './platformAudit';
+import {
+  addPlatformOrg,
+  createPlatformAssignment,
+  getPlatformOrg,
+  isPlatformOrg,
+  listPlatformMembers,
+  listPlatformOrgs,
+  listPlatformProjects,
+  listPlatformRoles,
+  removePlatformAssignment,
+  setPlatformOrgStatus,
+  updatePlatformOrg,
+} from './platformOrgs';
 import { linkedTicketsFor, toDto } from './linkedTickets';
 import {
   changeMemberRole,
@@ -174,10 +187,6 @@ function requireRouteAccess(key: RouteKey, user: MockUser): void {
 
 type Answer<T> = T | WithStatus<T>;
 
-const never = (what: string): never => {
-  throw new Error(`${what} fixture missing`);
-};
-
 // Invitations follow the API rules: lists by effective status, one pending row per (org, email), a 2 day lifetime, and
 // an invitee who is not the invited email sees a 404.
 
@@ -283,9 +292,10 @@ const notPending = () => conflict('Invitation is no longer pending');
 const notPendingStatus = (status: InvitationDto['status']) =>
   conflict('Conflict', undefined, `Invitation is ${status}`);
 
-// The platform routes name the org in the path; as the API, an org that does not exist is a 404.
+// The platform routes name the org in the path; as the API, an org that does not exist is a 404. An org the platform
+// directory lists exists even when the mock store holds no seat for it.
 const requireOrg = (orgId: string): string => {
-  if (!db().orgs.some((o) => o.id === orgId)) throw notFound('Organization');
+  if (!db().orgs.some((o) => o.id === orgId) && !isPlatformOrg(orgId)) throw notFound('Organization');
   return orgId;
 };
 const actorOf = (u: MockUser) => ({ userId: u.id, name: u.name, handle: u.handle ?? null });
@@ -1270,21 +1280,23 @@ const impl: Impl = {
   },
   'platform.listOrgs': ({ query }) => listPlatformOrgs(query),
   'platform.getOrg': ({ params }) => getPlatformOrg(params.orgId),
+  'platform.updateOrg': ({ params, body }) => updatePlatformOrg(params.orgId, body),
   'platform.suspendOrg': ({ params, body }) =>
     setPlatformOrgStatus(params.orgId, 'suspended', body.reason, actorOf(sessionUser())),
   'platform.reactivateOrg': ({ params, body }) =>
     setPlatformOrgStatus(params.orgId, 'active', body.reason, actorOf(sessionUser())),
-  'platform.listProjects': ({ query }) => slicePage(platformProjectFixtures, query),
-  'platform.listRoles': () => roleFixtures.filter((r) => r.builtIn),
-  'platform.listMembers': ({ query }) => slicePage(platformMemberFixtures, query),
+  'platform.listProjects': ({ params, query }) => listPlatformProjects(params.orgId, query),
+  'platform.listRoles': ({ params }) => listPlatformRoles(params.orgId),
+  'platform.listMembers': ({ params, query }) => listPlatformMembers(params.orgId, query),
   'platform.listAssignments': ({ query }) => slicePage(assignmentFixtures, query),
-  'platform.createAssignment': () => assignmentFixtures[0] ?? never('assignment'),
-  'platform.removeAssignment': () => null,
+  'platform.createAssignment': ({ params, body }) => createPlatformAssignment(params.orgId, body, sessionUser().id),
+  'platform.removeAssignment': ({ params }) => removePlatformAssignment(params.orgId, params.assignmentId),
   'platform.listInvitations': ({ params, query }) => listInvitations(requireOrg(params.orgId), query),
   'platform.createInvitation': ({ params, body }) => createInvitation(requireOrg(params.orgId), body),
   'platform.removeInvitation': ({ params }) => revokeInvitation(requireOrg(params.orgId), params.invitationId),
   'platform.resendInvitation': ({ params }) => resendInvitation(requireOrg(params.orgId), params.invitationId),
   'platform.listAdmins': ({ query }) => listPlatformAdmins(query),
+  'platform.listAudit': ({ query }) => listPlatformAudit(query),
   'platform.grantAdmin': ({ body }) => grantPlatformAdmin(body),
   'platform.revokeAdmin': ({ params }) => revokePlatformAdmin(params.adminId),
 };

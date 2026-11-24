@@ -6,7 +6,7 @@ import {
   PlatformOrgDto,
   pageOf,
 } from '@agentdesk/contracts';
-import { expect, request, test, type APIRequestContext, type BrowserContext } from '@playwright/test';
+import { expect, request, test, type APIRequestContext, type BrowserContext, type Page } from '@playwright/test';
 import {
   API,
   asPlatformAdmin,
@@ -15,6 +15,7 @@ import {
   inviteAndSignIn,
   ok,
   platformAdminContext,
+  platformAuditFor,
   platformOrgIdBySlug,
   reactivateOrg,
   signInAndCreateProject,
@@ -75,7 +76,9 @@ test.describe('BR-23: a non-member platform admin gets no org data', () => {
     expect(shown.split(handle).join('<slug>')).toBe(unknownShown.split(unknown).join('<slug>'));
   });
 
-  test('TC-23.2: GET /api/orgs/<org id> with the org pinned is 403 and carries no org data', async ({ page }) => {
+  test('TC-23.2: GET /api/orgs/<org id>/checklist with the org pinned is 409 org-mismatch and carries no org data', async ({
+    page,
+  }) => {
     const { handle } = await signInAndCreateProject(page);
     const orgs = pageOf(PlatformOrgDto).parse(
       await (await pa.get('/api/platform/orgs?pageSize=100&q=' + encodeURIComponent(handle))).json(),
@@ -84,11 +87,12 @@ test.describe('BR-23: a non-member platform admin gets no org data', () => {
     expect(org, `org ${handle} is not in the platform directory`).toBeTruthy();
     const orgId = org?.id ?? '';
 
-    const res = await pa.get(`/api/orgs/${orgId}`, { headers: { 'x-org-id': orgId } });
+    const res = await pa.get(`/api/orgs/${orgId}/checklist`, { headers: { 'x-org-id': orgId } });
     const text = await res.text();
-    expect(res.status(), text).toBe(403);
+    expect(res.status(), text).toBe(409);
+    expect(JSON.parse(text)).toMatchObject({ type: 'org-mismatch' });
     for (const secret of [handle, `E2E ${handle}`, `${handle}@dev.local`]) {
-      expect(text, `the 403 carries ${secret}`).not.toContain(secret);
+      expect(text, `the 409 carries ${secret}`).not.toContain(secret);
     }
   });
 });
@@ -120,11 +124,7 @@ test.describe('BR-36: who can suspend or reactivate', () => {
     await page.goto(`/o/${handle}/projects`);
     await expect(page.getByRole('heading', { name: 'Projects', level: 1 })).toBeVisible();
     await expect(page.getByRole('heading', { name: 'This organization is suspended', level: 1 })).toHaveCount(0);
-    await ok(
-      await page.request.get(`/api/orgs/${orgId}/projects`, { headers: { [ORG_HEADER]: orgId } }),
-      200,
-      'projects',
-    );
+    await ok(await page.request.get('/api/projects', { headers: { [ORG_HEADER]: orgId } }), 200, 'projects');
   });
 
   test('TC-36.2: a member of a suspended org gets 403 on POST reactivate and the org stays suspended', async ({
@@ -180,5 +180,143 @@ test.describe('BR-36: who can suspend or reactivate', () => {
       await anon.dispose().catch(() => null);
     }
     expect(await statusOf(org.id)).toBe('active');
+  });
+});
+
+/*
+ * BR-52 (spec "E2E requirements": TC-52.1, TC-52.2): only a platform admin edits an org. A fresh `e2e-<rand>` org, its
+ * owner and a member; the name is read back from the platform route after each refusal.
+ */
+async function nameOf(orgId: string): Promise<string> {
+  return PlatformOrgDetailDto.parse(await ok(await pa.get(`/api/platform/orgs/${orgId}`), 200, 'platform org')).name;
+}
+
+test.describe('BR-52: who can edit an organization', () => {
+  test('TC-52.1: the owner and a member of an org get 403 on PATCH and the name is unchanged', async ({
+    browser,
+    page,
+  }) => {
+    const handle = `e2e-${randomBytes(4).toString('hex')}`;
+    const name = `E2E ${handle}`;
+    const org = await createOrg(pa, name, handle);
+    await inviteAndSignIn(page, pa, org.id, handle, 'owner', { type: 'org' });
+    const context = await browser.newContext();
+    toClose.push(context);
+    const memberPage = await context.newPage();
+    await inviteAndSignIn(memberPage, pa, org.id, `${handle}-m`, 'member', { type: 'org' });
+
+    for (const who of [page, memberPage]) {
+      const res = await who.request.patch(`/api/platform/orgs/${org.id}`, { data: { name: 'Hacked' } });
+      expect(res.status(), await res.text()).toBe(403);
+    }
+    expect(await nameOf(org.id)).toBe(name);
+  });
+
+  test('TC-52.2: the owner opening /platform/orgs/<org id> sees "You don\'t have access" and no Edit organization', async ({
+    page,
+  }) => {
+    const handle = `e2e-${randomBytes(4).toString('hex')}`;
+    const org = await createOrg(pa, `E2E ${handle}`, handle);
+    await inviteAndSignIn(page, pa, org.id, handle, 'owner', { type: 'org' });
+
+    await page.goto(`/platform/orgs/${org.id}`);
+    await expect(page.getByRole('heading', { name: "You don't have access" })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Edit organization' })).toHaveCount(0);
+  });
+});
+
+/*
+ * BR-3 (TC-3.2): a fresh org with its owner, a member and a viewer, each signed in in a context of its own, none a
+ * platform admin. BR-46 (TC-46.1 to TC-46.3): the owner of a fresh org that has platform entries (its creation entry
+ * and a suspend and reactivate pair with a reason) cannot read the platform audit.
+ */
+test.describe('BR-3: a non-admin on a /platform URL', () => {
+  for (const roleKey of ['owner', 'member', 'viewer'] as const) {
+    test(`TC-3.2: the ${roleKey} sees "You don't have access" on /platform/orgs, /admins and /audit and no org, admin or audit data`, async ({
+      page,
+    }) => {
+      const handle = `e2e-${randomBytes(4).toString('hex')}`;
+      const org = await createOrg(pa, `E2E ${handle}`, handle);
+      // Another org with a distinctive name and platform audit entries: none of it may show on the forbidden pages.
+      const otherHandle = `e2e-other-${randomBytes(4).toString('hex')}`;
+      const otherName = `E2E Other ${otherHandle}`;
+      const other = await createOrg(pa, otherName, otherHandle);
+      toReactivate.push(other.id);
+      await suspendOrg(pa, other.id, 'e2e other');
+      await reactivateOrg(pa, other.id, 'e2e other');
+      await inviteAndSignIn(page, pa, org.id, `${handle}-${roleKey}`, roleKey, { type: 'org' });
+
+      for (const path of ['/platform/orgs', '/platform/admins', '/platform/audit']) {
+        await page.goto(path);
+        const where = `${roleKey} on ${path}`;
+        await expect(page.getByRole('heading', { name: "You don't have access" }), where).toBeVisible();
+        await expect(page.locator('tbody tr'), where).toHaveCount(0);
+        // Only the user's own org name may show (the top bar); nothing of the other org, the admin or the audit.
+        const body = page.locator('body');
+        for (const secret of [
+          otherName,
+          otherHandle,
+          'admin@dev.local',
+          'Organization suspended',
+          'Organization reactivated',
+        ]) {
+          await expect(body, `${where} shows ${secret}`).not.toContainText(secret);
+        }
+      }
+    });
+  }
+});
+
+test.describe('BR-46: a non-admin cannot read the platform audit', () => {
+  const reason = 'e2e platform-only reason';
+
+  async function orgWithEntries(page: Page): Promise<{ id: string; slug: string; ownerApi: APIRequestContext }> {
+    const slug = `e2e-${randomBytes(4).toString('hex')}`;
+    const org = await createOrg(pa, `E2E ${slug}`, slug);
+    toReactivate.push(org.id);
+    await inviteAndSignIn(page, pa, org.id, slug, 'owner', { type: 'org' });
+    await suspendOrg(pa, org.id, reason);
+    await reactivateOrg(pa, org.id, reason);
+    expect((await platformAuditFor(pa, org.id)).length, 'a platform entry exists for the org').toBeGreaterThan(0);
+    return { id: org.id, slug, ownerApi: page.request };
+  }
+
+  test('TC-46.1: the owner gets 403 on GET /api/platform/audit and no entry', async ({ page }) => {
+    const { ownerApi } = await orgWithEntries(page);
+
+    const res = await ownerApi.get('/api/platform/audit');
+    const text = await res.text();
+    expect(res.status(), text).toBe(403);
+    expect(text).not.toContain(reason);
+    expect(text).not.toContain('org.suspended');
+  });
+
+  test('TC-46.2: GET /api/platform/audit?orgId=<unknown id> is 403, the same as for a real org id', async ({
+    page,
+  }) => {
+    const { id, ownerApi } = await orgWithEntries(page);
+
+    const unknown = await ownerApi.get(`/api/platform/audit?orgId=${randomUUID()}`);
+    const unknownText = await unknown.text();
+    expect(unknown.status(), unknownText).toBe(403);
+    const real = await ownerApi.get(`/api/platform/audit?orgId=${id}`);
+    const realText = await real.text();
+    expect(real.status(), realText).toBe(403);
+    expect((JSON.parse(unknownText) as { title?: string }).title).toBe(
+      (JSON.parse(realText) as { title?: string }).title,
+    );
+    expect(realText).not.toContain(reason);
+  });
+
+  test("TC-46.3: the owner's Settings > Audit shows only tenant entries and no Reason text", async ({ page }) => {
+    const { slug } = await orgWithEntries(page);
+
+    await page.goto(`/o/${slug}/settings/audit`);
+    await expect(page.getByRole('heading', { name: 'Audit log', level: 1 })).toBeVisible();
+    await expect(page.locator('tbody tr').first()).toBeVisible();
+    await page.waitForLoadState('networkidle');
+    const shown = await page.locator('body').innerText();
+    expect(shown).not.toContain('Reason');
+    expect(shown).not.toContain(reason);
   });
 });

@@ -22,6 +22,7 @@ import { actorUserId, type Actor } from '../access/actor';
 import { FORBIDDEN_DETAIL } from '../access/authorize';
 import { checkTenantAssign, type RoleForGrant } from '../access/grant-rules';
 import { writeAuditEntry } from '../audit/audit-entry';
+import { writePlatformAuditEntry } from '../audit/platform-audit-entry';
 import { isUniqueViolation } from '../common/pg-errors';
 import { ConflictProblemException, UnprocessableProblemException } from '../common/zod-validation';
 import { LOGGER } from '../common/logger';
@@ -69,6 +70,29 @@ export function toInvitationDto(
     return { ...base, scope: { type: 'project', projects: listed } };
   }
   return { ...base, scope: { type: 'org' } };
+}
+
+/** The platform audit payload of an invitation: who is invited, the role key and the scope (never the token or link). */
+async function writePlatformInvitationEntry(
+  tx: Tx,
+  actor: Actor,
+  action: 'invitation.created' | 'invitation.resent' | 'invitation.revoked',
+  row: InvitationRow,
+  roleKey: string,
+): Promise<void> {
+  if (actor.kind !== 'platform_admin') return;
+  await writePlatformAuditEntry(tx, {
+    actorUserId: actor.userId,
+    action,
+    targetType: 'invitation',
+    targetId: row.id,
+    targetOrgId: row.orgId,
+    payload: {
+      email: row.email,
+      roleKey,
+      scope: row.scopeType === 'project' ? { type: 'project', projectIds: row.projectIds } : { type: 'org' },
+    },
+  });
 }
 
 function auditPayload(row: InvitationRow, role: { id: string; key: string }): Record<string, unknown> {
@@ -210,6 +234,7 @@ export class InvitationsService {
           payload: auditPayload(row, role),
           projectIds: row.projectIds,
         });
+        await writePlatformInvitationEntry(tx, actor, 'invitation.created', row, role.key);
         return toInvitationDto(
           row,
           { id: role.id, key: role.key, name: role.name },
@@ -308,6 +333,7 @@ export class InvitationsService {
           payload: { expiresAt: row.expiresAt.toISOString() },
           projectIds: row.projectIds,
         });
+        await writePlatformInvitationEntry(tx, actor, 'invitation.resent', row, role.key);
         const projectList = await projectRefs(tx, orgId, row.projectIds);
         return toInvitationDto(
           row,
@@ -370,6 +396,7 @@ export class InvitationsService {
         payload: auditPayload(row, { id: row.roleId, key: roleMap.get(row.roleId)?.key ?? '' }),
         projectIds: row.projectIds,
       });
+      await writePlatformInvitationEntry(tx, actor, 'invitation.revoked', row, roleMap.get(row.roleId)?.key ?? '');
     });
   }
 }

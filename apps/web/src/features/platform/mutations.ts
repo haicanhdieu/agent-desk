@@ -1,14 +1,24 @@
 import type {
+  CreateAssignmentRequest,
+  CreateInvitationRequest,
   GrantPlatformAdminRequest,
   OrgStatus,
   PlatformAdminDto,
+  PlatformAssignmentDto,
+  PlatformInvitationDto,
   PlatformOrgDetailDto,
+  UpdateOrgRequest,
 } from '@agentdesk/contracts';
 import { ApiError } from '@agentdesk/contracts/client';
-import { useMutation, useQueryClient, type UseMutationResult } from '@tanstack/react-query';
+import { useMutation, useQueryClient, type QueryClient, type UseMutationResult } from '@tanstack/react-query';
 import { accessKeys } from '../access/keys';
 import { api } from '../api';
+import { orgsQuery } from '../auth/session';
 import { platformKeys } from './keys';
+
+/** Every platform change writes a platform audit entry: the cached audit pages (fresh for 30 s) read again. */
+export const refreshAudit = (queryClient: QueryClient) =>
+  queryClient.invalidateQueries({ queryKey: ['platform', 'audit'] });
 
 // No optimistic updates: the list changes when the server has answered, and a mutation stays pending until the
 // refetch it asks for is done (so a dialog stays unclosable until the rows are fresh).
@@ -18,7 +28,8 @@ export function useGrantPlatformAdmin(): UseMutationResult<PlatformAdminDto, Api
   const queryClient = useQueryClient();
   return useMutation<PlatformAdminDto, ApiError, GrantPlatformAdminRequest>({
     mutationFn: (body) => api.platform.grantAdmin({ body }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: platformKeys.adminsAll() }),
+    onSuccess: () =>
+      Promise.all([queryClient.invalidateQueries({ queryKey: platformKeys.adminsAll() }), refreshAudit(queryClient)]),
   });
 }
 
@@ -40,7 +51,10 @@ export function useRevokePlatformAdmin(): UseMutationResult<void, ApiError, { ad
         queryClient.removeQueries({ queryKey: accessKeys.platform(), exact: true });
         return;
       }
-      await queryClient.invalidateQueries({ queryKey: platformKeys.adminsAll() });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: platformKeys.adminsAll() }),
+        refreshAudit(queryClient),
+      ]);
     },
     onError: async (e) => {
       if (e instanceof ApiError && (e.status === 404 || e.status === 409)) {
@@ -71,6 +85,120 @@ export function useSetOrgStatus(
         queryKey: platformKeys.orgsAll(),
         predicate: (q) => !(q.queryKey.length === own.length && q.queryKey.every((part, i) => part === own[i])),
       });
+      await refreshAudit(queryClient);
     },
+  });
+}
+
+/**
+ * `PATCH /api/platform/orgs/:orgId`: the answer is the new detail and becomes the cached org at once; the directory
+ * pages (and other orgs' details) and the caller's own org list are fetched again. No navigation: the page stays.
+ */
+export function useUpdatePlatformOrg(
+  orgId: string,
+): UseMutationResult<PlatformOrgDetailDto, ApiError, UpdateOrgRequest> {
+  const queryClient = useQueryClient();
+  return useMutation<PlatformOrgDetailDto, ApiError, UpdateOrgRequest>({
+    mutationFn: (body) => api.platform.updateOrg({ params: { orgId }, body }),
+    onSuccess: async (detail) => {
+      queryClient.setQueryData(platformKeys.org(orgId), detail);
+      const own = platformKeys.org(orgId);
+      await Promise.all([
+        queryClient.invalidateQueries({
+          queryKey: platformKeys.orgsAll(),
+          predicate: (q) => !(q.queryKey.length === own.length && q.queryKey.every((part, i) => part === own[i])),
+        }),
+        queryClient.invalidateQueries({ queryKey: orgsQuery.queryKey }),
+        refreshAudit(queryClient),
+      ]);
+    },
+  });
+}
+
+/**
+ * Both assignment changes end the same way: everything under `['platform', 'orgs']` except the project lists is
+ * fetched again (this org's members first among them, and the directory's owner column when an Owner came or went).
+ * The project lists are left: an assignment never changes them, and the all-projects query is a loop of page requests.
+ * The mutation stays pending until that is done, so a dialog stays unclosable until the rows are fresh.
+ */
+const refreshAfterAssignment = (queryClient: QueryClient) =>
+  Promise.all([
+    queryClient.invalidateQueries({
+      queryKey: platformKeys.orgsAll(),
+      // `['platform', 'orgs', orgId, 'projects', …]`: the list name sits at index 3.
+      predicate: (q) => q.queryKey[3] !== 'projects',
+    }),
+    refreshAudit(queryClient),
+  ]);
+
+/** `POST /api/platform/orgs/:orgId/assignments`: a repeat returns the same assignment, so it ends like a new one. */
+export function useAddPlatformAssignment(
+  orgId: string,
+): UseMutationResult<PlatformAssignmentDto, ApiError, CreateAssignmentRequest> {
+  const queryClient = useQueryClient();
+  return useMutation<PlatformAssignmentDto, ApiError, CreateAssignmentRequest>({
+    mutationFn: (body) => api.platform.createAssignment({ params: { orgId }, body }),
+    onSuccess: () => refreshAfterAssignment(queryClient),
+  });
+}
+
+/**
+ * `DELETE /api/platform/orgs/:orgId/assignments/:assignmentId`. Removing the org's last Owner is allowed here. A 404
+ * means the assignment is already gone: the members are fetched again.
+ */
+export function useRemovePlatformAssignment(
+  orgId: string,
+): UseMutationResult<void, ApiError, { assignmentId: string }> {
+  const queryClient = useQueryClient();
+  return useMutation<void, ApiError, { assignmentId: string }>({
+    mutationFn: async ({ assignmentId }) => {
+      await api.platform.removeAssignment({ params: { orgId, assignmentId } });
+    },
+    onSuccess: () => refreshAfterAssignment(queryClient),
+    onError: async (e) => {
+      if (e instanceof ApiError && e.status === 404) await refreshAfterAssignment(queryClient);
+    },
+  });
+}
+
+/**
+ * The three invitation changes end the same way: this org's invitation pages and the platform audit log are fetched
+ * again. A resend or revoke refetches on failure too: a 409 means the row changed elsewhere, so the list shows its new
+ * status. The mutation stays pending until that is done.
+ */
+const refreshInvitations = (queryClient: QueryClient, orgId: string) =>
+  Promise.all([
+    queryClient.invalidateQueries({ queryKey: [...platformKeys.org(orgId), 'invitations'] }),
+    refreshAudit(queryClient),
+  ]);
+
+/** `POST /api/platform/orgs/:orgId/invitations`. The answer is not cached: the link is built from its id when shown. */
+export function useCreatePlatformInvitation(
+  orgId: string,
+): UseMutationResult<PlatformInvitationDto, ApiError, CreateInvitationRequest> {
+  const queryClient = useQueryClient();
+  return useMutation<PlatformInvitationDto, ApiError, CreateInvitationRequest>({
+    mutationFn: (body) => api.platform.createInvitation({ params: { orgId }, body }),
+    onSuccess: () => refreshInvitations(queryClient, orgId),
+  });
+}
+
+/** `POST /api/platform/orgs/:orgId/invitations/:invitationId/resend`: the variable is the invitation id. */
+export function useResendPlatformInvitation(orgId: string): UseMutationResult<PlatformInvitationDto, ApiError, string> {
+  const queryClient = useQueryClient();
+  return useMutation<PlatformInvitationDto, ApiError, string>({
+    mutationFn: (invitationId) => api.platform.resendInvitation({ params: { orgId, invitationId } }),
+    onSettled: () => refreshInvitations(queryClient, orgId),
+  });
+}
+
+/** `DELETE /api/platform/orgs/:orgId/invitations/:invitationId`: the variable is the invitation id. */
+export function useRevokePlatformInvitation(orgId: string): UseMutationResult<void, ApiError, string> {
+  const queryClient = useQueryClient();
+  return useMutation<void, ApiError, string>({
+    mutationFn: async (invitationId) => {
+      await api.platform.removeInvitation({ params: { orgId, invitationId } });
+    },
+    onSettled: () => refreshInvitations(queryClient, orgId),
   });
 }

@@ -18,6 +18,7 @@ import {
   InstallResponse,
   InvitationDto,
   PlatformAdminDto,
+  PlatformAuditEntryDto,
   PlatformMemberDto,
   PlatformOrgDto,
   PlatformRoleDto,
@@ -166,6 +167,18 @@ export async function suspendOrg(pa: APIRequestContext, orgId: string, reason = 
 /** Reactivates an org through the platform route (exactly 200). */
 export async function reactivateOrg(pa: APIRequestContext, orgId: string, reason = 'e2e reactivate'): Promise<void> {
   await ok(await pa.post(`/api/platform/orgs/${orgId}/reactivate`, { data: { reason } }), 200, 'reactivate org');
+}
+
+/** Every platform audit entry of one org, newest first (the audit route filtered by `orgId`, every page, exactly 200). */
+export async function platformAuditFor(pa: APIRequestContext, orgId: string): Promise<PlatformAuditEntryDto[]> {
+  const entries: PlatformAuditEntryDto[] = [];
+  for (let page = 1; ; page++) {
+    const body = pageOf(PlatformAuditEntryDto).parse(
+      await ok(await pa.get(`/api/platform/audit?orgId=${orgId}&pageSize=100&page=${page}`), 200, 'platform audit'),
+    );
+    entries.push(...body.items);
+    if (body.items.length === 0 || entries.length >= body.total) return entries;
+  }
 }
 
 async function roleIdOf(pa: APIRequestContext, orgId: string, roleKey: RoleKey): Promise<string> {

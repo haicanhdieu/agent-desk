@@ -37,6 +37,11 @@ describe('platform scenarios', () => {
       'manyOrgs',
       'suspendedMember',
       'suspendedPlatformAdmin',
+      'platformOrgEdit',
+      'platformOrgEditSuspended',
+      'manyAudit',
+      'platformOrgTabsEmpty',
+      'platformOrgFewProjects',
     ]);
   });
 
@@ -70,9 +75,51 @@ describe('platform scenarios', () => {
     expect((await api.platform.listOrgs({ query: {} })).items.filter((o) => o.slug === 'acme')).toHaveLength(1);
   });
 
+  it('platformOrgEdit: Acme (acme) and Beta (beta) in the directory, both active', async () => {
+    scenarios.platform('platformOrgEdit');
+    const page = await api.platform.listOrgs({ query: {} });
+    expect(page.items.map((o) => [o.name, o.slug, o.status]).sort()).toEqual([
+      ['Acme', 'acme', 'active'],
+      ['Beta', 'beta', 'active'],
+    ]);
+  });
+
+  it('platformOrgEditSuspended: Acme is suspended with a reason, Beta stays active', async () => {
+    scenarios.platform('platformOrgEditSuspended');
+    const page = await api.platform.listOrgs({ query: {} });
+    expect(page.items.map((o) => [o.slug, o.status]).sort()).toEqual([
+      ['acme', 'suspended'],
+      ['beta', 'active'],
+    ]);
+    const acme = page.items.find((o) => o.slug === 'acme');
+    expect(acme?.suspendedAt).not.toBeNull();
+    expect(getPlatformOrg(acme?.id ?? '').suspension?.reason).toBe('Billing hold');
+  });
+
   it('platformEmpty: lists no org', async () => {
     scenarios.platform('platformEmpty');
     expect((await api.platform.listOrgs({ query: {} })).items).toEqual([]);
+  });
+
+  it('platformOrgTabsEmpty: Acme is in the directory with no projects, members or invitations', async () => {
+    scenarios.platform('platformOrgTabsEmpty');
+    const acme = platformOrgDtoFixtures.find((o) => o.slug === 'acme');
+    if (!acme) throw new Error('no acme fixture');
+    const orgId = acme.id;
+    expect((await api.platform.getOrg({ params: { orgId } })).name).toBe('Acme');
+    expect((await api.platform.listProjects({ params: { orgId }, query: {} })).items).toEqual([]);
+    expect((await api.platform.listMembers({ params: { orgId }, query: {} })).items).toEqual([]);
+    expect((await api.platform.listInvitations({ params: { orgId }, query: { status: 'all' } })).items).toEqual([]);
+  });
+
+  it('platformOrgFewProjects: Acme has two projects, Alpha first, and the usual members', async () => {
+    scenarios.platform('platformOrgFewProjects');
+    const acme = platformOrgDtoFixtures.find((o) => o.slug === 'acme');
+    if (!acme) throw new Error('no acme fixture');
+    const orgId = acme.id;
+    const projects = await api.platform.listProjects({ params: { orgId }, query: {} });
+    expect(projects.items.map((p) => p.name)).toEqual(['Alpha', 'Project 02']);
+    expect((await api.platform.listMembers({ params: { orgId }, query: {} })).items).toHaveLength(4);
   });
 
   it('manyOrgs: more organizations than a page, newest first, searchable', async () => {
@@ -86,6 +133,17 @@ describe('platform scenarios', () => {
     expect(second.items.every((o) => o.createdAt < oldestOnFirst)).toBe(true);
     const found = await api.platform.listOrgs({ query: { q: 'many org' } });
     expect(found.total).toBe(first.total);
+  });
+
+  it('manyAudit: more audit entries than a page, newest first, the oldest on page 2', async () => {
+    scenarios.platform('manyAudit');
+    const first = await api.platform.listAudit({ query: {} });
+    const second = await api.platform.listAudit({ query: { page: 2 } });
+    expect(first.total).toBe(25);
+    expect(first.items).toHaveLength(PAGE_SIZE_DEFAULT);
+    expect(second.items).toHaveLength(5);
+    const oldestOnFirst = first.items[first.items.length - 1]?.at ?? '';
+    expect(second.items.every((e) => e.at < oldestOnFirst)).toBe(true);
   });
 
   it('platformAdminNoOrg: a platform admin with no org', async () => {

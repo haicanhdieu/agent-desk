@@ -412,6 +412,110 @@ Org detail boards.
 - Storybook and `parity.mjs` were not run in the runner pod (no Chromium). The 4 pixel pairs are unchecked: none is claimed
   to match. The interactive prototype (`_tools/build-boards.mjs`) was regenerated and came out unchanged: it already had these boards.
 
+## Platform admin: Edit organization boards
+
+Spec: `docs/superpowers/specs/2026-11-23-platform-admin-dashboard-design.md` (UI and Storybook). Seven boards added, so
+`coverage.test.ts` counts 269 (the plan's 225 to 232 counted from a stale base of 189; the repo had 262 before this task):
+PlatformOrgEdit, PlatformOrgEditFieldErrors, PlatformOrgEditSlugTaken, PlatformOrgEditSaving, PlatformOrgEditSlugConfirm and
+PlatformOrgEditError (`Screens/Platform`), and OrgAuditPlatformEdit (`Screens/OrgSettings`). The boards were missing from
+`canvas.json`; their entries are added after the Reactivate dialog board (the six edit boards) and after OrgAuditPlatformSuspend.
+
+- Edit boards: the org detail with the header's Edit organization button and the Overview behind the shared `EditOrgDialog`.
+  The URL-change confirm is the shared `SlugChangeConfirm` and replaces the dialog (one modal at a time); the platform copy
+  ends "Share the new link with its members." The stories use the shared fixtures, so names differ from the boards' samples.
+- OrgAuditPlatformEdit: the shared `OrgAudit` screen with two rows from `platformEditAuditRows`, actor tagged "Platform
+  admin": the name change and the URL change with old and new values. The board shows more rows around them; the story keeps
+  only the two platform rows.
+- Verification (runner pod, headless Chromium from `scripts/runner-env.sh`): `build-storybook` passed; `coverage.test.ts`,
+  `stories.smoke.test.tsx` and `platform.test.tsx` passed (1960 tests). `parity.mjs` prints only "N pairs written", no numbers, so
+  the pairs were compared by eye. A full `parity.mjs` run did not finish in the pod's memory budget, so the 7 boards were run with
+  a temporary copy of the script filtered to them (not committed). OrgAuditPlatformEdit needed one more change in that copy: the
+  script derives the id `screens-org-settings--...` but Storybook's id for `Screens/OrgSettings` is `screens-orgsettings--...`, so
+  the unmodified script times out on that board (the same applies to every `Screens/OrgSettings` board). The tool is not changed here.
+- Result: none of the 7 pairs matches pixel for pixel, so none is claimed to match. The edit dialog and the confirm dialog line up
+  with the boards (box position within 1 px, same fields, buttons, errors and copy, except the URL format message, which the board
+  words "..., with no dash at the start or end."). What differs, on all six `Screens/Platform` pairs, is the frame around them:
+  the story's left menu has no icons, no "Platform admin" or org group headings and no Projects, Members, Invitations links, the
+  top bar has no org switcher box, "View audit log" has no clock icon, the owner has no handle, and the sample org differs (Acme vs
+  Harbor Labs, by design). The focused input also shows a focus ring that the boards do not, and the Error pair shows the request
+  id in the body font where the board uses mono. OrgAuditPlatformEdit has the right two rows, but the board has 10 rows, the side
+  menu has no icons and the "Platform admin" tag is plain text, not a bordered pill. The menu and header differences come from the
+  shared `platformFrame` and `OrgAudit`, not from this unit's dialogs, so they are left for a separate change.
+- Interactive prototype: `canvas.json` gained the 7 board entries (they were missing) and `_tools/build-boards.mjs` was
+  regenerated; `design/prototype/interactive/` came out unchanged (it already had these boards). `_checks/nav-check.mjs` was
+  run after the fact and passed: "boards checked: 319", "passed 179, failed 0", "console errors: none" (exit 0). The script
+  hardcodes a macOS browser path (`$HOME/Library/Caches/ms-playwright/.../chrome-headless-shell-mac-arm64`) and a
+  `playwright-core` path, so on this Linux runner it was run unedited with `PW_CORE_DIR` set to the repo's
+  `playwright-core` and a temporary `HOME` whose macOS-style path symlinks to the installed Linux headless shell. Its
+  screenshots under `_checks/nav/` were discarded, not committed.
+
+## Platform admin: Audit log boards
+
+Spec: `docs/superpowers/specs/2026-11-23-platform-admin-dashboard-design.md` (UI and Storybook). Eight boards added, so
+`coverage.test.ts` counts 277 (the plan's 232 to 240 counted from a stale base; the repo had 269 before this task):
+PlatformAudit, PlatformAuditLoading, PlatformAuditEmpty, PlatformAuditEmptyFiltered, PlatformAuditError, PlatformAuditPaged,
+PlatformAuditOrgChip and PlatformAuditOrgChipUnknown (`Screens/Platform`). The boards were missing from `canvas.json`; the
+entries are added after OrgAuditPlatformEdit. `AuditRow` gained an optional `note` (muted "Reason: <text>" under the sentence);
+story `AuditRow/WithNote`.
+
+- Screen: `PlatformAudit` with the Action select ("All actions" plus the eleven labels), a removable org chip (button
+  "Remove filter <chip text>"), the shared `AuditRow` table, "No audit entries" and "No audit entries match" with "Clear filters",
+  loading, error with Retry, and paging. Stories use `platformAuditRows`, `pagedPlatformAuditRows` and `platformAuditActions`.
+- Verification (runner pod, headless Chromium from `scripts/runner-env.sh`): `build-storybook` passed; `coverage.test.ts`,
+  `stories.smoke.test.tsx`, `platform.test.tsx` and `AuditRow.test.tsx` passed; `pnpm typecheck` passed. `parity.mjs` prints
+  only "N pairs written", so the pairs were compared by eye. A temporary copy of the script (not committed) ran the 8 boards
+  and the 10 `OrgAudit*` boards (18 pairs written); the copy also rewrote `screens-org-settings--` to `screens-orgsettings--`,
+  because the unmodified script builds the id `screens-org-settings--...` for `Screens/OrgSettings` stories while Storybook's
+  id is `screens-orgsettings--...`, so the unmodified script times out on those boards. The tool is not changed here.
+- Result: none of the 8 pairs matches pixel for pixel, so none is claimed to match. I looked at PlatformAudit, PlatformAuditOrgChip
+  and PlatformAuditEmptyFiltered side by side: same rows, order, copy, Reason notes, chip and Clear filters. Differences: the
+  frame (the left menu has no icons and no "Platform admin" heading, the top bar has no org switcher box), the When and Who
+  column widths (the shared `AuditRow` uses fixed widths, the board 14% and 20%), the URLs in the edit sentence are bold text,
+  not mono (`AuditTextPart` has no mono flag), so the long edit row is not cut off with an ellipsis where the board cuts it, the chip's
+  close button is a little larger and the note has slightly less space above it. The other five boards were generated but not inspected.
+- Interactive prototype: `_tools/build-boards.mjs` was run and `design/prototype/interactive/` came out unchanged (it already
+  had these boards). `_checks/nav-check.mjs` was run
+  afterwards and passed: "boards checked: 319", "passed 179, failed 0", "console errors: none" (exit 0). The 319 boards are all
+  those in `canvas.json`, so the 8 PlatformAudit* boards are included; `js/boards.js` routes every `PlatformAudit*` name to the
+  `/platform/audit` view. The script hardcodes a macOS browser path and a `playwright-core` path, so on this Linux runner it was
+  run unedited with `PW_CORE_DIR` set to the repo's `playwright-core` and a temporary `HOME` (outside the repo) whose
+  macOS-style path symlinks to the installed Linux headless shell. Its screenshots under `_checks/nav/` were discarded.
+
+## Platform admin: org Projects and Members boards
+
+Spec: `docs/superpowers/specs/2026-11-23-platform-admin-dashboard-design.md` (UI and Storybook). Fourteen boards added, so
+`coverage.test.ts` counts 291 (277 before this task): PlatformOrgProjects, …Loading, …Empty, …Error, …Paged and PlatformOrgMembers,
+…Loading, …Empty, …Error, …Paged, …RowMenu, …AddAssignment, …RemoveConfirm, …Removing (`Screens/Platform`). The boards were missing
+from `canvas.json`; the entries are added after PlatformAuditOrgChipUnknown (the titles come from `interactive/data/boards.js`).
+
+- Screens: `PlatformOrgProjects` (h2 "Projects", Id and Name table, "No projects") and `PlatformOrgMembers` (h2 "Members", the muted
+  "Platform view: names and emails only. Tickets, runs and secrets are never shown here.", the row menu, "No members", the
+  `AssignmentDialog` and the remove confirm "Remove <role> from <name>?" with Cancel and Remove/Removing…). Both render inside
+  `PlatformOrgDetail` as its children, under the org header, and share `ListView` (loading, error with Retry, ready with paging).
+- The remove confirm has no body text, as in the boards. Stories use the Acme fixtures (`platformProjectRows`, `platformMemberRows`), not
+  the boards' Harbor Labs rows.
+- Verification: `platform.test.tsx`, `coverage.test.ts` and `stories.smoke.test.tsx` (platform stories, with axe) passed;
+  `_tools/build-boards.mjs` left `design/prototype/interactive/` unchanged (it already had these boards). `build-storybook`,
+  `parity.mjs` and the side-by-side comparison were not run here, so no board is claimed to match pixel for pixel.
+
+## Platform admin: org Invitations boards
+
+Spec: `docs/superpowers/specs/2026-11-23-platform-admin-dashboard-design.md` (UI and Storybook). Eight boards added, so
+`coverage.test.ts` counts 299 (291 before this task): PlatformOrgInvitations, …Loading, …Empty, …Error, …Paged, …Invite, …Resending,
+…CopyFailed (`Screens/Platform`). The boards were missing from `canvas.json`; the entries are added after PlatformOrgMembersRemoving
+(the titles come from `interactive/data/boards.js`).
+
+- Screen: `PlatformOrgInvitations` (h2 "Invitations" with "Invite people", the muted platform-view note, the status chips Pending,
+  Accepted, Declined, Revoked, Expired, All, the seven-column table of `InvitationRow`, "No invitations" with "Invite people",
+  paging) renders inside `PlatformOrgDetail` as its children and shares `ListView`. The invite dialog and the "Invitation link" dialog
+  are slots (`inviteDialog`, `linkDialog`); `copyFailed` shows the error toast "Could not copy. Select the link and copy it.".
+- `rowActions(row)` returns the `onCopy`, `onResend` and `onRevoke` handlers of one row, because `InvitationRow` owns its menu.
+- Stories use the Acme fixtures (`orgInvitationRows`, `pagedInvitationRows`), not the boards' Harbor Labs rows. The Invite story offers
+  Owner (`inviteRoleOptions.owner`), as the board does.
+- Verification: `platform.test.tsx`, `coverage.test.ts` and `stories.smoke.test.tsx` (platform stories, with axe) passed;
+  `_tools/build-boards.mjs` left `design/prototype/interactive/` unchanged. `build-storybook`, `parity.mjs` and the side-by-side
+  comparison were not run here, so no board is claimed to match pixel for pixel.
+
 ## Project admin space: Desk side menu and DeskAgentProjectAdmin
 
 Spec: `docs/superpowers/specs/2026-11-23-rbac-project-admin-space-design.md` (UI and Storybook). One board added, so

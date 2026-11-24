@@ -12,6 +12,9 @@ import {
   OrgChecklistDto,
   PAGE_SIZE_DEFAULT,
   PlatformAdminDto,
+  PlatformAuditAction,
+  PlatformAuditEntryDto,
+  PlatformAssignmentDto,
   PlatformMemberDto,
   PlatformOrgDetailDto,
   PlatformOrgDto,
@@ -38,7 +41,7 @@ import {
 // The contracts package's own default instance is what these tests exercise, so the restriction does not apply.
 // eslint-disable-next-line no-restricted-imports
 import { ApiError, api as defaultApi, createApi } from '@agentdesk/contracts/client';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
 import {
   accessFixture,
@@ -46,14 +49,17 @@ import {
   invitationFixtures,
   memberFixtures,
   platformAdminFixtures,
-  platformMemberFixtures,
-  platformProjectFixtures,
   roleFixtures,
   tenantAccessFixtures,
   tenantMemberFixtures,
 } from '../dto/access';
-import { platformOrgDtoFixtures } from '../dto/platform';
-import { addPlatformOrg, getPlatformOrg, listPlatformOrgs } from './platformOrgs';
+import {
+  platformAuditFixtures,
+  platformMemberFixtures,
+  platformOrgDtoFixtures,
+  platformProjectFixtures,
+} from '../dto/platform';
+import { addPlatformOrg, getPlatformOrg, listPlatformOrgs, setPlatformOrgStatus } from './platformOrgs';
 import { Problem } from './http';
 import {
   auditEntryFixtures,
@@ -122,6 +128,7 @@ describe('MSW handlers cover the contract', () => {
       [MemberDto, memberFixtures],
       [AccessDto, [accessFixture]],
       [PlatformOrgDto, platformOrgDtoFixtures],
+      [PlatformAuditEntryDto, platformAuditFixtures],
       [PlatformProjectDto, platformProjectFixtures],
       [PlatformMemberDto, platformMemberFixtures],
       [PlatformAdminDto, platformAdminFixtures],
@@ -1449,6 +1456,64 @@ describe('platform org directory store', () => {
     expect(reactivatedAgain.status).toBe(200);
     expect(PlatformOrgDetailDto.parse(await reactivatedAgain.json())).toEqual(reactivated);
   });
+  it('edits an org over HTTP: the store and the directory row change, a taken slug is 409 at /slug, equal values change nothing', async () => {
+    const me = mockDb.state.users[0];
+    if (me) me.platformAdmin = true;
+    const [first, second] = platformOrgDtoFixtures;
+    if (!first || !second) throw new Error('need two fixtures');
+    const patch = (id: string, body: unknown) =>
+      fetch(`http://localhost:3000/api/platform/orgs/${id}`, {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+
+    const empty = await patch(first.id, {});
+    expect(empty.status).toBe(400);
+    expect((await patch(crypto.randomUUID(), { name: 'x' })).status).toBe(404);
+
+    const renamed = await patch(first.id, { name: 'Acme Renamed', slug: 'acme-renamed' });
+    expect(renamed.status).toBe(200);
+    expect(PlatformOrgDetailDto.parse(await renamed.json())).toMatchObject({
+      id: first.id,
+      name: 'Acme Renamed',
+      slug: 'acme-renamed',
+    });
+    expect(getPlatformOrg(first.id)).toMatchObject({ name: 'Acme Renamed', slug: 'acme-renamed' });
+    expect(getPlatformOrg(second.id)).toMatchObject({ name: second.name, slug: second.slug });
+    expect(listPlatformOrgs({ ...base, q: 'acme-renamed' }).items[0]).toMatchObject({
+      id: first.id,
+      name: 'Acme Renamed',
+    });
+
+    const taken = await patch(first.id, { slug: second.slug });
+    expect(taken.status).toBe(409);
+    expect(await taken.json()).toMatchObject({ errors: [{ pointer: '/slug' }] });
+    expect(getPlatformOrg(first.id).slug).toBe('acme-renamed');
+
+    const before = getPlatformOrg(first.id);
+    const same = await patch(first.id, { name: 'Acme Renamed', slug: 'acme-renamed' });
+    expect(same.status).toBe(200);
+    expect(PlatformOrgDetailDto.parse(await same.json())).toEqual(before);
+  });
+  it('keeps a suspended org suspended when it is edited', async () => {
+    const me = mockDb.state.users[0];
+    if (me) me.platformAdmin = true;
+    const target = platformOrgDtoFixtures.find((o) => o.status === 'active');
+    if (!target) throw new Error('no active fixture');
+    setPlatformOrgStatus(target.id, 'suspended', 'abuse');
+    const res = await fetch(`http://localhost:3000/api/platform/orgs/${target.id}`, {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ name: 'Renamed While Suspended' }),
+    });
+    expect(res.status).toBe(200);
+    expect(PlatformOrgDetailDto.parse(await res.json())).toMatchObject({
+      name: 'Renamed While Suspended',
+      status: 'suspended',
+      suspension: { reason: 'abuse' },
+    });
+  });
   it('adds a created org to the directory with no owner', async () => {
     const me = mockDb.state.users[0];
     if (me) me.platformAdmin = true;
@@ -1460,5 +1525,261 @@ describe('platform org directory store', () => {
     expect(res.status).toBe(201);
     const row = listPlatformOrgs({ ...base, q: 'gamma' }).items[0];
     expect(row).toMatchObject({ name: 'Gamma', owner: null, status: 'active', memberCount: 0, projectCount: 0 });
+  });
+});
+
+describe('platform.listAudit (BR-45, BR-50)', () => {
+  const base = 'http://localhost:3000/api/platform/audit';
+  const read = async (qs = '') =>
+    PlatformAuditEntryDto.array().parse(((await (await fetch(`${base}${qs}`)).json()) as { items: unknown[] }).items);
+
+  it('fixtures cover every action, a gone actor, a gone org, reasons and a name and slug edit', () => {
+    expect(new Set(platformAuditFixtures.map((e) => e.action))).toEqual(new Set(PlatformAuditAction.options));
+    expect(platformAuditFixtures.some((e) => e.actor === null)).toBe(true);
+    expect(platformAuditFixtures.some((e) => e.org === null)).toBe(true);
+    for (const action of ['org.suspended', 'org.reactivated'] as const) {
+      expect(platformAuditFixtures.some((e) => e.action === action && e.reason !== null)).toBe(true);
+    }
+    expect(
+      platformAuditFixtures.some(
+        (e) =>
+          e.action === 'org.updated' &&
+          e.changes.some((c) => c.field === 'name') &&
+          e.changes.some((c) => c.field === 'slug'),
+      ),
+    ).toBe(true);
+  });
+
+  it('lists newest first, filtered by org, by action and by both', async () => {
+    const me = mockDb.state.users[0];
+    if (me) me.platformAdmin = true;
+    const all = await read();
+    expect(all).toHaveLength(platformAuditFixtures.length);
+    const times = all.map((e) => e.at);
+    expect(times).toEqual([...times].sort().reverse());
+
+    const orgId = platformAuditFixtures.find((e) => e.org !== null)?.org?.id ?? '';
+    const byOrg = await read(`?orgId=${orgId}`);
+    expect(byOrg.length).toBeGreaterThan(0);
+    expect(byOrg.length).toBeLessThan(all.length);
+    expect(byOrg.every((e) => e.org?.id === orgId)).toBe(true);
+
+    const byAction = await read('?action=org.suspended');
+    expect(byAction.length).toBeGreaterThan(0);
+    expect(byAction.every((e) => e.action === 'org.suspended')).toBe(true);
+
+    const both = await read(`?orgId=${orgId}&action=org.suspended`);
+    expect(both.every((e) => e.org?.id === orgId && e.action === 'org.suspended')).toBe(true);
+    expect(both).toEqual(byOrg.filter((e) => e.action === 'org.suspended'));
+  });
+
+  it('platformEmpty lists none', async () => {
+    scenarios.platform('platformEmpty');
+    expect(await read()).toEqual([]);
+  });
+
+  it('answers 403 to a user who is not a platform admin', async () => {
+    const me = mockDb.state.users[0];
+    if (me) me.platformAdmin = false;
+    expect((await fetch(base)).status).toBe(403);
+  });
+});
+
+describe('platform org projects, members and assignments (BR-24 to BR-28)', () => {
+  const root = 'http://localhost:3000/api/platform/orgs';
+  const org = () => {
+    const found = platformOrgDtoFixtures.find((o) => o.slug === 'acme');
+    if (!found) throw new Error('no acme fixture');
+    return found;
+  };
+  const send = (path: string, method: string, body?: unknown) =>
+    fetch(`${root}/${org().id}${path}`, {
+      method,
+      headers: { 'content-type': 'application/json' },
+      body: body === undefined ? undefined : JSON.stringify(body),
+    });
+  const PageOfMembers = z.object({ items: z.array(PlatformMemberDto) });
+  const members = async () => {
+    const res = await send('/members?pageSize=100', 'GET');
+    return PageOfMembers.parse(await res.json()).items;
+  };
+  const roleId = (key: string) => {
+    const role = roleFixtures.find((r) => r.key === key);
+    if (!role) throw new Error(`no ${key} role`);
+    return role.id;
+  };
+  const alice = () => {
+    const found = platformMemberFixtures.find((m) => m.assignments.some((a) => a.role.key === 'owner'));
+    if (!found) throw new Error('no owner member fixture');
+    return found;
+  };
+  const unassigned = () => {
+    const found = platformMemberFixtures.find((m) => m.assignments.length === 0);
+    if (!found) throw new Error('no member without assignment');
+    return found;
+  };
+  const admin = () => {
+    const me = mockDb.state.users[0];
+    if (me) me.platformAdmin = true;
+  };
+  const directoryOwner = () => listPlatformOrgs({ page: 1, pageSize: 100 }).items.find((o) => o.id === org().id)?.owner;
+
+  it('has fixtures for the tabs: 25 projects, Owner (organization) with Member (Alpha), none, and no name', () => {
+    for (const p of platformProjectFixtures) PlatformProjectDto.parse(p);
+    expect(platformProjectFixtures).toHaveLength(25);
+    const alpha = platformProjectFixtures.find((p) => p.name === 'Alpha');
+    expect(alpha).toBeDefined();
+    const owner = alice();
+    expect(owner.assignments.some((a) => a.scope.type === 'org')).toBe(true);
+    expect(
+      platformMemberFixtures.some((m) =>
+        m.assignments.some(
+          (a) => a.role.key === 'member' && a.scope.type === 'project' && a.scope.projectId === alpha?.id,
+        ),
+      ),
+    ).toBe(true);
+    expect(unassigned().assignments).toEqual([]);
+    expect(platformMemberFixtures.some((m) => m.name === '')).toBe(true);
+  });
+
+  it('pages over the 25 projects', async () => {
+    admin();
+    const Page = z.object({ items: z.array(PlatformProjectDto), total: z.number() });
+    const first = Page.parse(await (await send('/projects?page=1', 'GET')).json());
+    const second = Page.parse(await (await send('/projects?page=2', 'GET')).json());
+    expect(first.items).toHaveLength(PAGE_SIZE_DEFAULT);
+    expect(second.items).toHaveLength(25 - PAGE_SIZE_DEFAULT);
+    expect(first.total).toBe(25);
+  });
+
+  it('lists the roles of the org', async () => {
+    admin();
+    const roles = z.array(RoleDto).parse(await (await send('/roles', 'GET')).json());
+    expect(roles.map((r) => r.key)).toEqual(['owner', 'admin', 'member', 'viewer']);
+  });
+
+  it("shows an Owner added org-wide in that member's assignments", async () => {
+    admin();
+    const target = unassigned();
+    const res = await send('/assignments', 'POST', {
+      userId: target.userId,
+      roleId: roleId('owner'),
+      scope: { type: 'org' },
+    });
+    expect(res.status).toBe(201);
+    const made = PlatformAssignmentDto.parse(await res.json());
+    expect(made).toMatchObject({ userId: target.userId, role: { key: 'owner' }, scope: { type: 'org' } });
+    const row = (await members()).find((m) => m.userId === target.userId);
+    expect(row?.assignments.map((a) => a.id)).toEqual([made.id]);
+  });
+
+  it('answers 422 for Owner on a project, a project the org lacks, and a person who is not a member', async () => {
+    admin();
+    const project = platformProjectFixtures[0];
+    if (!project) throw new Error('no project');
+    const post = (userId: string, role: string, scope: unknown) =>
+      send('/assignments', 'POST', { userId, roleId: roleId(role), scope });
+    const owner = await post(alice().userId, 'owner', { type: 'project', projectId: project.id });
+    expect(owner.status).toBe(422);
+    expect(await owner.json()).toMatchObject({ errors: [{ pointer: '/roleId' }] });
+    const noProject = await post(alice().userId, 'viewer', { type: 'project', projectId: crypto.randomUUID() });
+    expect(noProject.status).toBe(422);
+    expect(await noProject.json()).toMatchObject({ errors: [{ pointer: '/scope/projectId' }] });
+    const stranger = await post('user-stranger', 'viewer', { type: 'org' });
+    expect(stranger.status).toBe(422);
+    expect(await stranger.json()).toMatchObject({ errors: [{ pointer: '/userId' }] });
+    expect((await members()).flatMap((m) => m.assignments)).toHaveLength(
+      platformMemberFixtures.flatMap((m) => m.assignments).length,
+    );
+  });
+
+  it('removes an assignment; removing the last owner empties the directory owner', async () => {
+    admin();
+    expect(directoryOwner()).not.toBeNull();
+    const owners = alice().assignments.filter((a) => a.role.key === 'owner');
+    for (const a of owners) expect((await send(`/assignments/${a.id}`, 'DELETE')).status).toBe(204);
+    const row = (await members()).find((m) => m.userId === alice().userId);
+    expect(row?.assignments.some((a) => a.role.key === 'owner')).toBe(false);
+    expect(directoryOwner()).toBeNull();
+    expect((await send(`/assignments/${owners[0]?.id ?? ''}`, 'DELETE')).status).toBe(404);
+  });
+
+  it('makes the added Owner the directory owner when the org has none', async () => {
+    admin();
+    const target = unassigned();
+    for (const a of alice().assignments.filter((x) => x.role.key === 'owner'))
+      await send(`/assignments/${a.id}`, 'DELETE');
+    await send('/assignments', 'POST', { userId: target.userId, roleId: roleId('owner'), scope: { type: 'org' } });
+    expect(directoryOwner()).toMatchObject({ userId: target.userId });
+  });
+
+  it('answers 404 for an org that does not exist', async () => {
+    admin();
+    expect((await fetch(`${root}/${crypto.randomUUID()}/members`)).status).toBe(404);
+    expect((await fetch(`${root}/${crypto.randomUUID()}/projects`)).status).toBe(404);
+  });
+
+  it('serves empty tabs on platformEmpty and for a created org', async () => {
+    scenarios.platform('platformEmpty');
+    const seat = mockDb.state.orgs[0];
+    if (!seat) throw new Error('no org');
+    addPlatformOrg({ id: seat.id, name: seat.name, slug: seat.slug, createdAt: seat.createdAt });
+    const Items = z.object({ items: z.array(z.unknown()) });
+    for (const tab of ['projects', 'members']) {
+      expect(Items.parse(await (await fetch(`${root}/${seat.id}/${tab}`)).json()).items).toEqual([]);
+    }
+  });
+});
+
+describe('platform org invitations of a directory org (BR-29 to BR-31)', () => {
+  const root = 'http://localhost:3000/api/platform/orgs';
+  const acme = () => {
+    const found = platformOrgDtoFixtures.find((o) => o.slug === 'acme');
+    if (!found) throw new Error('no acme fixture');
+    return found;
+  };
+  const call = (path: string, method = 'GET', body?: unknown) =>
+    fetch(`${root}/${acme().id}/invitations${path}`, {
+      method,
+      headers: { 'content-type': 'application/json' },
+      body: body === undefined ? undefined : JSON.stringify(body),
+    });
+  const Items = z.object({ items: z.array(InvitationDto) });
+  const list = async (status?: string) =>
+    Items.parse(await (await call(status ? `?status=${status}` : '')).json()).items;
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  const seed = () => {
+    vi.useFakeTimers({ toFake: ['Date'], now: new Date('2026-11-19T14:20:00.000Z') });
+    scenarios.platform('platformAdminOrgs');
+  };
+
+  it('lists one pending and one revoked invitation of Acme, which only the platform directory holds', async () => {
+    seed();
+    expect(mockDb.state.orgs.some((o) => o.id === acme().id)).toBe(false);
+    expect((await list()).map((i) => i.status)).toEqual(['pending']);
+    expect((await list('revoked')).map((i) => i.status)).toEqual(['revoked']);
+    expect(await list('all')).toHaveLength(2);
+  });
+
+  it('creates, resends and revokes an invitation of Acme', async () => {
+    seed();
+    const owner = roleFixtures.find((r) => r.key === 'owner');
+    if (!owner) throw new Error('no owner role');
+    const created = await call('', 'POST', { email: 'new@example.test', roleId: owner.id, scope: { type: 'org' } });
+    expect(created.status).toBe(201);
+    const row = InvitationDto.parse(await created.json());
+    expect(row).toMatchObject({ email: 'new@example.test', status: 'pending' });
+    expect((await call(`/${row.id}/resend`, 'POST')).status).toBe(200);
+    expect((await call(`/${row.id}`, 'DELETE')).status).toBe(204);
+    expect((await list('revoked')).map((i) => i.email)).toContain('new@example.test');
+  });
+
+  it('still answers 404 for an org that is neither in the directory nor in the store', async () => {
+    seed();
+    expect((await fetch(`${root}/${crypto.randomUUID()}/invitations`)).status).toBe(404);
   });
 });

@@ -8,7 +8,7 @@ import {
 } from '@agentdesk/contracts';
 import { ApiError } from '@agentdesk/contracts/client';
 import { revalidateLogic, useField, useForm, useStore, type ValidationErrorMap } from '@tanstack/react-form';
-import { useQueryClient } from '@tanstack/react-query';
+import { useQueryClient, type UseMutationResult } from '@tanstack/react-query';
 import { useState } from 'react';
 import { projectAuditListKey } from '../projectAudit/queries';
 import { isOrgMismatch } from '@/features/auth/orgResync';
@@ -129,13 +129,22 @@ export interface InviteFormOptions {
   projectsOnly: boolean;
   /** An org-switch failure: the route shows the Toast. */
   onOrgSwitched(): void;
+  /** Where the invitation is created, when not the org's own route (the platform org detail passes its own). */
+  create?: Pick<UseMutationResult<InvitationDto, ApiError, CreateInvitationRequest>, 'mutateAsync'>;
   /** BR-13: the dialog opens on "Some projects" with this project the only one chosen. */
   fixedProjectId?: string;
 }
 
-export function useInviteForm({ org, projectsOnly: onlyProjects, onOrgSwitched, fixedProjectId }: InviteFormOptions) {
+export function useInviteForm({
+  org,
+  projectsOnly: onlyProjects,
+  onOrgSwitched,
+  fixedProjectId,
+  create: createOverride,
+}: InviteFormOptions) {
   const queryClient = useQueryClient();
-  const create = useCreateInvitation(org);
+  const tenantCreate = useCreateInvitation(org);
+  const create = createOverride ?? tenantCreate;
   const [formError, setFormError] = useState<string>();
   const [created, setCreated] = useState<InvitationDto>();
   const defaultValues: InviteDialogValues = {

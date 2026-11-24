@@ -56,3 +56,27 @@ describe('buildPlatformAuditRow', () => {
     expect(buildPlatformAuditRow(base).targetOrgId).toBeUndefined();
   });
 });
+
+describe('buildPlatformAuditRow for the org-scoped writes', () => {
+  const orgId = '55555555-5555-4555-8555-555555555555';
+
+  it.each([
+    ['assignment.granted', 'assignment'],
+    ['assignment.revoked', 'assignment'],
+    ['invitation.created', 'invitation'],
+    ['invitation.resent', 'invitation'],
+    ['invitation.revoked', 'invitation'],
+    ['org.created', 'org'],
+  ] as const)('keeps %s on target type %s with its org', (action, targetType) => {
+    const row = buildPlatformAuditRow({
+      actorUserId: 'user-1',
+      action,
+      targetType,
+      targetId: orgId,
+      targetOrgId: orgId,
+      payload: { email: 'a@dev.local', roleKey: 'viewer', scope: { type: 'org' } },
+    });
+    expect(row).toMatchObject({ action, targetType, targetOrgId: orgId });
+    expect(row.payload).toEqual({ email: 'a@dev.local', roleKey: 'viewer', scope: { type: 'org' } });
+  });
+});

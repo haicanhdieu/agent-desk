@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
-import { auditRows, projectAuditRowsExpired } from '@/mocks';
+import { auditRows, platformAuditRows, projectAuditRowsExpired } from '@/mocks';
 import type { AuditRowView } from '@/mocks/types';
 import { AuditRow, auditColumns } from './AuditRow';
 import { DataTable } from './DataTable';
@@ -28,6 +28,9 @@ const at = (i: number): AuditRowView => {
 const expiredNoEmail = projectAuditRowsExpired.find((r) => r.what.kind === 'sentence' && !r.what.title.includes('@'));
 if (!expiredNoEmail) throw new Error('no expired invitation row without an email');
 
+const withNote = platformAuditRows.find((r) => r.note);
+if (!withNote) throw new Error('no platform audit row with a note');
+
 export const RoleChanged: Story = { args: { row: at(0) } };
 export const MadeOwner: Story = { args: { row: at(1) } };
 export const SlugChanged: Story = { args: { row: at(2) } };
@@ -44,3 +47,4 @@ export const InvitationManyProjects: Story = { args: { row: at(10) } };
 export const InvitationOrgScope: Story = { args: { row: at(9) } };
 export const InvitationExpired: Story = { args: { row: at(12) } };
 export const InvitationExpiredNoEmail: Story = { args: { row: expiredNoEmail } };
+export const WithNote: Story = { args: { row: withNote } };
