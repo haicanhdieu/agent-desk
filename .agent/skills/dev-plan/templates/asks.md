@@ -222,7 +222,7 @@ Suggestion: <…>
 Asked once in phase 0, only when no `--…-tier` flag was given.
 
 ```text
-Problem: Which model tier should the brainstormers, the spec writer and the plan writer use? The default is medium for all three.
-Solutions: (1) medium for all three; (2) high for all three; (3) custom: tell me one tier each for brainstormers, spec writer, plan writer.
-Suggestion: (1) medium for all three; pick (2) if the requirement is large or touches access control, since a wrong design is costly downstream.
+Problem: Which model tier should the brainstormers, the spec writer, the prototype drawer and the plan writer use? The default is medium for all four.
+Solutions: (1) medium for all four; (2) high for all four; (3) custom: tell me one tier each for brainstormers, spec writer, prototype drawer, plan writer.
+Suggestion: (1) medium for all four; pick (2) if the requirement is large or touches access control, since a wrong design is costly downstream.
 ```
