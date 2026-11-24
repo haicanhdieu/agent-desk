@@ -245,6 +245,26 @@ export const Setup4: Story = {
   ),
 };
 
+/** Step 5 is optional: the stepper tags it and the footer offers Skip, which finishes setup without a rule. */
+export const Setup4Skip: Story = {
+  name: 'Setup 4, first rule, optional with Skip',
+  render: () => (
+    <Setup4Screen
+      user={user}
+      {...bar}
+      projectName={projectName}
+      repo={repo}
+      rule={rule}
+      skills={[]}
+      followUp={{ command: 'code-review', target: 'pr', skill: 'code-review', enabled: true }}
+      maxRunsPerTicket={agentSettings.maxRunsPerTicket}
+      promptPreview={{ state: 'ready', systemLines: promptSystemLines }}
+      modelList={liveModels}
+      onSkip={() => undefined}
+    />
+  ),
+};
+
 /** The first rule as a custom prompt (state of board Setup4; taller so the system lines fit). */
 export const Setup4Prompt: Story = {
   name: 'Setup 4, first rule as a custom prompt',
