@@ -44,7 +44,10 @@ export const connections = pgTable(
     createdAt: ts('created_at').notNull().defaultNow(),
   },
   (t) => [
-    unique('connections_provider_external_id_key').on(t.provider, t.externalId),
+    // One installation may be linked by several orgs; each org holds at most one row for it.
+    unique('connections_org_provider_external_id_key').on(t.orgId, t.provider, t.externalId),
+    // Webhook intake resolves a project from (provider, external_id) across orgs.
+    index('connections_provider_external_id_idx').on(t.provider, t.externalId),
     index('connections_org_idx').on(t.orgId),
     check('connections_status_check', sql`${t.status} in ('active','suspended','revoked')`),
     orgPolicy(),

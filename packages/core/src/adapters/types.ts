@@ -58,6 +58,8 @@ export interface NewConnection {
   externalId: string;
   accountName: string;
   capabilities: { code: boolean; board: boolean };
+  /** The provider's page for managing which repositories the installation can access, when it reports one. */
+  manageUrl?: string | null;
 }
 
 export interface InstallUser {

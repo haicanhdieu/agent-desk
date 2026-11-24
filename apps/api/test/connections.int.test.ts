@@ -79,7 +79,7 @@ describe('connections', () => {
   });
 
   describe('sync (the app is already installed at the provider, so no callback ever arrives)', () => {
-    async function syncAs(cookie: string, installs: { externalId: string; accountName: string }[]) {
+    async function syncAs(cookie: string, installs: { externalId: string; accountName: string; manageUrl?: string }[]) {
       const synced = await createTestApp({
         wrapAdapters: (real) => ({
           ...real,
@@ -117,7 +117,7 @@ describe('connections', () => {
       expect(expectContract('connections.list', list)).toHaveLength(1);
     });
 
-    it('skips an installation another org already owns instead of failing, and links the rest', async () => {
+    it('links an installation another org already owns, in each org, and keeps the lists apart', async () => {
       const owner = await syncAs('sync-owner', [{ externalId: 'taken-ext', accountName: 'owner-co' }]);
       expect(owner.first.statusCode).toBe(201);
 
@@ -129,7 +129,27 @@ describe('connections', () => {
       const names = (expectContract('connections.list', other.list) as { accountName: string }[]).map(
         (c) => c.accountName,
       );
-      expect(names).toEqual(['other-co']);
+      expect(names).toEqual(['owner-co', 'other-co']);
+      // The first org still sees only its own connection record.
+      const ownerNames = (expectContract('connections.list', owner.list) as { accountName: string }[]).map(
+        (c) => c.accountName,
+      );
+      expect(ownerNames).toEqual(['owner-co']);
+      const ownerIds = (owner.list.json() as { id: string }[]).map((c) => c.id);
+      const otherIds = (other.list.json() as { id: string }[]).map((c) => c.id);
+      expect(otherIds).not.toContain(ownerIds[0]);
+    });
+
+    it('lists the installation settings page the provider gave, and null when it gave none', async () => {
+      const { list } = await syncAs('sync-manage', [
+        { externalId: 'm-1', accountName: 'with-url', manageUrl: 'https://github.com/settings/installations/1' },
+        { externalId: 'm-2', accountName: 'no-url' },
+      ]);
+      const conns = expectContract('connections.list', list) as { accountName: string; manageUrl: string | null }[];
+      expect(conns.map((c) => [c.accountName, c.manageUrl])).toEqual([
+        ['with-url', 'https://github.com/settings/installations/1'],
+        ['no-url', null],
+      ]);
     });
 
     it('returns an empty list when the user can see no installation', async () => {

@@ -273,6 +273,24 @@ export function useSaveRulesStep(org: string) {
 export type ConnectOutcome = { kind: 'linked'; connection: ConnectionDto } | { kind: 'install'; url: string };
 
 /**
+ * Refresh repositories: links the installations the user's GitHub account can reach into this org, then reads the
+ * org's connections and the repository list of every active one again. Any failing step rejects, so an error is
+ * never shown as an empty list.
+ */
+export function useRefreshRepositories(org: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (): Promise<void> => {
+      await api.connections.sync({ params: { provider: 'github' } });
+      const connections = await qc.fetchQuery({ ...setupQueries.connections(org), staleTime: 0 });
+      const usable = connections.filter((c) => c.status === 'active' && c.capabilities.code);
+      await Promise.all(usable.map((c) => qc.fetchQuery({ ...setupQueries.repos(org, c.id), staleTime: 0 })));
+      await qc.invalidateQueries({ queryKey: checklistKey(org) });
+    },
+  });
+}
+
+/**
  * Connects a provider. An app already installed there never redirects back, so first link what the user's own
  * account can see; only when that adds no new connection (or the lookup fails), ask for the install page (a
  * full-page navigation away). A connection the org could already use does not count: the user may be asking to

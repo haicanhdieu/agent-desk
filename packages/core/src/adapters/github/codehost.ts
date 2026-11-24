@@ -50,6 +50,7 @@ const UserInstallations = z.object({
   installations: z.array(
     z.object({
       id: z.number(),
+      html_url: z.string().nullish(),
       account: z.object({ login: z.string(), type: z.string(), id: z.number() }).nullish(),
     }),
   ),
@@ -60,8 +61,19 @@ const PER_PAGE = 100;
 const MAX_PAGES = 5;
 const InstallationInfo = z.object({
   id: z.number(),
+  html_url: z.string().nullish(),
   account: z.object({ login: z.string() }).nullable(),
 });
+
+/** GitHub's own settings page for the installation; anything that is not an https URL is dropped. */
+function manageUrlOf(htmlUrl: string | null | undefined): string | null {
+  if (!htmlUrl) return null;
+  try {
+    return new URL(htmlUrl).protocol === 'https:' ? htmlUrl : null;
+  } catch {
+    return null;
+  }
+}
 
 function skillPath(name: string): string {
   if (!SKILL_NAME.test(name)) throw new Error(`invalid skill name "${name}"`);
@@ -118,6 +130,7 @@ export class GithubCodeHostAdapter implements CodeHostAdapter {
       externalId: String(info.id),
       accountName: info.account?.login ?? String(info.id),
       capabilities: { code: true, board: true },
+      manageUrl: manageUrlOf(info.html_url),
     };
   }
 
@@ -148,6 +161,7 @@ export class GithubCodeHostAdapter implements CodeHostAdapter {
           externalId: String(i.id),
           accountName: i.account?.login ?? String(i.id),
           capabilities: { code: true, board: true },
+          manageUrl: manageUrlOf(i.html_url),
         });
       }
       if (installations.length < PER_PAGE) break;

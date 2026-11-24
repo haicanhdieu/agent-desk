@@ -86,6 +86,43 @@ describe('resolveProject', () => {
   });
 });
 
+describe('resolveProject with one installation linked by two orgs', () => {
+  it('lets two orgs hold the same installation, refuses a duplicate in one org, and routes to the oldest project', async () => {
+    const client = new pg.Client({ connectionString: pgx.ownerUrl });
+    await client.connect();
+    try {
+      await client.query('begin');
+      await client.query(`select set_config('app.org_id', $1, true)`, [ORG_B]);
+      // Same provider + external id as org A's connection: allowed, it is a different org.
+      const conn = await client.query<{ id: string }>(
+        `insert into connections (org_id, provider, capabilities, external_id, account_name)
+         values ($1, 'fake', '{"code":true,"board":true}', 'acct-1', 'acct') returning id`,
+        [ORG_B],
+      );
+      await client.query(
+        `insert into projects (org_id, name, repo_path, code_connection_id, board_connection_id)
+         values ($1, 'shared', 'dev/demo', $2, $2)`,
+        [ORG_B, conn.rows[0]?.id],
+      );
+      await client.query('commit');
+      // The same org cannot link it twice.
+      await client.query('begin');
+      await client.query(`select set_config('app.org_id', $1, true)`, [ORG_B]);
+      await expect(
+        client.query(
+          `insert into connections (org_id, provider, capabilities, external_id, account_name)
+           values ($1, 'fake', '{"code":true,"board":true}', 'acct-1', 'acct')`,
+          [ORG_B],
+        ),
+      ).rejects.toMatchObject({ code: '23505' });
+      await client.query('rollback');
+    } finally {
+      await client.end();
+    }
+    expect(await resolveProject(db, 'fake', 'acct-1', 'dev/demo')).toEqual({ orgId: ORG_A, projectId: a.projectId });
+  });
+});
+
 describe('queuedRunsWithoutWorkflow', () => {
   it('returns only old queued runs without a workflow, from every org', async () => {
     const oldA = await seedRun(pgx.ownerUrl, a, {

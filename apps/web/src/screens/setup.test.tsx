@@ -113,6 +113,49 @@ describe('Setup1', () => {
     render(<Setup1 {...s1Props} onRefresh={vi.fn()} refreshing />);
     expect(screen.getByRole('button', { name: 'Refreshing repositories' })).toBeDisabled();
   });
+  it('Change which repositories the app can access opens the installation of the picked repo in a new tab', async () => {
+    const onConnect = vi.fn();
+    const withUrls = [
+      {
+        name: 'harbor-labs/invoicer-api',
+        meta: 'Private',
+        manageUrl: 'https://github.com/organizations/harbor-labs/settings/installations/1',
+      },
+      { name: 'kim-hale/docs-site', meta: 'Public', manageUrl: 'https://github.com/settings/installations/2' },
+    ];
+    render(<Setup1 {...s1Props} repos={withUrls} selected="harbor-labs/invoicer-api" onConnect={onConnect} />);
+    const link = screen.getByRole('link', { name: 'Change which repositories the app can access' });
+    expect(link).toHaveAttribute('href', 'https://github.com/organizations/harbor-labs/settings/installations/1');
+    expect(link).toHaveAttribute('target', '_blank');
+    expect(link).toHaveAttribute('rel', 'noopener noreferrer');
+    await userEvent.click(screen.getByRole('radio', { name: /docs-site/ }));
+    expect(link).toHaveAttribute('href', 'https://github.com/settings/installations/2');
+    expect(onConnect).not.toHaveBeenCalled();
+  });
+  it('with no known installation page there is no link, and never the GitHub home page', () => {
+    render(<Setup1 {...s1Props} />);
+    expect(screen.queryByRole('link', { name: 'Change which repositories the app can access' })).toBeNull();
+    expect(document.querySelector('a[href="https://github.com/"]')).toBeNull();
+    expect(screen.getByText(/Missing a repository\?/)).toBeInTheDocument();
+  });
+  it('with no repositories, the empty state says to install the app or grant it access, and links the installation', () => {
+    render(
+      <Setup1
+        {...s1Props}
+        repos={[]}
+        selected=""
+        installedOn="harbor-labs"
+        accessHref="https://github.com/settings/installations/2"
+        onConnect={vi.fn()}
+      />,
+    );
+    expect(screen.getByText('No repositories yet')).toBeInTheDocument();
+    expect(screen.getByText(/grant it access/i)).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Change which repositories the app can access' })).toHaveAttribute(
+      'href',
+      'https://github.com/settings/installations/2',
+    );
+  });
   it('selecting another repo moves the radio', async () => {
     render(s1);
     await userEvent.click(screen.getByRole('radio', { name: /infra-k8s/ }));

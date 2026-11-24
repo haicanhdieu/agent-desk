@@ -1007,6 +1007,7 @@ describe('github code host', () => {
       externalId: '4242',
       accountName: 'acme',
       capabilities: { code: true, board: true },
+      manageUrl: null,
     });
     await expect(
       host().completeInstall({ installation_id: '999' }, { userId: 'u', linkedAccountToken: 'utok' }),
@@ -1021,14 +1022,30 @@ describe('github code host', () => {
     const AUTH = { authorization: 'token utok' };
     const reply = (path: (p: string) => boolean, status: number, body: string) =>
       gh().intercept({ path, method: 'GET', headers: AUTH }).reply(status, body, { headers: JSON_HEADERS });
-    const conn = (id: string, name: string) => ({
+    const conn = (id: string, name: string, manageUrl: string | null = null) => ({
       provider: 'github',
       externalId: id,
       accountName: name,
       capabilities: { code: true, board: true },
+      manageUrl,
     });
-    const inst = (id: number, login: string, type: string, accountId: number) =>
-      `{"id":${id},"account":{"login":"${login}","type":"${type}","id":${accountId}}}`;
+    const inst = (id: number, login: string, type: string, accountId: number, htmlUrl?: string) =>
+      `{"id":${id},${htmlUrl ? `"html_url":"${htmlUrl}",` : ''}"account":{"login":"${login}","type":"${type}","id":${accountId}}}`;
+
+    it('carries the installation settings page of a personal and an organization install, and drops a non-https one', async () => {
+      reply((p) => p === '/user', 200, '{"id":100,"login":"me"}');
+      reply(
+        (p) => p.startsWith('/user/installations'),
+        200,
+        `{"installations":[${inst(1, 'me', 'User', 100, 'https://github.com/settings/installations/1')},${inst(3, 'acme', 'Organization', 300, 'https://github.com/organizations/acme/settings/installations/3')},${inst(6, 'me', 'User', 100, 'javascript:alert(1)')}]}`,
+      );
+      reply((p) => p.startsWith('/user/memberships/orgs'), 200, '[{"role":"admin","organization":{"login":"acme"}}]');
+      expect(await host().listInstallations(user)).toEqual([
+        conn('1', 'me', 'https://github.com/settings/installations/1'),
+        conn('3', 'acme', 'https://github.com/organizations/acme/settings/installations/3'),
+        conn('6', 'me'),
+      ]);
+    });
 
     it('returns the own-account install and org installs the user administers, skipping the rest', async () => {
       reply((p) => p === '/user', 200, '{"id":100,"login":"me"}');

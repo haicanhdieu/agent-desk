@@ -8,6 +8,8 @@ export const ConnectionDto = z.object({
   capabilities: z.object({ code: z.boolean(), board: z.boolean() }),
   accountName: z.string(),
   status: z.enum(['active', 'suspended', 'revoked']),
+  /** The provider's page for changing which repositories this installation can access; null when it is not known. */
+  manageUrl: z.string().nullable(),
   createdAt: Timestamp,
 });
 export type ConnectionDto = z.infer<typeof ConnectionDto>;

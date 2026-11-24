@@ -65,14 +65,16 @@ const repo = 'harbor-labs/invoicer-api';
 const projectName = 'invoicer-api';
 const rule = rules[0];
 
+const manageUrl = 'https://github.com/organizations/harbor-labs/settings/installations/1001';
+
 const setup1 = {
   user,
   ...bar,
   projectName,
   repos: [
-    { name: repo, meta: 'Private, updated 2 hours ago' },
-    { name: 'harbor-labs/invoicer-web', meta: 'Private, updated yesterday' },
-    { name: 'harbor-labs/infra-k8s', meta: 'Private, updated 5 days ago' },
+    { name: repo, meta: 'Private, updated 2 hours ago', manageUrl },
+    { name: 'harbor-labs/invoicer-web', meta: 'Private, updated yesterday', manageUrl },
+    { name: 'harbor-labs/infra-k8s', meta: 'Private, updated 5 days ago', manageUrl },
   ],
   selected: repo,
   installedOn: 'harbor-labs',
@@ -107,6 +109,36 @@ export const Setup1Refreshing: Story = {
   name: 'Setup 1, refreshing repositories',
   ...tall,
   render: () => <Setup1Screen {...setup1} pingAt="14:01:37" onRefresh={() => undefined} refreshing />,
+};
+
+export const Setup1NoRepositories: Story = {
+  name: 'Setup 1, no repositories, app not installed',
+  ...tall,
+  render: () => (
+    <Setup1Screen
+      {...setup1}
+      repos={[]}
+      selected=""
+      installedOn=""
+      onConnect={() => undefined}
+      onRefresh={() => undefined}
+    />
+  ),
+};
+
+export const Setup1NoRepositoriesAccess: Story = {
+  name: 'Setup 1, no repositories, app installed without access',
+  ...tall,
+  render: () => (
+    <Setup1Screen
+      {...setup1}
+      repos={[]}
+      selected=""
+      accessHref={manageUrl}
+      onConnect={() => undefined}
+      onRefresh={() => undefined}
+    />
+  ),
 };
 
 export const Setup1PollingFailed: Story = {
