@@ -114,24 +114,21 @@ export class RulesService {
   }
 
   /**
-   * The agent a rule runs with: `agentId` when it belongs to the project (422 on /agentId otherwise), else the
-   * project's own agent (404 when the project is not visible to the org).
+   * The agent a rule names: null (follow the project's default agent) when `agentId` is absent, else `agentId` when
+   * it belongs to the project (422 on /agentId otherwise). 404 when the project is not visible to the org.
    */
-  private async resolveAgent(tx: Tx, projectId: string, agentId: string | undefined): Promise<{ id: string }> {
+  private async resolveAgent(tx: Tx, projectId: string, agentId: string | undefined | null): Promise<string | null> {
+    const visible = (await tx.select({ id: projects.id }).from(projects).where(eq(projects.id, projectId)).limit(1))[0];
+    if (!visible) throw new NotFoundException('Project not found');
+    if (agentId === undefined || agentId === null) return null;
     const found = (
       await tx
         .select({ id: agents.id })
         .from(agents)
-        .where(
-          agentId === undefined
-            ? eq(agents.projectId, projectId)
-            : and(eq(agents.projectId, projectId), eq(agents.id, agentId)),
-        )
+        .where(and(eq(agents.projectId, projectId), eq(agents.id, agentId)))
         .limit(1)
     )[0];
-    if (found) return found;
-    const visible = (await tx.select({ id: projects.id }).from(projects).where(eq(projects.id, projectId)).limit(1))[0];
-    if (!visible || agentId === undefined) throw new NotFoundException('Project not found');
+    if (found) return found.id;
     throw new UnprocessableProblemException('Unknown agent', [
       { pointer: '/agentId', detail: 'Agent not found in this project' },
     ]);
@@ -169,7 +166,7 @@ export class RulesService {
     if (body.kind === 'skill') await this.assertSkillExists(org, projectId, body.skillName);
     try {
       return await withOrg(this.db, org.orgId, async (tx) => {
-        const agent = await this.resolveAgent(tx, projectId, body.agentId);
+        const agentId = await this.resolveAgent(tx, projectId, body.agentId);
         const [row] = await tx
           .insert(rules)
           .values({
@@ -178,7 +175,7 @@ export class RulesService {
             command: body.command,
             labelFilter: body.labelFilter,
             target: body.target,
-            agentId: agent.id,
+            agentId,
             model: body.model ?? null,
             skillName: body.kind === 'skill' ? body.skillName : null,
             prompt: body.kind === 'prompt' ? body.prompt : null,
@@ -231,8 +228,7 @@ export class RulesService {
     if (body.model !== undefined) set.model = body.model;
     try {
       return await withOrg(this.db, org.orgId, async (tx) => {
-        if (body.agentId !== undefined)
-          set.agentId = (await this.resolveAgent(tx, existing.projectId, body.agentId ?? undefined)).id;
+        if (body.agentId !== undefined) set.agentId = await this.resolveAgent(tx, existing.projectId, body.agentId);
         const row =
           Object.keys(set).length === 0
             ? (await tx.select().from(rules).where(eq(rules.id, ruleId)))[0]

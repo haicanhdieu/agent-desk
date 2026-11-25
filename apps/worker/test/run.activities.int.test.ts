@@ -12,6 +12,7 @@ import {
   FileSecretStore,
   MemorySecretStore,
   createAdapterRegistry,
+  gateWorkflowId,
   parseConfig,
   projectEnvSecretName,
   type Clock,
@@ -207,15 +208,15 @@ beforeAll(async () => {
       [ORG, `fake-${ORG}`],
     );
     const proj = await cl.query<{ id: string }>(
-      `insert into projects (org_id, name, repo_path, code_connection_id, board_connection_id, max_concurrent_runs)
-       values ($1, 'demo', 'dev/demo', $2, $2, 3) returning id`,
+      `insert into projects (org_id, name, repo_path, code_connection_id, board_connection_id, max_concurrent_runs,
+         timeout_seconds)
+       values ($1, 'demo', 'dev/demo', $2, $2, 3, 900) returning id`,
       [ORG, conn.rows[0]?.id],
     );
     const pid = proj.rows[0]?.id ?? '';
     await cl.query(
-      `insert into agents (id, org_id, project_id, name, model, credential_secret_name, credential_type, max_turns,
-         timeout_seconds)
-       values ($1, $2, $3, 'claude', 'sonnet', $4, 'oauth_token', 25, 900)`,
+      `insert into agents (id, org_id, project_id, name, model, credential_secret_name, credential_type, max_turns)
+       values ($1, $2, $3, 'claude', 'sonnet', $4, 'oauth_token', 25)`,
       [AGENT, ORG, pid, `org-${ORG}-agent-${AGENT}`],
     );
     return pid;
@@ -266,19 +267,28 @@ describe('loadRun', () => {
     expect(quick.idleEndSeconds).toBe(7);
   });
 
-  describe('idle end per agent', () => {
-    const setIdle = (seconds: number) =>
-      asOwner((c) => c.query(`update agents set idle_end_seconds = $1 where id = $2`, [seconds, AGENT]));
-    afterEach(() => setIdle(1800));
+  describe('limits per project', () => {
+    const setProject = (col: string, v: number) =>
+      asOwner((c) => c.query(`update projects set ${col} = $1 where id = $2`, [v, projectId]));
+    const setLegacy = (col: string, v: number) =>
+      asOwner((c) => c.query(`update agents set ${col} = $1 where id = $2`, [v, AGENT]));
+    afterEach(async () => {
+      await setProject('idle_end_seconds', 1800);
+      await setProject('auto_resume_max', 5);
+      await setLegacy('idle_end_seconds', 1800);
+      await setLegacy('auto_resume_max', 5);
+      await setLegacy('timeout_seconds', 86400);
+    });
 
-    it('takes the idle end from the run agent (agents.idle_end_seconds), not a fixed value', async () => {
-      await setIdle(900);
+    it('takes the idle end from the project, not the agent row (BR-45)', async () => {
+      await setProject('idle_end_seconds', 900);
+      await setLegacy('idle_end_seconds', 400);
       const runId = await seedRun('x', 'queued');
       expect((await ctxFor(runId)).idleEndSeconds).toBe(900);
     });
 
     it('RUN_IDLE_END_SECONDS, when set away from its default, still wins so the local stack can pause quickly', async () => {
-      await setIdle(900);
+      await setProject('idle_end_seconds', 900);
       const runId = await seedRun('x', 'queued');
       const quick = await createRunActivities(deps({ config: { ...config, RUN_IDLE_END_SECONDS: 7 } })).loadRun(
         ORG,
@@ -287,26 +297,23 @@ describe('loadRun', () => {
       expect(quick.idleEndSeconds).toBe(7);
     });
 
-    it('an agent deleted after queueing falls back to the 30 minute default', async () => {
+    it('takes autoResumeMax and the timeout from the project, not the agent row', async () => {
+      await setProject('auto_resume_max', 2);
+      await setLegacy('auto_resume_max', 9);
+      await setLegacy('timeout_seconds', 123);
       const runId = await seedRun('x', 'queued');
-      await asOwner((c) => c.query(`update runs set agent_id = null where id = $1`, [runId]));
-      expect((await ctxFor(runId)).idleEndSeconds).toBe(1800);
-    });
-  });
-
-  describe('autoResumeMax per agent', () => {
-    afterEach(() => asOwner((c) => c.query(`update agents set auto_resume_max = 5 where id = $1`, [AGENT])));
-
-    it('takes autoResumeMax from the agent row', async () => {
-      await asOwner((c) => c.query(`update agents set auto_resume_max = 2 where id = $1`, [AGENT]));
-      const runId = await seedRun('x', 'queued');
-      expect((await ctxFor(runId)).autoResumeMax).toBe(2);
+      const ctx = await ctxFor(runId);
+      expect(ctx.autoResumeMax).toBe(2);
+      expect(ctx.timeoutSeconds).toBe(900);
     });
 
-    it('uses AGENT_AUTO_RESUME_MAX_DEFAULT when the agent row is gone', async () => {
+    it('an agent deleted after queueing keeps the project limits', async () => {
+      await setProject('idle_end_seconds', 900);
+      await setProject('auto_resume_max', 3);
       const runId = await seedRun('x', 'queued');
       await asOwner((c) => c.query(`update runs set agent_id = null where id = $1`, [runId]));
-      expect((await ctxFor(runId)).autoResumeMax).toBe(5);
+      const ctx = await ctxFor(runId);
+      expect(ctx).toMatchObject({ idleEndSeconds: 900, autoResumeMax: 3, timeoutSeconds: 900 });
     });
   });
 
@@ -2944,5 +2951,446 @@ describe('a credential saved for another address', () => {
     } finally {
       await restore();
     }
+  });
+});
+
+describe('per-kind credentials and the run own agent', () => {
+  const AUTH_FILE = JSON.stringify({
+    tokens: { access_token: 'canary-access-token-0001', nested: { refresh_token: 'canary-refresh-token-0002' } },
+    note: 'plain',
+  });
+  const UPDATED = new Date('2026-05-01T08:00:00.000Z');
+
+  /** A new agent of the project; its credential Secret is written when `secret` is given. */
+  async function seedAgent(a: {
+    provider: string;
+    model: string;
+    credType?: string;
+    secret?: Record<string, string>;
+    baseUrl?: string;
+    updatedAt?: Date | null;
+  }): Promise<string> {
+    const id = await asOwner(async (c) => {
+      const r = await c.query<{ id: string }>(
+        `insert into agents (org_id, project_id, name, provider, model, credential_type, base_url, credential_updated_at)
+         values ($1, $2, $3, $4, $5, $6, $7, $8) returning id`,
+        [
+          ORG,
+          projectId,
+          `a-${Math.random()}`,
+          a.provider,
+          a.model,
+          a.credType ?? null,
+          a.baseUrl ?? null,
+          a.updatedAt === undefined ? UPDATED : a.updatedAt,
+        ],
+      );
+      return r.rows[0]?.id ?? '';
+    });
+    if (a.secret) await secrets.put(`org-${ORG}-agent-${id}`, a.secret);
+    return id;
+  }
+  async function seedRunFor(agentId: string, model: string | null, status = 'starting'): Promise<string> {
+    return asOwner(async (c) => {
+      const r = await c.query<{ id: string }>(
+        `insert into runs (org_id, project_id, agent_id, model, command, skill_name, ticket_ref, ticket_kind,
+           ticket_number, checkout_ref, args, status, trigger_source)
+         values ($1, $2, $3, $4, 'fix', 'fix', '7', 'issue', 7, 'main', 'x', $5, 'manual') returning id`,
+        [ORG, projectId, agentId, model, status],
+      );
+      return r.rows[0]?.id ?? '';
+    });
+  }
+  async function launch(runId: string, opts?: { resume?: boolean; kubeGw?: KubeGateway }) {
+    const ctx = await ctxFor(runId);
+    const acts = createRunActivities(deps(opts?.kubeGw ? { kube: opts.kubeGw } : {}));
+    await acts.createRunSecretAndJob(ctx, opts?.resume ? { resume: true } : {});
+    const out = { secret: await kube.readSecret(`run-${runId}`), env: await kube.podEnv(`run-${runId}`) };
+    await acts.deleteJob(ctx);
+    await acts.deleteRunVolume(ctx);
+    return out;
+  }
+  const failureOf = async (runId: string, resume = false) =>
+    (await createRunActivities(deps())
+      .createRunSecretAndJob(await ctxFor(runId), resume ? { resume: true } : {})
+      .catch((e: unknown) => e)) as ApplicationFailure;
+
+  it('limits and credentials follow the run own agent: two agents of one project each get only their own value (BR-45)', async () => {
+    const a1 = await seedAgent({
+      provider: 'claude',
+      model: 'sonnet',
+      credType: 'oauth_token',
+      secret: { type: 'oauth_token', value: 'sk-ant-oat01-ONLY-FOR-A1' },
+    });
+    const a2 = await seedAgent({
+      provider: 'claude',
+      model: 'sonnet',
+      credType: 'api_key',
+      secret: { type: 'api_key', value: 'sk-ant-api03-ONLY-FOR-A2' },
+    });
+    const [r1, r2] = [await seedRunFor(a1, 'sonnet'), await seedRunFor(a2, 'sonnet')];
+    const [o1, o2] = [await launch(r1), await launch(r2)];
+    expect(o1.secret).toMatchObject({ CLAUDE_CODE_OAUTH_TOKEN: 'sk-ant-oat01-ONLY-FOR-A1' });
+    expect(JSON.stringify(o1)).not.toContain('ONLY-FOR-A2');
+    expect(o2.secret).toMatchObject({ ANTHROPIC_API_KEY: 'sk-ant-api03-ONLY-FOR-A2' });
+    expect(JSON.stringify(o2)).not.toContain('ONLY-FOR-A1');
+    expect((await ctxFor(r1)).timeoutSeconds).toBe((await ctxFor(r2)).timeoutSeconds);
+  });
+
+  it('a resume uses the run agent, not the project default, and the rotated credential with the frozen model (BR-26, BR-37, BR-39)', async () => {
+    const own = await seedAgent({
+      provider: 'claude',
+      model: 'sonnet',
+      credType: 'api_key',
+      secret: { type: 'api_key', value: 'sk-ant-api03-OLD-VALUE' },
+    });
+    const other = await seedAgent({
+      provider: 'claude',
+      model: 'opus',
+      credType: 'api_key',
+      secret: { type: 'api_key', value: 'sk-ant-api03-THE-OTHER-AGENT' },
+    });
+    await asOwner((c) => c.query('update agents set is_default = (id = $1) where project_id = $2', [other, projectId]));
+    try {
+      const runId = await seedRunFor(own, 'haiku', 'paused');
+      await secrets.put(`org-${ORG}-agent-${own}`, { type: 'api_key', value: 'sk-ant-api03-NEW-VALUE' });
+      await asOwner((c) => c.query(`update agents set model = 'opus' where id = $1`, [own]));
+      const o = await launch(runId, { resume: true });
+      expect(o.secret).toMatchObject({ ANTHROPIC_API_KEY: 'sk-ant-api03-NEW-VALUE' });
+      expect(JSON.stringify(o)).not.toMatch(/OLD-VALUE|THE-OTHER-AGENT/);
+      expect(o.env).toMatchObject({ AGENT_MODEL: 'haiku' });
+    } finally {
+      await asOwner((c) => c.query('update agents set is_default = false where project_id = $1', [projectId]));
+    }
+  });
+
+  it('a stale-credential resume reports no credential and never reuses another agent value (BR-41)', async () => {
+    const own = await seedAgent({ provider: 'claude', model: 'sonnet', credType: 'api_key' });
+    await seedAgent({
+      provider: 'claude',
+      model: 'sonnet',
+      credType: 'api_key',
+      secret: { type: 'api_key', value: 'sk-ant-api03-SOMEONE-ELSE' },
+    });
+    const runId = await seedRunFor(own, 'sonnet', 'paused');
+    const err = await failureOf(runId, true);
+    expect(err.type).toBe('NoAgentCredential');
+    expect(err.nonRetryable).toBe(true);
+    expect(await kube.readSecret(`run-${runId}`)).toBeNull();
+  });
+
+  it('a Claude or Codex agent with no credential still fails at start with the existing reason (BR-41)', async () => {
+    for (const provider of ['claude', 'codex']) {
+      const id = await seedAgent({ provider, model: 'm' });
+      const runId = await seedRunFor(id, 'm');
+      const err = await failureOf(runId);
+      expect(err.nonRetryable).toBe(true);
+      expect(err.message).toContain('the agent has no credential set');
+      expect(await kube.readSecret(`run-${runId}`)).toBeNull();
+    }
+  });
+
+  it('Codex: api_key goes to its own env name, auth_json goes as the file plus the version, never in the Job spec', async () => {
+    const key = await seedAgent({
+      provider: 'codex',
+      model: 'gpt-x',
+      credType: 'api_key',
+      secret: { type: 'api_key', value: 'sk-codex-KEY-VALUE-1' },
+    });
+    const k = await launch(await seedRunFor(key, 'gpt-x'));
+    expect(k.secret).toMatchObject({ CODEX_API_KEY: 'sk-codex-KEY-VALUE-1' });
+    expect(k.secret).not.toHaveProperty('AGENT_CREDENTIAL_FILE');
+
+    const file = await seedAgent({
+      provider: 'codex',
+      model: 'gpt-x',
+      credType: 'auth_json',
+      secret: { type: 'auth_json', value: AUTH_FILE },
+    });
+    const runId = await seedRunFor(file, 'gpt-x');
+    const jobs: unknown[] = [];
+    const spy = wrapKube({
+      ensureJob: (j) => {
+        jobs.push(j);
+        return kube.ensureJob(j);
+      },
+    });
+    const o = await launch(runId, { kubeGw: spy });
+    expect(o.secret).toEqual(
+      expect.objectContaining({ AGENT_CREDENTIAL_FILE: AUTH_FILE, AGENT_CREDENTIAL_VERSION: UPDATED.toISOString() }),
+    );
+    expect(o.secret).not.toHaveProperty('CODEX_API_KEY');
+    expect(o.env).toMatchObject({ AGENT_CREDENTIAL_FILE: AUTH_FILE, AGENT_CREDENTIAL_VERSION: UPDATED.toISOString() });
+    const spec = JSON.stringify(jobs);
+    expect(spec).not.toContain('canary-access-token-0001');
+    expect(spec).not.toContain('canary-refresh-token-0002');
+    expect(spec).toContain('AGENT_CREDENTIAL_FILE');
+  });
+
+  it('an auth_json credential always carries a non-empty version, even when the agent has no update time', async () => {
+    const file = await seedAgent({
+      provider: 'codex',
+      model: 'gpt-x',
+      credType: 'auth_json',
+      secret: { type: 'auth_json', value: AUTH_FILE },
+      updatedAt: null,
+    });
+    const o = await launch(await seedRunFor(file, 'gpt-x'));
+    expect(o.secret?.AGENT_CREDENTIAL_VERSION).toBeTruthy();
+  });
+
+  it('a project secret cannot take the credential file or version key', async () => {
+    const file = await seedAgent({
+      provider: 'codex',
+      model: 'gpt-x',
+      credType: 'auth_json',
+      secret: { type: 'auth_json', value: AUTH_FILE },
+    });
+    const rowId = await asOwner(async (c) => {
+      const r = await c.query<{ id: string }>(
+        `insert into project_env_vars (org_id, project_id, name, kind, value, size_bytes, updated_by)
+         values ($1, $2, 'AGENT_CREDENTIAL_VERSION', 'secret', null, 10, 'tester') returning id`,
+        [ORG, projectId],
+      );
+      return r.rows[0]?.id ?? '';
+    });
+    await secrets.put(projectEnvSecretName(ORG, rowId), { value: 'forged-version' });
+    try {
+      const err = await failureOf(await seedRunFor(file, 'gpt-x'));
+      expect(err.nonRetryable).toBe(true);
+      expect(err.type).toBe('ProjectEnvClash');
+    } finally {
+      await asOwner((c) => c.query('delete from project_env_vars where id = $1', [rowId]));
+    }
+  });
+
+  it('runs of two agents of one project share the project limit and the same gate (BR-45)', async () => {
+    const a = await seedAgent({ provider: 'claude', model: 'sonnet' });
+    const b = await seedAgent({ provider: 'opencode', model: '' });
+    const ca = await ctxFor(await seedRunFor(a, 'sonnet', 'queued'));
+    const cb = await ctxFor(await seedRunFor(b, '', 'queued'));
+    expect(ca.maxConcurrentRuns).toBe(3);
+    expect(cb.maxConcurrentRuns).toBe(ca.maxConcurrentRuns);
+    expect(gateWorkflowId(cb.projectId)).toBe(gateWorkflowId(ca.projectId));
+  });
+
+  describe('OpenCode', () => {
+    it('with no credential the run starts: no credential key, no credential env, no import (BR-68, BR-41)', async () => {
+      const id = await seedAgent({ provider: 'opencode', model: '' });
+      const runId = await seedRunFor(id, '');
+      const o = await launch(runId);
+      expect(o.secret).not.toBeNull();
+      expect(Object.keys(o.secret ?? {}).sort()).toEqual(['REPO_CLONE_URL', 'workspace-token'].sort());
+      expect(o.env).toMatchObject({ AGENT: 'opencode' });
+      expect(o.env).not.toHaveProperty('AGENT_CREDENTIAL_FILE');
+      expect(o.env).not.toHaveProperty('AGENTDESK_LLM_API_KEY');
+      expect(o.env).not.toHaveProperty('OPENCODE_CONFIG_CONTENT');
+    });
+
+    it('the activities stay idempotent when retried with no credential', async () => {
+      const id = await seedAgent({ provider: 'opencode', model: '' });
+      const runId = await seedRunFor(id, '');
+      const ctx = await ctxFor(runId);
+      const acts = createRunActivities(deps());
+      await acts.createRunSecretAndJob(ctx);
+      await acts.createRunSecretAndJob(ctx);
+      expect(Object.keys((await kube.readSecret(`run-${runId}`)) ?? {})).not.toContain('AGENT_CREDENTIAL_FILE');
+      await acts.deleteJob(ctx);
+      await acts.deleteRunVolume(ctx);
+    });
+
+    it('a resume with no credential also starts', async () => {
+      const id = await seedAgent({ provider: 'opencode', model: '' });
+      const o = await launch(await seedRunFor(id, '', 'paused'), { resume: true });
+      expect(o.env).toMatchObject({ AGENT: 'opencode' });
+    });
+
+    it('an opencode agent that is gone fails a resume as NoAgentCredential', async () => {
+      const id = await seedAgent({ provider: 'opencode', model: '' });
+      const runId = await seedRunFor(id, '', 'paused');
+      await asOwner((c) => c.query('update runs set agent_id = null where id = $1', [runId]));
+      expect((await failureOf(runId, true)).type).toBe('NoAgentCredential');
+    });
+
+    it('a credential saved for another address is not silently dropped: the run fails', async () => {
+      const id = await seedAgent({ provider: 'opencode', model: 'm', credType: 'api_key' });
+      await secrets.put(`org-${ORG}-agent-${id}`, {
+        type: 'api_key',
+        value: 'sk-old-endpoint-key',
+        baseUrl: 'https://x.example.com/v1',
+      });
+      const err = await failureOf(await seedRunFor(id, 'm'));
+      expect(err.nonRetryable).toBe(true);
+    });
+
+    it('auth_json: the Secret carries the file and the version, and the Job spec and logs never contain the file text', async () => {
+      const id = await seedAgent({
+        provider: 'opencode',
+        model: 'anthropic/claude-sonnet-4-5',
+        credType: 'auth_json',
+        secret: { type: 'auth_json', value: AUTH_FILE },
+      });
+      const jobs: unknown[] = [];
+      const spy = wrapKube({
+        ensureJob: (j) => {
+          jobs.push(j);
+          return kube.ensureJob(j);
+        },
+      });
+      const o = await launch(await seedRunFor(id, 'anthropic/claude-sonnet-4-5'), { kubeGw: spy });
+      expect(o.secret).toMatchObject({
+        AGENT_CREDENTIAL_FILE: AUTH_FILE,
+        AGENT_CREDENTIAL_VERSION: UPDATED.toISOString(),
+      });
+      expect(JSON.stringify(jobs)).not.toContain('canary-');
+      expect(o.env).toMatchObject({ AGENT_MODEL: 'anthropic/claude-sonnet-4-5' });
+      expect(o.env).not.toHaveProperty('OPENCODE_CONFIG_CONTENT');
+    });
+
+    it('own endpoint: the key is only in the Secret, the plain Job env holds only the non-secret config', async () => {
+      const KEY = 'sk-endpoint-KEY-9876';
+      const id = await seedAgent({
+        provider: 'opencode',
+        model: 'my-model',
+        credType: 'api_key',
+        baseUrl: 'https://llm.example.com/v1',
+        secret: { type: 'api_key', value: KEY, baseUrl: 'https://llm.example.com/v1' },
+      });
+      const jobs: unknown[] = [];
+      const spy = wrapKube({
+        ensureJob: (j) => {
+          jobs.push(j);
+          return kube.ensureJob(j);
+        },
+      });
+      const o = await launch(await seedRunFor(id, 'my-model'), { kubeGw: spy });
+      expect(o.secret).toMatchObject({ AGENTDESK_LLM_API_KEY: KEY });
+      expect(o.secret).not.toHaveProperty('AGENT_CREDENTIAL_FILE');
+      expect(JSON.stringify(jobs)).not.toContain(KEY);
+      expect(o.env?.OPENCODE_CONFIG_CONTENT).toContain('https://llm.example.com/v1');
+      expect(o.env?.OPENCODE_CONFIG_CONTENT).not.toContain(KEY);
+      expect(o.env).toMatchObject({ AGENT_MODEL: 'agentdesk/my-model' });
+    });
+
+    it('own endpoint with an empty frozen model fails at start with the fixed reason and creates nothing', async () => {
+      const id = await seedAgent({
+        provider: 'opencode',
+        model: '',
+        credType: 'api_key',
+        baseUrl: 'https://llm.example.com/v1',
+        secret: { type: 'api_key', value: 'sk-endpoint-KEY-1111', baseUrl: 'https://llm.example.com/v1' },
+      });
+      const runId = await seedRunFor(id, '');
+      const err = await failureOf(runId);
+      expect(err.nonRetryable).toBe(true);
+      expect(err.message).toBe('choose a model for this endpoint');
+      expect(await kube.readSecret(`run-${runId}`)).toBeNull();
+      expect(await kube.getRunPod(`run-${runId}`)).toBeNull();
+    });
+
+    it('the model rule follows the capability table: a kind whose requiredFor is empty starts with an empty model', async () => {
+      const id = await seedAgent({
+        provider: 'claude',
+        model: '',
+        credType: 'api_key',
+        baseUrl: 'https://llm.example.com/v1',
+        secret: { type: 'api_key', value: 'sk-ant-api03-KEY-2222', baseUrl: 'https://llm.example.com/v1' },
+      });
+      const runId = await seedRunFor(id, '');
+      const o = await launch(runId);
+      expect(o.secret).toMatchObject({ ANTHROPIC_API_KEY: 'sk-ant-api03-KEY-2222' });
+    });
+
+    it('a stored Secret that cannot be read fails the start non-retryably, with nothing created or leaked', async () => {
+      const id = await seedAgent({ provider: 'opencode', model: '', credType: 'auth_json' });
+      // No `value`: present but corrupt, which is not the same as absent.
+      await secrets.put(`org-${ORG}-agent-${id}`, { type: 'auth_json', note: 'LEAKY-CORRUPT-TEXT' });
+      const runId = await seedRunFor(id, '');
+      const err = await failureOf(runId);
+      expect(err.nonRetryable).toBe(true);
+      expect(err.message).toContain('unreadable');
+      expect(err.message).not.toContain('LEAKY-CORRUPT-TEXT');
+      expect(await kube.readSecret(`run-${runId}`)).toBeNull();
+      expect(await kube.getRunPod(`run-${runId}`)).toBeNull();
+    });
+
+    it('a stored Secret that cannot be read fails a resume as NoAgentCredential, with nothing created or leaked', async () => {
+      const id = await seedAgent({ provider: 'opencode', model: '', credType: 'auth_json' });
+      await secrets.put(`org-${ORG}-agent-${id}`, { type: 'auth_json', note: 'LEAKY-CORRUPT-TEXT' });
+      const runId = await seedRunFor(id, '', 'paused');
+      const err = await failureOf(runId, true);
+      expect(err.type).toBe('NoAgentCredential');
+      expect(err.nonRetryable).toBe(true);
+      expect(err.message).not.toContain('LEAKY-CORRUPT-TEXT');
+      expect(await kube.getRunPod(`run-${runId}`)).toBeNull();
+    });
+
+    it('the run keeps its frozen model after the agent is edited', async () => {
+      const id = await seedAgent({ provider: 'opencode', model: 'a/one' });
+      const runId = await seedRunFor(id, 'a/one');
+      await asOwner((c) => c.query(`update agents set model = 'b/two' where id = $1`, [id]));
+      expect((await launch(runId)).env).toMatchObject({ AGENT_MODEL: 'a/one' });
+    });
+  });
+
+  it('output redaction masks an auth_json run at every nesting depth', async () => {
+    const id = await seedAgent({
+      provider: 'codex',
+      model: 'gpt-x',
+      credType: 'auth_json',
+      secret: { type: 'auth_json', value: AUTH_FILE },
+    });
+    const runId = await seedRunFor(id, 'gpt-x');
+    const ctx = await ctxFor(runId);
+    const before = (await store.listPosted()).length;
+    await createRunActivities(deps()).postComment(ctx, 'finish', {
+      status: 'failed',
+      scrollbackTail: `a canary-access-token-0001 b\ncanary-refresh-token-0002\n${AUTH_FILE}\nlast`,
+    });
+    const body = (await store.listPosted()).slice(before)[0]?.body ?? '';
+    expect(body).toContain('last');
+    expect(body).not.toContain('canary-access-token-0001');
+    expect(body).not.toContain('canary-refresh-token-0002');
+  });
+
+  it('run output redaction masks the credential but not the credential version timestamp', async () => {
+    const id = await seedAgent({
+      provider: 'codex',
+      model: 'gpt-x',
+      credType: 'auth_json',
+      secret: { type: 'auth_json', value: AUTH_FILE },
+    });
+    const runId = await seedRunFor(id, 'gpt-x');
+    await asOwner((c) =>
+      c.query('update runs set args = $2 where id = $1', [
+        runId,
+        `stamp ${UPDATED.toISOString()} end canary-refresh-token-0002`,
+      ]),
+    );
+    const acts = createRunActivities(deps());
+    await acts.createRunSecretAndJob(await ctxFor(runId));
+    await acts.deleteJob(await ctxFor(runId));
+    await acts.deleteRunVolume(await ctxFor(runId));
+    const prompt = (await load(runId)).run?.finalPrompt ?? '';
+    expect(prompt).toContain(UPDATED.toISOString());
+    expect(prompt).not.toContain('canary-refresh-token-0002');
+  });
+
+  it('an error during launch never quotes the credential file', async () => {
+    const id = await seedAgent({
+      provider: 'codex',
+      model: 'gpt-x',
+      credType: 'auth_json',
+      secret: { type: 'auth_json', value: AUTH_FILE },
+    });
+    const runId = await seedRunFor(id, 'gpt-x');
+    const failing = wrapKube({
+      ensureJob: () => Promise.reject(new Error(`boom ${AUTH_FILE} canary-refresh-token-0002`)),
+    });
+    const err = await createRunActivities(deps({ kube: failing }))
+      .createRunSecretAndJob(await ctxFor(runId))
+      .catch((e: unknown) => e);
+    expect((err as Error).message).not.toContain('canary-');
+    await createRunActivities(deps()).deleteRunVolume(await ctxFor(runId));
   });
 });

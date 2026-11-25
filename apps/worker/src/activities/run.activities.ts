@@ -26,9 +26,9 @@ export interface RunContext {
   timeoutSeconds: number;
   /** The project's `max_concurrent_runs`; seeds the gate when this run starts it. */
   maxConcurrentRuns: number;
-  /** Idle end, seconds. The agent's `idleEndSeconds` (default `IDLE_END_SECONDS`, 1800); a field so the policy is not baked into workflow code. */
+  /** Idle end, seconds. The project's idle-end setting (default `IDLE_END_SECONDS`, 1800); a field so the policy is not baked into workflow code. */
   idleEndSeconds?: number;
-  /** Automatic resumes in a row after an unexpected pod end; the agent's `autoResumeMax` (`AGENT_AUTO_RESUME_MAX_DEFAULT` when the agent row is gone). Read once when the run starts. */
+  /** Automatic resumes in a row after an unexpected pod end; the project's `autoResumeMax`. Read once when the run starts. */
   autoResumeMax?: number;
   /** Seconds an `ending` session may take before the Job is deleted (normally `ENDING_DEADLINE_SECONDS`, 90); a test seam. */
   endingDeadlineSeconds?: number;
@@ -168,7 +168,7 @@ export interface RunActivities {
   /** Deletes the run's volume claim (`run-{runId}`); missing → success. Run after the Job is gone. */
   deleteRunVolume(ctx: RunContext): Promise<void>;
   /**
-   * Reads the agent's keep setting (defaults when the agent row is gone), writes the parked status and session in one
+   * Reads the project's keep setting, writes the parked status and session in one
    * transaction, and for kind `done` applies the per-project cap by signalling `dropSession` to the oldest kept ones.
    * Writes `pause_reason` (`idle_timeout` when absent: input scheduled by workflow code from before the reason existed) and clears `session_ending_at` (the session end is over).
    * `resumeQueued`: a Resume was accepted while the session was ending; when this park keeps nothing it appends a

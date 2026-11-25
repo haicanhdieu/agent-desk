@@ -110,6 +110,20 @@ describe('mirrored constants', () => {
 });
 
 describe('ProjectGateWorkflow', () => {
+  it('the gate is keyed by project: it sees run ids only, so any runs of one project share its limit', async () => {
+    // Documentation-level guard only: that two agents resolve to one gate and limit is pinned in run.activities.int.test.ts.
+    const ids = ['agent1-run', 'agent2-run', 'agent1-run-again'];
+    const r = await startRuns(ids);
+    const gate = await startGate(2);
+    for (const id of ids) await gate.signal(signals.requestSlot, id);
+    await settle(gate);
+    expect(await Promise.all(ids.map((id) => grants(r[id]!)))).toEqual([1, 1, 0]);
+    await gate.signal(signals.releaseSlot, 'agent2-run');
+    await settle(gate);
+    expect(await grants(r['agent1-run-again']!)).toBe(1);
+    await gate.terminate();
+  });
+
   it('limit 1: grants FIFO, one at a time', async () => {
     const r = await startRuns(['A1', 'B1', 'C1', 'D1']);
     const gate = await startGate(1);

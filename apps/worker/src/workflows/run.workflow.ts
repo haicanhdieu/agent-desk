@@ -738,7 +738,7 @@ export async function RunWorkflow(input: RunWorkflowInput): Promise<RunOutcome> 
           return parked;
         }
         if (decision.kind === 'succeeded' && reopenKeeps && finishKeeps && ending && finishRequested) {
-          // A Finish on a fresh live Done run keeps its disk for the agent's keep time (a keep time of 0 keeps nothing).
+          // A Finish on a fresh live Done run keeps its disk for the project's keep time (a keep time of 0 keeps nothing).
           finishRequested = false;
           finishKeeps = false;
           parkKind = 'done';

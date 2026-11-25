@@ -8,7 +8,7 @@ import {
   type SessionClosedHow,
 } from '@agentdesk/contracts';
 import { SIGNAL, autoResumeEventText, autoResumeGaveUpText, redact, type Config } from '@agentdesk/core';
-import { agents, notifyRunStatus, runs, withOrg, type Db } from '@agentdesk/db';
+import { notifyRunStatus, projects, runs, withOrg, type Db } from '@agentdesk/db';
 import { ERROR_MESSAGE_MAX, oneLine } from './activity-utils';
 import { appendRunEvent } from './run-events';
 import { setRunStatusTx } from './run-status.activity';
@@ -55,13 +55,11 @@ export function createSessionActivities(deps: SessionActivityDeps): SessionActiv
     const at = parseAt(input.at);
     const keepUntil = input.keepUntil === undefined ? undefined : parseAt(input.keepUntil);
     const { result, drop } = await withOrg(db, ctx.orgId, async (tx) => {
-      // The agent row may be gone (deleted after the run was queued): the defaults then apply.
-      const [agent] = ctx.agentId
-        ? await tx
-            .select({ paused: agents.pausedKeepSeconds, done: agents.doneKeepSeconds })
-            .from(agents)
-            .where(eq(agents.id, ctx.agentId))
-        : [];
+      // The keep times are the project's, so a deleted agent changes nothing; the defaults apply only to a missing row.
+      const [agent] = await tx
+        .select({ paused: projects.pausedKeepSeconds, done: projects.doneKeepSeconds })
+        .from(projects)
+        .where(eq(projects.id, ctx.projectId));
       const keepSeconds =
         input.kind === 'needs_input'
           ? (agent?.paused ?? AGENT_PAUSED_KEEP_SECONDS_DEFAULT)
