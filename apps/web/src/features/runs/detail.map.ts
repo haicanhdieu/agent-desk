@@ -385,7 +385,13 @@ function endNote(
       return {
         title: run.failureReason ? `Failed after ${took}: ${run.failureReason}` : `Failed after ${took}`,
         body: run.exitCode === null ? '' : `Claude Code exited with code ${run.exitCode}.`,
-        actions: href ? [{ label: `Open ${ticket}`, href, icon: 'external' }] : [],
+        actions: [
+          // The agent's Edit pane on the Agents tab (`tab` is left out of the URL for Agents).
+          ...(run.failureCode === 'no_credential' && run.agent.id !== null && links.agent
+            ? [{ label: 'Replace credential', href: `${links.agent}?agent=${run.agent.id}`, icon: 'key' as const }]
+            : []),
+          ...(href ? [{ label: `Open ${ticket}`, href, icon: 'external' as const }] : []),
+        ],
       };
     }
     case 'timed_out':

@@ -16,7 +16,7 @@ export const wideFakeRepos = (
     if (provider !== 'fake') return host;
     return Object.assign(Object.create(host), {
       listRepos: async () => [
-        ...Array.from({ length: 50 }, (_, i) => ({ repoPath: `dev/p-${i}`, private: false, defaultBranch: 'main' })),
+        ...Array.from({ length: 60 }, (_, i) => ({ repoPath: `dev/p-${i}`, private: false, defaultBranch: 'main' })),
         { repoPath: DEVELOP_REPO, private: false, defaultBranch: 'develop' },
       ],
     });

@@ -3086,6 +3086,7 @@ describe('per-kind credentials and the run own agent', () => {
       const err = await failureOf(runId);
       expect(err.nonRetryable).toBe(true);
       expect(err.message).toContain('the agent has no credential set');
+      expect(err.type).toBe('NoAgentCredential');
       expect(await kube.readSecret(`run-${runId}`)).toBeNull();
     }
   });

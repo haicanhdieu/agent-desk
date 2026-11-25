@@ -403,6 +403,80 @@ describe('run reads', () => {
     });
   });
 
+  it('U30: agent.id is the run agent while its row exists and null once it is gone; another org never sees the run', async () => {
+    const agentId = (
+      await withOrg(t.db, orgId, async (tx) => {
+        const [row] = await tx
+          .insert(agents)
+          .values({ orgId, projectId, name: 'IdTemp', provider: 'claude', model: 'sonnet', isDefault: false })
+          .returning({ id: agents.id });
+        return row;
+      })
+    )?.id;
+    if (!agentId) throw new Error('no agent');
+    const r = await insertRun({ agentId, agentName: 'IdTemp' });
+    expect(expectContract('runs.get', await get(`/api/runs/${r.id}`))).toMatchObject({ agent: { id: agentId } });
+    const list = expectContract('runs.list', await listRuns('')) as RunListResponse;
+    expect(list.items.find((i) => i.id === r.id)?.agent.id).toBe(agentId);
+    expect((await get(`/api/runs/${r.id}`, bob)).statusCode).toBe(404);
+    await withOrg(t.db, orgId, (tx) => tx.delete(agents).where(eq(agents.id, agentId)));
+    expect(expectContract('runs.get', await get(`/api/runs/${r.id}`))).toMatchObject({ agent: { id: null } });
+  });
+
+  it('U30: failureCode is the stored code and null for a run without one', async () => {
+    const coded = await insertRun({ status: 'failed', failureCode: 'no_credential' });
+    const plain = await insertRun({ status: 'failed', failureReason: 'agent exited with code 1' });
+    expect(expectContract('runs.get', await get(`/api/runs/${coded.id}`))).toMatchObject({
+      failureCode: 'no_credential',
+    });
+    expect(expectContract('runs.get', await get(`/api/runs/${plain.id}`))).toMatchObject({ failureCode: null });
+    const list = expectContract('runs.list', await listRuns('')) as RunListResponse;
+    expect(list.items.find((i) => i.id === coded.id)?.failureCode).toBe('no_credential');
+  });
+
+  describe('U30: project scope', () => {
+    let p2: string;
+    let p1Admin: string;
+    let p2Agent: string;
+
+    beforeAll(async () => {
+      p2 = (await makeProject(t, alice, await installFake(t, alice))).projectId;
+      p1Admin = await inviteAndLogin(t, orgId, 'runs-u30-p1', 'admin', { type: 'project', projectIds: [projectId] });
+      const row = await withOrg(t.db, orgId, async (tx) => {
+        const [a] = await tx
+          .insert(agents)
+          .values({ orgId, projectId: p2, name: 'P2 agent', provider: 'claude', model: 'sonnet', isDefault: false })
+          .returning({ id: agents.id });
+        return a;
+      });
+      if (!row) throw new Error('no agent');
+      p2Agent = row.id;
+    });
+
+    it('an admin on P1 gets 404 for a P2 run and never sees it in the P1 list', async () => {
+      const p1Run = await insertRun({ failureCode: 'no_credential', status: 'failed' });
+      const p2Run = await insertRun({ failureCode: 'no_credential', status: 'failed' }, p2);
+      expect(expectContract('runs.get', await get(`/api/runs/${p1Run.id}`, p1Admin))).toMatchObject({
+        failureCode: 'no_credential',
+      });
+      expect((await get(`/api/runs/${p2Run.id}`, p1Admin)).statusCode).toBe(404);
+      expect((await get(`/api/projects/${p2}/runs/${p2Run.number}`, p1Admin)).statusCode).toBe(404);
+      expect((await listRuns('', p2, p1Admin)).statusCode).toBe(404);
+      const list = expectContract('runs.list', await listRuns('', projectId, p1Admin)) as RunListResponse;
+      expect(list.items.map((i) => i.id)).toContain(p1Run.id);
+      expect(list.items.map((i) => i.id)).not.toContain(p2Run.id);
+    });
+
+    it("a run whose agent_id points at another project's agent gets agent.id null", async () => {
+      const r = await insertRun({ agentId: p2Agent, agentName: 'Recorded' });
+      const dto = expectContract('runs.get', await get(`/api/runs/${r.id}`)) as RunDto;
+      expect(dto.agent.id).toBeNull();
+      expect(dto.agent.name).toBe('Recorded');
+      const list = expectContract('runs.list', await listRuns('')) as RunListResponse;
+      expect(list.items.find((i) => i.id === r.id)?.agent.id).toBeNull();
+    });
+  });
+
   it('agent.model is the run model when recorded', async () => {
     const agentId = (
       await withOrg(t.db, orgId, (tx) =>

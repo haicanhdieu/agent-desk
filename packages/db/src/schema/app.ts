@@ -308,6 +308,8 @@ export const runs = pgTable(
     setupScriptVersion: integer('setup_script_version'),
     /** Which phase failed: 'setup' (repo setup script) or 'agent'. Null otherwise. */
     failureStage: text('failure_stage'),
+    /** Structured failure kind a screen can act on ('no_credential'). Null otherwise. */
+    failureCode: text('failure_code'),
     /** Why a running run is not busy with the agent itself: 'background' work. Null otherwise. */
     waitingOn: text('waiting_on'),
     /** One-line note the agent gave when it went idle or done. Null otherwise. */
@@ -363,6 +365,8 @@ export const runs = pgTable(
     check('runs_ticket_kind_check', sql`${t.ticketKind} in ('issue','pr')`),
     check('runs_trigger_source_check', sql`${t.triggerSource} in ('webhook','polling','manual')`),
     check('runs_failure_stage_check', sql`${t.failureStage} in ('setup','agent')`),
+    // Literals mirror FailureCode in @agentdesk/contracts.
+    check('runs_failure_code_check', sql`${t.failureCode} in ('no_credential')`),
     orgPolicy(),
   ],
 );

@@ -587,7 +587,7 @@ export function createRunActivities(deps: RunActivityDeps): RunActivityImpls {
             nonRetryable: true,
             message: 'the agent or its credential is missing',
           })
-        : ApplicationFailure.nonRetryable('the agent has no credential set');
+        : ApplicationFailure.nonRetryable('the agent has no credential set', 'NoAgentCredential');
     }
     const name = runJobName(ctx.runId);
     if (resume) {

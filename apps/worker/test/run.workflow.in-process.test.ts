@@ -71,6 +71,8 @@ interface Harness {
   keepSeconds: number | undefined;
   /** A resume's createRunSecretAndJob throws this. */
   resumeCreateError: Error | undefined;
+  /** The first start's createRunSecretAndJob throws this. */
+  startCreateError: Error | undefined;
   /** A resume's requestSlot is not granted until `grant` is called. */
   holdResumeSlot: boolean;
   /** The first requestSlot reports the run as queued behind a full gate, and is not granted until `grant` is called. */
@@ -114,6 +116,7 @@ function start(
     kept: [],
     keepSeconds: config.keepSeconds === null ? undefined : (config.keepSeconds ?? KEEP),
     resumeCreateError: undefined,
+    startCreateError: undefined,
     holdResumeSlot: false,
     firstSlotQueued: false,
     queuedCommentFails: false,
@@ -148,6 +151,7 @@ function start(
     h.createOpts.push(opts);
     h.calls.push(opts?.resume ? 'createRunSecretAndJob:resume' : 'createRunSecretAndJob');
     if (opts?.resume && h.resumeCreateError) return Promise.reject(h.resumeCreateError);
+    if (!opts?.resume && h.startCreateError) return Promise.reject(h.startCreateError);
     return Promise.resolve(undefined);
   };
   a.postComment = (_c: RunContext, kind: CommentKind, details?: FinishDetails) => {
@@ -860,6 +864,24 @@ describe('the run ends before or without parking', () => {
     await waitFor('first pod', () => h.pods.length === 1);
     h.pods[0]?.exit({ exitCode: 78, failureStage: 'setup', setupExitCode: 3 });
     await expect(h.done).resolves.toEqual({ status: 'failed', exitCode: 3, failureReason: 'setup failed (exit 3)' });
+  });
+
+  it('a first start refused for a missing credential fails the run with the no_credential code', async () => {
+    const h = start();
+    h.startCreateError = failedActivity(
+      'createRunSecretAndJob',
+      'the agent has no credential set',
+      'NoAgentCredential',
+    );
+    await expect(h.done).resolves.toMatchObject({ status: 'failed' });
+    expect(h.statuses.find((x) => x.status === 'failed')).toMatchObject({ failureCode: 'no_credential' });
+  });
+
+  it('a first start that fails for another reason carries no failure code', async () => {
+    const h = start();
+    h.startCreateError = failedActivity('createRunSecretAndJob', 'quota exceeded');
+    await expect(h.done).resolves.toMatchObject({ status: 'failed' });
+    expect(h.statuses.find((x) => x.status === 'failed')).not.toHaveProperty('failureCode');
   });
 
   it('the hard timer firing while the run is running times it out', async () => {

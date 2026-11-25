@@ -2,7 +2,7 @@ import type { RunDto, TicketDto } from '@agentdesk/contracts';
 import { TRIAGE_PROMPT, promptSystemLines } from '../rules';
 import { runsById } from '../runs';
 import type { RunSummary, Ticket } from '../types';
-import { ids } from './ids';
+import { agentListId, ids } from './ids';
 
 // Built from mocks/runs.ts so the Runs board and the mock API tell the same story: same numbers, statuses,
 // commands, tickets and start times (the boards' HH:MM are taken as UTC on the fixture day).
@@ -74,7 +74,7 @@ function fromSummary(r: RunSummary): MockRun {
     prompt: null,
     // Run 60 recorded its final prompt; the older runs started before prompts were recorded ("Not recorded").
     finalPrompt: r.id === 60 ? RUN_60_FINAL_PROMPT : null,
-    agent: { name: r.agent, model: r.model },
+    agent: { id: agentListId(1), name: r.agent, model: r.model },
     ticket: ticketDto(r.ticket),
     args: null,
     status: r.status,
@@ -87,6 +87,7 @@ function fromSummary(r: RunSummary): MockRun {
     exitCode: final?.exitCode ?? null,
     failureReason: final?.failureReason ?? null,
     failureStage: null,
+    failureCode: null,
     setupScriptVersion: null,
     costUsd: final ? Math.round(duration * 0.35) / 100 : null,
     timeoutSeconds: 1800,
@@ -121,7 +122,7 @@ const ended = (
   skillName: 'code-build',
   prompt: null,
   finalPrompt: null,
-  agent: { name: 'Claude', model: 'opus' },
+  agent: { id: projectId === ids.project.invoicerApi ? agentListId(1) : null, name: 'Claude', model: 'opus' },
   ticket: ticketDto(ticket, repo),
   args: null,
   status: 'succeeded',
@@ -134,6 +135,7 @@ const ended = (
   exitCode: 0,
   failureReason: null,
   failureStage: null,
+  failureCode: null,
   setupScriptVersion: null,
   costUsd: 1.2,
   timeoutSeconds: 1800,

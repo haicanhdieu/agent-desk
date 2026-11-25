@@ -22,6 +22,7 @@ import {
   AGENT_TIMEOUT_SECONDS_DEFAULT,
   FINAL_RUN_STATUSES,
   FINISHABLE_RUN_STATUSES,
+  FailureCode,
   FailureStage,
   RunStatus,
   STOPPABLE_RUN_STATUSES,
@@ -66,6 +67,7 @@ const REOPENED_ONLY_CLOSE = 'This session is reopened; the run has already succe
 
 type RunRow = typeof runs.$inferSelect;
 interface AgentInfo {
+  id: string;
   name: string;
   model: string;
 }
@@ -124,7 +126,11 @@ export class RunsService {
       skillName: row.skillName,
       // The live name, else the name recorded at queue time (the agent row can be gone: agent_id is ON DELETE SET NULL),
       // else a legacy run with neither.
-      agent: { name: agent?.name ?? row.agentName ?? '(deleted agent)', model: row.model ?? agent?.model ?? 'unknown' },
+      agent: {
+        id: agent?.id ?? null,
+        name: agent?.name ?? row.agentName ?? '(deleted agent)',
+        model: row.model ?? agent?.model ?? 'unknown',
+      },
       ticket: {
         ref: row.ticketRef,
         kind: TicketKind.parse(row.ticketKind),
@@ -144,6 +150,7 @@ export class RunsService {
       exitCode: row.exitCode,
       failureReason: row.failureReason,
       failureStage: row.failureStage === null ? null : FailureStage.parse(row.failureStage),
+      failureCode: row.failureCode === null ? null : FailureCode.parse(row.failureCode),
       setupScriptVersion: row.setupScriptVersion,
       costUsd: row.costUsd === null ? null : Number(row.costUsd),
       timeoutSeconds: limits?.timeoutSeconds ?? AGENT_TIMEOUT_SECONDS_DEFAULT,
@@ -169,10 +176,13 @@ export class RunsService {
         id: agents.id,
         name: agents.name,
         model: agents.model,
+        projectId: agents.projectId,
       })
       .from(agents)
-      .where(inArray(agents.id, ids));
-    for (const a of found) out.set(a.id, a);
+      .where(and(inArray(agents.id, ids), inArray(agents.projectId, [...new Set(rows.map((r) => r.projectId))])));
+    // A run only shows an agent of its own project; an agent_id into another project reads as a gone agent.
+    const pairs = new Set(rows.map((r) => `${r.agentId}|${r.projectId}`));
+    for (const { projectId, ...a } of found) if (pairs.has(`${a.id}|${projectId}`)) out.set(a.id, a);
     return out;
   }
 

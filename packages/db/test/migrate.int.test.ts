@@ -471,6 +471,30 @@ describe('bootstrap and migrations', () => {
       ).rejects.toMatchObject({ code: '23514' });
     });
 
+    it('runs have a nullable failure_code; the app role updates it; the check rejects others', async () => {
+      const ownerDb = env.ownerUrl.replace(/\/[^/]*$/, '/agentdesk');
+      const before = await query<{ failure_code: string | null }>(
+        ownerDb,
+        `select failure_code from runs order by number`,
+      );
+      expect(before.map((r) => r.failure_code)).toEqual([null, null]);
+      await inOrg((c) =>
+        c
+          .query(`update runs set failure_code = 'no_credential' where trigger_comment_id = 'c-2'`)
+          .then(() => undefined),
+      );
+      const after = await query<{ failure_code: string | null }>(
+        ownerDb,
+        `select failure_code from runs order by number`,
+      );
+      expect(after.map((r) => r.failure_code)).toEqual([null, 'no_credential']);
+      await expect(
+        inOrg((c) =>
+          c.query(`update runs set failure_code = 'bogus' where trigger_comment_id = 'c-2'`).then(() => undefined),
+        ),
+      ).rejects.toMatchObject({ code: '23514' });
+    });
+
     it('runs accept paused and expired, still reject unknown statuses', async () => {
       for (const status of ['paused', 'expired']) {
         await inOrg((c) =>

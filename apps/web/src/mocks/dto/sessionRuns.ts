@@ -41,6 +41,8 @@ export const SCROLLBACK_ENDED_RUN = 95;
 export const NOTHING_ENDED_RUN = 96;
 export const NOTHING_PAUSED_RUN = 97;
 export const PAUSED_TRANSCRIPT_RUN = 98;
+/** Failed at start because its agent had no credential: the end note offers Replace credential (BR-60). */
+export const NO_CREDENTIAL_RUN = 121;
 
 /** Transcript behaviours by run number. */
 export const transcriptBehaviours: Record<number, TranscriptBehaviour> = {
@@ -210,6 +212,13 @@ export const sessionRunFixtures: RunDto[] = [
     pauseReason: 'idle_timeout',
     sessionExpiresAt: ago(-6 * DAY_MS),
     agentNote: 'Which database?',
+  }),
+  session(NO_CREDENTIAL_RUN, issue('Failed for a missing credential'), {
+    status: 'failed',
+    finishedAt: ago(20 * MIN_MS),
+    exitCode: null,
+    failureReason: 'createRunSecretAndJob failed: the agent has no credential set',
+    failureCode: 'no_credential',
   }),
 ];
 

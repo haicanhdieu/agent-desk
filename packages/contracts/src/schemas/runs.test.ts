@@ -16,7 +16,7 @@ const run = {
   skillName: 'triage',
   prompt: null,
   finalPrompt: null,
-  agent: { name: 'a', model: 'm' },
+  agent: { id: ID, name: 'a', model: 'm' },
   ticket: { ref: 'r#1', kind: 'issue', number: 1, title: 't', url: 'https://example.test/1', labels: [] },
   args: null,
   status: 'paused',
@@ -29,6 +29,7 @@ const run = {
   exitCode: null,
   failureReason: null,
   failureStage: null,
+  failureCode: null,
   setupScriptVersion: null,
   costUsd: null,
   timeoutSeconds: 3600,
@@ -298,5 +299,33 @@ describe('run usage on the DTOs', () => {
       nextQueuedNumber: null,
     });
     expect(stats.idleRun?.usage).toEqual(summary);
+  });
+});
+
+describe('RunDto agent id and failure code', () => {
+  it('carries the agent id, null when the agent row is gone', () => {
+    const r = RunDto.safeParse({ ...run, agent: { id: null, name: 'a', model: 'm' } });
+    expect(r.success && r.data.agent.id).toBeNull();
+    expect(RunDto.safeParse({ ...run, agent: { name: 'a', model: 'm' } }).success).toBe(false);
+  });
+
+  it('carries a structured failure code, null otherwise', () => {
+    const r = RunDto.safeParse({ ...run, failureCode: 'no_credential' });
+    expect(r.success && r.data.failureCode).toBe('no_credential');
+    expect(RunDto.safeParse({ ...run, failureCode: 'other' }).success).toBe(false);
+    const { failureCode: _omit, ...rest } = run;
+    expect(RunDto.safeParse(rest).success).toBe(false);
+  });
+
+  it('keeps both on a list item', () => {
+    const { prompt: _p, finalPrompt: _f, usage: _u, ...base } = run;
+    const r = RunListItem.safeParse({
+      ...base,
+      usage: null,
+      ticketRunCount: 1,
+      linkedTickets: [],
+      failureCode: 'no_credential',
+    });
+    expect(r.success && r.data.failureCode).toBe('no_credential');
   });
 });
