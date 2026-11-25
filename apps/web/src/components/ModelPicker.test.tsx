@@ -286,4 +286,20 @@ describe('toModelList', () => {
     const list = toModelList({ status: 'success', data: agentModelsFixtures.noCredential }, null);
     expect(list.state).toEqual({ kind: 'fallback', reason: 'no_credential', host: null });
   });
+
+  it('defaultLabel renames the leading default option', () => {
+    render(
+      <ModelPicker
+        label="Default model"
+        list={live}
+        value={null}
+        onChange={() => {}}
+        withDefault
+        defaultLabel="OpenCode default"
+      />,
+    );
+    const options = screen.getAllByRole('option');
+    expect(options[0]).toHaveTextContent('OpenCode default');
+    expect(screen.queryByRole('option', { name: DEFAULT_MODEL_LABEL })).toBeNull();
+  });
 });

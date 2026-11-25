@@ -39,6 +39,7 @@ export interface RadioCardProps {
   aside?: ReactNode;
   /** Description in --faint instead of --muted (setup repo and credential cards). */
   faintDescription?: boolean;
+  disabled?: boolean;
 }
 
 export function RadioCard({
@@ -50,6 +51,7 @@ export function RadioCard({
   description,
   aside,
   faintDescription,
+  disabled,
 }: RadioCardProps) {
   const id = useId();
   const titleId = `${id}-title`;
@@ -63,6 +65,7 @@ export function RadioCard({
             name={name}
             className={styles.native}
             checked={checked}
+            disabled={disabled}
             aria-labelledby={titleId}
             aria-describedby={description ? descId : undefined}
             onChange={(e) => onChange(e.target.checked)}

@@ -60,7 +60,16 @@ export { linkedGroups } from './runsLinked';
 export { ignored, ignoredPrStates } from './ignored';
 export { skills, skillTemplates, skillPreviewSamples, skillDiffDraft } from './skills';
 export { rules, promptSystemLines, TRIAGE_PROMPT } from './rules';
-export { agentSettings, agentRowView, agentRowViews, agentStatusView, providerPickerOptions } from './agent';
+export {
+  agentSettings,
+  agentRowView,
+  agentRowViews,
+  agentStatusView,
+  providerPickerOptions,
+  agentKindViews,
+  agentPaneAgent,
+  agentPaneAgents,
+} from './agent';
 export { agentsFixture, manyAgents } from './dto/agents';
 export { transcriptFixtures, transcriptStateFixtures } from './transcript';
 export { terminalByRun, autoResumedTerminal } from './terminal';

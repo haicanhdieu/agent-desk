@@ -407,3 +407,32 @@ export interface ProviderPickerOptions {
   runnable: ProviderOptionView[];
   comingSoon: ComingSoonOptionView[];
 }
+
+/** One runnable provider as the Add and Edit pane needs it: the contracts capability row plus its kind. */
+export interface AgentKindView {
+  kind: AgentKind;
+  label: string;
+  logo: string;
+  credentialTypes: { type: CredentialType; label: string; valueLabel: string; help: string }[];
+  baseUrl: { help: string; requiredFor: CredentialType[] } | null;
+  modelHelp: string;
+  supportsMaxTurns: boolean;
+  credentialOptional: boolean;
+  modelOptional: boolean;
+}
+/** One saved agent as the Edit and View pane shows it. The credential value never appears here. */
+export interface AgentPaneAgent {
+  id: string;
+  name: string;
+  provider: AgentKind;
+  accountLabel: string;
+  model: string;
+  /** '' = the provider's own address. */
+  baseUrl: string;
+  maxTurns: number | null;
+  isDefault: boolean;
+  credential: { set: boolean; type: CredentialType | null; setAt: string; setBy: string };
+  status: AgentStatusView;
+  /** The day of the last test, for "Last test <day>."; null = never tested. */
+  testedAt: string | null;
+}

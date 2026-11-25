@@ -5,6 +5,35 @@ import { SecretField } from './SecretField';
 
 const info = { setAt: '12 Oct 2026', setBy: 'kim-hale', status: { tone: 'err' as const, text: 'Rejected at 11:29' } };
 
+describe('SecretField nested', () => {
+  it('renders no form of its own and Enter in a flow with its own submit button submits the value once', async () => {
+    const onSubmit = vi.fn();
+    const { container } = render(
+      <form>
+        <SecretField state="entering" credentialType="api_key" nested onSubmit={onSubmit} />
+      </form>,
+    );
+    expect(container.querySelector('form form')).toBeNull();
+    await userEvent.type(screen.getByLabelText('Token'), 'abc{Enter}');
+    expect(onSubmit).toHaveBeenCalledTimes(1);
+    expect(onSubmit).toHaveBeenCalledWith('abc');
+  });
+
+  it('with hideSubmit, Enter is left to the surrounding form', async () => {
+    const onSubmit = vi.fn();
+    const outer = vi.fn((e: React.FormEvent) => e.preventDefault());
+    render(
+      <form onSubmit={outer}>
+        <SecretField state="entering" credentialType="api_key" nested hideSubmit onSubmit={onSubmit} />
+        <button type="submit">Go</button>
+      </form>,
+    );
+    await userEvent.type(screen.getByLabelText('Token'), 'abc{Enter}');
+    expect(outer).toHaveBeenCalledTimes(1);
+    expect(onSubmit).not.toHaveBeenCalled();
+  });
+});
+
 describe('SecretField', () => {
   it('saved renders no input and never a value; Replace is collapsed', () => {
     const { container } = render(<SecretField state="saved" credentialType="oauth_token" savedInfo={info} />);
@@ -98,5 +127,82 @@ describe('SecretField', () => {
     expect(screen.getByText('A note.')).toBeInTheDocument();
     expect(screen.getByText('A help.')).toBeInTheDocument();
     expect(screen.getByLabelText('New token')).toHaveAccessibleDescription('A help.');
+  });
+
+  describe('provider-supplied texts', () => {
+    const types = [
+      { type: 'auth_json' as const, label: 'Credentials file' },
+      { type: 'api_key' as const, label: 'API endpoint and key' },
+    ];
+
+    it('saved names the credential type from the given names', () => {
+      render(<SecretField state="saved" credentialType="auth_json" credentialTypes={types} savedInfo={info} />);
+      expect(screen.getByText('Credentials file')).toBeInTheDocument();
+      expect(screen.queryByText('Auth file')).toBeNull();
+    });
+
+    it('entering uses the value label for the input and its reveal button, and the help', () => {
+      render(
+        <SecretField
+          state="entering"
+          credentialType="auth_json"
+          valueLabel="Credentials file"
+          entryHelp="Paste the file."
+          submitLabel="Save and test"
+        />,
+      );
+      expect(screen.getByLabelText('Credentials file')).toHaveAccessibleDescription('Paste the file.');
+      expect(screen.getByRole('button', { name: 'Show credentials file' })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Save and test' })).toBeDisabled();
+    });
+
+    it('replacing offers the given types under the given label and reports a switch', async () => {
+      const onType = vi.fn();
+      render(
+        <SecretField
+          state="replacing"
+          credentialType="auth_json"
+          credentialTypes={types}
+          typeLabel="Authentication"
+          valueLabel="Credentials file"
+          onCredentialTypeChange={onType}
+          savedInfo={info}
+        />,
+      );
+      const group = screen.getByRole('radiogroup', { name: 'Authentication' });
+      expect(Array.from(group.querySelectorAll('[role=radio]')).map((r) => r.textContent)).toEqual([
+        'Credentials file',
+        'API endpoint and key',
+      ]);
+      await userEvent.click(screen.getByRole('radio', { name: 'API endpoint and key' }));
+      expect(onType).toHaveBeenCalledWith('api_key');
+    });
+
+    it('replacing with one type shows no type control; replaceHelp is the default help', () => {
+      render(
+        <SecretField
+          state="replacing"
+          credentialType="oauth_token"
+          credentialTypes={[{ type: 'oauth_token', label: 'Subscription token' }]}
+          replaceHelp="We save it, then test it."
+          savedInfo={info}
+        />,
+      );
+      expect(screen.queryByRole('radiogroup')).toBeNull();
+      expect(screen.getByLabelText('New token')).toHaveAccessibleDescription('We save it, then test it.');
+    });
+
+    it('submitDisabled keeps the submit button disabled even with a value', async () => {
+      render(<SecretField state="replacing" credentialType="api_key" submitDisabled savedInfo={info} />);
+      await userEvent.type(screen.getByLabelText('New token'), 'sk-1');
+      expect(screen.getByRole('button', { name: 'Test and replace' })).toBeDisabled();
+    });
+
+    it('onValueChange also reports typing in the replace panel', async () => {
+      const onValueChange = vi.fn();
+      render(<SecretField state="replacing" credentialType="api_key" onValueChange={onValueChange} savedInfo={info} />);
+      await userEvent.type(screen.getByLabelText('New token'), 'ab');
+      expect(onValueChange).toHaveBeenLastCalledWith('ab');
+    });
   });
 });

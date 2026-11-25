@@ -3,6 +3,9 @@ import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
 import { RUN_STATUSES } from '@/ds';
 import {
+  agentKindViews,
+  agentPaneAgent,
+  agentPaneAgents,
   agentRowView,
   agentRowViews,
   agentsFixture,
@@ -595,5 +598,28 @@ describe('agent configuration fixtures', () => {
     }
     for (const r of ruleFixtures) expect(RuleDto.safeParse(r).success).toBe(true);
     expect(ruleFixtures.some((r) => r.agentId === null)).toBe(true);
+  });
+});
+
+describe('agent pane views', () => {
+  it('has one capability view per runnable kind, with its kind', () => {
+    expect(agentKindViews.map((k) => k.kind)).toEqual(['claude', 'codex', 'opencode']);
+    expect(agentKindViews.find((k) => k.kind === 'opencode')?.credentialOptional).toBe(true);
+  });
+
+  it('builds one pane agent per agent fixture without any secret field', () => {
+    expect(agentPaneAgents).toHaveLength(agentsFixture.length);
+    const withKey = agentPaneAgent(agentsFixture[3]);
+    expect(withKey).toMatchObject({
+      baseUrl: 'https://llm.harbor-labs.example/v1',
+      credential: { set: true, type: 'api_key' },
+    });
+    expect(withKey.credential.setAt).toBe('10 Nov 2026');
+    expect(JSON.stringify(agentPaneAgents)).not.toMatch(/value|secret|token":/i);
+  });
+
+  it('an agent with no credential or test has empty credential texts and no test day', () => {
+    const none = agentPaneAgents.find((a) => a.name === 'OpenCode - No sign-in');
+    expect(none).toMatchObject({ credential: { set: false, setAt: '', setBy: '' }, testedAt: null, accountLabel: '' });
   });
 });

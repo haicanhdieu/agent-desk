@@ -1,6 +1,13 @@
 import { AGENT_KIND_CAPABILITIES, AGENT_KINDS_COMING_SOON, AgentKind, type AgentDto } from '@agentdesk/contracts';
 import { agentsFixture } from './dto/agents';
-import type { AgentRowView, AgentSettings, AgentStatusView, ProviderPickerOptions } from './types';
+import type {
+  AgentKindView,
+  AgentPaneAgent,
+  AgentRowView,
+  AgentSettings,
+  AgentStatusView,
+  ProviderPickerOptions,
+} from './types';
 
 const AGENT_KINDS = AgentKind.options;
 
@@ -80,3 +87,33 @@ export const providerPickerOptions: ProviderPickerOptions = {
   })),
   comingSoon: AGENT_KINDS_COMING_SOON.map(({ id, label, logo }) => ({ id, label, logo })),
 };
+
+/** The runnable providers with their capability rows, for the pane's provider-specific fields. */
+export const agentKindViews: AgentKindView[] = AGENT_KINDS.map((kind) => ({ kind, ...AGENT_KIND_CAPABILITIES[kind] }));
+
+const day = (iso: string) =>
+  new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' });
+
+/** One saved agent as the Edit and View pane shows it. */
+export function agentPaneAgent(a: AgentDto): AgentPaneAgent {
+  return {
+    id: a.id,
+    name: a.name,
+    provider: a.provider,
+    accountLabel: a.accountLabel ?? '',
+    model: a.model,
+    baseUrl: a.baseUrl ?? '',
+    maxTurns: a.maxTurns,
+    isDefault: a.isDefault,
+    credential: {
+      set: a.credential.set,
+      type: a.credential.type,
+      setAt: a.credential.updatedAt ? day(a.credential.updatedAt) : '',
+      setBy: a.credential.setBy ?? '',
+    },
+    status: agentStatusView(a),
+    testedAt: a.lastTest ? day(a.lastTest.at) : null,
+  };
+}
+
+export const agentPaneAgents: AgentPaneAgent[] = agentsFixture.map(agentPaneAgent);
