@@ -576,7 +576,8 @@ export function createRunActivities(deps: RunActivityDeps): RunActivityImpls {
     }
     const project: AdapterProject = toAdapterProject(d, d.code.externalId);
     const adapter = agentAdapterFor(d.agentKind);
-    const cred = { [adapter.credentialEnv(stored.type)]: stored.value };
+    const credEnvName = adapter.credentialEnv(stored.type);
+    const cred: Record<string, string> = credEnvName === null ? {} : { [credEnvName]: stored.value };
     let known = secretValues(cred);
     let plan: TokenRefreshPlan | undefined;
     try {
@@ -642,7 +643,7 @@ export function createRunActivities(deps: RunActivityDeps): RunActivityImpls {
         gitHost: new URL(codeHost.repoUrl(project)).host,
         cliTokenEnvName: codeHost.cliTokenEnvName(),
         maxTurns: d.maxTurns,
-        agentEnv: adapter.launchEnv({ model: d.model, baseUrl: d.baseUrl }),
+        agentEnv: adapter.launchEnv({ model: d.model, baseUrl: d.baseUrl, credentialType: stored.type }),
         deadlineSeconds: opts.deadlineSeconds ?? ctx.timeoutSeconds,
         resume,
         resumeNote: resume && opts.note ? resumeNoteText(opts.note, deps.config.RUN_POD_MEMORY_LIMIT) : undefined,

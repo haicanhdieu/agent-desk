@@ -1,6 +1,7 @@
 import { MockAgent } from 'undici';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { AgentModelsError, agentAdapterFor, pricingProviders, type AgentAdapter } from '../../src';
+import { AGENT_KIND_CAPABILITIES, AgentModelId, type AgentKind } from '@agentdesk/contracts';
+import { AgentModelsError, agentAdapterFor, pricingProviders, type AgentAdapter, type AgentHttpGet } from '../../src';
 import { LIST_TIMEOUT_MS } from '../../src/adapters/agents/claude';
 import { guardedGetJson } from '../../src/net/guarded-http';
 
@@ -308,7 +309,7 @@ describe('claude agent adapter', () => {
 
   it('launchEnv sets the agent, model and address in order', () => {
     const a = agentAdapterFor('claude');
-    expect(a.launchEnv({ model: 'sonnet[1m]', baseUrl: 'https://gw.example.com/a' })).toEqual([
+    expect(a.launchEnv({ model: 'sonnet[1m]', baseUrl: 'https://gw.example.com/a', credentialType: null })).toEqual([
       { name: 'AGENT', value: 'claude' },
       { name: 'AGENT_MODEL', value: 'sonnet[1m]' },
       { name: 'ANTHROPIC_MODEL', value: 'sonnet[1m]' },
@@ -318,13 +319,13 @@ describe('claude agent adapter', () => {
 
   it('launchEnv leaves out the address when there is none', () => {
     const names = agentAdapterFor('claude')
-      .launchEnv({ model: 'opus', baseUrl: null })
+      .launchEnv({ model: 'opus', baseUrl: null, credentialType: null })
       .map((e) => e.name);
     expect(names).toEqual(['AGENT', 'AGENT_MODEL', 'ANTHROPIC_MODEL']);
   });
 
   it('launchEnv leaves out the model entries when the model is empty', () => {
-    expect(agentAdapterFor('claude').launchEnv({ model: '', baseUrl: null })).toEqual([
+    expect(agentAdapterFor('claude').launchEnv({ model: '', baseUrl: null, credentialType: null })).toEqual([
       { name: 'AGENT', value: 'claude' },
     ]);
   });
@@ -348,5 +349,118 @@ describe('agent pricing', () => {
 
   it('lists the distinct price providers', () => {
     expect(pricingProviders()).toEqual(['anthropic']);
+  });
+});
+
+/** Task 8 switches this to `AgentKind.options`. */
+const registeredKinds: AgentKind[] = ['claude'];
+
+describe.each(registeredKinds)('shared adapter suite: %s', (kind) => {
+  const adapter = (http?: AgentHttpGet): AgentAdapter => agentAdapterFor(kind, { http });
+  const types = AGENT_KIND_CAPABILITIES[kind].credentialTypes.map((t) => t.type);
+  const firstType = types[0] ?? 'api_key';
+
+  it('has a capability row and a registry adapter of its own kind', () => {
+    expect(AGENT_KIND_CAPABILITIES[kind]).toBeDefined();
+    expect(adapter().kind).toBe(kind);
+  });
+
+  it('names a distinct non-empty credential env per listed type, or null for a file-delivered one', () => {
+    const names = types.map((t) => adapter().credentialEnv(t));
+    for (const n of names) if (n !== null) expect(n.length).toBeGreaterThan(0);
+    const named = names.filter((n): n is string => n !== null);
+    expect(new Set(named).size).toBe(named.length);
+  });
+
+  it('starts launchEnv with the AGENT entry', () => {
+    const env = adapter().launchEnv({ model: '', baseUrl: null, credentialType: null });
+    expect(env[0]).toEqual({ name: 'AGENT', value: kind });
+  });
+
+  it('has non-empty built-in models with valid ids', () => {
+    const models = adapter().builtinModels;
+    expect(models.length).toBeGreaterThan(0);
+    for (const m of models) expect(AgentModelId.safeParse(m.id).success).toBe(true);
+  });
+
+  it('listModels errors carry only the kind', async () => {
+    const a = adapter(() => Promise.reject(new Error('boom sk-secret-key-123')));
+    const err = await a
+      .listModels({ credential: { type: firstType, value: 'sk-secret-key-123' }, baseUrl: null })
+      .catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(AgentModelsError);
+    expect((err as Error).message).toBe('agent models: unreachable');
+  });
+
+  it('checkConnection maps each error kind without echoing the credential', async () => {
+    const secret = 'sk-secret-key-123';
+    const cases: [number | Error, string][] = [
+      [401, 'rejected'],
+      [403, 'rejected'],
+      [500, 'invalid'],
+      [new Error(`down ${secret}`), 'unreachable'],
+    ];
+    for (const [res, want] of cases) {
+      const a = adapter(() =>
+        res instanceof Error ? Promise.reject(res) : Promise.resolve({ status: res, json: {} }),
+      );
+      const got = await a.checkConnection({ credential: { type: firstType, value: secret }, baseUrl: null });
+      expect(got).toBe(want);
+      expect(JSON.stringify(got)).not.toContain(secret);
+    }
+  });
+});
+
+describe('claude checkConnection', () => {
+  const input = { credential: { type: 'api_key', value: 'sk-secret-key-123' }, baseUrl: null } as const;
+  const withHttp = (http: AgentHttpGet): AgentAdapter => agentAdapterFor('claude', { http });
+
+  it('returns ok for a list, even an empty one', async () => {
+    const a = withHttp(() => Promise.resolve({ status: 200, json: { data: [] } }));
+    expect(await a.checkConnection(input)).toBe('ok');
+  });
+
+  it('returns rejected on 401', async () => {
+    expect(await withHttp(() => Promise.resolve({ status: 401, json: {} })).checkConnection(input)).toBe('rejected');
+  });
+
+  it('returns unreachable on a transport error', async () => {
+    expect(await withHttp(() => Promise.reject(new Error('x'))).checkConnection(input)).toBe('unreachable');
+  });
+
+  it('returns invalid on an odd body', async () => {
+    const a = withHttp(() => Promise.resolve({ status: 200, json: { nope: 1 } }));
+    expect(await a.checkConnection(input)).toBe('invalid');
+  });
+
+  it('returns unreachable, not a thrown error, for an address that is not a URL', async () => {
+    const a = withHttp(() => Promise.resolve({ status: 200, json: { data: [] } }));
+    const res = await a.checkConnection({ credential: input.credential, baseUrl: 'sk-secret-key-123 not a url' });
+    expect(res).toBe('unreachable');
+  });
+
+  it('returns unreachable for a plain error carrying the credential, and leaks it nowhere', async () => {
+    const secret = input.credential.value;
+    const spies = (['log', 'info', 'warn', 'error', 'debug'] as const).map((m) =>
+      vi.spyOn(console, m).mockImplementation(() => undefined),
+    );
+    try {
+      const got = await withHttp(() => Promise.reject(new Error(`boom ${secret}`))).checkConnection(input);
+      expect(got).toBe('unreachable');
+      expect(JSON.stringify(got)).not.toContain(secret);
+      for (const spy of spies) expect(JSON.stringify(spy.mock.calls)).not.toContain(secret);
+    } finally {
+      for (const spy of spies) spy.mockRestore();
+    }
+  });
+
+  it('returns unsupported with no calls when there is no credential', async () => {
+    let calls = 0;
+    const a = withHttp(() => {
+      calls++;
+      return Promise.resolve({ status: 200, json: { data: [] } });
+    });
+    expect(await a.checkConnection({ credential: null, baseUrl: null })).toBe('unsupported');
+    expect(calls).toBe(0);
   });
 });

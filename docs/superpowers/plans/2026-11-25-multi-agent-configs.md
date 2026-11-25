@@ -447,10 +447,10 @@ graph LR
 - Produces (`@agentdesk/core`): `type AgentConnectionStatus = AgentTestStatus` (contracts); `AgentAdapter.checkConnection(input: { credential: { type: CredentialType; value: string } | null; baseUrl: string | null }): Promise<AgentConnectionStatus>`; `credentialEnv(type)` returns the env var name, or `null` for a type the kind delivers as a file (opencode `auth_json`); `launchEnv` input gains `credentialType: CredentialType | null` (ignored by claude and codex; opencode needs it to tell the own-endpoint type from the others). Claude maps `listModels` outcomes: a list (even empty) is `ok`, `AgentModelsError` `rejected` / `unreachable` / `invalid` map to the same words; any other error is `unreachable`.
 - Produces: a shared suite `describe.each(registeredKinds)` in `agents.test.ts` (the constant list starts as `['claude']`; Task 8 switches it to `AgentKind.options`) asserting for each kind: a capability row exists, `agentAdapterFor(kind)` returns it, `credentialEnv(type)` is a distinct non-empty name for every listed type or `null` only for a file-delivered one, `launchEnv` starts with `{ name: 'AGENT', value: kind }`, `builtinModels` is non-empty with valid `AgentModelId`s, `listModels` errors carry only the kind, and `checkConnection` maps each error kind without echoing the credential.
 
-- [ ] **Step 1: Write the failing tests:** the shared suite for `claude`, plus `claude checkConnection returns ok / rejected / unreachable / invalid` using an injected `AgentHttpGet`, and `checkConnection never puts the credential in a thrown message`.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/core exec vitest run test/adapters/agents.test.ts`. Expected: FAIL.
-- [ ] **Step 3: Implement** the interface member and the Claude mapping (reuse `listModels`; no new call).
-- [ ] **Step 4: Verify and commit.** `pnpm --filter @agentdesk/core typecheck` and the file's tests. Commit `feat(core): add checkConnection to agent adapters`.
+- [x] **Step 1: Write the failing tests:** the shared suite for `claude`, plus `claude checkConnection returns ok / rejected / unreachable / invalid` using an injected `AgentHttpGet`, and `checkConnection never puts the credential in a thrown message`.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/core exec vitest run test/adapters/agents.test.ts`. Expected: FAIL.
+- [x] **Step 3: Implement** the interface member and the Claude mapping (reuse `listModels`; no new call).
+- [x] **Step 4: Verify and commit.** `pnpm --filter @agentdesk/core typecheck` and the file's tests. Commit `feat(core): add checkConnection to agent adapters`.
 
 ---
 

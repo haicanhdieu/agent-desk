@@ -36,7 +36,7 @@ function pageUrl(baseUrl: string, afterId: string | null): URL {
 }
 
 export function createClaudeAdapter(http: AgentHttpGet = defaultHttp): AgentAdapter {
-  return {
+  const adapter: AgentAdapter = {
     kind: 'claude',
     pricing: { provider: 'anthropic' },
     builtinModels: ['opus', 'sonnet', 'haiku'].map((id) => ({ id, label: id })),
@@ -84,5 +84,16 @@ export function createClaudeAdapter(http: AgentHttpGet = defaultHttp): AgentAdap
       }
       return models;
     },
+    async checkConnection({ credential, baseUrl }) {
+      if (credential === null) return 'unsupported';
+      try {
+        await adapter.listModels({ credential, baseUrl });
+        return 'ok';
+      } catch (e) {
+        // Only the status word leaves; an unexpected error (for example a bad address) reads as unreachable.
+        return e instanceof AgentModelsError ? e.kind : 'unreachable';
+      }
+    },
   };
+  return adapter;
 }
