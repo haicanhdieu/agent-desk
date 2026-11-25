@@ -13,6 +13,12 @@ export type {
   SkillTemplate,
   Rule,
   AgentSettings,
+  AgentStatusTone,
+  AgentStatusView,
+  AgentRowView,
+  ProviderOptionView,
+  ComingSoonOptionView,
+  ProviderPickerOptions,
   RunDetailData,
   RunDetailKey,
   TriggerMode,
@@ -54,7 +60,8 @@ export { linkedGroups } from './runsLinked';
 export { ignored, ignoredPrStates } from './ignored';
 export { skills, skillTemplates, skillPreviewSamples, skillDiffDraft } from './skills';
 export { rules, promptSystemLines, TRIAGE_PROMPT } from './rules';
-export { agentSettings } from './agent';
+export { agentSettings, agentRowView, agentRowViews, agentStatusView, providerPickerOptions } from './agent';
+export { agentsFixture, manyAgents } from './dto/agents';
 export { transcriptFixtures, transcriptStateFixtures } from './transcript';
 export { terminalByRun, autoResumedTerminal } from './terminal';
 export { usageCellPage2, usageCellPage3 } from './usage';

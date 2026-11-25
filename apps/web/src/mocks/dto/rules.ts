@@ -42,7 +42,11 @@ export const ruleFixtures: RuleDto[] = [
   rule(ids.rule.r2, 'code-review', 'pr', [], true, { runs30d: 9, lastRunAt: '2026-11-12T14:09:00.000Z' }),
   rule(ids.rule.r3, 'code-e2e', 'any', [], true, { runs30d: 3, lastRunAt: '2026-11-12T10:02:00.000Z' }),
   rule(ids.rule.r4, 'docs-update', 'pr', [], true, { runs30d: 0, lastRunAt: null }),
-  rule(ids.rule.r5, 'qa-e2e', 'pr', ['needs-qa'], false, { runs30d: 0, lastRunAt: '2026-11-03T16:00:00.000Z' }),
+  // Follows the project's default agent (agentId null).
+  {
+    ...rule(ids.rule.r5, 'qa-e2e', 'pr', ['needs-qa'], false, { runs30d: 0, lastRunAt: '2026-11-03T16:00:00.000Z' }),
+    agentId: null,
+  },
   triage,
 ];
 

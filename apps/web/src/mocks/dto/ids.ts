@@ -44,3 +44,6 @@ export const ids = {
   /** Ids minted by the MSW store for created records. */
   created: (n: number) => uuid('b0000000', n),
 } as const;
+
+/** Ids of the agent-list fixtures (`agentsFixture`, `manyAgents`): n is 1-based. */
+export const agentListId = (n: number) => uuid('a9100000', n);

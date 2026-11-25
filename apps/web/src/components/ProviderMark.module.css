@@ -1,0 +1,49 @@
+.tile {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  border: 1px solid var(--line2);
+  background: var(--raised);
+  font-weight: 600;
+  line-height: 1;
+}
+.text {
+  color: var(--text);
+}
+.muted {
+  color: var(--muted);
+}
+.sm {
+  width: 24px;
+  height: 24px;
+  border-radius: var(--radius-6);
+  font-size: var(--fs-12);
+}
+.sm .logo {
+  width: 14px;
+  height: 14px;
+}
+.md {
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-8);
+  font-size: var(--fs-14);
+}
+.md .logo {
+  width: 18px;
+  height: 18px;
+}
+.lg {
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-8);
+  font-size: var(--fs-16);
+}
+.lg .logo {
+  width: 24px;
+  height: 24px;
+}
+.logo {
+  display: block;
+}

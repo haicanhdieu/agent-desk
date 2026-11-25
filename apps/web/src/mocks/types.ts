@@ -1,3 +1,4 @@
+import type { AgentKind } from '@agentdesk/contracts';
 import type { ReactNode } from 'react';
 import type { RunStatus } from '@/ds/tokens';
 import type { TicketKind } from '@/ds/TicketRef';
@@ -372,3 +373,35 @@ export type MemberPickerState =
   | { kind: 'error'; onRetry: () => void }
   | { kind: 'loadingMore' }
   | { kind: 'loadMoreError'; onRetry: () => void };
+
+// Agent configurations (Settings → Agent & settings → Agents).
+export type AgentStatusTone = 'ok' | 'warn' | 'err' | 'off';
+export interface AgentStatusView {
+  tone: AgentStatusTone;
+  text: string;
+}
+export interface AgentRowView {
+  id: string;
+  name: string;
+  /** The provider's logo key (contracts capability table). */
+  logo: string;
+  /** "<provider label> . <account label> . <auth type>", the parts that exist. */
+  detail: string;
+  model: string;
+  isDefault: boolean;
+  status: AgentStatusView;
+}
+export interface ProviderOptionView {
+  kind: AgentKind;
+  label: string;
+  logo: string;
+}
+export interface ComingSoonOptionView {
+  id: string;
+  label: string;
+  logo: string;
+}
+export interface ProviderPickerOptions {
+  runnable: ProviderOptionView[];
+  comingSoon: ComingSoonOptionView[];
+}

@@ -1,7 +1,14 @@
+import { AGENT_KINDS_COMING_SOON, AgentDto, ProjectDto, RuleDto } from '@agentdesk/contracts';
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
 import { RUN_STATUSES } from '@/ds';
 import {
+  agentRowView,
+  agentRowViews,
+  agentsFixture,
+  agentStatusView,
+  manyAgents,
+  providerPickerOptions,
   agentSettings,
   auditRows,
   memberRows,
@@ -47,6 +54,8 @@ import {
 import { tenantMemberFixtures } from '@/mocks/dto/access';
 import { AUDIT_MOCK_NOW } from '@/mocks/dto/audit';
 import { ids } from '@/mocks/dto/ids';
+import { projectFixtures } from '@/mocks/dto/projects';
+import { ruleFixtures } from '@/mocks/dto/rules';
 
 const ACTIVE = ['queued', 'starting', 'running', 'idle'];
 
@@ -495,5 +504,91 @@ describe('tenant-admin fixtures', () => {
     expect(orgSettingsFixtures.tabs.projectAdmin).toEqual(['invitations']);
     expect(orgSwitchFixtures.severalOrgsSettings.settingsHref).toBe('/o/acme/settings');
     expect(orgSwitchFixtures.severalOrgs.settingsHref).toBeUndefined();
+  });
+});
+
+describe('agent configuration fixtures', () => {
+  it('parses every agent fixture with the contract and has exactly one default', () => {
+    for (const a of agentsFixture) expect(AgentDto.safeParse(a).success).toBe(true);
+    expect(agentsFixture.filter((a) => a.isDefault).map((a) => a.name)).toEqual(['Claude - Personal']);
+    expect(agentsFixture.map((a) => a.provider).sort()).toEqual([
+      'claude',
+      'claude',
+      'claude',
+      'codex',
+      'opencode',
+      'opencode',
+      'opencode',
+    ]);
+  });
+
+  it('has a failed test and both kinds of agent without a credential', () => {
+    expect(agentsFixture.some((a) => a.lastTest?.status === 'rejected')).toBe(true);
+    const bare = agentsFixture.filter((a) => !a.credential.set);
+    const claude = bare.find((a) => a.provider === 'claude');
+    const open = bare.find((a) => a.provider === 'opencode');
+    expect(claude && agentStatusView(claude).text).toBe('Needs credential');
+    expect(open && agentStatusView(open).text).toBe('No credential');
+    expect(open && agentStatusView(open).tone).not.toBe('warn');
+  });
+
+  it('words every agent status per BR-20', () => {
+    const base = agentsFixture.find((a) => a.provider === 'claude' && a.credential.set);
+    if (!base) throw new Error('fixture needs a Claude agent with a credential');
+    const withTest = (status: 'ok' | 'rejected' | 'unreachable' | 'invalid' | 'unsupported' | null): AgentDto => ({
+      ...base,
+      lastTest: status ? { status, at: '2026-11-12T09:30:00.000Z' } : null,
+    });
+    expect(agentStatusView(withTest(null)).text).toBe('Not tested');
+    expect(agentStatusView(withTest('ok')).text).toBe('Ready');
+    expect(agentStatusView(withTest('rejected')).text).toBe('Credential rejected');
+    expect(agentStatusView(withTest('unreachable')).text).toBe("Can't reach address");
+    expect(agentStatusView(withTest('invalid')).text).toBe("Can't verify");
+    expect(agentStatusView(withTest('unsupported')).text).toBe('Not checkable');
+  });
+
+  it('joins the account label into a Claude Code row detail', () => {
+    const base = agentsFixture.find((a) => a.provider === 'claude' && a.credential.type === 'oauth_token');
+    if (!base) throw new Error('fixture needs a Claude agent with an OAuth token');
+    const label = 'Harbor Labs team';
+    expect(agentRowView({ ...base, accountLabel: label }).detail.startsWith(`Claude Code . ${label} . `)).toBe(true);
+    expect(agentRowView({ ...base, accountLabel: null }).detail).not.toContain(label);
+  });
+
+  it('has three OpenCode variants and none carries an options field', () => {
+    const oc = agentsFixture.filter((a) => a.provider === 'opencode');
+    expect(oc.map((a) => a.credential.type ?? 'none').sort()).toEqual(['api_key', 'auth_json', 'none']);
+    expect(oc.find((a) => a.credential.type === 'api_key')?.baseUrl).not.toBeNull();
+    for (const a of oc) expect(Object.keys(a)).not.toContain('options');
+    expect(agentRowViews.map((r) => r.detail)).toEqual(
+      expect.arrayContaining(['OpenCode . API endpoint and key', 'OpenCode . No sign-in']),
+    );
+  });
+
+  it('builds a long list with one default and unique names', () => {
+    const many = manyAgents(30);
+    expect(many).toHaveLength(30);
+    for (const a of many) expect(AgentDto.safeParse(a).success).toBe(true);
+    expect(many.filter((a) => a.isDefault)).toHaveLength(1);
+    expect(new Set(many.map((a) => a.name)).size).toBe(30);
+  });
+
+  it('offers three runnable providers and ten coming-soon ids', () => {
+    expect(providerPickerOptions.runnable.map((o) => o.kind)).toEqual(['claude', 'codex', 'opencode']);
+    expect(providerPickerOptions.comingSoon.map((o) => o.id)).toEqual(AGENT_KINDS_COMING_SOON.map((o) => o.id));
+    expect(providerPickerOptions.comingSoon).toHaveLength(10);
+  });
+
+  it('carries the five limits on every project fixture and a null agentId on a rule', () => {
+    for (const p of projectFixtures) {
+      expect(ProjectDto.safeParse(p).success).toBe(true);
+      expect(p.timeoutSeconds).toBeGreaterThan(0);
+      expect(p.pausedKeepSeconds).toBeGreaterThan(0);
+      expect(p.doneKeepSeconds).toBeGreaterThanOrEqual(0);
+      expect(p.idleEndSeconds).toBeGreaterThan(0);
+      expect(p.autoResumeMax).toBeGreaterThanOrEqual(0);
+    }
+    for (const r of ruleFixtures) expect(RuleDto.safeParse(r).success).toBe(true);
+    expect(ruleFixtures.some((r) => r.agentId === null)).toBe(true);
   });
 });
