@@ -61,6 +61,7 @@ export function agentRowView(a: AgentDto): AgentRowView {
     id: a.id,
     name: a.name,
     logo: cap.logo,
+    providerLabel: cap.label,
     detail: parts.filter((p): p is string => p !== null && p !== '').join(' . '),
     model: a.model,
     isDefault: a.isDefault,

@@ -1,0 +1,53 @@
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+}
+.head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+.headText {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+.title {
+  margin: 0;
+  font-size: var(--fs-18);
+}
+.text {
+  margin: 0;
+  color: var(--muted);
+}
+.rows {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-8);
+}
+.skeletonRow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--line);
+}
+.request {
+  display: block;
+  font-family: var(--mono);
+  font-size: var(--fs-12_5);
+}
+.dialogBody {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.dialogText {
+  margin: 0;
+}

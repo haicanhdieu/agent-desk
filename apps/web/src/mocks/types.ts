@@ -385,6 +385,8 @@ export interface AgentRowView {
   name: string;
   /** The provider's logo key (contracts capability table). */
   logo: string;
+  /** The provider's name, the text of its logo (contracts capability table). */
+  providerLabel: string;
   /** "<provider label> . <account label> . <auth type>", the parts that exist. */
   detail: string;
   model: string;

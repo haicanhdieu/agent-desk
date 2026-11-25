@@ -555,6 +555,11 @@ describe('agent configuration fixtures', () => {
     expect(agentRowView({ ...base, accountLabel: null }).detail).not.toContain(label);
   });
 
+  it('gives each row the provider name from the capability table', () => {
+    expect(agentRowViews.every((r) => r.providerLabel !== '' && r.detail.startsWith(r.providerLabel))).toBe(true);
+    expect(agentRowViews.map((r) => r.providerLabel)).toEqual(expect.arrayContaining(['Claude Code', 'OpenCode']));
+  });
+
   it('has three OpenCode variants and none carries an options field', () => {
     const oc = agentsFixture.filter((a) => a.provider === 'opencode');
     expect(oc.map((a) => a.credential.type ?? 'none').sort()).toEqual(['api_key', 'auth_json', 'none']);
