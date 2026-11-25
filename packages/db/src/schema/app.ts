@@ -76,6 +76,16 @@ export const projects = pgTable(
     maxConcurrentRuns: integer('max_concurrent_runs').notNull().default(2),
     maxRunsPerTicket: integer('max_runs_per_ticket').notNull().default(5),
     setupStep: text('setup_step').notNull().default('agent'),
+    // Project-wide run limits (moved from the agent). The literals mirror AGENT_*_SECONDS_* and AGENT_AUTO_RESUME_MAX_*
+    // in @agentdesk/contracts (db cannot import contracts). Run time limit: 60 s to 7 days, default 24 h.
+    timeoutSeconds: integer('timeout_seconds').notNull().default(86400),
+    // Paused sessions are kept 1 h to 30 days, default 7 days; done ones 0 to 7 days, default 24 h.
+    pausedKeepSeconds: integer('paused_keep_seconds').notNull().default(604800),
+    doneKeepSeconds: integer('done_keep_seconds').notNull().default(86400),
+    // Idle end: 5 minutes to 7 days, default 30 minutes.
+    idleEndSeconds: integer('idle_end_seconds').notNull().default(1800),
+    // Automatic resumes after an unexpected pod end: 0 (off) to 10, default 5.
+    autoResumeMax: integer('auto_resume_max').notNull().default(5),
     createdBy: text('created_by'),
     createdAt: ts('created_at').notNull().defaultNow(),
   },
@@ -86,6 +96,11 @@ export const projects = pgTable(
     check('projects_trigger_mode_check', sql`${t.triggerMode} in ('webhook','polling')`),
     check('projects_poll_interval_check', sql`${t.pollIntervalSeconds} in (300,600,900,1800)`),
     check('projects_setup_step_check', sql`${t.setupStep} in ('agent','setup','skills','rules','ready')`),
+    check('projects_timeout_check', sql`${t.timeoutSeconds} between 60 and 604800`),
+    check('projects_paused_keep_check', sql`${t.pausedKeepSeconds} between 3600 and 2592000`),
+    check('projects_done_keep_check', sql`${t.doneKeepSeconds} between 0 and 604800`),
+    check('projects_idle_end_check', sql`${t.idleEndSeconds} between 300 and 604800`),
+    check('projects_auto_resume_max_check', sql`${t.autoResumeMax} between 0 and 10`),
     orgPolicy(),
   ],
 );
@@ -107,7 +122,16 @@ export const agents = pgTable(
     credentialType: text('credential_type'),
     credentialUpdatedAt: ts('credential_updated_at'),
     credentialSetBy: text('credential_set_by'),
+    /** Free-text label of the account behind the credential (1 to 256 characters); null when unset. */
+    accountLabel: text('account_label'),
+    /** The project's default agent; at most one per project (agents_project_default_key). */
+    isDefault: boolean('is_default').notNull().default(false),
+    /** Outcome of the last connection test: ok, rejected, unreachable, invalid or unsupported; null if never tested. */
+    lastTestStatus: text('last_test_status'),
+    lastTestAt: ts('last_test_at'),
     maxTurns: integer('max_turns'),
+    // Legacy per-agent limits: unread and unwritten by the new code (the limits live on projects now); kept for the
+    // rolling release, dropped in a later contract migration (follow-up issue 287).
     // Run time limit: 60 s to 7 days, default 24 h (ADR 0021). Mirrors AGENT_TIMEOUT_SECONDS_* in contracts.
     timeoutSeconds: integer('timeout_seconds').notNull().default(86400),
     // Kept-session settings. The literals mirror AGENT_PAUSED_KEEP_SECONDS_* and AGENT_DONE_KEEP_SECONDS_* in
@@ -122,6 +146,19 @@ export const agents = pgTable(
   },
   (t) => [
     unique('agents_project_name_key').on(t.projectId, t.name),
+    uniqueIndex('agents_project_name_lower_key').on(t.projectId, sql`lower(${t.name})`),
+    uniqueIndex('agents_project_default_key')
+      .on(t.projectId)
+      .where(sql`${t.isDefault}`),
+    check('agents_name_length_check', sql`char_length(${t.name}) between 1 and 256`),
+    check(
+      'agents_account_label_check',
+      sql`${t.accountLabel} is null or char_length(${t.accountLabel}) between 1 and 256`,
+    ),
+    check(
+      'agents_last_test_status_check',
+      sql`${t.lastTestStatus} is null or ${t.lastTestStatus} in ('ok','rejected','unreachable','invalid','unsupported')`,
+    ),
     index('agents_org_idx').on(t.orgId),
     check('agents_timeout_check', sql`${t.timeoutSeconds} between 60 and 604800`),
     check('agents_paused_keep_check', sql`${t.pausedKeepSeconds} between 3600 and 2592000`),
@@ -132,7 +169,7 @@ export const agents = pgTable(
       'agents_base_url_check',
       sql`${t.baseUrl} is null or (${t.baseUrl} like 'https://%' and char_length(${t.baseUrl}) <= 2048)`,
     ),
-    check('agents_credential_type_check', sql`${t.credentialType} in ('oauth_token','api_key')`),
+    check('agents_credential_type_check', sql`${t.credentialType} in ('oauth_token','api_key','auth_json')`),
     orgPolicy(),
   ],
 );
@@ -151,9 +188,8 @@ export const rules = pgTable(
       .notNull()
       .default(sql`'{}'::text[]`),
     target: text('target').notNull().default('any'),
-    agentId: uuid('agent_id')
-      .notNull()
-      .references(() => agents.id),
+    /** Null follows the project's default agent. */
+    agentId: uuid('agent_id').references(() => agents.id),
     /** Exactly one of skillName and prompt is set (rules_skill_or_prompt_check). */
     skillName: text('skill_name'),
     /** Custom prompt, up to 4000 characters; stored as written. */
@@ -229,6 +265,8 @@ export const runs = pgTable(
       .references(() => projects.id, { onDelete: 'cascade' }),
     ruleId: uuid('rule_id').references(() => rules.id, { onDelete: 'set null' }),
     agentId: uuid('agent_id').references(() => agents.id, { onDelete: 'set null' }),
+    /** The agent's name when the run was queued; shown once the agent is deleted. Null on older runs. */
+    agentName: text('agent_name'),
     command: text('command').notNull(),
     /** Null for a custom-prompt run. */
     skillName: text('skill_name'),

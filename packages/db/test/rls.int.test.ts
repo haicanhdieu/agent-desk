@@ -507,3 +507,72 @@ describe('project_env_vars constraints', () => {
     expect(r.rows[0]?.indexdef).toMatch(/\(project_id, kind, \(?\(?name\)?(::text)? COLLATE "C"\)?\)/);
   });
 });
+
+describe('agent configuration columns (two orgs)', () => {
+  const rows = (tx: Tx, query: ReturnType<typeof sql>) => tx.execute(query).then((r) => r.rows);
+
+  it('the default-agent select returns only the session org default, and only for that project', async () => {
+    await withOrg(db, ORG_A, (tx) =>
+      tx.execute(sql`update agents set is_default = true, account_label = 'acct A' where id = ${a.agentId}`),
+    );
+    await withOrg(db, ORG_B, (tx) =>
+      tx.execute(sql`update agents set is_default = true, account_label = 'acct B' where id = ${b.agentId}`),
+    );
+    const seenByA = await withOrg(db, ORG_A, (tx) =>
+      rows(tx, sql`select id, account_label from agents where is_default and project_id = ${a.projectId}`),
+    );
+    expect(seenByA).toEqual([{ id: a.agentId, account_label: 'acct A' }]);
+    // org A cannot reach org B's default agent by project or by id
+    expect(
+      await withOrg(db, ORG_A, (tx) => rows(tx, sql`select id from agents where project_id = ${b.projectId}`)),
+    ).toEqual([]);
+    expect(await withOrg(db, ORG_A, (tx) => rows(tx, sql`select id from agents where id = ${b.agentId}`))).toEqual([]);
+  });
+
+  it('the one-default index is per project: org B may have its own default, a second in one project is refused (23505)', async () => {
+    await withOrg(db, ORG_A, (tx) => tx.execute(sql`update agents set is_default = true where id = ${a.agentId}`));
+    const err = await withOrg(db, ORG_A, (tx) =>
+      tx.execute(sql`insert into agents (org_id, project_id, name, model, is_default)
+        values (${ORG_A}, ${a.projectId}, 'second default', 'm', true)`),
+    ).then(
+      () => undefined,
+      (e: unknown) => e,
+    );
+    expect(pgCode(err)).toBe('23505');
+  });
+
+  it('the case-insensitive name key is per project and org A cannot write org B limits', async () => {
+    const dup = await withOrg(db, ORG_A, async (tx) => {
+      await tx.execute(
+        sql`insert into agents (org_id, project_id, name, model) values (${ORG_A}, ${a.projectId}, 'Zed', 'm')`,
+      );
+      await tx.execute(
+        sql`insert into agents (org_id, project_id, name, model) values (${ORG_A}, ${a.projectId}, 'zED', 'm')`,
+      );
+    }).then(
+      () => undefined,
+      (e: unknown) => e,
+    );
+    expect(pgCode(dup)).toBe('23505');
+    await withOrg(db, ORG_A, (tx) =>
+      tx.execute(sql`update projects set timeout_seconds = 120, auto_resume_max = 0 where id = ${b.projectId}`),
+    );
+    const bLimits = await withOrg(db, ORG_B, (tx) =>
+      rows(tx, sql`select timeout_seconds, auto_resume_max from projects where id = ${b.projectId}`),
+    );
+    expect(bLimits).toEqual([{ timeout_seconds: 86400, auto_resume_max: 5 }]);
+  });
+
+  it('a rule with a null agent and a run with an agent name are visible only inside their org', async () => {
+    await withOrg(db, ORG_A, (tx) => tx.execute(sql`update rules set agent_id = null where id = ${a.ruleId}`));
+    await withOrg(db, ORG_A, (tx) => tx.execute(sql`update runs set agent_name = 'Claude' where id = ${a.runId}`));
+    expect(
+      await withOrg(db, ORG_B, (tx) =>
+        rows(tx, sql`select id from rules where id = ${a.ruleId} union all select id from runs where id = ${a.runId}`),
+      ),
+    ).toEqual([]);
+    expect(
+      await withOrg(db, ORG_A, (tx) => rows(tx, sql`select agent_id, id from rules where id = ${a.ruleId}`)),
+    ).toEqual([{ agent_id: null, id: a.ruleId }]);
+  });
+});
