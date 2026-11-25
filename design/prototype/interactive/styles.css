@@ -12,7 +12,7 @@ button.avatar:hover{filter:brightness(1.15)}
 button[disabled][data-act]{cursor:not-allowed}
 .btn[disabled]{cursor:not-allowed}
 .pop[role="menu"] .btn:hover{background:var(--raised)}
-#toasts{position:fixed;left:16px;bottom:16px;display:flex;flex-direction:column;gap:8px;z-index:300;width:360px;max-width:calc(100vw - 32px)}
+#toasts{position:fixed;left:16px;bottom:60px;display:flex;flex-direction:column;gap:8px;z-index:300;width:360px;max-width:calc(100vw - 32px)}
 .toast{box-shadow:0 14px 40px rgba(0,0,0,.55);align-items:center}
 
 /* Prototype controls panel: outside the app chrome, dashed accent border so it never reads as product UI */
@@ -21,6 +21,9 @@ button[disabled][data-act]{cursor:not-allowed}
 .proto-tag{font-size:11px;border:1px dashed var(--line2);border-radius:4px;padding:0 5px;color:var(--faint);margin-left:4px}
 .proto-body{overflow:auto;padding:4px 12px 12px;display:flex;flex-direction:column;gap:12px;border-top:1px solid var(--line)}
 .proto.collapsed .proto-body{display:none}
+/* Collapsed, the panel is a small pill at the bottom left, under the side navigation, so it never sits on the footers (Save, Continue, the pager) */
+.proto.collapsed{width:auto;right:auto;left:12px}
+.proto.collapsed .proto-tag{display:none}
 .proto.collapsed #pc-caret{transform:rotate(180deg)}
 .proto-sec{display:flex;flex-direction:column;gap:6px;margin-top:8px}
 .proto-sec>label,.proto-sec>summary{font-size:12.5px;font-weight:500;color:var(--muted);cursor:default}
