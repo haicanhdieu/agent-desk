@@ -166,6 +166,10 @@ describe('BR-28: a project outside the caller scope is 404', () => {
     ['projects.pollNow', 'POST', `/api/projects/${p2}/connection/poll`, undefined],
     ['projects.ignored', 'GET', `/api/projects/${p2}/ignored`, undefined],
     ['projects.events', 'GET', `/api/projects/${p2}/events`, undefined],
+    ['agents.list', 'GET', `/api/projects/${p2}/agents`, undefined],
+    ['agents.create', 'POST', `/api/projects/${p2}/agents`, { provider: 'claude', name: 'Other project agent' }],
+    ['agents.update', 'PATCH', `/api/agents/${agentP2}`, { name: 'Renamed' }],
+    ['agents.setDefault', 'POST', `/api/agents/${agentP2}/default`, undefined],
     ['agents.get', 'GET', `/api/projects/${p2}/agent`, undefined],
     ['agents.put', 'PUT', `/api/projects/${p2}/agent`, { model: 'sonnet', timeoutSeconds: 3600 }],
     [
@@ -232,11 +236,7 @@ describe('BR-28: a project outside the caller scope is 404', () => {
   // Exclusions: WebSocket upgrades cannot be driven through inject; their out-of-scope close codes are tested in terminal.int.test.ts.
   const excluded: Record<string, string> = {
     'projects.remove': 'project:delete is org-level, so no project-scoped caller holds it: 403 for them, see below',
-    'agents.list': 'controller lands in plan Tasks 15/16; scope cases are added there',
-    'agents.create': 'controller lands in plan Tasks 15/16; scope cases are added there',
-    'agents.update': 'controller lands in plan Tasks 15/16; scope cases are added there',
     'agents.remove': 'controller lands in plan Tasks 15/16; scope cases are added there',
-    'agents.setDefault': 'controller lands in plan Tasks 15/16; scope cases are added there',
     'agents.test': 'controller lands in plan Tasks 15/16; scope cases are added there',
     'runs.terminal': 'WebSocket upgrade: close code covered in terminal.int.test.ts',
     'setupTests.terminal': 'WebSocket upgrade: close code covered in terminal.int.test.ts',
