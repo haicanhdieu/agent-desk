@@ -1,4 +1,4 @@
-import type { AgentKind, AgentModelOption, CredentialType } from '@agentdesk/contracts';
+import type { AgentKind, AgentModelOption, AgentTestStatus, CredentialType } from '@agentdesk/contracts';
 
 export type AgentModelsErrorKind = 'unreachable' | 'rejected' | 'invalid';
 
@@ -21,7 +21,7 @@ export type AgentHttpGet = (
 ) => Promise<{ status: number; json: unknown }>;
 
 /** Outcome of a connection check; the same words as the contract's agent test status. */
-export type AgentConnectionStatus = 'ok' | 'rejected' | 'unreachable' | 'invalid' | 'unsupported';
+export type AgentConnectionStatus = AgentTestStatus;
 
 /** Which price catalog provider an agent's models are priced under. Never holds rates. */
 export interface AgentPricing {

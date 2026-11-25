@@ -1,6 +1,8 @@
+import { existsSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { MockAgent } from 'undici';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { AGENT_KIND_CAPABILITIES, AgentModelId, type AgentKind } from '@agentdesk/contracts';
+import { AGENT_KIND_CAPABILITIES, AgentKind, AgentModelId } from '@agentdesk/contracts';
 import { AgentModelsError, agentAdapterFor, pricingProviders, type AgentAdapter, type AgentHttpGet } from '../../src';
 import { LIST_TIMEOUT_MS } from '../../src/adapters/agents/claude';
 import { guardedGetJson } from '../../src/net/guarded-http';
@@ -350,15 +352,22 @@ describe('agent pricing', () => {
   it('lists the distinct price providers', () => {
     expect(pricingProviders()).toEqual(['anthropic']);
   });
+
+  it('has exactly three kinds and no antigravity adapter or fixture directory', () => {
+    expect([...AgentKind.options].sort()).toEqual(['claude', 'codex', 'opencode']);
+    expect(() => agentAdapterFor('antigravity' as AgentKind)).toThrow('unknown agent kind');
+    expect(existsSync(fileURLToPath(new URL('../fixtures/agents/antigravity', import.meta.url)))).toBe(false);
+  });
 });
 
-/** Task 8 switches this to `AgentKind.options`. */
-const registeredKinds: AgentKind[] = ['claude'];
+const registeredKinds: readonly AgentKind[] = AgentKind.options;
 
 describe.each(registeredKinds)('shared adapter suite: %s', (kind) => {
   const adapter = (http?: AgentHttpGet): AgentAdapter => agentAdapterFor(kind, { http });
   const types = AGENT_KIND_CAPABILITIES[kind].credentialTypes.map((t) => t.type);
-  const firstType = types[0] ?? 'api_key';
+  // The first type every kind can check and list live (codex and opencode sign-in files cannot).
+  const firstType = types.includes('api_key') ? 'api_key' : (types[0] ?? 'api_key');
+  const address = 'https://llm.example.com/v1';
 
   it('has a capability row and a registry adapter of its own kind', () => {
     expect(AGENT_KIND_CAPABILITIES[kind]).toBeDefined();
@@ -386,7 +395,7 @@ describe.each(registeredKinds)('shared adapter suite: %s', (kind) => {
   it('listModels errors carry only the kind', async () => {
     const a = adapter(() => Promise.reject(new Error('boom sk-secret-key-123')));
     const err = await a
-      .listModels({ credential: { type: firstType, value: 'sk-secret-key-123' }, baseUrl: null })
+      .listModels({ credential: { type: firstType, value: 'sk-secret-key-123' }, baseUrl: address })
       .catch((e: unknown) => e);
     expect(err).toBeInstanceOf(AgentModelsError);
     expect((err as Error).message).toBe('agent models: unreachable');
@@ -404,7 +413,7 @@ describe.each(registeredKinds)('shared adapter suite: %s', (kind) => {
       const a = adapter(() =>
         res instanceof Error ? Promise.reject(res) : Promise.resolve({ status: res, json: {} }),
       );
-      const got = await a.checkConnection({ credential: { type: firstType, value: secret }, baseUrl: null });
+      const got = await a.checkConnection({ credential: { type: firstType, value: secret }, baseUrl: address });
       expect(got).toBe(want);
       expect(JSON.stringify(got)).not.toContain(secret);
     }

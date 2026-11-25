@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { AgentModelId, type AgentModelOption, type CredentialType } from '@agentdesk/contracts';
+import { AgentBaseUrl, AgentModelId, type AgentModelOption, type CredentialType } from '@agentdesk/contracts';
 import { guardedGetJson } from '../../net/guarded-http';
 import { AgentModelsError, type AgentAdapter, type AgentHttpGet } from './types';
 
@@ -52,6 +52,8 @@ export function createClaudeAdapter(http: AgentHttpGet = defaultHttp): AgentAdap
       ...(baseUrl ? [{ name: 'ANTHROPIC_BASE_URL', value: baseUrl }] : []),
     ],
     async listModels({ credential, baseUrl }) {
+      // An address the contract would refuse never gets a request (defense in depth behind the API's validation).
+      if (baseUrl !== null && !AgentBaseUrl.safeParse(baseUrl).success) throw new AgentModelsError('unreachable');
       const headers = requestHeaders(credential);
       const seen = new Set<string>();
       const models: AgentModelOption[] = [];

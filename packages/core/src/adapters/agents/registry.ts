@@ -1,5 +1,7 @@
 import { AgentKind } from '@agentdesk/contracts';
 import { createClaudeAdapter } from './claude';
+import { createCodexAdapter } from './codex';
+import { createOpencodeAdapter } from './opencode';
 import type { AgentAdapter, AgentHttpGet } from './types';
 
 export function agentAdapterFor(kind: AgentKind, opts: { http?: AgentHttpGet } = {}): AgentAdapter {
@@ -7,8 +9,9 @@ export function agentAdapterFor(kind: AgentKind, opts: { http?: AgentHttpGet } =
     case 'claude':
       return createClaudeAdapter(opts.http);
     case 'codex':
+      return createCodexAdapter(opts.http);
     case 'opencode':
-      throw new Error('adapter not available yet');
+      return createOpencodeAdapter(opts.http);
     default: {
       const unreachable: never = kind;
       throw new Error(`unknown agent kind: ${String(unreachable)}`);
@@ -18,8 +21,6 @@ export function agentAdapterFor(kind: AgentKind, opts: { http?: AgentHttpGet } =
 
 /** The distinct price providers of every agent kind. */
 export function pricingProviders(): string[] {
-  // Task 8 replaces the codex/opencode stand-ins; until then only claude has an adapter.
-  const kinds = AgentKind.options.filter((k) => k === 'claude');
-  const providers = kinds.flatMap((k) => agentAdapterFor(k).pricing?.provider ?? []);
+  const providers = AgentKind.options.flatMap((k) => agentAdapterFor(k).pricing?.provider ?? []);
   return [...new Set(providers)];
 }
