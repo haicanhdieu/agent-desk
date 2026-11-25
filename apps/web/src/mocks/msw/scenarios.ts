@@ -1,4 +1,5 @@
 import type { RequestHandler } from 'msw';
+import { agentOverrides, applyAgentScenario, type AgentScenario } from './agentScenarios';
 import type { AgentModelsScenario } from './agentModels';
 import type { GithubSyncScenario } from './githubSync';
 import type { PrStatesScenario } from './prStates';
@@ -37,6 +38,11 @@ export const scenarios = {
   platform(name: PlatformScenario): void {
     applyPlatformScenario(name);
     for (const handler of platformOverrides(name)) override(handler);
+  },
+  /** Puts invoicer-api's agents in a named state (agentScenarios.ts), with its handler overrides. */
+  agents(name: AgentScenario): void {
+    applyAgentScenario(name);
+    for (const handler of agentOverrides(name)) override(handler);
   },
   /** What `agents.models` answers for the agent until the store resets. */
   agentModels(agentId: string, scenario: AgentModelsScenario): void {

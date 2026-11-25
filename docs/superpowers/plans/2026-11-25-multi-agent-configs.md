@@ -791,10 +791,10 @@ graph LR
 
 - Produces: handlers for `agents.list` (paged, default first), `create` (marks the new agent default when the project has none, never otherwise; 409 on a duplicate name ignoring case; 422 on a Coming-soon provider including `antigravity`; `opencode` accepted with an empty model), `update`, `remove` (refuses the default, the only agent, a rule-named agent and a blocked run with the spec's 409 titles), `setDefault`, `test`, and the credential route (OpenCode: `auth_json` with an address 422 `/baseUrl`, `api_key` with no address 422 `/baseUrl`, a non-object file 422 `/value`) and the models route per agent (for the OpenCode own-endpoint scenario the `/models` ids; `test` answers `unsupported` for OpenCode with no credential or a file); `projects.create` still pushes the placeholder default agent; project update stores the five limits. Scenarios: `agentsEmpty`, `manyAgents`, `agents.list` 500, `deleteBlocked`, `testRejected`, `testUnreachable`, `testInvalid`, `testUnsupported`, `opencodeEndpointModels`, `swapDeleteFails` (the placeholder delete answers 500), a per-agent model list that differs between two agents. `contract.test.ts` checks each handler's response with its contracts schema.
 
-- [ ] **Step 1: Write the failing tests** in `agentsHandlers.test.ts` (BR-62 handler pin: first create default, second not; both create cases) and `contract.test.ts` (every new handler response parses); plus handler tests for the delete refusals, set-default exactly one default, the placeholder seed on `projects.create`.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/mocks/msw/contract.test.ts src/mocks/msw/agentsHandlers.test.ts`. Expected: FAIL.
-- [ ] **Step 3: Implement** handlers, db helpers and scenarios.
-- [ ] **Step 4: Verify and commit.** `pnpm --filter @agentdesk/web typecheck` and the two files. Commit `feat(web): MSW handlers and scenarios for agent configurations`.
+- [x] **Step 1: Write the failing tests** in `agentsHandlers.test.ts` (BR-62 handler pin: first create default, second not; both create cases) and `contract.test.ts` (every new handler response parses); plus handler tests for the delete refusals, set-default exactly one default, the placeholder seed on `projects.create`.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/mocks/msw/contract.test.ts src/mocks/msw/agentsHandlers.test.ts`. Expected: FAIL.
+- [x] **Step 3: Implement** handlers, db helpers and scenarios.
+- [x] **Step 4: Verify and commit.** `pnpm --filter @agentdesk/web typecheck` and the two files. Commit `feat(web): MSW handlers and scenarios for agent configurations`.
 
 ---
 

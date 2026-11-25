@@ -1,5 +1,6 @@
 import type {
   AgentDto,
+  AgentTestStatus,
   AuditEntryDto,
   ConnectionDto,
   IgnoredEventDto,
@@ -170,6 +171,10 @@ export interface MockState {
   /** Model-list scenario per agent id (scenarios.agentModels), and the agents that had a credential saved since. */
   agentModelScenarios: Record<string, AgentModelsScenario>;
   agentCredentialSaved: string[];
+  /** What `agents.test` answers for an agent with a credential (agentScenarios.ts); undefined is ok. */
+  agentTestScenario?: AgentTestStatus;
+  /** Deleting the wizard's placeholder agent (the credential-less "Claude") answers 500 (swapDeleteFails). */
+  failPlaceholderDelete?: boolean;
   /** Live PR states per project id and ticket number (`tickets.prStates`), and the scenario that bends the answer. */
   prStates: Record<string, Record<string, PrState>>;
   prStatesScenario?: PrStatesScenario;

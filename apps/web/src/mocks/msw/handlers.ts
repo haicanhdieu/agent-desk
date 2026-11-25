@@ -43,6 +43,16 @@ import {
 import { delay, http, type HttpHandler } from 'msw';
 import { authHandlers } from './auth-handlers';
 import { agentModelsAnswer } from './agentModels';
+import {
+  agentsOf,
+  checkCredential,
+  createAgent,
+  refuseUnknownProvider,
+  removeAgent,
+  setDefaultAgent,
+  testAgent,
+  updateAgent,
+} from './agentsApi';
 import { PR_STATES_SLOW_MS, prStateItems } from './prStates';
 import type { MockRun } from '../dto/runs';
 import { assignmentFixtures, roleFixtures } from '../dto/access';
@@ -433,6 +443,14 @@ function skillOf(projectId: string, name: string): SkillDto {
   const skill = skillsOf(projectId).find((s) => s.name === name);
   if (!skill) throw notFound('Skill');
   return skill;
+}
+
+/** An agent of a project the caller can see; anything else is a 404. */
+function agentInScope(agentId: string) {
+  const agent = db().agents.find((a) => a.id === agentId);
+  if (!agent) throw notFound('Agent');
+  projectRow(agent.projectId);
+  return agent;
 }
 
 function ruleOf(ruleId: string) {
@@ -862,25 +880,12 @@ const impl: Impl = {
   },
   'projects.ignored': ({ params, query }) => slicePage(db().ignored[projectRow(params.projectId).id] ?? [], query),
 
-  // Stand-ins until the agent configuration handlers land (Task 21 replaces).
-  'agents.list': () => {
-    throw notFound('Agent');
-  },
-  'agents.create': () => {
-    throw notFound('Agent');
-  },
-  'agents.update': () => {
-    throw notFound('Agent');
-  },
-  'agents.remove': () => {
-    throw notFound('Agent');
-  },
-  'agents.setDefault': () => {
-    throw notFound('Agent');
-  },
-  'agents.test': () => {
-    throw notFound('Agent');
-  },
+  'agents.list': ({ params, query }) => slicePage(agentsOf(projectRow(params.projectId).id), query),
+  'agents.create': ({ params, body }) => createAgent(projectRow(params.projectId), body),
+  'agents.update': ({ params, body }) => updateAgent(agentInScope(params.agentId), body),
+  'agents.remove': ({ params }) => removeAgent(agentInScope(params.agentId)),
+  'agents.setDefault': ({ params }) => setDefaultAgent(agentInScope(params.agentId)),
+  'agents.test': ({ params }) => testAgent(agentInScope(params.agentId)),
   'agents.get': ({ params }) => agentOf(projectRow(params.projectId).id),
   'agents.put': ({ params, body }) => {
     const agent = agentOf(projectRow(params.projectId).id);
@@ -895,9 +900,8 @@ const impl: Impl = {
   },
   'agents.putCredential': ({ params, body }) => {
     const { user } = session();
-    const agent = db().agents.find((a) => a.id === params.agentId);
-    if (!agent) throw notFound('Agent');
-    projectRow(agent.projectId);
+    const agent = agentInScope(params.agentId);
+    checkCredential(agent, body);
     // Write-only: the value is dropped here, only the fact that one is set is kept.
     const updatedAt = now();
     agent.credential = { set: true, type: body.type, updatedAt, setBy: user.handle };
@@ -907,9 +911,7 @@ const impl: Impl = {
     return { updatedAt };
   },
   'agents.models': async ({ params }) => {
-    const agent = db().agents.find((a) => a.id === params.agentId);
-    if (!agent) throw notFound('Agent');
-    projectRow(agent.projectId);
+    const agent = agentInScope(params.agentId);
     const answer = agentModelsAnswer(
       agent,
       db().agentModelScenarios[agent.id],
@@ -1400,6 +1402,7 @@ const STATUS: Partial<Record<RouteKey, number>> = {
   'projects.create': 201,
   'projectEnv.createVar': 201,
   'projectEnv.createSecret': 201,
+  'agents.create': 201,
   'rules.create': 201,
   'projects.pollNow': 202,
   'runs.cancel': 202,
@@ -1497,10 +1500,17 @@ function contractHandler<K extends JsonKey>(key: K, run: Impl[K]): HttpHandler {
       if (isOrgPinned(key)) refuseSuspendedOrg(caller);
       if (isOrgPinned(key) && key !== 'me.access') requireRouteAccess(key, session().user);
       const url = new URL(request.url);
+      const params = parsePart(def.params, rawParams, 'path parameters');
+      const rawBody = def.body ? await readBody(request) : undefined;
+      if (key === 'agents.create' && typeof params === 'object' && params !== null && 'projectId' in params) {
+        // The project is checked first (404); then a Coming-soon or unknown provider is 422 on /provider, not a shape error.
+        projectRow(String(params.projectId));
+        refuseUnknownProvider(rawBody);
+      }
       const parts = {
-        params: parsePart(def.params, rawParams, 'path parameters'),
+        params,
         query: parsePart(def.query, queryOf(url.searchParams), 'query'),
-        body: parsePart(def.body, def.body ? await readBody(request) : undefined, 'body'),
+        body: parsePart(def.body, rawBody, 'body'),
         request,
       };
       // Each part was parsed by this route's own schema above, so it has the shape RouteCtx<K> names.

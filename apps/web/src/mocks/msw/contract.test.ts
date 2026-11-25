@@ -389,6 +389,29 @@ describe('MSW handler semantics', () => {
     expect(JSON.stringify(answer)).not.toContain('invalid x-api-key');
   });
 
+  it('every agent configuration handler answers with its contracts schema', async () => {
+    scenarios.agents('perAgentModels');
+    const check = <T>(schema: z.ZodType<T>, value: unknown) => expect(schema.safeParse(value).success).toBe(true);
+    const page = await api.agents.list({ params: { projectId: P }, query: {} });
+    check(routes.agents.list.response, page);
+    const codex = page.items.find((a) => a.name === 'Codex');
+    if (!codex) throw new Error('Codex fixture missing');
+    const created = await api.agents.create({ params: { projectId: P }, body: { provider: 'opencode', name: 'New' } });
+    check(AgentDto, created);
+    check(AgentDto, await api.agents.update({ params: { agentId: created.id }, body: { name: 'New 2' } }));
+    check(AgentDto, await api.agents.setDefault({ params: { agentId: codex.id } }));
+    check(routes.agents.test.response, await api.agents.test({ params: { agentId: codex.id } }));
+    check(AgentModelsDto, await api.agents.models({ params: { agentId: codex.id } }));
+    check(
+      routes.agents.putCredential.response,
+      await api.agents.putCredential({
+        params: { agentId: codex.id },
+        body: { type: 'api_key', value: 'k' },
+      }),
+    );
+    await expect(api.agents.remove({ params: { agentId: created.id } })).resolves.toBeNull();
+  });
+
   it('hides projects of other orgs (RLS) and switches with the active org', async () => {
     const e = await rejection(api.projects.get({ params: { projectId: ids.project.storefront } }));
     expect(e.status).toBe(404);
