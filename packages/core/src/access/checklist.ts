@@ -1,6 +1,11 @@
-import { and, eq, exists, inArray, isNotNull, sql } from 'drizzle-orm';
+import { and, eq, exists, inArray, isNotNull, or, sql } from 'drizzle-orm';
 import { agents, connections, projects, rules, type Tx } from '@agentdesk/db';
-import type { OrgChecklistDto } from '@agentdesk/contracts';
+import { AGENT_KIND_CAPABILITIES, type OrgChecklistDto } from '@agentdesk/contracts';
+
+/** Agent kinds that can run without a stored credential, read from the kind capability table. */
+const CREDENTIAL_OPTIONAL_KINDS: string[] = Object.entries(AGENT_KIND_CAPABILITIES)
+  .filter(([, cap]) => cap.credentialOptional)
+  .map(([kind]) => kind);
 
 /** Runs inside the caller's withOrg transaction. Without `visibleProjectIds` every project RLS lets the transaction see counts. Steps in the order connect_code_host, create_project, add_agent, add_rule. */
 export async function orgChecklist(tx: Tx, visibleProjectIds?: readonly string[]): Promise<OrgChecklistDto> {
@@ -16,7 +21,13 @@ export async function orgChecklist(tx: Tx, visibleProjectIds?: readonly string[]
       tx
         .select({ one: sql`1` })
         .from(agents)
-        .where(and(eq(agents.projectId, projects.id), isNotNull(agents.credentialSecretName))),
+        .where(
+          and(
+            eq(agents.projectId, projects.id),
+            eq(agents.isDefault, true),
+            or(isNotNull(agents.credentialSecretName), inArray(agents.provider, CREDENTIAL_OPTIONAL_KINDS)),
+          ),
+        ),
     )}`;
     const hasRule = sql<boolean>`${exists(
       tx

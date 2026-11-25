@@ -57,7 +57,7 @@
 //     model, 3050 tokens in all; every later turn writes one fake-model-a call with fresh ids, 240 tokens; the mode is kept
 //     in $FAKE_VOLUME_DIR/usage-mode because a resumed pod gets no prompt),
 //     --fake-usage-unpriced (like --fake-usage with fake-model-unpriced as the second model).
-// The launch line is `agentdesk: agent claude model <AGENT_MODEL or default> endpoint <scheme://host[:port] of
+// The launch line is `agentdesk: agent <AGENT, default claude> model <AGENT_MODEL or default> endpoint <scheme://host[:port] of
 // ANTHROPIC_BASE_URL or default>`, built by the same rules as the runner's. The fake pod prints it first (before the
 // resume-failed exit 79 and the setup-failed exit 78, where the real runner prints none) so the e2e can read the first
 // log line; the real runner prints it just before the tmux session starts. setup_test prints none, like the runner.
@@ -128,11 +128,33 @@ const launchEndpoint = (address) => {
   if (!/^([A-Za-z0-9._-]+|\[[0-9A-Fa-f:.]+\])(:[0-9]+)?$/u.test(rest)) return 'default';
   return `${scheme}://${rest}`;
 };
+// Where each agent kind keeps its address (spike.json of each kind): claude reads ANTHROPIC_BASE_URL; codex has no address
+// field; opencode has no env variable, only the inline provider config (provider.agentdesk.options.baseURL), which never
+// holds the key. A kind not in this table is refused.
+const inlineBaseUrl = (raw) => {
+  try {
+    const url = JSON.parse(raw)?.provider?.agentdesk?.options?.baseURL;
+    return typeof url === 'string' ? url : '';
+  } catch {
+    return '';
+  }
+};
+const ENDPOINT_OF = {
+  claude: () => process.env.ANTHROPIC_BASE_URL ?? '',
+  codex: () => '',
+  opencode: () => inlineBaseUrl(process.env.OPENCODE_CONFIG_CONTENT ?? ''),
+};
+const agentKind = process.env.AGENT || 'claude';
+// Like the runner's entrypoint: an unknown kind (antigravity included) exits 2 before anything starts; the value is never logged.
+if (!Object.hasOwn(ENDPOINT_OF, agentKind)) {
+  log('agentdesk: unsupported agent');
+  process.exit(2);
+}
 const launchLine = () => {
   const model = process.env.AGENT_MODEL || 'default';
-  const endpoint = launchEndpoint(process.env.ANTHROPIC_BASE_URL ?? '');
+  const endpoint = launchEndpoint(ENDPOINT_OF[agentKind]());
   log(
-    `agentdesk: agent claude model ${model.replace(LAUNCH_SAFE, '?')} endpoint ${endpoint.replace(LAUNCH_SAFE, '?')}`,
+    `agentdesk: agent ${agentKind} model ${model.replace(LAUNCH_SAFE, '?')} endpoint ${endpoint.replace(LAUNCH_SAFE, '?')}`,
   );
 };
 const logIdentity = () => {

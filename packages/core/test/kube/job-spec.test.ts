@@ -1,5 +1,6 @@
 import type { V1Job } from '@kubernetes/client-node';
 import { describe, expect, it } from 'vitest';
+import { agentAdapterFor } from '../../src/adapters/agents/registry';
 import {
   buildRunJob,
   buildSetupTestJob,
@@ -618,5 +619,55 @@ describe('project env in Jobs', () => {
     };
     for (const n of secretNames) data[n] = b64('x'.repeat(4096 - n.length));
     expect(JSON.stringify(data).length).toBeLessThan(1024 * 1024);
+  });
+});
+
+describe('agent kinds in the run Job', () => {
+  const envOf = (over: Partial<RunJobInput>) => buildRunJob(input(over)).spec?.template.spec?.containers[0]?.env ?? [];
+  const secretKeysOf = (job: V1Job): string[] =>
+    (job.spec?.template.spec?.containers[0]?.env ?? [])
+      .filter((e) => e.valueFrom?.secretKeyRef?.name === `run-${RUN}` && e.name !== 'REPO_CLONE_URL')
+      .map((e) => e.name);
+
+  it.each([
+    ['claude', 'api_key', 'ANTHROPIC_API_KEY'],
+    ['codex', 'api_key', 'CODEX_API_KEY'],
+    ['codex', 'auth_json', null],
+    ['opencode', 'api_key', 'AGENTDESK_LLM_API_KEY'],
+    ['opencode', 'auth_json', null],
+    ['opencode', null, null],
+  ] as const)('%s with %s: AGENT and the credential env name come from the adapter', (kind, type, credEnv) => {
+    const adapter = agentAdapterFor(kind);
+    const credentialEnvKeys =
+      type !== null && adapter.credentialEnv(type) !== null ? [adapter.credentialEnv(type) ?? ''] : [];
+    expect(credentialEnvKeys).toEqual(credEnv === null ? [] : [credEnv]);
+    const job = buildRunJob(
+      input({
+        agentEnv: adapter.launchEnv({ model: 'm1', baseUrl: null, credentialType: type }),
+        credentialEnvKeys,
+      }),
+    );
+    const env = job.spec?.template.spec?.containers[0]?.env ?? [];
+    expect(env).toContainEqual({ name: 'AGENT', value: kind });
+    expect(secretKeysOf(job)).toEqual(credentialEnvKeys.filter((k) => k !== ''));
+  });
+
+  it('a name, label or model with shell metacharacters reaches the spec only as a quoted env value', () => {
+    const nasty = '"; $(touch /tmp/pwn) `id` | rm -rf / #';
+    const job = buildRunJob(
+      input({
+        agentEnv: [
+          { name: 'AGENT', value: 'opencode' },
+          { name: 'AGENT_MODEL', value: nasty },
+        ],
+        author: { name: nasty, email: 'a@example.invalid', authorizedBy: nasty },
+      }),
+    );
+    const c = job.spec?.template.spec?.containers[0];
+    expect(JSON.stringify([c?.command, c?.args])).not.toContain('touch');
+    const model = envOf({ agentEnv: [{ name: 'AGENT_MODEL', value: nasty }] }).find((e) => e.name === 'AGENT_MODEL');
+    // `$(` is escaped to `$$(` by Kubernetes env expansion rules; the text is still only a value.
+    expect(model?.value).toBe('"; $$(touch /tmp/pwn) `id` | rm -rf / #');
+    expect(model?.valueFrom).toBeUndefined();
   });
 });

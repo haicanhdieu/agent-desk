@@ -3,6 +3,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { agents, connections, createDb, projects, rules, withOrg, type Db, type Tx } from '@agentdesk/db';
 import { startPg, type TestPg } from '@agentdesk/db/testing';
 import { eq } from 'drizzle-orm';
+import { AGENT_KIND_CAPABILITIES, AgentKind } from '@agentdesk/contracts';
 import { orgChecklist } from '../../src';
 
 let pgServer: TestPg;
@@ -56,10 +57,24 @@ async function addProject(tx: Tx, orgId: string, connId: string): Promise<string
   return p!.id;
 }
 
-async function addAgent(tx: Tx, orgId: string, projectId: string, credential: string | null): Promise<string> {
+async function addAgent(
+  tx: Tx,
+  orgId: string,
+  projectId: string,
+  credential: string | null,
+  o: { isDefault?: boolean; provider?: string } = {},
+): Promise<string> {
   const [a] = await tx
     .insert(agents)
-    .values({ orgId, projectId, name: `a-${randomUUID()}`, model: 'm', credentialSecretName: credential })
+    .values({
+      orgId,
+      projectId,
+      name: `a-${randomUUID()}`,
+      model: 'm',
+      credentialSecretName: credential,
+      isDefault: o.isDefault ?? true,
+      ...(o.provider !== undefined ? { provider: o.provider } : {}),
+    })
     .returning({ id: agents.id });
   return a!.id;
 }
@@ -203,5 +218,70 @@ describe('orgChecklist', () => {
     });
     expect(c.complete).toBe(false);
     expect(done(c)).toEqual([true, true, false, false]);
+  });
+});
+
+describe('orgChecklist: add_agent follows the default agent (BR-68)', () => {
+  async function addAgentDone(setup: (tx: Tx, orgId: string, p: string) => Promise<void>): Promise<boolean> {
+    const orgId = randomUUID();
+    const c = await withOrg(db, orgId, async (tx) => {
+      const conn = await addConnection(tx, orgId, { code: true, board: true });
+      const p = await addProject(tx, orgId, conn);
+      await setup(tx, orgId, p);
+      return orgChecklist(tx, [p]);
+    });
+    return c.steps.find((s) => s.key === 'add_agent')?.done === true;
+  }
+
+  it('is not done for a credential-less default Claude Code agent', async () => {
+    expect(
+      await addAgentDone(async (tx, o, p) => {
+        await addAgent(tx, o, p, null, { provider: 'claude' });
+      }),
+    ).toBe(false);
+  });
+
+  it('is not done when only a non-default agent has a credential', async () => {
+    expect(
+      await addAgentDone(async (tx, o, p) => {
+        await addAgent(tx, o, p, null, { isDefault: true });
+        await addAgent(tx, o, p, 'secret-x', { isDefault: false });
+      }),
+    ).toBe(false);
+  });
+
+  it('is done when the default has a credential', async () => {
+    expect(
+      await addAgentDone(async (tx, o, p) => {
+        await addAgent(tx, o, p, 'secret-1');
+      }),
+    ).toBe(true);
+  });
+
+  it('is done at once for a default OpenCode agent with no credential', async () => {
+    expect(
+      await addAgentDone(async (tx, o, p) => {
+        await addAgent(tx, o, p, null, { provider: 'opencode' });
+      }),
+    ).toBe(true);
+  });
+
+  it.each(AgentKind.options)(
+    'a credential-less default %s agent is done only when its credential is optional',
+    async (kind) => {
+      expect(
+        await addAgentDone(async (tx, o, p) => {
+          await addAgent(tx, o, p, null, { provider: kind });
+        }),
+      ).toBe(AGENT_KIND_CAPABILITIES[kind].credentialOptional);
+    },
+  );
+
+  it('is not done for a credential-less Codex default', async () => {
+    expect(
+      await addAgentDone(async (tx, o, p) => {
+        await addAgent(tx, o, p, null, { provider: 'codex' });
+      }),
+    ).toBe(false);
   });
 });
