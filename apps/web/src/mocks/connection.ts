@@ -2,7 +2,7 @@ import type { ConnectionStatus, ConnectionWarning, PollInterval, TriggerMode } f
 
 // Trigger mode (webhook or polling) and connection status. Every user-facing string for this
 // lives here so it is easy to keep in step with design/prototype (Setup1, Setup1Polling,
-// Setup1PollingOk, SetupReady, Projects, RunsProblems, DeskAgent) and the PRD.
+// Setup1PollingOk, SetupReady, Projects, RunsProblems, DeskAgentGitHub) and the PRD.
 
 export const pollIntervals: PollInterval[] = ['5 min', '10 min', '15 min', '30 min'];
 /** The minimum is also the default. */

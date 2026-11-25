@@ -46,7 +46,7 @@ export const Replacing: Story = {
     savedInfo: { ...info, status: { tone: 'err', text: 'Rejected at 11:29' } },
   },
 };
-/** A replace panel opened by the surrounding flow, e.g. the API address changed (board DeskAgentAddressChanged). */
+/** A replace panel opened by the surrounding flow, e.g. the API address changed (board DeskAgentEditAddressChanged). */
 export const ReplacingOverride: Story = {
   args: {
     state: 'replacing',

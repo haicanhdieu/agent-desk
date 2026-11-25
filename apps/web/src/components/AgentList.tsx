@@ -59,38 +59,38 @@ export function AgentList({
         </div>
         {!readOnly && state !== 'empty' && addAgent}
       </header>
-      {state === 'loading' && (
-        <div role="status" aria-label="Loading agents" aria-busy="true">
-          <ul className={styles.rows}>
-            {Array.from({ length: SKELETON_ROWS }, (_, i) => (
-              <li key={i} className={styles.skeletonRow}>
-                <Skeleton variant="block" width={32} height={32} />
-                <Skeleton variant="text" lines={2} width="60%" />
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
-      {state === 'error' && (
-        <Banner
-          tone="err"
-          icon={<Icon name="warning" size={16} />}
-          live="assertive"
-          actions={<Button onClick={onRetry}>Retry</Button>}
-        >
-          <span>Could not load the agents. Try again.</span>
-          {error?.requestId && <span className={styles.request}>Request ID: {error.requestId}</span>}
-        </Banner>
-      )}
-      {state === 'empty' && (
-        <EmptyState
-          title="No agents yet"
-          body="Add an agent so a routing rule has something to run. The first one you add becomes the project default."
-          action={readOnly ? undefined : addAgent}
-        />
-      )}
-      {state === 'ready' && (
-        <>
+      <div className={styles.scroll} role="region" aria-label="Agents list" tabIndex={0}>
+        {state === 'loading' && (
+          <div role="status" aria-label="Loading agents" aria-busy="true">
+            <ul className={styles.rows}>
+              {Array.from({ length: SKELETON_ROWS }, (_, i) => (
+                <li key={i} className={styles.skeletonRow}>
+                  <Skeleton variant="block" width={32} height={32} />
+                  <Skeleton variant="text" lines={2} width="60%" />
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+        {state === 'error' && (
+          <Banner
+            tone="err"
+            icon={<Icon name="warning" size={16} />}
+            live="assertive"
+            actions={<Button onClick={onRetry}>Retry</Button>}
+          >
+            <span>Could not load the agents. Try again.</span>
+            {error?.requestId && <span className={styles.request}>Request ID: {error.requestId}</span>}
+          </Banner>
+        )}
+        {state === 'empty' && (
+          <EmptyState
+            title="No agents yet"
+            body="Add an agent so a routing rule has something to run. The first one you add becomes the project default."
+            action={readOnly ? undefined : addAgent}
+          />
+        )}
+        {state === 'ready' && (
           <ul className={styles.rows}>
             {rows.map((agent) => (
               <AgentRow
@@ -107,9 +107,9 @@ export function AgentList({
               />
             ))}
           </ul>
-          <Pagination {...pagination} />
-        </>
-      )}
+        )}
+      </div>
+      {state === 'ready' && <Pagination {...pagination} />}
     </section>
   );
 }

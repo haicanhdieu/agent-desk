@@ -104,6 +104,8 @@ export const runsQueries = {
 }
 ```
 
+A Desk page fits the window: the top bar, page header, tab strip and action footer stay put; only the body scrolls, and every scroll box is keyboard-reachable.
+
 ## 6. Components and naming
 
 - **MUST** name component files and exports in PascalCase, one main component per file: `RunRow.tsx`, `RunRow.module.css`, `RunRow.stories.tsx`, `RunRow.test.tsx` side by side. Hooks are `useX.ts`; pure helpers camelCase (`highlightMarkdown.ts`).

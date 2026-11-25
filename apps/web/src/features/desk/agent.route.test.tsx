@@ -12,7 +12,6 @@ const projectId = ids.project.invoicerApi;
 const agentPage = `/o/alice/p/${projectId}/desk/agent`;
 const projectPath = `/api/projects/${projectId}`;
 const agentPath = `${projectPath}/agent`;
-const credentialPath = `/api/agents/${ids.agent.invoicerApi}/credential`;
 
 interface Sent {
   method: string;
@@ -57,9 +56,11 @@ const agentRow = () => {
   return row;
 };
 
-async function openPage() {
+/** Opens the screen and then the named tab (the screen starts on Agents; every setting here sits on another tab). */
+async function openPage(tab: 'Limits' | 'GitHub connection' | 'Danger zone' = 'Limits') {
   const rendered = await renderRoute(agentPage);
   expect(await screen.findByRole('heading', { level: 1, name: 'Agent & settings' })).toBeInTheDocument();
+  fireEvent.click(screen.getByRole('tab', { name: tab }));
   return rendered;
 }
 
@@ -68,13 +69,13 @@ const unitSelect = () => screen.getByLabelText('Run time limit unit');
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 describe('desk agent route', () => {
-  it('shows the agent, credential, limits and connection from the API', async () => {
-    await openPage();
+  it('shows the limits and the connection from the API', async () => {
+    const { user } = await openPage();
     expect(field('Run time limit')).toHaveValue('30');
     expect(unitSelect()).toHaveValue('minutes');
     expect(field('Concurrent runs')).toHaveValue('2');
     expect(field('Runs per ticket')).toHaveValue('10');
-    expect(screen.getByText(/^Set .+ by kim-hale\./)).toBeInTheDocument();
+    await user.click(screen.getByRole('tab', { name: 'GitHub connection' }));
     expect(screen.getByText('harbor-labs/invoicer-api', { selector: '.mono' })).toBeInTheDocument();
     expect(screen.getByRole('radio', { name: 'Webhook' })).toHaveAttribute('aria-checked', 'true');
   });
@@ -345,7 +346,7 @@ describe('desk agent route', () => {
 
   it('switching to polling every 30 min sends pollIntervalSeconds 1800 and the connection status refetches', async () => {
     const sent = captureWrites();
-    const { user } = await openPage();
+    const { user } = await openPage('GitHub connection');
     const connectionBefore = mockDb.requests('GET', `${projectPath}/connection`);
     await user.click(screen.getByRole('radio', { name: 'Polling' }));
     const interval = screen.getByRole('radiogroup', { name: 'Check every' });
@@ -364,7 +365,7 @@ describe('desk agent route', () => {
   });
 
   it('a failed trigger mode change goes back to the saved mode and shows the problem title', async () => {
-    const { user } = await openPage();
+    const { user } = await openPage('GitHub connection');
     scenarios.problem('projects.update', {
       status: 503,
       title: 'Polling unavailable',
@@ -390,7 +391,7 @@ describe('desk agent route', () => {
         );
       }),
     );
-    const { user } = await openPage();
+    const { user } = await openPage('GitHub connection');
     await user.click(screen.getByRole('radio', { name: 'Polling' }));
     const interval = screen.getByRole('radiogroup', { name: 'Check every' });
     await user.click(within(interval).getByRole('radio', { name: '30 min' }));
@@ -403,56 +404,8 @@ describe('desk agent route', () => {
     expect(within(interval).getByRole('radio', { name: '30 min' })).toHaveAttribute('aria-checked', 'true');
   });
 
-  it('replacing the credential sends { type, value } and the secret is in no Query or mutation cache entry', async () => {
-    const secret = 'sk-ant-oat01-replace-me-0123456789';
-    const sent = captureWrites();
-    const { user, queryClient } = await openPage();
-    const agentBefore = mockDb.requests('GET', agentPath);
-    await user.click(screen.getByRole('button', { name: 'Replace' }));
-    await user.click(screen.getByRole('radio', { name: 'API key' }));
-    await user.type(screen.getByLabelText('New token'), secret);
-    await user.click(screen.getByRole('button', { name: 'Test and replace' }));
-
-    await waitFor(() => expect(screen.queryByLabelText('New token')).toBeNull());
-    await waitFor(() => expect(sent[0]?.body).toBeDefined());
-    expect(sent).toEqual([{ method: 'PUT', path: credentialPath, body: { type: 'api_key', value: secret } }]);
-    await waitFor(() => expect(mockDb.requests('GET', agentPath)).toBeGreaterThan(agentBefore));
-    expect(agentRow().credential).toMatchObject({ set: true, type: 'api_key', setBy: 'alice' });
-
-    const queries = JSON.stringify(
-      queryClient
-        .getQueryCache()
-        .getAll()
-        .map((q) => q.state.data),
-    );
-    const mutations = JSON.stringify(
-      queryClient
-        .getMutationCache()
-        .getAll()
-        .map((m) => m.state),
-    );
-    expect(queries).not.toContain(secret);
-    expect(mutations).not.toContain(secret);
-    expect(document.body.textContent).not.toContain(secret);
-  });
-
-  it('a refused credential keeps the panel open with the message', async () => {
-    const { user } = await openPage();
-    scenarios.problem('agents.putCredential', {
-      status: 400,
-      title: 'Validation failed',
-      type: 'validation',
-      errors: [{ pointer: '/value', detail: 'The token was rejected by Anthropic.' }],
-    });
-    await user.click(screen.getByRole('button', { name: 'Replace' }));
-    await user.type(screen.getByLabelText('New token'), 'bad-token');
-    await user.click(screen.getByRole('button', { name: 'Test and replace' }));
-    expect(await screen.findByText('The token was rejected by Anthropic.')).toBeInTheDocument();
-    expect(screen.getByLabelText('New token')).toHaveAttribute('aria-invalid', 'true');
-  });
-
   it('delete asks to confirm, removes the project and goes to the projects list', async () => {
-    const { user, router } = await openPage();
+    const { user, router } = await openPage('Danger zone');
     await user.click(screen.getByRole('button', { name: 'Delete project' }));
     const dialog = screen.getByRole('dialog', { name: 'Delete project' });
     // Cancel keeps the project.
@@ -502,11 +455,13 @@ describe('desk agent route: Check now', () => {
         return new HttpResponse(null, { status: 202 });
       }),
     );
-    await openPage();
+    await openPage('GitHub connection');
     expect(screen.getByText('3 hours ago (polling)')).toBeInTheDocument();
     const button = checkNow();
     fireEvent.click(button);
     fireEvent.click(button);
+    // The query library publishes the pending state on the next timer tick; both clicks above landed before it.
+    await act(() => sleep(0));
     expect(screen.getByRole('button', { name: 'Checking…' })).toBeDisabled();
     release();
     expect(await screen.findByText('just now (polling)')).toBeInTheDocument();
@@ -521,7 +476,7 @@ describe('desk agent route: Check now', () => {
     let stopReads: (() => void) | undefined;
     try {
       pollingProject();
-      await openPage();
+      await openPage('GitHub connection');
       vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
       expect(screen.getByText('3 hours ago (polling)')).toBeInTheDocument();
       // A scheduled poll ran after the page loaded: the server is ahead of the page's cache.
@@ -562,7 +517,7 @@ describe('desk agent route: Check now', () => {
 
   it('while polling is paused it shows the reason, sends no successful poll and leaves Last checked alone', async () => {
     pollingProject({ pausedReason: 'token_revoked', lastError: 'rejected' });
-    const { user } = await openPage();
+    const { user } = await openPage('GitHub connection');
     await user.click(checkNow());
     expect(await screen.findByRole('alert')).toHaveTextContent('Polling is paused: token_revoked');
     expect(screen.getByText('3 hours ago (polling)')).toBeInTheDocument();
@@ -571,7 +526,7 @@ describe('desk agent route: Check now', () => {
 
   it('a server error shows a message and the button is usable again', async () => {
     pollingProject();
-    const { user } = await openPage();
+    const { user } = await openPage('GitHub connection');
     scenarios.serverError('projects.pollNow');
     await user.click(checkNow());
     expect(await screen.findByRole('alert')).toHaveTextContent('Could not start the check');
@@ -579,144 +534,23 @@ describe('desk agent route: Check now', () => {
   });
 });
 
-describe('desk agent route: default model and API address', () => {
-  const agentId = ids.agent.invoicerApi;
-  const modelSelect = () => screen.getByRole('combobox', { name: 'Default model' });
-  const modelOptions = () => Array.from(modelSelect().querySelectorAll('option')).map((o) => o.textContent);
-
-  it('the Default model picker shows the live list', async () => {
-    await openPage();
-    await waitFor(() => expect(modelOptions()).toContain('claude-sonnet-4-5-20250929'));
-    expect(modelOptions().at(-1)).toBe('Other model…');
-  });
-
-  it('Save agent saves the typed model exactly and shows it after returning', async () => {
-    const sent = captureWrites();
-    const { user, router } = await openPage();
-    await waitFor(() => expect(modelOptions()).toContain('claude-sonnet-4-5-20250929'));
-    await user.selectOptions(modelSelect(), 'Other model…');
-    await user.clear(screen.getByRole('textbox', { name: 'Model name' }));
-    await user.type(screen.getByRole('textbox', { name: 'Model name' }), 'my-gw/model-x:1');
-    await user.click(screen.getByRole('button', { name: 'Save agent' }));
-    await waitFor(() => expect(agentRow().model).toBe('my-gw/model-x:1'));
-    expect(sent.find((s) => s.path === agentPath)?.body).toMatchObject({ model: 'my-gw/model-x:1' });
-
-    await act(async () => {
-      await router.navigate({ to: `/o/alice/p/${projectId}/desk/rules` });
-    });
-    await act(async () => {
-      await router.navigate({ to: agentPage });
-    });
-    expect(await screen.findByRole('textbox', { name: 'Model name' })).toHaveValue('my-gw/model-x:1');
-  });
-
-  it('a saved model not in the live list shows under Other model… and Save agent keeps it', async () => {
-    const sent = captureWrites();
-    const { user } = await openPage();
-    await waitFor(() => expect(modelOptions()).toContain('claude-sonnet-4-5-20250929'));
-    expect(modelSelect()).toHaveDisplayValue('Other model…');
-    expect(screen.getByRole('textbox', { name: 'Model name' })).toHaveValue('opus');
-    await user.click(screen.getByRole('button', { name: 'Save agent' }));
-    await waitFor(() => expect(sent.find((s) => s.path === agentPath)?.body).toMatchObject({ model: 'opus' }));
-    expect(agentRow().model).toBe('opus');
-  });
-
-  it('an address change plus token saves both and the model list reloads without a page reload', async () => {
-    const address = 'https://gw.example.com/anthropic';
-    scenarios.agentModels(agentId, {
-      kind: 'live',
-      ids: ['claude-default-1'],
-      idsByBaseUrl: { [address]: ['gw-model-1', 'gw-model-2'] },
-    });
-    const sent = captureWrites();
-    const { user } = await openPage();
-    await waitFor(() => expect(modelOptions()).toContain('claude-default-1'));
-    await user.type(field('API address'), address);
-    await user.type(screen.getByLabelText('New token'), 'gw-token-0123456789');
-    await user.click(screen.getByRole('button', { name: 'Test and replace' }));
-    await waitFor(() => expect(modelOptions()).toContain('gw-model-2'));
-    expect(modelOptions()).not.toContain('claude-default-1');
-    expect(sent.find((s) => s.path === credentialPath)?.body).toEqual({
-      type: 'oauth_token',
-      value: 'gw-token-0123456789',
-      baseUrl: address,
-    });
-    expect(agentRow().baseUrl).toBe(address);
-  });
-
-  it('a /baseUrl problem shows on the API address field and the agent is refetched', async () => {
-    const { user } = await openPage();
-    scenarios.problem('agents.putCredential', {
-      status: 400,
-      title: 'Validation failed',
-      type: 'validation',
-      errors: [{ pointer: '/baseUrl', detail: 'Use a public https address.' }],
-    });
-    const agentBefore = mockDb.requests('GET', agentPath);
-    await user.type(field('API address'), 'https://10.0.0.1');
-    await user.type(screen.getByLabelText('New token'), 'gw-token-0123456789');
-    await user.click(screen.getByRole('button', { name: 'Test and replace' }));
-    expect(await screen.findByText('Use a public https address.')).toBeInTheDocument();
-    expect(field('API address')).toHaveAttribute('aria-invalid', 'true');
-    await waitFor(() => expect(mockDb.requests('GET', agentPath)).toBeGreaterThan(agentBefore));
-  });
-
-  it('a /model problem shows on the Default model field', async () => {
-    const { user } = await openPage();
-    scenarios.problem('agents.put', {
-      status: 400,
-      title: 'Validation failed',
-      type: 'validation',
-      errors: [{ pointer: '/model', detail: 'Use 1 to 200 letters, digits or . _ : / @ [ ] + -.' }],
-    });
-    await user.click(screen.getByRole('button', { name: 'Save agent' }));
-    expect(await screen.findByText(/^Use 1 to 200 letters, digits/)).toBeInTheDocument();
-  });
-
-  it('the models request failing shows the error state and Other model… still works', async () => {
-    scenarios.agentModels(agentId, { kind: 'error' });
-    const sent = captureWrites();
-    const { user } = await openPage();
-    expect(
-      await screen.findByText('The model list could not be loaded. You can still type a model name.'),
-    ).toBeInTheDocument();
-    const input = screen.getByRole('textbox', { name: 'Model name' });
-    await user.clear(input);
-    await user.type(input, 'typed-model');
-    await user.click(screen.getByRole('button', { name: 'Save agent' }));
-    await waitFor(() => expect(sent.find((s) => s.path === agentPath)?.body).toMatchObject({ model: 'typed-model' }));
-  });
-
-  it('Save agent is disabled while a credential replace is pending', async () => {
-    const { user } = await openPage();
-    server.use(
-      http.put('*/api/agents/:agentId/credential', async () => {
-        await sleep(300);
-        return HttpResponse.json({ updatedAt: new Date().toISOString() });
-      }),
-    );
-    await user.click(screen.getByRole('button', { name: 'Replace' }));
-    await user.type(screen.getByLabelText('New token'), 'gw-token-0123456789');
-    await user.click(screen.getByRole('button', { name: 'Test and replace' }));
-    expect(screen.getByRole('button', { name: 'Save agent' })).toBeDisabled();
-    await waitFor(() => expect(screen.getByRole('button', { name: 'Save agent' })).toBeEnabled());
-  });
-});
-
 describe('desk agent route: Delete project gate (BR-21)', () => {
   const openAs = async (role: ProjectSpaceRole) => {
-    await renderRoute(agentPage, { scenario: () => applyProjectSpace(mockDb, { role }) });
+    const rendered = await renderRoute(agentPage, { scenario: () => applyProjectSpace(mockDb, { role }) });
     expect(await screen.findByRole('heading', { level: 1, name: 'Agent & settings' })).toBeInTheDocument();
+    return rendered;
   };
 
   it('shows no Delete project control to an admin of this project only', async () => {
     await openAs('projectAdmin');
+    expect(screen.queryByRole('tab', { name: 'Danger zone' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Delete project' })).not.toBeInTheDocument();
     expect(screen.queryByText('Danger zone')).not.toBeInTheDocument();
   });
 
   it.each(['owner', 'admin'] as const)('still shows Delete project to the %s', async (role) => {
-    await openAs(role);
+    const { user } = await openAs(role);
+    await user.click(screen.getByRole('tab', { name: 'Danger zone' }));
     expect(screen.getByRole('button', { name: 'Delete project' })).toBeInTheDocument();
   });
 });

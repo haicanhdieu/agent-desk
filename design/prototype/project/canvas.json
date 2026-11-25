@@ -258,14 +258,6 @@
    "title": "Desk \u2014 routing rules",
    "expand": "fill"
   },
-  "DeskAgent.dc.html": {
-   "x": 4560,
-   "y": 7780,
-   "w": 1440,
-   "h": 1320,
-   "title": "Desk \u2014 agent and settings, replacing credential",
-   "expand": "fill"
-  },
   "SetupWorkspace.dc.html": {
    "x": 10640,
    "y": 2560,
@@ -328,30 +320,6 @@
    "w": 1440,
    "h": 1080,
    "title": "Desk \u2014 routing rules, prompt too long, preview failed",
-   "expand": "fill"
-  },
-  "DeskAgentProjectAdmin.dc.html": {
-   "x": 16720,
-   "y": 7780,
-   "w": 1440,
-   "h": 1320,
-   "title": "Desk \u2014 agent and settings, project admin (no Delete project)",
-   "expand": "fill"
-  },
-  "DeskAgentCustomModel.dc.html": {
-   "x": 13680,
-   "y": 7780,
-   "w": 1440,
-   "h": 1320,
-   "title": "Desk \u2014 agent, custom model and address",
-   "expand": "fill"
-  },
-  "DeskAgentAddressChanged.dc.html": {
-   "x": 15200,
-   "y": 7780,
-   "w": 1440,
-   "h": 1320,
-   "title": "Desk \u2014 agent, API address changed",
    "expand": "fill"
   },
   "Pagination.dc.html": {
@@ -568,30 +536,6 @@
    "w": 1440,
    "h": 900,
    "title": "Run 61 \u2014 running again after an automatic resume",
-   "expand": "fill"
-  },
-  "DeskAgentAutoResume.dc.html": {
-   "x": 13680,
-   "y": 10400,
-   "w": 1440,
-   "h": 1480,
-   "title": "Desk \u2014 agent and settings, automatic resumes after a crash",
-   "expand": "fill"
-  },
-  "DeskAgentAutoResumeChanged.dc.html": {
-   "x": 15200,
-   "y": 10400,
-   "w": 1440,
-   "h": 1480,
-   "title": "Desk \u2014 agent and settings, automatic resumes changed to 2",
-   "expand": "fill"
-  },
-  "DeskAgentAutoResumeError.dc.html": {
-   "x": 16720,
-   "y": 10400,
-   "w": 1440,
-   "h": 1480,
-   "title": "Desk \u2014 agent and settings, automatic resumes out of range",
    "expand": "fill"
   },
   "RunsLinked.dc.html": {
@@ -2785,6 +2729,374 @@
    "h": 900,
    "title": "Run 60 \u2014 succeeded, usage across a price change (date range)",
    "expand": "fill"
+  },
+  "DeskAgentList.dc.html": {
+   "x": 0,
+   "y": 83760,
+   "w": 1440,
+   "h": 900,
+   "title": "Desk \u2014 agents, Agents tab",
+   "expand": "fill"
+  },
+  "DeskAgentListEmpty.dc.html": {
+   "x": 1520,
+   "y": 83760,
+   "w": 1440,
+   "h": 900,
+   "title": "Desk \u2014 agents, no agents yet",
+   "expand": "fill"
+  },
+  "DeskAgentListError.dc.html": {
+   "x": 3040,
+   "y": 83760,
+   "w": 1440,
+   "h": 900,
+   "title": "Desk \u2014 agents, list could not load (other tabs unaffected)",
+   "expand": "fill"
+  },
+  "DeskAgentListLoading.dc.html": {
+   "x": 4560,
+   "y": 83760,
+   "w": 1440,
+   "h": 900,
+   "title": "Desk \u2014 agents, list loading",
+   "expand": "fill"
+  },
+  "DeskAgentListPaged.dc.html": {
+   "x": 6080,
+   "y": 83760,
+   "w": 1440,
+   "h": 900,
+   "title": "Desk \u2014 agents, second page of the list",
+   "expand": "fill"
+  },
+  "DeskAgentListProjectAdmin.dc.html": {
+   "x": 7600,
+   "y": 83760,
+   "w": 1440,
+   "h": 900,
+   "title": "Desk \u2014 agents, project admin sees three tabs and no Danger zone",
+   "expand": "fill"
+  },
+  "DeskAgentListReadOnly.dc.html": {
+   "x": 9120,
+   "y": 83760,
+   "w": 1440,
+   "h": 900,
+   "title": "Desk \u2014 agents, read-only view",
+   "expand": "fill"
+  },
+  "DeskAgentListTesting.dc.html": {
+   "x": 10640,
+   "y": 83760,
+   "w": 1440,
+   "h": 900,
+   "title": "Desk \u2014 agents, testing one row",
+   "expand": "fill"
+  },
+  "DeskAgentRowMenu.dc.html": {
+   "x": 0,
+   "y": 85040,
+   "w": 1440,
+   "h": 900,
+   "title": "Desk \u2014 agents, row menu open",
+   "expand": "fill"
+  },
+  "DeskAgentTestFailed.dc.html": {
+   "x": 1520,
+   "y": 85040,
+   "w": 1440,
+   "h": 900,
+   "title": "Desk \u2014 agents, test connection failed",
+   "expand": "fill"
+  },
+  "DeskAgentDefaultChanged.dc.html": {
+   "x": 3040,
+   "y": 85040,
+   "w": 1440,
+   "h": 900,
+   "title": "Desk \u2014 agents, default changed",
+   "expand": "fill"
+  },
+  "DeskAgentAdd.dc.html": {
+   "x": 4560,
+   "y": 85040,
+   "w": 1440,
+   "h": 900,
+   "title": "Desk \u2014 agents, add agent, no provider picked yet",
+   "expand": "fill"
+  },
+  "DeskAgentAddForm.dc.html": {
+   "x": 6080,
+   "y": 85040,
+   "w": 1440,
+   "h": 900,
+   "title": "Desk \u2014 agents, add agent, Claude Code",
+   "expand": "fill"
+  },
+  "DeskAgentAddCodex.dc.html": {
+   "x": 7600,
+   "y": 85040,
+   "w": 1440,
+   "h": 900,
+   "title": "Desk \u2014 agents, add agent, OpenAI Codex (sign-in file, no API address)",
+   "expand": "fill"
+  },
+  "DeskAgentAddOpenCode.dc.html": {
+   "x": 9120,
+   "y": 85040,
+   "w": 1440,
+   "h": 900,
+   "title": "Desk \u2014 agents, add agent, OpenCode (works without signing in; credentials file or own endpoint and key)",
+   "expand": "fill"
+  },
+  "DeskAgentAddFieldErrors.dc.html": {
+   "x": 10640,
+   "y": 85040,
+   "w": 1440,
+   "h": 900,
+   "title": "Desk \u2014 agents, add agent, field errors",
+   "expand": "fill"
+  },
+  "DeskAgentAddPartial.dc.html": {
+   "x": 0,
+   "y": 86320,
+   "w": 1440,
+   "h": 900,
+   "title": "Desk \u2014 agents, agent saved, credential not saved",
+   "expand": "fill"
+  },
+  "DeskAgentAddSaving.dc.html": {
+   "x": 1520,
+   "y": 86320,
+   "w": 1440,
+   "h": 900,
+   "title": "Desk \u2014 agents, add agent, saving the credential",
+   "expand": "fill"
+  },
+  "DeskAgentEdit.dc.html": {
+   "x": 3040,
+   "y": 86320,
+   "w": 1440,
+   "h": 900,
+   "title": "Desk \u2014 agents, edit the default agent",
+   "expand": "fill"
+  },
+  "DeskAgentEditWork.dc.html": {
+   "x": 4560,
+   "y": 86320,
+   "w": 1440,
+   "h": 900,
+   "title": "Desk \u2014 agents, edit a second Claude agent (own address, own credential)",
+   "expand": "fill"
+  },
+  "DeskAgentEditCodex.dc.html": {
+   "x": 6080,
+   "y": 86320,
+   "w": 1440,
+   "h": 900,
+   "title": "Desk \u2014 agents, edit a Codex agent (no address, no max turns)",
+   "expand": "fill"
+  },
+  "DeskAgentEditOpenCode.dc.html": {
+   "x": 7600,
+   "y": 86320,
+   "w": 1440,
+   "h": 900,
+   "title": "Desk \u2014 agents, edit an OpenCode agent (credentials file replaced by an API endpoint and key)",
+   "expand": "fill"
+  },
+  "DeskAgentEditAddressChanged.dc.html": {
+   "x": 9120,
+   "y": 86320,
+   "w": 1440,
+   "h": 900,
+   "title": "Desk \u2014 agents, API address changed, credential needed again",
+   "expand": "fill"
+  },
+  "DeskAgentEditReplace.dc.html": {
+   "x": 10640,
+   "y": 86320,
+   "w": 1440,
+   "h": 900,
+   "title": "Desk \u2014 agents, replace the credential",
+   "expand": "fill"
+  },
+  "DeskAgentEditNoCredential.dc.html": {
+   "x": 0,
+   "y": 87600,
+   "w": 1440,
+   "h": 900,
+   "title": "Desk \u2014 agents, edit an agent with no credential yet",
+   "expand": "fill"
+  },
+  "DeskAgentEditSaving.dc.html": {
+   "x": 1520,
+   "y": 87600,
+   "w": 1440,
+   "h": 900,
+   "title": "Desk \u2014 agents, edit, saving",
+   "expand": "fill"
+  },
+  "DeskAgentEditGone.dc.html": {
+   "x": 3040,
+   "y": 87600,
+   "w": 1440,
+   "h": 900,
+   "title": "Desk \u2014 agents, edit, the agent was deleted meanwhile",
+   "expand": "fill"
+  },
+  "DeskAgentEditModelFallback.dc.html": {
+   "x": 4560,
+   "y": 87600,
+   "w": 1440,
+   "h": 900,
+   "title": "Desk \u2014 agents, edit, model list could not load, typed model",
+   "expand": "fill"
+  },
+  "DeskAgentEditModelLoading.dc.html": {
+   "x": 6080,
+   "y": 87600,
+   "w": 1440,
+   "h": 900,
+   "title": "Desk \u2014 agents, edit, model list loading",
+   "expand": "fill"
+  },
+  "DeskAgentDelete.dc.html": {
+   "x": 7600,
+   "y": 87600,
+   "w": 1440,
+   "h": 900,
+   "title": "Desk \u2014 agents, delete confirm",
+   "expand": "fill"
+  },
+  "DeskAgentDeleteBlocked.dc.html": {
+   "x": 9120,
+   "y": 87600,
+   "w": 1440,
+   "h": 900,
+   "title": "Desk \u2014 agents, delete refused: a rule uses it",
+   "expand": "fill"
+  },
+  "DeskAgentDeleteBlockedRuns.dc.html": {
+   "x": 10640,
+   "y": 87600,
+   "w": 1440,
+   "h": 900,
+   "title": "Desk \u2014 agents, delete refused: a run is still open",
+   "expand": "fill"
+  },
+  "DeskAgentDeleteError.dc.html": {
+   "x": 0,
+   "y": 88880,
+   "w": 1440,
+   "h": 900,
+   "title": "Desk \u2014 agents, delete failed",
+   "expand": "fill"
+  },
+  "DeskAgentDeleting.dc.html": {
+   "x": 1520,
+   "y": 88880,
+   "w": 1440,
+   "h": 900,
+   "title": "Desk \u2014 agents, deleting",
+   "expand": "fill"
+  },
+  "DeskAgentGitHub.dc.html": {
+   "x": 3040,
+   "y": 88880,
+   "w": 1440,
+   "h": 900,
+   "title": "Desk \u2014 GitHub connection tab",
+   "expand": "fill"
+  },
+  "DeskAgentGitHubPolling.dc.html": {
+   "x": 4560,
+   "y": 88880,
+   "w": 1440,
+   "h": 900,
+   "title": "Desk \u2014 GitHub connection tab, polling",
+   "expand": "fill"
+  },
+  "DeskAgentGitHubCheckingNow.dc.html": {
+   "x": 6080,
+   "y": 88880,
+   "w": 1440,
+   "h": 900,
+   "title": "Desk \u2014 GitHub connection tab, checking now",
+   "expand": "fill"
+  },
+  "DeskAgentGitHubCheckRefused.dc.html": {
+   "x": 7600,
+   "y": 88880,
+   "w": 1440,
+   "h": 900,
+   "title": "Desk \u2014 GitHub connection tab, check refused",
+   "expand": "fill"
+  },
+  "DeskAgentGitHubTriggerError.dc.html": {
+   "x": 9120,
+   "y": 88880,
+   "w": 1440,
+   "h": 900,
+   "title": "Desk \u2014 GitHub connection tab, saving the trigger mode failed",
+   "expand": "fill"
+  },
+  "DeskAgentGitHubLoading.dc.html": {
+   "x": 10640,
+   "y": 88880,
+   "w": 1440,
+   "h": 900,
+   "title": "Desk \u2014 GitHub connection tab, loading",
+   "expand": "fill"
+  },
+  "DeskAgentGitHubError.dc.html": {
+   "x": 0,
+   "y": 90160,
+   "w": 1440,
+   "h": 900,
+   "title": "Desk \u2014 GitHub connection tab, could not load",
+   "expand": "fill"
+  },
+  "DeskAgentLimits.dc.html": {
+   "x": 1520,
+   "y": 90160,
+   "w": 1440,
+   "h": 900,
+   "title": "Desk \u2014 Limits tab, project-wide",
+   "expand": "fill"
+  },
+  "DeskAgentLimitsSaving.dc.html": {
+   "x": 3040,
+   "y": 90160,
+   "w": 1440,
+   "h": 900,
+   "title": "Desk \u2014 Limits tab, saving",
+   "expand": "fill"
+  },
+  "DeskAgentLimitsFieldErrors.dc.html": {
+   "x": 4560,
+   "y": 90160,
+   "w": 1440,
+   "h": 900,
+   "title": "Desk \u2014 Limits tab, field errors",
+   "expand": "fill"
+  },
+  "DeskAgentLimitsError.dc.html": {
+   "x": 6080,
+   "y": 90160,
+   "w": 1440,
+   "h": 900,
+   "title": "Desk \u2014 Limits tab, the save failed",
+   "expand": "fill"
+  },
+  "DeskAgentLimitsReadOnly.dc.html": {
+   "x": 7600,
+   "y": 90160,
+   "w": 1440,
+   "h": 900,
+   "title": "Desk \u2014 Limits tab, read-only",
+   "expand": "fill"
   }
  },
  "order": [
@@ -2855,8 +3167,52 @@
   "DeskRulesPrompt.dc.html",
   "DeskRulesPromptNew.dc.html",
   "DeskRulesPromptError.dc.html",
-  "DeskAgent.dc.html",
-  "DeskAgentProjectAdmin.dc.html",
+  "DeskAgentList.dc.html",
+  "DeskAgentListEmpty.dc.html",
+  "DeskAgentListError.dc.html",
+  "DeskAgentListLoading.dc.html",
+  "DeskAgentListPaged.dc.html",
+  "DeskAgentListProjectAdmin.dc.html",
+  "DeskAgentListReadOnly.dc.html",
+  "DeskAgentListTesting.dc.html",
+  "DeskAgentRowMenu.dc.html",
+  "DeskAgentTestFailed.dc.html",
+  "DeskAgentDefaultChanged.dc.html",
+  "DeskAgentAdd.dc.html",
+  "DeskAgentAddForm.dc.html",
+  "DeskAgentAddCodex.dc.html",
+  "DeskAgentAddOpenCode.dc.html",
+  "DeskAgentAddFieldErrors.dc.html",
+  "DeskAgentAddPartial.dc.html",
+  "DeskAgentAddSaving.dc.html",
+  "DeskAgentEdit.dc.html",
+  "DeskAgentEditWork.dc.html",
+  "DeskAgentEditCodex.dc.html",
+  "DeskAgentEditOpenCode.dc.html",
+  "DeskAgentEditAddressChanged.dc.html",
+  "DeskAgentEditReplace.dc.html",
+  "DeskAgentEditNoCredential.dc.html",
+  "DeskAgentEditSaving.dc.html",
+  "DeskAgentEditGone.dc.html",
+  "DeskAgentEditModelFallback.dc.html",
+  "DeskAgentEditModelLoading.dc.html",
+  "DeskAgentDelete.dc.html",
+  "DeskAgentDeleteBlocked.dc.html",
+  "DeskAgentDeleteBlockedRuns.dc.html",
+  "DeskAgentDeleteError.dc.html",
+  "DeskAgentDeleting.dc.html",
+  "DeskAgentGitHub.dc.html",
+  "DeskAgentGitHubPolling.dc.html",
+  "DeskAgentGitHubCheckingNow.dc.html",
+  "DeskAgentGitHubCheckRefused.dc.html",
+  "DeskAgentGitHubTriggerError.dc.html",
+  "DeskAgentGitHubLoading.dc.html",
+  "DeskAgentGitHubError.dc.html",
+  "DeskAgentLimits.dc.html",
+  "DeskAgentLimitsSaving.dc.html",
+  "DeskAgentLimitsFieldErrors.dc.html",
+  "DeskAgentLimitsError.dc.html",
+  "DeskAgentLimitsReadOnly.dc.html",
   "DeskAudit.dc.html",
   "DeskAuditLoading.dc.html",
   "DeskAuditEmpty.dc.html",
@@ -2864,11 +3220,6 @@
   "DeskAuditPaged.dc.html",
   "DeskAuditInvitationNoEmail.dc.html",
   "DeskAuditInvitationExpired.dc.html",
-  "DeskAgentCustomModel.dc.html",
-  "DeskAgentAddressChanged.dc.html",
-  "DeskAgentAutoResume.dc.html",
-  "DeskAgentAutoResumeChanged.dc.html",
-  "DeskAgentAutoResumeError.dc.html",
   "DeskSetup.dc.html",
   "DeskSetupTest.dc.html",
   "Pagination.dc.html",

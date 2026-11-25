@@ -1,7 +1,7 @@
 import type { AgentDto } from '@agentdesk/contracts';
 import { agentListId, ids } from './ids';
 
-// Mirrors mocks/agent.ts (DeskAgent): Claude on opus, 30 min timeout, OAuth token set by kim-hale on 12 Oct.
+// Mirrors mocks/agent.ts (DeskAgentList): Claude on opus, 30 min timeout, OAuth token set by kim-hale on 12 Oct.
 const agent = (id: string, projectId: string): AgentDto => ({
   id,
   projectId,

@@ -617,3 +617,12 @@ item reads "Change access".
 
 - Runs, RunsPageLoading, RunRunning and RunSucceeded: the stories now show the Usage column or section. The boards are left as drawn, because the usage design lives on the new boards (RunsUsage, RunsPageLoadingUsage, RunRunningUsage, RunSucceededUsage and its variants). No old board is redrawn.
 - RunRunningStop and RunRunningAutoResume keep showing no usage, as drawn.
+
+## Agent & settings tab screen and boards (multi-agent-configs, Task 25)
+
+- The one-page boards `DeskAgent`, `DeskAgentProjectAdmin`, `DeskAgentCustomModel`, `DeskAgentAddressChanged` and `DeskAgentAutoResume*` are retired with their files, `canvas.json` entries, `storyIds.ts` entries and stories. The 46 Agent & settings boards (Agents list, Add, Edit, Delete, GitHub connection, Limits) take their place at the old order slot and in a new block at the bottom of the canvas; every one is a 1440x900 artboard.
+- Agent call: `canvas.json` goes from 347 to 347 - 7 + 46 = 386 boards (the plan's 361 counted from 322; other changes already moved the base to 347). `coverage.test.ts` is updated to 386.
+- Agent call: the board rows are the fixture agents (`Claude - Personal`, `Claude - Work`, `Codex`, `OpenCode - Own endpoint`, ...), not the prototype's sample names (`Codex - Reviews`, `Claude - Staging`, ...). The Agents tab row text, status words and menu follow the boards.
+- Agent call: the Edit and View panes are the existing `AgentPane`, so the pane header, field order and footer follow `AgentPane` and its stories; the list row has no "selected" accent bar while a pane is open.
+- State stories that do an action (`DeskAgentAddForm`, `DeskAgentAddCodex`, `DeskAgentAddOpenCode`, `DeskAgentEditOpenCode`, `DeskAgentEditAddressChanged`, `DeskAgentEditReplace`, `DeskAgentRowMenu`) reach the board's state with a `play` function.
+- Not compared by browser: the new boards were not rendered side by side in this change (Storybook is not built in the runner pod). Smoke and axe run on every new story.

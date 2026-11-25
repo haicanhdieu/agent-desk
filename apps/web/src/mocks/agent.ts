@@ -11,7 +11,7 @@ import type {
 
 const AGENT_KINDS = AgentKind.options;
 
-// Prototype board: DeskAgent (Agent, Credential, Limits).
+// Prototype board: DeskAgentLimits (Limits).
 export const agentSettings: AgentSettings = {
   agent: 'Claude',
   model: 'claude-opus-4-5-20251101',

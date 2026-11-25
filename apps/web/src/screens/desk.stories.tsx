@@ -13,11 +13,19 @@ import {
   type InviteDialogStep,
   type InviteDialogValues,
   type EnvSaveError,
+  type AgentListProps,
+  type AgentPaneProps,
+  type DeleteAgentDialogProps,
   type PaginationProps,
+  type ProviderPickerOption,
 } from '@/components';
-import type { Actor, ProjectMemberRowView } from '@/mocks/types';
+import type { Actor, AgentPaneAgent, ProjectMemberRowView } from '@/mocks/types';
 import type { DeskFrameData } from './DeskFrame';
 import {
+  agentKindViews,
+  agentPaneAgents,
+  agentRowView,
+  agentRowViews,
   agentSettings,
   connectionCopy,
   connections,
@@ -33,10 +41,12 @@ import {
   pagedRules,
   pagedSkills,
   pagedVersions,
+  providerPickerOptions,
   pagedAuditLastPage,
   projectAuditRows,
   projectAuditRowsExpired,
   projectAuditRowsNoEmail,
+  manyAgents,
   manyPickerOptions,
   memberPickerOptions,
   pagedProjectMemberRows,
@@ -59,7 +69,7 @@ import { DeskSetup as DeskSetupScreen, type DeskSetupProps } from './DeskSetup';
 import { DeskAudit as DeskAuditScreen } from './DeskAudit';
 import { DeskMembers as DeskMembersScreen, type DeskMembersProps } from './DeskMembers';
 import screenStyles from './Screens.module.css';
-import { DeskAgent as DeskAgentBase, type DeskAgentProps } from './DeskAgent';
+import { DeskAgent as DeskAgentBase, type AgentLimits, type DeskAgentProps } from './DeskAgent';
 import type { DeskSetupEnvironmentProps, EnvListGroup } from './DeskSetupEnvironment';
 import { DeskRules as DeskRulesScreen, RulePane } from './DeskRules';
 import { DeskSkills as DeskSkillsScreen, type DeskSkillsProps } from './DeskSkills';
@@ -68,7 +78,7 @@ import { agentModelsFixtures } from '@/mocks/dto/agentModels';
 import { StatusIcon, Toast, ToastRegion } from '@/ds';
 import { viewport } from './viewports';
 
-// Artboards come from canvas.json: DeskSkills, DeskSkillDelete, DeskRules, DeskSetup, DeskSetupTest 1440x900; DeskAgent 1440x1320;
+// Artboards come from canvas.json: DeskSkills, DeskSkillDelete, DeskRules, DeskSetup, DeskSetupTest 1440x900; every Agent & settings board 1440x900 (the panel scrolls inside);
 // DeskRulesPrompt, DeskRulesPromptNew, DeskRulesPromptError 1440x1080.
 const meta = {
   title: 'Screens/Desk',
@@ -442,182 +452,297 @@ const github = (last: { term: string; text: string }) => [
   },
 ];
 
+const agentLimits: AgentLimits = {
+  timeoutMinutes: 30,
+  pausedKeepMinutes: 1440,
+  doneKeepMinutes: 120,
+  idleEndMinutes: 10,
+  maxConcurrent: 2,
+  maxRunsPerTicket: 10,
+  autoResumeMax: 5,
+};
 const agentGithub = github({
   term: connectionCopy.lastEventTerm,
   text: 'issue_comment, 2 min ago, accepted (webhook)',
 });
+const pollingGithub = github({ term: connectionCopy.lastCheckedTerm, text: '20s ago, no new comments (polling)' });
 const liveModels = toModelList({ status: 'success', data: agentModelsFixtures.live }, null);
-const savedCredential = { type: 'oauth_token' as const, setAt: '12 Oct 2026', setBy: 'kim-hale' };
+const builtinModels = (reason: 'no_credential' | 'unreachable', baseUrl: string | null = null) =>
+  toModelList(
+    { status: 'success', data: { source: 'builtin', reason, models: agentModelsFixtures.unreachable.models } },
+    baseUrl,
+  );
 
-export const DeskAgent: Story = {
-  name: 'Agent & settings, replacing credential',
-  decorators: artboard(1320),
-  globals: viewport(1440, 1320),
-  render: () => (
-    <DeskAgentScreen
-      frame={deskFrame}
-      settings={agentSettings}
-      modelList={liveModels}
-      replacingCredential
-      github={agentGithub}
-    />
-  ),
+const noop = () => undefined;
+const paging = (total: number, page = 1): PaginationProps => ({
+  page,
+  pageSize: 20,
+  total,
+  onPageChange: noop,
+  onPageSizeChange: noop,
+});
+const agentList = (over: Partial<AgentListProps> = {}): AgentListProps => ({
+  rows: agentRowViews,
+  state: 'ready',
+  pagination: paging(agentRowViews.length),
+  onRetry: noop,
+  onAdd: noop,
+  onEdit: noop,
+  onTest: noop,
+  onSetDefault: noop,
+  onDelete: noop,
+  ...over,
+});
+const providerOptions: ProviderPickerOption[] = [
+  ...providerPickerOptions.runnable.map((o) => ({ kind: o.kind, label: o.label, logo: o.logo, available: true })),
+  ...providerPickerOptions.comingSoon.map((o) => ({ kind: o.id, label: o.label, logo: o.logo, available: false })),
+];
+const agentPane = (over: Partial<AgentPaneProps> = {}): AgentPaneProps => ({
+  mode: 'add',
+  kinds: agentKindViews,
+  providers: providerOptions,
+  modelList: builtinModels('no_credential'),
+  onClose: noop,
+  onSubmit: noop,
+  onReplaceCredential: noop,
+  onTest: noop,
+  ...over,
+});
+const paneAgent = (name: string): AgentPaneAgent => {
+  const found = agentPaneAgents.find((a) => a.name === name);
+  if (!found) throw new Error(`no agent fixture named ${name}`);
+  return found;
 };
+const editPane = (name: string, over: Partial<AgentPaneProps> = {}): AgentPaneProps =>
+  agentPane({ mode: 'edit', agent: paneAgent(name), modelList: liveModels, ...over });
+const workName = 'Claude - Work';
 
-/** Lee Park, an admin of this project only: no onDeleteProject, so no Danger zone. */
-export const DeskAgentProjectAdmin: Story = {
-  name: 'Agent & settings, project admin (no Delete project)',
-  decorators: artboard(1320),
-  globals: viewport(1440, 1320),
+type Canvas = ReturnType<typeof within>;
+const pickRadio = (c: Canvas, name: string) => userEvent.click(c.getByRole('radio', { name }));
+
+/** An Agent & settings board: the Agents tab unless the board says otherwise. One 1440x900 artboard; the panel scrolls. */
+const agentBoard = (name: string, props: Partial<DeskAgentProps>, play?: Story['play']): Story => ({
+  name,
+  decorators: artboard(900),
+  globals: viewport(1440, 900),
+  render: () => (
+    <DeskAgentScreen frame={deskFrame} limits={agentLimits} github={agentGithub} agents={agentList()} {...props} />
+  ),
+  play,
+});
+const agentsBoard = (name: string, props: Partial<DeskAgentProps>, play?: Story['play']): Story =>
+  agentBoard(name, { tab: 'agents', ...props }, play);
+
+// Agents tab: the list
+export const DeskAgentList: Story = agentsBoard('Agents tab', {});
+export const DeskAgentListEmpty: Story = agentsBoard('Agents tab, no agents yet', {
+  agents: agentList({ rows: [], state: 'empty', pagination: paging(0) }),
+});
+export const DeskAgentListError: Story = agentsBoard('Agents tab, list could not load', {
+  agents: agentList({ rows: [], state: 'error', error: { requestId: 'req_8f3a21' } }),
+});
+export const DeskAgentListLoading: Story = agentsBoard('Agents tab, list loading', {
+  agents: agentList({ rows: [], state: 'loading' }),
+});
+export const DeskAgentListPaged: Story = agentsBoard('Agents tab, second page', {
+  agents: agentList({ rows: manyAgents(24).slice(20).map(agentRowView), pagination: paging(24, 2) }),
+});
+/** Lee Park, an admin of this project only: three tabs, no Danger zone. */
+export const DeskAgentListProjectAdmin: Story = {
+  ...agentsBoard('Agents tab, project admin (no Danger zone)', {}),
   render: () => (
     <DeskAgentBase
       frame={{ ...deskFrame, user: { login: 'lee-park', initials: 'LP' } }}
-      settings={agentSettings}
-      modelList={liveModels}
+      limits={agentLimits}
       github={agentGithub}
+      agents={agentList()}
+      tab="agents"
     />
   ),
 };
-
-export const DeskAgentCustomModel: Story = {
-  name: 'Agent & settings, custom model and address',
-  decorators: artboard(1320),
-  globals: viewport(1440, 1320),
-  render: () => (
-    <DeskAgentScreen
-      frame={deskFrame}
-      settings={{
-        ...agentSettings,
-        model: 'anthropic/claude-sonnet-4-5',
-        baseUrl: 'https://gateway.harbor-labs.com/anthropic',
-        credential: savedCredential,
-      }}
-      modelList={toModelList(
-        { status: 'success', data: agentModelsFixtures.unreachable },
-        'https://gateway.harbor-labs.com/anthropic',
-      )}
-      github={agentGithub}
-    />
-  ),
-};
-
-export const DeskAgentAddressChanged: Story = {
-  name: 'Agent & settings, API address changed',
-  decorators: artboard(1320),
-  globals: viewport(1440, 1320),
-  render: () => (
-    <DeskAgentScreen
-      frame={deskFrame}
-      settings={{ ...agentSettings, credential: savedCredential }}
-      modelList={liveModels}
-      initialAddress="https://gateway.harbor-labs.com/anthropic"
-      github={agentGithub}
-    />
-  ),
-};
-
-const autoResumeStory = (name: string, autoResumeMax: number, limitsErrors?: { autoResumeMax: string }): Story => ({
-  name,
-  decorators: artboard(1480),
-  globals: viewport(1440, 1480),
-  render: () => (
-    <DeskAgentScreen
-      frame={deskFrame}
-      settings={{ ...agentSettings, autoResumeMax }}
-      modelList={liveModels}
-      limitsErrors={limitsErrors}
-      github={agentGithub}
-    />
-  ),
+export const DeskAgentListReadOnly: Story = agentsBoard('Agents tab, read-only', {
+  agents: agentList({ readOnly: true }),
+  pane: agentPane({ mode: 'view', agent: paneAgent(workName), modelList: liveModels }),
+  limitsReadOnly: true,
+});
+export const DeskAgentListTesting: Story = agentsBoard('Agents tab, testing one row', {
+  agents: agentList({ testingId: agentRowViews[1].id }),
+});
+export const DeskAgentRowMenu: Story = agentsBoard('Agents tab, row menu open', {}, async ({ canvasElement }) => {
+  await userEvent.click(within(canvasElement).getByRole('button', { name: `Actions for ${agentRowViews[1].name}` }));
+});
+export const DeskAgentTestFailed: Story = agentsBoard('Agents tab, test connection failed', {
+  pane: editPane(workName),
+});
+export const DeskAgentDefaultChanged: Story = agentsBoard('Agents tab, default changed', {
+  agents: agentList({ rows: agentRowViews.map((r, i) => ({ ...r, isDefault: i === 1 })) }),
 });
 
-/** Limits: Automatic resumes after a crash, at its default of 5. */
-export const DeskAgentAutoResume: Story = autoResumeStory('Agent & settings, automatic resumes after a crash', 5);
+// Agents tab: the Add pane
+export const DeskAgentAdd: Story = agentsBoard('Add agent, no provider picked yet', { pane: agentPane() });
+export const DeskAgentAddForm: Story = agentsBoard(
+  'Add agent, Claude Code',
+  { pane: agentPane() },
+  async ({ canvasElement }) => pickRadio(within(canvasElement), 'Claude Code'),
+);
+export const DeskAgentAddCodex: Story = agentsBoard(
+  'Add agent, OpenAI Codex',
+  { pane: agentPane() },
+  async ({ canvasElement }) => pickRadio(within(canvasElement), 'OpenAI Codex'),
+);
+/** OpenCode needs no login: nothing is picked and the no-login line shows. */
+export const DeskAgentAddOpenCode: Story = agentsBoard(
+  'Add agent, OpenCode',
+  { pane: agentPane() },
+  async ({ canvasElement }) => pickRadio(within(canvasElement), 'OpenCode'),
+);
+export const DeskAgentAddFieldErrors: Story = agentsBoard(
+  'Add agent, field errors',
+  {
+    pane: agentPane({
+      fieldErrors: {
+        name: 'An agent with this name already exists.',
+        accountLabel: 'Use 256 characters or fewer.',
+        model: 'Enter a model name.',
+      },
+    }),
+  },
+  async ({ canvasElement }) => pickRadio(within(canvasElement), 'OpenAI Codex'),
+);
+/** The agent was created but its credential was not saved. */
+export const DeskAgentAddPartial: Story = agentsBoard('Add agent, agent saved, credential not saved', {
+  pane: editPane('Claude - New', { partial: { reason: 'The credential file is too large.', requestId: 'req_01HZX' } }),
+});
+export const DeskAgentAddSaving: Story = agentsBoard(
+  'Add agent, saving the credential',
+  { pane: agentPane({ saving: true, progress: 'Saving credential…' }) },
+  async ({ canvasElement }) => pickRadio(within(canvasElement), 'Claude Code'),
+);
 
-/** The same field changed to 2. */
-export const DeskAgentAutoResumeChanged: Story = autoResumeStory('Agent & settings, automatic resumes changed to 2', 2);
-
-/** A refused save: 12 typed, the field marked invalid with the message under the help text. */
-export const DeskAgentAutoResumeError: Story = autoResumeStory('Agent & settings, automatic resumes out of range', 12, {
-  autoResumeMax: 'Automatic resumes must be between 0 and 10',
+// Agents tab: the Edit pane
+export const DeskAgentEdit: Story = agentsBoard('Edit the default agent', { pane: editPane('Claude - Personal') });
+export const DeskAgentEditWork: Story = agentsBoard('Edit a second Claude agent', { pane: editPane(workName) });
+export const DeskAgentEditCodex: Story = agentsBoard('Edit a Codex agent', { pane: editPane('Codex') });
+/** A credentials file is saved; Replace opens the panel and the choice changes to API endpoint and key. */
+export const DeskAgentEditOpenCode: Story = agentsBoard(
+  'Edit an OpenCode agent, credentials file replaced by an API endpoint and key',
+  { pane: editPane('OpenCode - Credentials file') },
+  async ({ canvasElement }) => {
+    const c = within(canvasElement);
+    await userEvent.click(c.getByRole('button', { name: 'Replace' }));
+    await pickRadio(c, 'API endpoint and key');
+  },
+);
+export const DeskAgentEditAddressChanged: Story = agentsBoard(
+  'Edit, API address changed, credential needed again',
+  { pane: editPane('Claude - Personal') },
+  async ({ canvasElement }) =>
+    userEvent.type(within(canvasElement).getByLabelText('API address'), 'https://proxy.example.com'),
+);
+export const DeskAgentEditReplace: Story = agentsBoard(
+  'Edit, replace the credential',
+  { pane: editPane(workName) },
+  async ({ canvasElement }) => userEvent.click(within(canvasElement).getByRole('button', { name: 'Replace' })),
+);
+export const DeskAgentEditNoCredential: Story = agentsBoard('Edit an agent with no credential yet', {
+  pane: editPane('Claude - New'),
+});
+export const DeskAgentEditSaving: Story = agentsBoard('Edit, saving', {
+  pane: editPane('Claude - Personal', { saving: true, progress: 'Saving agent…' }),
+});
+export const DeskAgentEditGone: Story = agentsBoard('Edit, the agent was deleted meanwhile', {
+  pane: editPane(workName, { gone: true }),
+});
+export const DeskAgentEditModelFallback: Story = agentsBoard('Edit, model list could not load, typed model', {
+  pane: editPane('OpenCode - Own endpoint', {
+    modelList: builtinModels('unreachable', 'https://llm.harbor-labs.example/v1'),
+  }),
+});
+export const DeskAgentEditModelLoading: Story = agentsBoard('Edit, model list loading', {
+  pane: editPane('Claude - Personal', { modelList: toModelList({ status: 'pending' }, null) }),
 });
 
-export const DeskAgentLoadingModels: Story = {
-  name: 'Agent & settings, loading model list',
-  decorators: artboard(1320),
-  globals: viewport(1440, 1320),
-  render: () => <DeskAgentScreen frame={deskFrame} settings={agentSettings} github={agentGithub} />,
-};
+// Agents tab: Delete
+const toDelete = (state: DeleteAgentDialogProps) => ({ deleteDialog: state });
+const deleteBase = { name: workName, onKeep: noop, onDelete: noop };
+export const DeskAgentDelete: Story = agentsBoard('Delete confirm', toDelete({ ...deleteBase, state: 'confirm' }));
+export const DeskAgentDeleteBlocked: Story = agentsBoard(
+  'Delete refused, a rule uses it',
+  toDelete({ ...deleteBase, state: 'blockedRules', rule: { count: 1, command: 'fix' } }),
+);
+export const DeskAgentDeleteBlockedRuns: Story = agentsBoard(
+  'Delete refused, a run is still open',
+  toDelete({ ...deleteBase, state: 'blockedRuns', run: { number: 12, state: 'paused and can be resumed' } }),
+);
+export const DeskAgentDeleteError: Story = agentsBoard(
+  'Delete failed',
+  toDelete({ ...deleteBase, state: 'error', error: { title: 'Something went wrong', requestId: 'req_8f3a21' } }),
+);
+export const DeskAgentDeleting: Story = agentsBoard('Deleting', toDelete({ ...deleteBase, state: 'deleting' }));
 
-export const DeskAgentModelsFailed: Story = {
-  name: 'Agent & settings, model list failed',
-  decorators: artboard(1320),
-  globals: viewport(1440, 1320),
+// GitHub connection tab
+const githubBoard = (name: string, props: Partial<DeskAgentProps>): Story =>
+  agentBoard(name, { tab: 'github', ...props });
+export const DeskAgentGitHub: Story = githubBoard('GitHub connection tab', {});
+export const DeskAgentGitHubPolling: Story = githubBoard('GitHub connection tab, polling', {
+  connection: connections.pollingOk,
+  github: pollingGithub,
+});
+export const DeskAgentGitHubCheckingNow: Story = githubBoard('GitHub connection tab, checking now', {
+  connection: connections.pollingOk,
+  checkingNow: true,
+  github: pollingGithub,
+});
+export const DeskAgentGitHubCheckRefused: Story = githubBoard('GitHub connection tab, check refused', {
+  connection: connections.pollingRevoked,
+  checkNowError: "Polling is paused: the connection's token was revoked. Reconnect it, then check again.",
+  github: github({ term: connectionCopy.lastCheckedTerm, text: '2 hours ago (polling)' }),
+});
+export const DeskAgentGitHubTriggerError: Story = githubBoard('GitHub connection tab, saving the trigger mode failed', {
+  triggerError: 'Internal server error',
+});
+export const DeskAgentGitHubLoading: Story = githubBoard('GitHub connection tab, loading', { githubState: 'loading' });
+export const DeskAgentGitHubError: Story = githubBoard('GitHub connection tab, could not load', {
+  githubState: 'error',
+  githubError: { requestId: 'req_01JDE7Q3M9KT' },
+});
+
+// Limits tab
+const limitsBoard = (name: string, props: Partial<DeskAgentProps>): Story =>
+  agentBoard(name, { tab: 'limits', ...props });
+export const DeskAgentLimits: Story = limitsBoard('Limits tab, project-wide', {});
+export const DeskAgentLimitsSaving: Story = limitsBoard('Limits tab, saving', { savingLimits: true });
+export const DeskAgentLimitsFieldErrors: Story = limitsBoard('Limits tab, field errors', {
+  limits: { ...agentLimits, autoResumeMax: 12 },
+  limitsErrors: {
+    timeoutMinutes: 'Too big: expected number to be <=10080',
+    autoResumeMax: 'Automatic resumes must be between 0 and 10',
+  },
+});
+export const DeskAgentLimitsError: Story = limitsBoard('Limits tab, the save failed', {
+  limitsError: 'Internal server error',
+});
+export const DeskAgentLimitsReadOnly: Story = limitsBoard('Limits tab, read-only', { limitsReadOnly: true });
+
+/** Fits the window: a short canvas with a long list, so the list's own scroll box and the pinned Pagination show. */
+export const DeskAgentListFitsViewport: Story = {
+  name: 'Agents tab, fits the window',
+  decorators: [
+    (S) => (
+      <div style={{ width: 1440, height: 560 }}>
+        <S />
+      </div>
+    ),
+  ],
+  globals: viewport(1440, 900),
   render: () => (
     <DeskAgentScreen
       frame={deskFrame}
-      settings={agentSettings}
-      modelList={toModelList({ status: 'error' }, null)}
+      height="viewport"
+      limits={agentLimits}
       github={agentGithub}
-    />
-  ),
-};
-
-export const DeskAgentSaveErrors: Story = {
-  name: 'Agent & settings, refused saves',
-  decorators: artboard(1320),
-  globals: viewport(1440, 1320),
-  render: () => (
-    <DeskAgentScreen
-      frame={deskFrame}
-      settings={{ ...agentSettings, timeoutMinutes: 60 }}
-      triggerError="Internal server error"
-      limitsErrors={{ timeoutMinutes: 'Too big: expected number to be <=3300' }}
-      github={github({ term: connectionCopy.lastEventTerm, text: 'issue_comment, 2 min ago, accepted (webhook)' })}
-    />
-  ),
-};
-
-export const DeskAgentPolling: Story = {
-  name: 'Agent & settings, polling',
-  decorators: artboard(1320),
-  globals: viewport(1440, 1320),
-  render: () => (
-    <DeskAgentScreen
-      frame={deskFrame}
-      settings={agentSettings}
-      connection={connections.pollingOk}
-      github={github({ term: connectionCopy.lastCheckedTerm, text: '20s ago, no new comments (polling)' })}
-    />
-  ),
-};
-
-export const DeskAgentCheckingNow: Story = {
-  name: 'Agent & settings, checking now',
-  decorators: artboard(1320),
-  globals: viewport(1440, 1320),
-  render: () => (
-    <DeskAgentScreen
-      frame={deskFrame}
-      settings={agentSettings}
-      connection={connections.pollingOk}
-      checkingNow
-      github={github({ term: connectionCopy.lastCheckedTerm, text: '20s ago, no new comments (polling)' })}
-    />
-  ),
-};
-
-export const DeskAgentCheckNowRefused: Story = {
-  name: 'Agent & settings, check now refused',
-  decorators: artboard(1320),
-  globals: viewport(1440, 1320),
-  render: () => (
-    <DeskAgentScreen
-      frame={deskFrame}
-      settings={agentSettings}
-      connection={connections.pollingRevoked}
-      checkNowError="Polling is paused: the connection's token was revoked. Reconnect it, then check again."
-      github={github({ term: connectionCopy.lastCheckedTerm, text: '2 hours ago (polling)' })}
+      tab="agents"
+      agents={agentList({ rows: manyAgents(20).map(agentRowView), pagination: paging(45) })}
     />
   ),
 };
@@ -727,7 +852,6 @@ export const DeskSetupLoadError: Story = {
   render: () => <DeskSetupScreen {...setupProps} loadError="The server did not answer. Reload to try again." />,
 };
 
-const noop = () => undefined;
 const pagination = (page: number, total: number): PaginationProps => ({
   page,
   pageSize: 20,
