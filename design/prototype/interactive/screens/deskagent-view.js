@@ -40,13 +40,19 @@
   const MODELS = {
     claude: ['claude-opus-4-5-20251101', 'claude-sonnet-4-5-20250929', 'claude-haiku-4-5-20251001', 'claude-opus-4-1-20250805'],
     codex: ['gpt-5-codex', 'gpt-5', 'gpt-5-mini'],
-    antigravity: ['gemini-3-pro', 'gemini-3-flash'],
   };
   const STANDARD = {
     claude: ['opus', 'sonnet', 'haiku'],
     codex: ['gpt-5-codex', 'gpt-5'],
-    antigravity: ['gemini-3-pro', 'gemini-3-flash'],
   };
+  // OpenCode (capability row: credentialOptional, modelOptional, baseUrl.requiredFor api_key): works without signing in.
+  // Two ways to sign in, like Codex: a credentials file, or your own endpoint and key. Nothing is picked by default.
+  const OC_AUTHS = [
+    { id: 'auth_json', label: 'Credentials file', short: 'Credentials file', field: 'Credentials file', paste: 'the credentials file', reveal: 'Show credentials file', blurb: 'From opencode auth export <provider>. Contains secrets.',
+      help: 'Paste the file from `opencode auth export <provider>`, for example `opencode auth export anthropic`. It contains secrets: it is stored write-only and never shown again.' },
+    { id: 'api_key', label: 'API endpoint and key', short: 'API endpoint and key', field: 'API key', paste: 'the API key', blurb: 'Your own LLM endpoint and its key.',
+      help: 'The key for this endpoint. It is saved write-only and never shown again.' },
+  ];
   const KINDS = [
     {
       kind: 'claude', label: 'Claude Code', run: true, address: true, maxTurns: true, standard: STANDARD.claude, models: MODELS.claude,
@@ -65,16 +71,30 @@
       ],
     },
     {
-      kind: 'antigravity', label: 'Google Antigravity', run: true, address: false, maxTurns: false, standard: STANDARD.antigravity, models: MODELS.antigravity,
-      auths: [{ id: 'api_key', label: 'API key', short: 'API key', field: 'API key', help: 'Create the key in your Google account. It is saved write-only and never shown again.' }],
+      kind: 'opencode', label: 'OpenCode', run: true, address: true, addrAuth: 'api_key', credentialOptional: true, modelOptional: true, maxTurns: false, auths: OC_AUTHS,
+      // with a file or no credential the model is OpenCode's own provider/model reference (empty = OpenCode's default); with an endpoint it is the plain id the endpoint serves
+      standard: ['anthropic/claude-sonnet-4-5', 'openai/gpt-5', 'openai/gpt-5-codex'], models: ['anthropic/claude-sonnet-4-5', 'openai/gpt-5', 'openai/gpt-5-codex'],
+      endpointModels: ['qwen3-coder', 'qwen3-coder-30b', 'llama-3.3-70b-instruct'],
+      addressLabel: 'API endpoint', addressHelp: 'Must be an OpenAI-compatible chat-completions endpoint on public https. localhost and endpoints that only offer /v1/responses are not supported.', placeholder: 'https://', defaultAddress: 'no endpoint',
+      noLogin: 'OpenCode works without signing in. Leave the credential empty to use it that way, or add one of these.',
     },
   ];
-  const SOON = [['gemini-cli', 'Gemini CLI'], ['copilot-cli', 'GitHub Copilot CLI'], ['cursor', 'Cursor'], ['amp', 'Amp'], ['opencode', 'OpenCode'],
+  const SOON = [['gemini-cli', 'Gemini CLI'], ['copilot-cli', 'GitHub Copilot CLI'], ['cursor', 'Cursor'], ['amp', 'Amp'], ['antigravity', 'Antigravity'],
     ['aider', 'Aider'], ['cline', 'Cline'], ['goose', 'Goose'], ['qwen-code', 'Qwen Code'], ['kiro', 'Kiro']].map(([kind, label]) => ({ kind, label, run: false }));
   V.KINDS = KINDS;
   V.SOON = SOON;
   const kindOf = (k) => KINDS.find((x) => x.kind === k) || SOON.find((x) => x.kind === k) || { kind: k, label: k, auths: [], standard: [], models: [] };
-  const authOf = (k, id) => (kindOf(k).auths || []).find((a) => a.id === id) || (kindOf(k).auths || [])[0] || { label: '', short: '', field: '', help: '' };
+  const authsOf = (k) => kindOf(k).auths || [];
+  const BLANK = { id: '', label: '', short: '', field: '', help: '', paste: '' };
+  const authOf = (k, id) => { const l = authsOf(k); return l.find((a) => a.id === id) || l[0] || BLANK; };
+  // models: for an endpoint it is what that endpoint serves (listed once a credential is saved); otherwise the kind's own names
+  const modelsFor = (k, auth) => { const kd = kindOf(k); return kd.endpointModels && auth === 'api_key' ? kd.endpointModels : kd.models || []; };
+  const standardFor = (k, auth) => { const kd = kindOf(k); return kd.endpointModels && auth === 'api_key' ? [] : kd.standard || []; };
+  // an API address is allowed only where the kind supports one; OpenCode only together with an API key, never with a credentials file
+  const addrOn = (kd, authId) => !!kd.address && (!kd.addrAuth || authId === kd.addrAuth);
+  // `code` spans become mono; <provider> in the help is the example text the capability row carries, not a setting
+  const rich = (t) => esc(String(t || '')).replace(/`([^`]+)`/g, '<span class="mono">$1</span>');
+  V.authsOf = authsOf; V.modelsFor = modelsFor; V.standardFor = standardFor; V.addrOn = addrOn;
   V.kindOf = kindOf; V.authOf = authOf;
 
   /* ---------- provider mark: a tile with the provider's one-colour mark (currentColor). Marks were fetched on 2026-11-24 from the
@@ -118,6 +138,7 @@
   };
   const ST = {
     ok: { text: 'Ready', cls: 'st-succeeded', g: 'ok', msg: 'Connected' },
+    no_login: { text: 'No credential', cls: 'st-cancelled', g: 'off', msg: 'This agent works without signing in.' },
     no_credential: { text: 'Needs credential', cls: 'st-idle', g: 'idle', msg: 'Save a credential, then test the connection.' },
     not_tested: { text: 'Not tested', cls: 'st-queued', g: 'ring', msg: 'The saved credential has not been tested yet.' },
     rejected: { text: 'Credential rejected', cls: 'st-failed', g: 'err', msg: 'The provider refused the saved credential. Replace it, then test again.' },
@@ -128,7 +149,7 @@
   };
   V.ST = ST;
   // the row status of an agent: no credential beats everything; a credential with no stored result is "Not tested"
-  V.statusOf = (a) => (!a.cred ? 'no_credential' : a.test ? (ST[a.test.status] ? a.test.status : 'invalid') : 'not_tested');
+  V.statusOf = (a) => (!a.cred ? (kindOf(a.kind).credentialOptional ? 'no_login' : 'no_credential') : a.test ? (ST[a.test.status] ? a.test.status : 'invalid') : 'not_tested');
   V.status = function (id, extra) {
     const s = ST[id] || ST.invalid;
     return `<span class="st ${s.cls}" title="status: ${esc(id)}"${id === 'testing' ? ' aria-busy="true"' : ''}><svg aria-hidden="true" width="14" height="14" viewBox="0 0 16 16">${G[s.g]}</svg>${esc(s.text)}${extra ? ' ' + extra : ''}</span>`;
@@ -140,15 +161,15 @@
     { id: 'a-personal', name: 'Claude - Personal', kind: 'claude', label: 'Personal', auth: 'oauth_token', model: 'claude-opus-4-5-20251101', baseUrl: '', maxTurns: '', isDefault: true, cred: cred('12 Oct 2026', 'kim-hale'), test: { status: 'ok', at: '11:02' } },
     { id: 'a-work', name: 'Claude - Work', kind: 'claude', label: 'Work', auth: 'api_key', model: 'claude-sonnet-4-5-20250929', baseUrl: 'https://gateway.harbor-labs.com/anthropic', maxTurns: '40', isDefault: false, cred: cred('3 Nov 2026', 'jordan-wu'), test: { status: 'ok', at: '10:48' } },
     { id: 'a-codex', name: 'Codex - Reviews', kind: 'codex', label: 'Team', auth: 'auth_json', model: 'gpt-5-codex', baseUrl: '', maxTurns: '', isDefault: false, cred: cred('18 Nov 2026', 'kim-hale'), test: null },
-    { id: 'a-anti', name: 'Antigravity', kind: 'antigravity', label: '', auth: 'api_key', model: 'gemini-3-pro', baseUrl: '', maxTurns: '', isDefault: false, cred: cred('20 Nov 2026', 'kim-hale'), test: { status: 'unsupported', at: '09:15' } },
+    { id: 'a-opencode', name: 'OpenCode', kind: 'opencode', label: '', auth: 'api_key', model: 'openai/gpt-5', baseUrl: 'https://llm.harbor-labs.dev/v1', maxTurns: '', isDefault: false, cred: cred('20 Nov 2026', 'kim-hale'), test: { status: 'unsupported', at: '09:15' } },
     { id: 'a-staging', name: 'Claude - Staging', kind: 'claude', label: 'Staging', auth: 'api_key', model: 'claude-sonnet-4-5-20250929', baseUrl: '', maxTurns: '', isDefault: false, cred: null, test: null },
     { id: 'a-legacy', name: 'Claude - Legacy key', kind: 'claude', label: 'Old key', auth: 'api_key', model: 'claude-haiku-4-5-20251001', baseUrl: '', maxTurns: '', isDefault: false, cred: cred('12 Sep 2026', 'jordan-wu'), test: { status: 'rejected', at: '11:29' } },
   ];
   // 24 agents for the paged list (page 2 shows 21 to 24): extra rows cover the other statuses
   V.seedMany = () => {
     const base = V.seed();
-    const names = ['Claude - Team A', 'Claude - Team B', 'Claude - Team C', 'Claude - Team D', 'Claude - Team E', 'Claude - Team F', 'Claude - Team G', 'Claude - Team H', 'Claude - Team I', 'Claude - Team J', 'Claude - Team K', 'Claude - Team L', 'Codex - Nightly', 'Codex - Docs', 'Codex - Spikes', 'Codex - Release', 'Antigravity - Lab', 'Claude - Contractor'];
-    const more = names.map((n, i) => ({ id: 'a-x' + i, name: n, kind: n.startsWith('Codex') ? 'codex' : n.startsWith('Anti') ? 'antigravity' : 'claude', label: n.split(' - ')[1] || '', auth: 'api_key', model: n.startsWith('Codex') ? 'gpt-5' : n.startsWith('Anti') ? 'gemini-3-flash' : 'claude-sonnet-4-5-20250929', baseUrl: '', maxTurns: '', isDefault: false, cred: cred('2 Nov 2026', 'kim-hale'), test: { status: 'ok', at: '08:30' } }));
+    const names = ['Claude - Team A', 'Claude - Team B', 'Claude - Team C', 'Claude - Team D', 'Claude - Team E', 'Claude - Team F', 'Claude - Team G', 'Claude - Team H', 'Claude - Team I', 'Claude - Team J', 'Claude - Team K', 'Claude - Team L', 'Codex - Nightly', 'Codex - Docs', 'Codex - Spikes', 'Codex - Release', 'OpenCode - Lab', 'Claude - Contractor'];
+    const more = names.map((n, i) => ({ id: 'a-x' + i, name: n, kind: n.startsWith('Codex') ? 'codex' : n.startsWith('OpenCode') ? 'opencode' : 'claude', label: n.split(' - ')[1] || '', auth: 'api_key', model: n.startsWith('Codex') ? 'gpt-5' : n.startsWith('OpenCode') ? 'qwen3-coder' : 'claude-sonnet-4-5-20250929', baseUrl: '', maxTurns: '', isDefault: false, cred: cred('2 Nov 2026', 'kim-hale'), test: { status: 'ok', at: '08:30' } }));
     more[15].test = { status: 'unreachable', at: '08:31' };
     more[16].test = { status: 'invalid', at: '08:31' };
     more[17].test = null; more[17].cred = null;
@@ -225,7 +246,7 @@
   }
   function agentRow(a, i, o) {
     const k = kindOf(a.kind);
-    const sub = [k.label, a.label, authOf(a.kind, a.auth).short].filter(Boolean).join(' · ');
+    const sub = [k.label, a.label, !a.cred && k.credentialOptional ? 'No sign-in' : authOf(a.kind, a.auth).short].filter(Boolean).join(' · ');
     const testing = o.testingId === a.id;
     const sel = o.selectedId === a.id;
     const open = o.menuId === a.id;
@@ -234,7 +255,7 @@
     const menu = o.can.write ? `<button class="btn ghost iconbtn" aria-label="Actions for ${esc(a.name)}" aria-haspopup="menu" aria-expanded="${open}"${busy ? ' disabled' : ''}${L(o, `data-act="rowmenu" data-id="${esc(a.id)}"`)}>${IC.more}</button>` : '';
     return `<li style="list-style:none;position:relative;${i ? 'border-top:1px solid var(--line);' : ''}display:grid;grid-template-columns:32px minmax(0,1fr) auto;gap:14px;align-items:center;padding:12px 8px 12px 14px;${sel ? 'background:var(--raised);box-shadow:inset 3px 0 0 var(--accent);' : ''}">
 ${V.mark(a.kind, 'md')}
-<div style="min-width:0;display:flex;flex-direction:column;gap:2px"><span class="row" style="gap:8px;min-width:0"><b style="font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0" title="${esc(a.name)}">${esc(a.name)}</b>${a.isDefault ? '<span class="lbl" style="flex:0 0 auto">Default</span>' : ''}</span><span class="muted" style="font-size:12.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(sub)}">${esc(sub)}</span><span class="mono faint" style="font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(a.model)}</span></div>
+<div style="min-width:0;display:flex;flex-direction:column;gap:2px"><span class="row" style="gap:8px;min-width:0"><b style="font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0" title="${esc(a.name)}">${esc(a.name)}</b>${a.isDefault ? '<span class="lbl" style="flex:0 0 auto">Default</span>' : ''}</span><span class="muted" style="font-size:12.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(sub)}">${esc(sub)}</span><span class="mono faint" style="font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(a.model || (k.modelOptional ? 'OpenCode default' : ''))}</span></div>
 <div class="row" style="gap:6px;flex-wrap:wrap;justify-content:flex-end"><span role="status" style="display:inline-flex">${V.status(testing ? 'testing' : V.statusOf(a))}</span>${edit}${menu}</div>${open ? rowMenu(a, o, o.rows.length > 3 && i >= o.rows.length - 2) : ''}</li>`;
   }
   const skelRow = (i) => `<li style="list-style:none;${i ? 'border-top:1px solid var(--line);' : ''}display:grid;grid-template-columns:32px minmax(0,1fr) 120px;gap:14px;align-items:center;padding:12px 14px"><span aria-hidden="true" style="display:block;width:32px;height:32px;border-radius:8px;background:var(--raised)"></span><span aria-hidden="true" style="display:flex;flex-direction:column;gap:7px"><span class="skel" style="width:${[46, 38, 52][i % 3]}%"></span><span class="skel" style="width:${[64, 58, 70][i % 3]}%"></span></span><span aria-hidden="true" class="skel" style="width:100%"></span></li>`;
@@ -271,20 +292,24 @@ ${V.mark(a.kind, 'md')}
   };
 
   /* ---------- the add / edit / view pane ---------- */
-  const modelOptions = (k, cur, withDefault) => {
-    const kd = kindOf(k);
-    return kd.models.map((m) => `<option${m === cur ? ' selected' : ''}>${esc(m)}</option>`).join('');
-  };
   function modelField(f, kd, o) {
     // state: ready (the provider's list), loading, fallback (standard names), error; typed ("Other model...")
+    // OpenCode: with an endpoint the model is required and is the plain id it serves; with a file or no credential it is optional
+    // (first option "OpenCode default", empty) and is OpenCode's own provider/model reference.
+    const oc = !!kd.modelOptional;
+    const key = oc && f.auth === 'api_key';
     const ms = f.modelState || (f.agent && f.agent.cred ? 'ready' : 'standard');
-    const typed = f.model === '_other' || f.typedModel != null;
-    const names = ms === 'ready' ? kd.models : kd.standard;
+    const typed = f.model === '_other' || f.typedModel != null || (key && !f.model);
+    const names = oc && !key ? standardFor(kd.kind, f.auth) : ms === 'ready' ? modelsFor(kd.kind, f.auth) : standardFor(kd.kind, f.auth);
     const cur = typed ? '_other' : f.model;
-    const opts = ms === 'loading' ? `<option selected>${esc(f.model || '')}</option>` : names.map((m) => `<option${m === cur ? ' selected' : ''}>${esc(m)}</option>`).join('') + `<option${typed ? ' selected' : ''}>Other model…</option>`;
+    const dflt = oc && !key ? `<option${!typed && !f.model ? ' selected' : ''}>OpenCode default</option>` : '';
+    const extraCur = !typed && f.model && !names.includes(f.model) ? `<option selected>${esc(f.model)}</option>` : '';
+    const opts = ms === 'loading' ? `<option selected>${esc(f.model || '')}</option>` : dflt + names.map((m) => `<option${m === cur ? ' selected' : ''}>${esc(m)}</option>`).join('') + extraCur + `<option${typed ? ' selected' : ''}>Other model…</option>`;
     const host = f.baseUrl ? f.baseUrl.replace(/^https?:\/\//, '').split('/')[0] : '';
     let help;
     if (ms === 'loading') help = 'Loading models…';
+    else if (oc && key) help = 'The model id your endpoint serves, for example qwen3-coder.';
+    else if (oc) help = 'Use provider/model, for example anthropic/claude-sonnet-4-5. Leave it empty to use OpenCode’s default.';
     else if (ms === 'standard') help = 'Showing the standard names. Save a credential to load the provider’s list.';
     else if (ms === 'fallback') help = `Showing the standard names. The model list${host ? ' at ' + host : ''} could not be loaded.`;
     else if (ms === 'error') help = 'The model list could not be loaded. You can still type a model name.';
@@ -293,10 +318,11 @@ ${V.mark(a.kind, 'md')}
     let extra = '';
     if (typed) {
       extra = `<input id="ag-model-typed" class="input mono${f.errors && f.errors.model ? ' bad' : ''}" aria-label="Model name" value="${esc(f.typedModel || '')}"${f.errors && f.errors.model ? ' aria-invalid="true" aria-describedby="ag-model-typede"' : ''}${f.step || f.readOnly ? ' disabled' : ''}${L(o, `data-on="${o.on || 'ag'}" data-f="typedModel"`)}>${f.errors && f.errors.model ? `<span id="ag-model-typede" class="ferr" role="alert">${esc(f.errors.model)}</span>` : ''}`;
-      help = ms === 'standard' || ms === 'fallback' || ms === 'error' ? help + ' ' : '';
+      if (!oc) help = ms === 'standard' || ms === 'fallback' || ms === 'error' ? help + ' ' : '';
     }
-    const helpTyped = typed ? `<span class="help">Sent to ${esc(kd.label)} exactly as typed. Rules that don’t name a model use this one.</span>` : '';
-    return `<div class="field"><label for="ag-model">Default model</label>${sel}${extra}<span class="help"${ms === 'fallback' || ms === 'error' ? ' style="color:var(--faint)"' : ''}>${esc(help.trim())}</span>${helpTyped}</div>`;
+    const helpTyped = typed && !oc ? `<span class="help">Sent to ${esc(kd.label)} exactly as typed. Rules that don’t name a model use this one.</span>` : '';
+    const mark = oc ? ` <span class="faint" style="font-weight:400">${key ? 'required' : 'optional'}</span>` : '';
+    return `<div class="field"><label for="ag-model">Default model${mark}</label>${sel}${extra}<span class="help"${ms === 'fallback' || ms === 'error' ? ' style="color:var(--faint)"' : ''}>${esc(help.trim())}</span>${helpTyped}</div>`;
   }
   const checkbox = (id, on, label, help, disabled, o, act) => `<div class="field"><label class="row" style="gap:10px;font-size:13.5px;${disabled ? 'opacity:.7;' : ''}"><span class="cbx${on ? ' on' : ''}" id="${id}" role="checkbox" aria-checked="${on}"${disabled ? ' aria-disabled="true"' : ' tabindex="0"'}${disabled ? '' : L(o, `data-act="${act}"`)}>${on ? IC.check11 : ''}</span><span>${esc(label)}</span></label>${help ? `<span class="help">${esc(help)}</span>` : ''}</div>`;
   const seg = (label, items, on, o, act, disabled) => `<div class="seg" role="group" aria-label="${esc(label)}">${items.map((it) => `<button type="button" class="${it.id === on ? 'on' : ''}" aria-pressed="${it.id === on}"${disabled ? ' disabled' : ''}${L(o, `data-act="${act}" data-id="${esc(it.id)}"`)}>${esc(it.label)}</button>`).join('')}</div>`;
@@ -323,37 +349,52 @@ ${V.mark(a.kind, 'md')}
   const credFieldControl = (f, o, auth) => `<div class="row" style="gap:6px">${inp({ id: 'ag-token', password: true, mono: true, value: f.token, help: true, error: f.errors && f.errors.token, disabled: f.step, live: o.live, f: 'token', placeholder: f.placeholder || 'Paste the value' })}</div>`;
 
   function addressField(f, kd, o, changed) {
-    if (!kd.address) return '';
-    const help = changed ? `Changed from ${f.origBaseUrl ? f.origBaseUrl : kd.defaultAddress}. It is saved together with the new credential below.` : kd.addressHelp.replace('ANTHROPIC_BASE_URL', 'ANTHROPIC_BASE_URL');
+    if (!addrOn(kd, f.auth)) return '';
+    const label = kd.addressLabel || 'API address';
+    const help = changed ? `Changed from ${f.origBaseUrl ? f.origBaseUrl : kd.defaultAddress}. It is saved together with the new credential below.` : kd.addressHelp;
     const helpHtml = !changed ? esc(help).replace('ANTHROPIC_BASE_URL', '<span class="mono">ANTHROPIC_BASE_URL</span>') : esc(help);
-    return fld({ id: 'ag-addr', label: 'API address', help: helpHtml, helpHtml: true, error: f.errors && f.errors.baseUrl }, inp({ id: 'ag-addr', mono: true, value: f.baseUrl, placeholder: kd.placeholder, help: true, error: f.errors && f.errors.baseUrl, disabled: f.step || f.readOnly, live: o.live, f: 'baseUrl' }));
+    return fld({ id: 'ag-addr', label, help: helpHtml, helpHtml: true, error: f.errors && f.errors.baseUrl }, inp({ id: 'ag-addr', mono: true, value: f.baseUrl, placeholder: kd.placeholder, help: true, error: f.errors && f.errors.baseUrl, disabled: f.step || f.readOnly, live: o.live, f: 'baseUrl' }));
   }
+  // OpenCode only: the key can be saved only together with its endpoint (and the other way round); both empty means no credential
+  const credReady = (f, kd) => !!(f.token || (kd.addrAuth && f.auth === kd.addrAuth && f.baseUrl));
 
-  // The credential block of the edit pane: saved row, "Replace" panel, "Credential needed again"
+  // The credential block of the edit pane: saved row, "Replace" panel, "Credential needed again".
+  // A kind with an address that goes with one auth type (OpenCode) draws the address here, beside the key, and not above the block.
   function credentialBlock(f, kd, o, changed) {
     const a = f.agent;
-    const authId = f.auth || a.auth;
-    const au = authOf(a.kind, authId);
+    const authId = f.auth || (a.cred ? a.auth : null);
+    const au = authId ? authOf(a.kind, authId) : null;
+    const auths = authsOf(a.kind);
+    const typeChanged = !!a.cred && auths.length > 1 && authId !== a.auth;
     const stId = f.testing ? 'testing' : V.statusOf(a);
     const saved = a.cred
       ? `<b style="font-weight:500">${esc(authOf(a.kind, a.auth).label)}</b><span class="faint" style="font-size:12.5px">Set ${esc(a.cred.at)} by ${esc(a.cred.by)}. Hidden for good after saving.</span>`
-      : `<b style="font-weight:500">No credential saved</b><span class="faint" style="font-size:12.5px">Runs on this agent fail until you save one.</span>`;
+      : kd.credentialOptional
+        ? `<b style="font-weight:500">No credential saved</b><span class="faint" style="font-size:12.5px">${esc(kd.label)} works without signing in.</span>`
+        : `<b style="font-weight:500">No credential saved</b><span class="faint" style="font-size:12.5px">Runs on this agent fail until you save one.</span>`;
     const head = `<div class="row" style="gap:12px;padding:12px 14px;border:1px solid var(--line2);border-radius:8px;background:var(--panel)"><span class="faint" style="display:inline-flex">${IC.key}</span><div class="grow" style="display:flex;flex-direction:column;gap:2px">${saved}</div>${changed ? '<span class="muted" style="font-size:13px;white-space:nowrap">Replaced when you save</span>' : `<span role="status" style="display:inline-flex;font-size:13px">${V.status(stId)}</span>`}${f.readOnly || !o.can.secret ? '' : `<button class="btn sm"${a.cred ? '' : ' hidden'} aria-expanded="${!!(f.replacing || changed)}"${f.step ? ' disabled' : ''}${L(o, 'data-act="ag-replace"')}>Replace</button>`}</div>`;
-    const open = f.replacing || changed || !a.cred;
-    if (!open || f.readOnly || !o.can.secret) return `<div class="field"><span class="flabel">Credential</span>${head}</div>`;
-    const title = changed ? 'Credential needed again' : a.cred ? 'Replace credential' : 'Add credential';
-    const noteLine = changed ? `<p class="help row" style="gap:6px;align-items:flex-start"><span style="margin-top:2px;display:inline-flex">${IC.info13}</span><span>The API address changed. A saved credential is only sent to the address it was saved with, so paste it again for the new one.</span></p>` : '';
-    const help = changed
+    const open = f.replacing || changed || typeChanged || !a.cred;
+    const again = changed || typeChanged;
+    const inPanel = !!kd.addrAuth;
+    const addr = addressField(Object.assign({}, f, { auth: authId }), kd, o, changed);
+    if (!open || f.readOnly || !o.can.secret) return `${inPanel ? addr : ''}<div class="field"><span class="flabel">Credential</span>${head}</div>`;
+    const title = again ? 'Credential needed again' : a.cred ? 'Replace credential' : 'Add credential';
+    const noteOf = (t) => `<p class="help row" style="gap:6px;align-items:flex-start"><span style="margin-top:2px;display:inline-flex">${IC.info13}</span><span>${t}</span></p>`;
+    const what = kd.addressLabel || 'API address';
+    const noteLine = (changed ? noteOf(`The ${what} changed. A saved credential is only sent to the ${what.replace(/^API /, '')} it was saved with, so paste it again for the new one.`) : '') + (typeChanged ? noteOf('The authentication changed. Paste the new credential.') : '');
+    const help = again
       ? 'We test the new token with one small call before saving. The address and the token are saved together; runs already in progress keep the ones they started with.'
       : 'We save it, then test it with one small call. If the test fails it stays saved and the agent shows the result.';
-    const types = kd.auths.length > 1 ? seg('Credential type', kd.auths, authId, o, 'ag-auth', f.step) : '';
+    const types = auths.length > 1 ? seg('Credential type', auths, authId, o, 'ag-auth', f.step) : '';
     const busy = f.step === 'credential' || f.step === 'test';
+    const noLogin = kd.noLogin && !authId ? `<p class="help">${esc(kd.noLogin)}</p>` : '';
+    const secret = au ? fld({ id: 'ag-token', label: 'New ' + au.field.toLowerCase().replace(/^api/, 'API').replace(/^auth\.json/, 'auth.json'), help: rich(au.help), helpHtml: true, error: f.errors && f.errors.token }, credFieldControl(Object.assign({}, f, { placeholder: changed ? 'Paste ' + (au.paste || 'the token') : '' }), o, au)) : '';
+    const fields = au ? `${inPanel ? addr : ''}${secret}<p class="help">${esc(help)}</p>` : '';
     return `<div class="field"><span class="flabel">Credential</span>${head}
 <div role="group" aria-label="${esc(title)}" style="display:flex;flex-direction:column;gap:12px;padding:16px;border:1px solid #7C8FD8;border-radius:8px;background:#1E2333">
-<b style="font-weight:600">${esc(title)}</b>${noteLine}${types}
-${fld({ id: 'ag-token', label: 'New ' + au.field.toLowerCase().replace(/^api/, 'API').replace(/^auth\.json/, 'auth.json'), help: au.help, error: f.errors && f.errors.token }, credFieldControl(Object.assign({}, f, { placeholder: changed ? 'Paste the token' : '' }), o, au))}
-<p class="help">${esc(help)}</p>
-<div class="row" style="gap:8px;justify-content:flex-end"><button class="btn ghost"${f.step ? ' disabled' : ''}${L(o, 'data-act="ag-replace-cancel"')}>Cancel</button><button class="btn primary"${!f.token || f.step ? ' disabled' : ''}${busy ? ' aria-busy="true"' : ''}${L(o, 'data-act="ag-cred-save"')}>${busy ? (f.step === 'test' ? 'Testing connection…' : 'Saving credential…') : 'Save and test'}</button></div></div></div>`;
+<b style="font-weight:600">${esc(title)}</b>${noteLine}${types}${noLogin}
+${fields}
+<div class="row" style="gap:8px;justify-content:flex-end"><button class="btn ghost"${f.step ? ' disabled' : ''}${L(o, 'data-act="ag-replace-cancel"')}>Cancel</button><button class="btn primary"${!credReady(f, kd) || f.step ? ' disabled' : ''}${busy ? ' aria-busy="true"' : ''}${L(o, 'data-act="ag-cred-save"')}>${busy ? (f.step === 'test' ? 'Testing connection…' : 'Saving credential…') : 'Save and test'}</button></div></div></div>`;
   }
   function testBlock(f, o) {
     const a = f.agent;
@@ -368,7 +409,7 @@ ${fld({ id: 'ag-token', label: 'New ' + au.field.toLowerCase().replace(/^api/, '
 
   /* ---------- New-project wizard, step 2 "Add agent": pick the agent you work with, set up that one ---------- */
   const AUTH_BLURB = { oauth_token: 'Uses your Claude subscription.', auth_json: 'The file Codex CLI writes when you sign in.', api_key: 'Billed per token.' };
-  const pasteWord = (au) => (au.id === 'auth_json' ? 'the file contents' : au.id === 'api_key' ? 'the key' : 'the token');
+  const blurbOf = (a) => a.blurb || AUTH_BLURB[a.id] || '';
   V.setupAgent = function (f, o) {
     const kd = f.kind ? kindOf(f.kind) : null;
     const E = f.errors || {};
@@ -387,20 +428,30 @@ ${fld({ id: 'ag-token', label: 'New ' + au.field.toLowerCase().replace(/^api/, '
 <div class="field"><span class="flabel">Coming soon</span><div role="list" style="display:flex;flex-wrap:wrap;gap:8px">${soon}</div></div>`;
     let fields = '';
     if (kd && kd.run) {
-      const au = authOf(f.kind, f.auth);
-      const credType = kd.auths.length > 1
-        ? `<div class="field" role="radiogroup" aria-labelledby="w-auth-l"><span id="w-auth-l" class="flabel">Credential type</span><div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px">${kd.auths.map((a) => { const sel = a.id === (f.auth || kd.auths[0].id); return `<div class="radio-card${sel ? ' on' : ''}" role="radio" aria-checked="${sel}" tabindex="${sel ? 0 : -1}"${dis ? ' aria-disabled="true"' : ''}${dis ? '' : L(o, `data-act="w2-auth" data-id="${a.id}"`)}><span class="rdot"></span><div><b style="font-weight:500">${esc(a.label)}</b><div class="faint" style="font-size:12.5px">${esc(AUTH_BLURB[a.id] || '')}</div></div></div>`; }).join('')}</div></div>`
-        : `<div class="field"><span class="flabel">Credential type</span><span style="font-size:13.5px">${esc(kd.auths[0].label)}</span></div>`;
-      const eye = `<button type="button" class="btn" aria-label="Show ${esc(au.field.toLowerCase())} while typing"${f.showSecret ? ' aria-pressed="true"' : ''}${busy ? ' disabled' : ''}${L(o, 'data-act="w2-show"')}>${IC.eye}</button>`;
-      const secret = f.returning
-        ? `<div class="field"><span class="flabel">${esc(au.field)}</span><div class="row" style="gap:12px;padding:12px 14px;border:1px solid var(--line2);border-radius:8px;background:var(--panel)"><span class="faint" style="display:inline-flex">${IC.key}</span><div class="grow" style="display:flex;flex-direction:column;gap:2px"><b style="font-weight:500">Credential saved</b><span class="faint" style="font-size:12.5px">Hidden for good after saving. Replace it on Agent &amp; settings.</span></div></div></div>`
-        : fld({ id: 'w-token', label: au.field, help: au.help, error: E.token }, `<div class="row">${inp({ id: 'w-token', password: true, mono: true, value: f.token, help: true, error: E.token, disabled: busy, live: o.live, on, f: 'token' }).replace('type="password"', f.showSecret && o.live ? 'type="text"' : 'type="password"')}${eye}</div>`);
-      const result = f.result && (f.result.status === 'rejected' || f.result.status === 'unreachable')
-        ? banner('err', IC.warn, ST[f.result.status].text, ST[f.result.status].msg, null, null, 'alert') : '';
-      const addr = f.returning ? '' : addressField(Object.assign({}, f, { readOnly: false, step: f.step, errors: E }), kd, oo, false).replace(/data-on="ag"/g, `data-on="${on}"`);
-      const mf = modelField(Object.assign({}, f, { readOnly: !!f.returning, errors: E, modelState: f.returning ? 'ready' : (f.modelState || 'standard') }), kd, oo);
+      const auths = authsOf(f.kind);
+      // OpenCode: nothing is picked by default and no credential is needed; the others start on their first type
+      const curAuth = f.auth || (kd.credentialOptional ? null : (auths[0] || {}).id);
+      const au = curAuth ? authOf(f.kind, curAuth) : null;
+      const noLogin = kd.noLogin ? `<span class="help">${esc(kd.noLogin)}</span>` : '';
+      const credType = auths.length > 1
+        ? `<div class="field" role="radiogroup" aria-labelledby="w-auth-l"><span id="w-auth-l" class="flabel">Credential type</span><div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px">${auths.map((a) => { const sel = a.id === curAuth; return `<div class="radio-card${sel ? ' on' : ''}" role="radio" aria-checked="${sel}" tabindex="${sel || (!curAuth && a === auths[0]) ? 0 : -1}"${dis ? ' aria-disabled="true"' : ''}${dis ? '' : L(o, `data-act="w2-auth" data-id="${a.id}"`)}><span class="rdot"></span><div><b style="font-weight:500">${esc(a.label)}</b><div class="faint" style="font-size:12.5px">${esc(blurbOf(a))}</div></div></div>`; }).join('')}</div>${noLogin}</div>`
+        : `<div class="field"><span class="flabel">Credential type</span><span style="font-size:13.5px">${esc(auths[0].label)}</span></div>`;
+      let secret = '';
+      let result = '';
+      let addr = '';
+      if (au) {
+        const eye = `<button type="button" class="btn" aria-label="${esc(au.reveal || 'Show ' + au.field.toLowerCase() + ' while typing')}"${f.showSecret ? ' aria-pressed="true"' : ''}${busy ? ' disabled' : ''}${L(o, 'data-act="w2-show"')}>${IC.eye}</button>`;
+        secret = f.returning
+          ? `<div class="field"><span class="flabel">${esc(au.field)}</span><div class="row" style="gap:12px;padding:12px 14px;border:1px solid var(--line2);border-radius:8px;background:var(--panel)"><span class="faint" style="display:inline-flex">${IC.key}</span><div class="grow" style="display:flex;flex-direction:column;gap:2px"><b style="font-weight:500">Credential saved</b><span class="faint" style="font-size:12.5px">Hidden for good after saving. Replace it on Agent &amp; settings.</span></div></div></div>`
+          : fld({ id: 'w-token', label: au.field, help: rich(au.help), helpHtml: true, error: E.token }, `<div class="row">${inp({ id: 'w-token', password: true, mono: true, value: f.token, help: true, error: E.token, disabled: busy, live: o.live, on, f: 'token' }).replace('type="password"', f.showSecret && o.live ? 'type="text"' : 'type="password"')}${eye}</div>`);
+        result = f.result && (f.result.status === 'rejected' || f.result.status === 'unreachable')
+          ? banner('err', IC.warn, ST[f.result.status].text, ST[f.result.status].msg, null, null, 'alert') : '';
+        addr = f.returning ? '' : addressField(Object.assign({}, f, { auth: curAuth, readOnly: false, step: f.step, errors: E }), kd, oo, false).replace(/data-on="ag"/g, `data-on="${on}"`);
+      }
+      const mf = modelField(Object.assign({}, f, { auth: curAuth, readOnly: !!f.returning, errors: E, modelState: f.returning ? 'ready' : (f.modelState || 'standard') }), kd, oo);
       const conc = fld({ id: 'w-conc', label: 'Concurrent runs', help: 'Idle runs hold a slot until you finish them.', error: E.concurrent }, inp({ id: 'w-conc', num: true, value: f.concurrent, help: true, error: E.concurrent, style: 'width:90px', disabled: busy, live: o.live, on, f: 'concurrent' }));
-      fields = `${credType}${secret}${result}${addr}<div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;align-items:start">${mf}${conc}</div>`;
+      // an endpoint goes before its key
+      fields = `${credType}${kd.addrAuth ? addr + secret + result : secret + result + addr}<div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;align-items:start">${mf}${conc}</div>`;
     }
     const status = busy ? `<p class="help" role="status">${esc(stepText)}</p>` : '';
     const banr = f.banner ? banner('err', IC.warn, f.banner.title, f.banner.detail, f.banner.reqId, null, 'alert') : '';
@@ -432,13 +483,23 @@ ${banr}${picker}${fields}</div>
       if (add) parts.push(providerPicker(f, o));
       else parts.push(readOnlyProvider(f.agent));
       if (kd && kd.run) {
-        const changed = !add && kd.address && f.baseUrl !== (f.origBaseUrl || '');
+        const changed = !add && addrOn(kd, f.auth) && f.baseUrl !== (f.origBaseUrl || '');
         parts.push(nameFields(f, o));
         if (add) {
-          const au = authOf(f.kind, f.auth);
-          parts.push(`<div class="field"><span class="flabel">Authentication</span>${kd.auths.length > 1 ? seg('Authentication', kd.auths, f.auth || kd.auths[0].id, o, 'ag-auth', f.step) : `<span style="font-size:13.5px">${esc(kd.auths[0].label)}</span>`}</div>`);
-          parts.push(fld({ id: 'ag-token', label: au.field, help: au.help, error: f.errors && f.errors.token }, credFieldControl(f, o, au)));
-          parts.push(addressField(f, kd, o, false));
+          const auths = authsOf(f.kind);
+          // OpenCode: nothing is picked by default (it works without signing in); the picked choice's fields follow
+          const authId = f.auth || (kd.credentialOptional ? null : auths[0].id);
+          const au = authId ? authOf(f.kind, authId) : null;
+          const ctl = auths.length > 1 ? seg('Authentication', auths, authId, o, 'ag-auth', f.step) : `<span style="font-size:13.5px">${esc(auths[0].label)}</span>`;
+          parts.push(`<div class="field"><span class="flabel">Authentication</span>${ctl}${kd.noLogin ? `<span class="help">${esc(kd.noLogin)}</span>` : ''}</div>`);
+          if (au) {
+            // an endpoint goes before its key
+            if (kd.addrAuth) parts.push(addressField(Object.assign({}, f, { auth: authId }), kd, o, false));
+            parts.push(fld({ id: 'ag-token', label: au.field, help: rich(au.help), helpHtml: true, error: f.errors && f.errors.token }, credFieldControl(f, o, au)));
+            if (!kd.addrAuth) parts.push(addressField(Object.assign({}, f, { auth: authId }), kd, o, false));
+          }
+        } else if (kd.addrAuth) {
+          parts.push(credentialBlock(f, kd, o, changed));
         } else {
           parts.push(addressField(f, kd, o, changed));
           parts.push(credentialBlock(f, kd, o, changed));

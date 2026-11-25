@@ -54,17 +54,27 @@
 
   /* ---------- forms ---------- */
   const newAdd = () => ({ mode: 'add', kind: null, name: '', label: '', auth: null, token: '', baseUrl: '', origBaseUrl: '', model: null, typedModel: null, maxTurns: '', makeDefault: false, errors: {}, banner: null, step: null, modelState: 'standard' });
-  const editForm = (a, readOnly) => ({ mode: readOnly ? 'view' : 'edit', readOnly: !!readOnly, agent: a, kind: a.kind, name: a.name, label: a.label, auth: a.auth, token: '', baseUrl: a.baseUrl, origBaseUrl: a.baseUrl, model: a.model, typedModel: null, maxTurns: a.maxTurns, makeDefault: false, errors: {}, banner: null, step: null, modelState: a.cred ? 'ready' : 'standard', replacing: false, testing: false, result: null });
+  const editForm = (a, readOnly) => ({ mode: readOnly ? 'view' : 'edit', readOnly: !!readOnly, agent: a, kind: a.kind, name: a.name, label: a.label, auth: V.kindOf(a.kind).credentialOptional && !a.cred ? null : a.auth, token: '', baseUrl: a.baseUrl, origBaseUrl: a.baseUrl, model: a.model, typedModel: null, maxTurns: a.maxTurns, makeDefault: false, errors: {}, banner: null, step: null, modelState: a.cred ? 'ready' : 'standard', replacing: false, testing: false, result: null });
   function chooseKind(f, kind) {
     const kd = V.kindOf(kind);
-    f.kind = kind; f.auth = kd.auths[0].id; f.model = kd.standard[0]; f.typedModel = null; f.baseUrl = ''; f.token = ''; f.errors = {};
+    f.kind = kind; f.typedModel = null; f.baseUrl = ''; f.token = ''; f.errors = {};
+    // OpenCode works without signing in: nothing is picked and the model is OpenCode's default (empty); the others start on their first type
+    f.auth = kd.credentialOptional ? null : kd.auths[0].id; f.model = kd.credentialOptional ? '' : kd.standard[0];
+  }
+  // Changing the authentication re-evaluates the model: with an endpoint it is the plain id the endpoint serves (required, typed or
+  // listed); with a file or none it is OpenCode's provider/model reference (empty = OpenCode default). A typed key or file never carries over.
+  function setAuth(f, id) {
+    const kd = V.kindOf(f.kind);
+    f.auth = id; f.token = ''; f.errors = {};
+    if (!V.addrOn(kd, id)) f.baseUrl = ''; // a file never carries an address
+    if (kd.modelOptional) { if (id === 'api_key') { f.model = '_other'; f.typedModel = ''; } else { f.model = ''; f.typedModel = null; } }
   }
   const modelOf = (f) => (f.model === '_other' || f.typedModel != null ? (f.typedModel || '').trim() : f.model);
   const problem = (status, title, detail) => ({ status, title, detail, reqId: status >= 500 ? AD.reqId() : null });
   const NO_ACCESS = () => problem(403, "You don't have access", 'Your role cannot change agents in this project.');
 
-  function validateAddress(kd, v) {
-    if (!kd.address || !v) return null;
+  function validateAddress(kd, v, auth) {
+    if (!V.addrOn(kd, auth) || !v) return null;
     if (!/^https:\/\/[^\s/]+\.[^\s/]+/i.test(v)) return 'Use a public https address, for example https://llm.example.com.';
     if (/localhost|127\.|10\.\d|192\.168\./.test(v)) return 'That address is not public.';
     return null;
@@ -76,21 +86,32 @@
     else if (name.length > 256) e.name = 'Use 256 characters or fewer.';
     else if (st.agents.some((a) => a.id !== ownId && a.name.toLowerCase() === name.toLowerCase())) e.name = 'An agent with this name already exists.';
     if (f.label.trim().length > 256) e.label = 'Use 256 characters or fewer.';
-    if ((f.model === '_other' || f.typedModel != null) && !(f.typedModel || '').trim()) e.model = 'Enter a model name.';
-    if (f.mode === 'add') { const ae = validateAddress(V.kindOf(f.kind), f.baseUrl.trim()); if (ae) e.baseUrl = ae; }
+    const kd = V.kindOf(f.kind);
+    if (kd.modelOptional) {
+      // OpenCode: an endpoint and its key go together; the model is required with an endpoint, optional otherwise
+      const key = f.auth === 'api_key';
+      const hasT = !!(f.token || '').trim(); const hasA = !!(f.baseUrl || '').trim();
+      if (f.mode === 'add' && key) {
+        if (hasT && !hasA) e.baseUrl = 'Enter the API endpoint for this key.';
+        if (hasA && !hasT) e.token = 'Enter the API key for this endpoint.';
+      }
+      const needModel = key && (f.mode === 'add' ? hasT || hasA : !!(f.agent && f.agent.cred && f.agent.auth === 'api_key') || (f.replacing && (hasT || hasA)));
+      if (needModel && !modelOf(f)) e.model = 'Enter the model your endpoint serves.';
+    } else if ((f.model === '_other' || f.typedModel != null) && !(f.typedModel || '').trim()) e.model = 'Enter a model name.';
+    if (f.mode === 'add') { const ae = validateAddress(kd, f.baseUrl.trim(), f.auth); if (ae) e.baseUrl = ae; }
     if (f.maxTurns !== '' && !/^\d+$/.test(String(f.maxTurns).trim())) e.maxTurns = 'Enter a whole number or leave it empty.';
     return e;
   }
 
   /* ---------- fake API ---------- */
   function testResult(a) {
-    if (!a.cred) return 'no_credential';
+    if (!a.cred) return V.kindOf(a.kind).credentialOptional ? 'unsupported' : 'no_credential'; // OpenCode with no credential: nothing to check
     if (/reject|bad|wrong/i.test(a._lastToken || '')) return 'rejected';
     if (/unreach/i.test(a._lastToken || '') || /unreach/i.test(a.baseUrl)) return 'unreachable';
     if (/odd|invalid/i.test(a._lastToken || '')) return 'invalid';
-    return a.kind === 'antigravity' ? 'unsupported' : 'ok';
+    return a.kind === 'opencode' && a.auth === 'auth_json' ? 'unsupported' : 'ok'; // a credentials file cannot be probed
   }
-  const setCred = (a, f) => { a.cred = { at: '22 Nov 2026', by: AD.state.uid || 'kim-hale' }; a.auth = f.auth || a.auth; a._lastToken = f.token; if (f.baseUrl !== undefined && V.kindOf(a.kind).address) a.baseUrl = (f.baseUrl || '').trim(); a.test = null; };
+  const setCred = (a, f) => { a.cred = { at: '22 Nov 2026', by: AD.state.uid || 'kim-hale' }; a.auth = f.auth || a.auth; a._lastToken = f.token; const kd = V.kindOf(a.kind); if (kd.addrAuth && !V.addrOn(kd, a.auth)) a.baseUrl = ''; else if (f.baseUrl !== undefined && V.addrOn(kd, a.auth)) a.baseUrl = (f.baseUrl || '').trim(); a.test = null; };
   const runTest = (a) => { const s = testResult(a); a.test = { status: s, at: 'just now' }; return s; };
   function usedBy(st, id) { return V.RULES.filter((r) => r.agentId === id).map((r) => r.cmd); }
 
@@ -197,22 +218,22 @@
   A['ag-retry'] = () => AD.setQuery({ s: null });
   A['ag-page'] = (el) => { if (el.disabled) return; AD.ui.ag.formKey = null; AD.setQuery({ page: el.dataset.page === '1' ? null : el.dataset.page }); };
   A['ag-provider'] = (el) => { const f = form(); if (!f || f.step) return; chooseKind(f, el.dataset.id); rerender('[role="radio"][aria-checked="true"]'); };
-  A['ag-auth'] = (el) => { const f = form(); if (!f || f.step) return; f.auth = el.dataset.id; f.errors.token = null; rerender('[data-act="ag-auth"][aria-pressed="true"]'); };
+  A['ag-auth'] = (el) => { const f = form(); if (!f || f.step) return; if (f.auth !== el.dataset.id) setAuth(f, el.dataset.id); rerender('[data-act="ag-auth"][aria-pressed="true"]'); };
   A['ag-def-toggle'] = () => { const f = form(); if (!f || f.step) return; f.makeDefault = !f.makeDefault; rerender('#ag-def'); };
   A['ag-replace'] = () => { const f = form(); if (!f) return; f.replacing = true; f.token = ''; rerender('#ag-token'); };
-  A['ag-replace-cancel'] = () => { const f = form(); if (!f || f.step) return; f.replacing = false; f.token = ''; f.baseUrl = f.origBaseUrl; f.errors = {}; rerender('[data-act="ag-replace"]'); };
+  A['ag-replace-cancel'] = () => { const f = form(); if (!f || f.step) return; f.replacing = false; f.token = ''; f.baseUrl = f.origBaseUrl; f.auth = V.kindOf(f.kind).credentialOptional && !f.agent.cred ? null : f.agent.auth; f.model = f.agent.model; f.typedModel = null; f.errors = {}; rerender('[data-act="ag-replace"]'); };
 
   AD.inputs.ag = (t) => {
     const f = form(); if (!f) return;
     const key = t.dataset.f;
     if (key === 'model') {
       if (/^Other model/.test(t.value)) { f.model = '_other'; f.typedModel = f.typedModel == null ? '' : f.typedModel; rerender('#ag-model-typed'); return; }
-      f.model = t.value; f.typedModel = null; f.errors.model = null; return;
+      f.model = t.value === 'OpenCode default' ? '' : t.value; f.typedModel = null; f.errors.model = null; return;
     }
-    const before = f.mode !== 'add' && V.kindOf(f.kind).address && f.baseUrl !== f.origBaseUrl;
+    const before = f.mode !== 'add' && V.addrOn(V.kindOf(f.kind), f.auth) && f.baseUrl !== f.origBaseUrl;
     f[key] = t.value;
     if (f.errors && f.errors[key === 'typedModel' ? 'model' : key]) { f.errors[key === 'typedModel' ? 'model' : key] = null; const e = document.getElementById(t.id + 'e'); if (e) e.remove(); t.classList.remove('bad'); t.removeAttribute('aria-invalid'); }
-    if (key === 'token') { const b = AD.$('[data-act="ag-cred-save"]'); if (b) b.disabled = !t.value || !!f.step; }
+    if (key === 'token' || key === 'baseUrl') { const kd = V.kindOf(f.kind); const b = AD.$('[data-act="ag-cred-save"]'); if (b) b.disabled = !(f.token || (kd.addrAuth && f.auth === kd.addrAuth && f.baseUrl)) || !!f.step; }
     if (key === 'baseUrl' && f.mode !== 'add') { const after = f.baseUrl !== f.origBaseUrl; if (after !== before) rerenderKeepFocus(); }
   };
 
@@ -224,7 +245,7 @@
     if (f.mode === 'add') {
       if (!f.kind) return;
       f.errors = checkForm(f, st, null);
-      if (Object.keys(f.errors).length) { u.focus = f.errors.name ? '#ag-name' : f.errors.model ? '#ag-model-typed' : '#ag-addr'; AD.render(); return; }
+      if (Object.keys(f.errors).length) { u.focus = f.errors.name ? '#ag-name' : f.errors.baseUrl ? '#ag-addr' : f.errors.token ? '#ag-token' : '#ag-model-typed'; AD.render(); return; }
       const fail = AD.takeFail();
       f.step = 'agent'; AD.render();
       lag(() => {
@@ -282,10 +303,18 @@
 
   /* Replace credential (and the API address with it): save, then test; the result updates the row. */
   A['ag-cred-save'] = () => {
-    const f = form(); const u = AD.ui.ag; if (!f || f.step || !f.token) return;
+    const f = form(); const u = AD.ui.ag; if (!f || f.step) return;
+    const kd = V.kindOf(f.kind);
+    if (!f.token && !(kd.addrAuth && f.auth === kd.addrAuth && f.baseUrl)) return;
     const st = curStore(); const a = findAgent(st, f.agent.id);
     f.banner = null; f.errors = {};
-    const ae = validateAddress(V.kindOf(f.kind), (f.baseUrl || '').trim());
+    // OpenCode: the endpoint and its key are saved together
+    if (kd.addrAuth && f.auth === kd.addrAuth) {
+      if (!(f.token || '').trim()) { f.errors.token = 'Enter the API key for this endpoint.'; u.focus = '#ag-token'; AD.render(); return; }
+      if (!(f.baseUrl || '').trim()) { f.errors.baseUrl = 'Enter the API endpoint for this key.'; u.focus = '#ag-addr'; AD.render(); return; }
+      if (!modelOf(f)) { f.errors.model = 'Enter the model your endpoint serves.'; u.focus = '#ag-model-typed'; AD.render(); return; }
+    }
+    const ae = validateAddress(kd, (f.baseUrl || '').trim(), f.auth);
     if (ae) { f.errors.baseUrl = ae; u.focus = '#ag-addr'; AD.render(); return; }
     const fail = AD.takeFail();
     f.step = 'credential'; AD.render();
@@ -293,6 +322,7 @@
       if (fail === '404' || !a) { f.step = null; u.form = { mode: 'gone' }; if (a) st.agents.splice(st.agents.indexOf(a), 1); AD.render(); return; }
       if (fail === '403' || fail === '500') { f.step = null; f.banner = fail === '403' ? NO_ACCESS() : problem(500, 'Internal server error'); AD.render(); return; }
       setCred(a, f);
+      if (kd.modelOptional) a.model = modelOf(f);
       f.agent = a; f.origBaseUrl = a.baseUrl; f.baseUrl = a.baseUrl; f.modelState = 'ready';
       f.step = 'test'; AD.render();
       lag(() => {
@@ -477,8 +507,7 @@
     if (slot) slot.textContent = isDefault ? 'the project default agent' : text;
     const rm = AD.$('#stage #rm');
     if (rm && ag) {
-      const kd = V.kindOf(ag.kind);
-      rm.innerHTML = '<option selected>Default model</option>' + kd.models.map((m) => '<option>' + esc(m) + '</option>').join('') + '<option>Other model…</option>';
+      rm.innerHTML = '<option selected>Default model</option>' + V.modelsFor(ag.kind, ag.auth).map((m) => '<option>' + esc(m) + '</option>').join('') + '<option>Other model…</option>';
       const help = rm.parentNode.querySelector('.help');
       if (help) help.innerHTML = 'Default model of ' + esc(ag.name) + ' is <span class="mono" style="white-space:nowrap">' + esc(ag.model) + '</span>, set on <a href="' + AD.href('/o/' + AD.curOrg() + '/p/' + AD.curProject() + '/desk/agent', {}) + '">Agent &amp; settings</a>.';
     }
@@ -487,22 +516,22 @@
   /* ---------- New-project wizard, step 2 "Add agent" (live): pick the agent you work with, set up that one ----------
      Continue = create or choose the agent, save the credential, test it (the order in architecture 4a); a rejected or unreachable
      test stays on the step with "Continue anyway". A credential that contains "reject" gives Credential rejected, "unreach" Can't
-     reach address, "odd" Can't verify; Google Antigravity answers Not checkable. Scenarios w2-* seed the states of the story list. */
+     reach address, "odd" Can't verify; an OpenCode credentials file answers Not checkable (it cannot be probed). Scenarios w2-* seed the states of the story list. */
   const newW2 = () => ({ kind: null, auth: null, token: '', baseUrl: '', model: null, typedModel: null, concurrent: '2', errors: {}, banner: null, step: null, result: null, modelState: 'standard', showSecret: false, seeded: null, returning: false, touched: false });
   const w2form = () => { if (!AD.ui.w2) AD.ui.w2 = newW2(); return AD.ui.w2; };
   const W2_SNAPS = [['w2-none', 'Nothing picked, Continue pressed (error under the cards)'], ['w2-claude', 'Claude Code picked (address field shown)'], ['w2-codex', 'OpenAI Codex picked (sign-in file or API key, no address)'],
-    ['w2-antigravity', 'Google Antigravity picked (API key only)'], ['w2-saving', 'Saving the credential'], ['w2-errors', 'Field errors'], ['w2-rejected', 'Test failed: Credential rejected, Continue anyway'],
+    ['w2-opencode', 'OpenCode picked (API endpoint and key chosen, model required)'], ['w2-saving', 'Saving the credential'], ['w2-errors', 'Field errors'], ['w2-rejected', 'Test failed: Credential rejected, Continue anyway'],
     ['w2-returning', 'Coming back to the step (agent already set up, provider fixed)']].map(([id, label]) => ({ id, label, group: 'Agent step states (live, clickable)' }));
   function seedW2(scen) {
     const f = newW2(); f.seeded = scen;
     if (scen === 'w2-none') f.errors.kind = true;
     if (['w2-claude', 'w2-saving', 'w2-errors', 'w2-rejected'].includes(scen)) chooseKind(f, 'claude');
     if (scen === 'w2-codex') chooseKind(f, 'codex');
-    if (scen === 'w2-antigravity') chooseKind(f, 'antigravity');
+    if (scen === 'w2-opencode') { chooseKind(f, 'opencode'); setAuth(f, 'api_key'); f.baseUrl = 'https://llm.harbor-labs.dev/v1'; f.token = 'sk-xxxxxxxxxxxxxxxx'; }
     if (scen === 'w2-saving') { f.token = 'sk-ant-oat01-xxxxxxxxxxxx'; f.step = 'credential'; }
     if (scen === 'w2-errors') { f.model = '_other'; f.typedModel = ''; f.concurrent = '25'; f.errors = { token: 'Paste the token to continue.', model: 'Enter a model name.', concurrent: 'Use a value from 1 to 20.' }; }
     if (scen === 'w2-rejected') { f.auth = 'api_key'; f.token = 'sk-ant-api03-reject-xxxx'; f.result = { status: 'rejected' }; }
-    if (scen === 'w2-returning') { const w = AD.state.wiz || { kind: 'claude', model: 'opus' }; Object.assign(f, { kind: w.kind, auth: V.kindOf(w.kind).auths[0].id, model: w.model, returning: true }); }
+    if (scen === 'w2-returning') { const w = AD.state.wiz || { kind: 'claude', model: 'opus' }; Object.assign(f, { kind: w.kind, auth: w.auth !== undefined ? w.auth : (V.authsOf(w.kind)[0] || {}).id, model: w.model, returning: true }); }
     AD.ui.w2 = f; return f;
   }
   function liveW2(ctx) {
@@ -511,7 +540,7 @@
     if (/^w2-/.test(scen)) { if (f.seeded !== scen) f = seedW2(scen); }
     else {
       if (f.seeded) f = AD.ui.w2 = newW2();
-      if (AD.state.wiz && !f.touched && !f.kind) { f.returning = true; f.kind = AD.state.wiz.kind; f.auth = V.kindOf(f.kind).auths[0].id; f.model = AD.state.wiz.model; }
+      if (AD.state.wiz && !f.touched && !f.kind) { f.returning = true; f.kind = AD.state.wiz.kind; f.auth = AD.state.wiz.auth !== undefined ? AD.state.wiz.auth : (V.authsOf(f.kind)[0] || {}).id; f.model = AD.state.wiz.model; }
     }
     const b = AD.B.Setup2DefaultAgent;
     const html = AD.fixLinks(b.body).replace(/<main[\s\S]*<\/main>/, () => V.setupAgent(f, { live: true, on: 'w2', can: { write: true, secret: true } }));
@@ -519,7 +548,7 @@
     return { header: b.kind, h: 1, fixed: true, title: b.title, html, after(stage) { restoreScroll(stage); const el = focus && stage.querySelector(focus); if (el) el.focus(); } };
   }
   const wizResult = (f) => {
-    if (f.kind === 'antigravity') return 'unsupported';
+    if (f.kind === 'opencode' && (f.auth !== 'api_key' || !f.token.trim())) return 'unsupported'; // a credentials file, or nothing, cannot be probed
     if (/reject|bad|wrong/i.test(f.token)) return 'rejected';
     if (/unreach/i.test(f.token) || /unreach/i.test(f.baseUrl)) return 'unreachable';
     if (/odd|invalid/i.test(f.token)) return 'invalid';
@@ -527,30 +556,43 @@
   };
   function wizDone(f) {
     const kd = V.kindOf(f.kind);
-    AD.state.wiz = { kind: f.kind, label: kd.label, name: kd.label, model: modelOf(f) };
+    AD.state.wiz = { kind: f.kind, auth: f.auth, label: kd.label, name: kd.label, model: modelOf(f) };
     AD.ui.w2 = null;
     AD.nav('/o/' + AD.curOrg() + '/projects/new/3');
   }
   A['w2-provider'] = (el) => { const f = w2form(); if (f.step || f.returning) return; f.touched = true; chooseKind(f, el.dataset.id); f.result = null; f.banner = null; f.modelState = 'standard'; f.focus = '[role="radio"][aria-checked="true"]'; AD.render(); };
-  A['w2-auth'] = (el) => { const f = w2form(); if (f.step) return; f.auth = el.dataset.id; f.token = ''; f.errors.token = null; f.result = null; f.focus = '[data-act="w2-auth"][aria-checked="true"]'; AD.render(); };
+  A['w2-auth'] = (el) => { const f = w2form(); if (f.step) return; f.touched = true; if (f.auth !== el.dataset.id) setAuth(f, el.dataset.id); f.token = ''; f.errors.token = null; f.result = null; f.focus = '[data-act="w2-auth"][aria-checked="true"]'; AD.render(); };
   A['w2-show'] = () => { const f = w2form(); f.showSecret = !f.showSecret; f.focus = '[data-act="w2-show"]'; AD.render(); };
   A['w2-back'] = () => { if (!w2form().step) AD.nav('/o/' + AD.curOrg() + '/projects/new/1'); };
   A['w2-anyway'] = () => { const f = w2form(); if (f.step || !f.result) return; wizDone(f); };
+  // OpenCode in the wizard: an endpoint and its key go together; the model is required with an endpoint
+  function checkWiz(f, kd) {
+    const e = {};
+    if (!kd.modelOptional) return e;
+    const key = f.auth === 'api_key'; const hasT = !!f.token.trim(); const hasA = !!(f.baseUrl || '').trim();
+    if (key && hasT && !hasA) e.baseUrl = 'Enter the API endpoint for this key.';
+    if (key && hasA && !hasT) e.token = 'Enter the API key for this endpoint.';
+    if (key && (hasT || hasA) && !modelOf(f)) e.model = 'Enter the model your endpoint serves.';
+    return e;
+  }
   A['w2-continue'] = () => {
     const f = w2form(); if (f.step) return;
     f.banner = null; f.result = null; f.errors = {};
     if (f.returning) { wizDone(f); return; }
     if (!f.kind) { f.errors.kind = true; f.focus = '[role="radio"]'; AD.render(); return; }
-    const kd = V.kindOf(f.kind); const au = V.authOf(f.kind, f.auth);
-    if (!f.token.trim()) f.errors.token = 'Paste ' + (au.id === 'auth_json' ? 'the file contents' : au.id === 'api_key' ? 'the key' : 'the token') + ' to continue.';
-    const ae = validateAddress(kd, (f.baseUrl || '').trim()); if (ae) f.errors.baseUrl = ae;
-    if ((f.model === '_other' || f.typedModel != null) && !(f.typedModel || '').trim()) f.errors.model = 'Enter a model name.';
+    const kd = V.kindOf(f.kind);
+    const noCred = kd.credentialOptional; // OpenCode: an empty credential is valid (it works without signing in)
+    if (!noCred && !f.token.trim()) { const au = V.authOf(f.kind, f.auth); f.errors.token = 'Paste ' + (au.paste || (au.id === 'auth_json' ? 'the file contents' : au.id === 'api_key' ? 'the key' : 'the token')) + ' to continue.'; }
+    Object.assign(f.errors, checkWiz(f, kd));
+    const ae = validateAddress(kd, (f.baseUrl || '').trim(), f.auth); if (ae) f.errors.baseUrl = ae;
+    if (!kd.modelOptional && (f.model === '_other' || f.typedModel != null) && !(f.typedModel || '').trim()) f.errors.model = 'Enter a model name.';
     if (!/^\d+$/.test(String(f.concurrent).trim()) || Number(f.concurrent) < 1 || Number(f.concurrent) > 20) f.errors.concurrent = 'Use a value from 1 to 20.';
-    if (Object.keys(f.errors).length) { f.focus = f.errors.token ? '#w-token' : f.errors.baseUrl ? '#ag-addr' : f.errors.model ? '#ag-model-typed' : '#w-conc'; AD.render(); return; }
+    if (Object.keys(f.errors).length) { f.focus = f.errors.baseUrl && f.errors.token ? '#ag-addr' : f.errors.token ? '#w-token' : f.errors.baseUrl ? '#ag-addr' : f.errors.model ? '#ag-model-typed' : '#w-conc'; AD.render(); return; }
     const fail = AD.takeFail();
     f.step = 'agent'; AD.render();
     lag(() => {
       if (fail === '403' || fail === '500') { f.step = null; f.banner = fail === '403' ? NO_ACCESS() : problem(500, 'Internal server error', 'Your values are still here. Try again.'); AD.render(); return; }
+      if (kd.credentialOptional && !f.token.trim()) { f.step = null; wizDone(f); return; }
       f.step = 'credential'; AD.render();
       lag(() => {
         f.step = 'test'; AD.render();
@@ -566,7 +608,7 @@
     const f = w2form(); const key = t.dataset.f; f.touched = true;
     if (key === 'model') {
       if (/^Other model/.test(t.value)) { f.model = '_other'; f.typedModel = f.typedModel == null ? '' : f.typedModel; f.focus = '#ag-model-typed'; AD.render(); return; }
-      f.model = t.value; f.typedModel = null; f.errors.model = null; return;
+      f.model = t.value === 'OpenCode default' ? '' : t.value; f.typedModel = null; f.errors.model = null; return;
     }
     f[key] = t.value;
     const ek = key === 'typedModel' ? 'model' : key;
@@ -578,7 +620,7 @@
     baseEnh2(root, name);
     const w = AD.state.wiz;
     if (!w || !/^(SetupWorkspace|Setup3|Setup4|SetupReady)$/.test(name || '')) return;
-    AD.$$('.step .faint', root).forEach((e) => { if (e.textContent.trim() === 'Claude Code, opus') e.textContent = w.label + ', ' + w.model; });
+    AD.$$('.step .faint', root).forEach((e) => { if (e.textContent.trim() === 'Claude Code, opus') e.textContent = w.label + ', ' + (w.model || 'default model'); });
     AD.$$('#ra option', root).forEach((o) => { if (/^Project default/.test(o.textContent)) o.textContent = 'Project default (' + w.name + ')'; });
   };
 
