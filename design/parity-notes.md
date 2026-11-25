@@ -626,3 +626,12 @@ item reads "Change access".
 - Agent call: the Edit and View panes are the existing `AgentPane`, so the pane header, field order and footer follow `AgentPane` and its stories; the list row has no "selected" accent bar while a pane is open.
 - State stories that do an action (`DeskAgentAddForm`, `DeskAgentAddCodex`, `DeskAgentAddOpenCode`, `DeskAgentEditOpenCode`, `DeskAgentEditAddressChanged`, `DeskAgentEditReplace`, `DeskAgentRowMenu`) reach the board's state with a `play` function.
 - Not compared by browser: the new boards were not rendered side by side in this change (Storybook is not built in the runner pod). Smoke and axe run on every new story.
+
+## Routing rules agent boards and page fit (multi-agent-configs, Task 26)
+
+- The boards `DeskRules`, `DeskRulesPrompt`, `DeskRulesPromptNew`, `DeskRulesPromptError`, `DeskRulesPaged` and `DeskRulesEmpty` are retired with their files, `canvas.json` entries, `storyIds.ts` entries and stories. `DeskRulesAgent`, `DeskRulesAgentGone`, `DeskRulesAgentLoading`, `DeskRulesAgentLocked` and `DeskRulesAgentWarning` take their place (the first four at the old Rules slots, the last at the old `DeskRulesPaged` slot); every one is a 1440x900 artboard.
+- Agent call: `canvas.json` goes from 386 to 386 - 6 + 5 = 385 boards (the plan's 361 counted from an older base; Task 25 already moved it to 386). `coverage.test.ts` is updated to 385.
+- The prompt, new-prompt, prompt-error, paged, empty and new-rule-refused states stay as state stories `DeskRulesAgentPrompt`, `DeskRulesAgentPromptNew`, `DeskRulesAgentPromptError`, `DeskRulesAgentPaged`, `DeskRulesAgentEmpty` and `DeskRulesAgentNewRuleError` on the board `DeskRulesAgent`; `DeskRulesAgentFitsViewport` shows `height="viewport"` in a short canvas and is not drawn in `canvas.json`.
+- Page fit: the single scrolling column becomes three bands (pinned header, the rule list with the guards card at its end as the scroll area, `Pagination` pinned). The scroll area is a named, focusable region ("Rules list"). So `Pagination` now sits under the guards card instead of between the list and the card.
+- Agent call: `RulePane` takes optional `agents`, `defaultAgentName` and `agentsState` for the boards; without them it keeps the select locked on the rule's own agent, so the route behaves as before until Tasks 29 and 30 wire the data.
+- Not compared by browser: the new boards were not rendered side by side in this change (Storybook is not built in the runner pod). Smoke and axe run on every new story.

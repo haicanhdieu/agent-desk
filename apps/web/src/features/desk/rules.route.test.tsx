@@ -689,14 +689,15 @@ describe('desk rules route', () => {
     const enabledIn = (pages: [unknown, Page<RuleDto> | undefined][], id: string) =>
       pages.flatMap(([, page]) => page?.items.filter((r) => r.id === id).map((r) => r.enabled) ?? []);
 
-    it('24 rules: 20 rows and "Showing 1–20 of 24", the control before the guards; Page 2 shows 4 rows', async () => {
+    it('24 rules: 20 rows and "Showing 1–20 of 24", the control after the guards, outside the list; Page 2 shows 4 rows', async () => {
       seedRules(24);
       const { user } = await renderRoute(rulesPage);
       await screen.findByRole('navigation', { name: 'Pagination' });
       expect(rows()).toHaveLength(20);
       expect(nav()).toHaveTextContent('Showing 1–20 of 24');
       const guards = screen.getByText('Guards on every rule');
-      expect(nav().compareDocumentPosition(guards) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+      expect(nav().compareDocumentPosition(guards) & Node.DOCUMENT_POSITION_PRECEDING).toBeTruthy();
+      expect(screen.getByRole('region', { name: 'Rules list' })).not.toContainElement(nav());
       await page2(user);
       await waitFor(() => expect(rows()).toHaveLength(4));
       expect(nav()).toHaveTextContent('Showing 21–24 of 24');

@@ -923,10 +923,10 @@ graph LR
 
 - Produces: `DeskRules` takes `height?: 'viewport'` and splits its single scrolling column into three bands (pinned header with h1, help line and "New rule"; the rule list with the guards card at its end as the scroll area; `Pagination` pinned); rule pane unchanged; boards `DeskRulesAgent`, `DeskRulesAgentGone`, `DeskRulesAgentLoading`, `DeskRulesAgentLocked`, `DeskRulesAgentWarning` registered in `desk.stories.tsx`, `storyIds.ts`, `canvas.json`, `parity.mjs`; state stories renamed `DeskRulesAgentPrompt`, `DeskRulesAgentPromptNew`, `DeskRulesAgentPromptError`, `DeskRulesAgentPaged`, `DeskRulesAgentEmpty`, `DeskRulesAgentNewRuleError` (`board: 'DeskRulesAgent'`) plus `DeskRulesAgentFitsViewport`; the six retired boards removed. `canvas.json` goes 361 to 361 - 6 + 5 = 360.
 
-- [ ] **Step 1: Write the failing tests:** `coverage.test.ts` count 360 and its other checks; `desk.test.tsx`: `DeskRules` passes `height="viewport"` to the shell, the header and `Pagination` render outside the scrolling wrapper, the scroll wrapper is keyboard-reachable.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/test/coverage.test.ts src/screens/desk.test.tsx`. Expected: FAIL.
-- [ ] **Step 3: Implement** the bands, the stories and registrations, and the retire; `e2e/mock/rules-layout.spec.ts` must stay green unchanged (do not edit `apps/web/e2e/**`).
-- [ ] **Step 4: Verify and commit.** `pnpm --filter @agentdesk/web typecheck`, the tests, story smoke and axe including `scrollable-region-focusable`. Commit `feat(web): Routing rules agent boards and page fit`.
+- [x] **Step 1: Write the failing tests:** `coverage.test.ts` count 360 and its other checks; `desk.test.tsx`: `DeskRules` passes `height="viewport"` to the shell, the header and `Pagination` render outside the scrolling wrapper, the scroll wrapper is keyboard-reachable.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/test/coverage.test.ts src/screens/desk.test.tsx`. Expected: FAIL.
+- [x] **Step 3: Implement** the bands, the stories and registrations, and the retire; `e2e/mock/rules-layout.spec.ts` must stay green unchanged (do not edit `apps/web/e2e/**`).
+- [x] **Step 4: Verify and commit.** `pnpm --filter @agentdesk/web typecheck`, the tests, story smoke and axe including `scrollable-region-focusable`. Commit `feat(web): Routing rules agent boards and page fit`.
 
 ---
 

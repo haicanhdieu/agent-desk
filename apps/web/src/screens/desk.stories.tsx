@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
-import type { ReactElement } from 'react';
+import type { ComponentProps, ReactElement } from 'react';
 import { fn, userEvent, within } from 'storybook/test';
 import {
   AddProjectMemberDialog,
@@ -18,8 +18,10 @@ import {
   type DeleteAgentDialogProps,
   type PaginationProps,
   type ProviderPickerOption,
+  type RuleDraft,
 } from '@/components';
-import type { Actor, AgentPaneAgent, ProjectMemberRowView } from '@/mocks/types';
+import { ruleAgentWarning, type RuleAgentOption } from '@/components/RuleSentence';
+import type { Actor, AgentPaneAgent, ProjectMemberRowView, Rule } from '@/mocks/types';
 import type { DeskFrameData } from './DeskFrame';
 import {
   agentKindViews,
@@ -78,8 +80,8 @@ import { agentModelsFixtures } from '@/mocks/dto/agentModels';
 import { StatusIcon, Toast, ToastRegion } from '@/ds';
 import { viewport } from './viewports';
 
-// Artboards come from canvas.json: DeskSkills, DeskSkillDelete, DeskRules, DeskSetup, DeskSetupTest 1440x900; every Agent & settings board 1440x900 (the panel scrolls inside);
-// DeskRulesPrompt, DeskRulesPromptNew, DeskRulesPromptError 1440x1080.
+// Artboards come from canvas.json: DeskSkills, DeskSkillDelete, the DeskRulesAgent* boards, DeskSetup, DeskSetupTest 1440x900; every Agent & settings board 1440x900 (the panel scrolls inside);
+// DeskRulesAgentPrompt, DeskRulesAgentPromptNew, DeskRulesAgentPromptError 1440x1080.
 const meta = {
   title: 'Screens/Desk',
   parameters: { layout: 'fullscreen' },
@@ -272,19 +274,155 @@ const modelField = {
   settingsHref: '#',
 };
 
-export const DeskRules: Story = {
-  name: 'Routing rules, editing',
+/** The agents the rule form offers (names as the boards draw them). */
+const ruleAgents: RuleAgentOption[] = [
+  {
+    id: 'agent-legacy',
+    label: 'Claude - Legacy key',
+    provider: 'claude',
+    model: 'claude-opus-4-5-20251101',
+    connection: 'ok',
+  },
+  {
+    id: 'agent-personal',
+    label: 'Claude - Personal',
+    provider: 'claude',
+    model: 'claude-opus-4-5-20251101',
+    connection: 'ok',
+  },
+  {
+    id: 'agent-staging',
+    label: 'Claude - Staging',
+    provider: 'claude',
+    model: 'claude-opus-4-5-20251101',
+    connection: 'ok',
+  },
+  {
+    id: 'agent-work',
+    label: 'Claude - Work',
+    provider: 'claude',
+    model: 'claude-sonnet-4-5-20250929',
+    connection: 'ok',
+  },
+  {
+    id: 'agent-reviews',
+    label: 'Codex - Reviews',
+    provider: 'codex',
+    model: 'gpt-5-codex',
+    connection: 'no_credential',
+  },
+  { id: 'agent-opencode', label: 'OpenCode', provider: 'opencode', connection: 'no_credential' },
+];
+
+/** The list the boards share: the first rule's agent has no working credential, so its row warns. */
+const agentRules: Rule[] = rules.map((r) =>
+  r.id === 'r3'
+    ? { ...r, agentId: 'agent-reviews', agentLabel: 'Codex - Reviews', warning: ruleAgentWarning(ruleAgents[4]!) }
+    : r,
+);
+
+const agentRuleDraft = (patch: Partial<RuleDraft>): RuleDraft => ({
+  command: 'triage',
+  target: 'issue',
+  labels: [],
+  skill: '',
+  kind: 'prompt',
+  prompt: TRIAGE_PROMPT,
+  agentId: 'agent-personal',
+  agentLabel: 'Claude - Personal',
+  model: null,
+  enabled: true,
+  ...patch,
+});
+
+const rulesAgentBoard = (pane: Partial<ComponentProps<typeof RulePane>> & { value: RuleDraft }): Story => ({
   decorators: artboard(900),
   globals: viewport(1440, 900),
   render: () => (
     <DeskRulesScreen
       frame={deskFrame}
-      rules={rules}
+      rules={agentRules}
       skills={skills.map((s) => s.name)}
-      editingId="r2"
+      editingId="r6"
       maxRunsPerTicket={agentSettings.maxRunsPerTicket}
-      promptPreview={promptReady}
-      modelField={modelField}
+      form={
+        <RulePane
+          title="Edit rule"
+          skills={skills.map((s) => s.name)}
+          modelField={modelField}
+          promptPreview={promptReady}
+          onChange={() => undefined}
+          onClose={() => undefined}
+          onSave={() => undefined}
+          onDelete={() => undefined}
+          {...pane}
+        />
+      }
+    />
+  ),
+});
+
+/** An agent picked in the rule form: the model resets to Default model and its help names that agent. */
+export const DeskRulesAgent: Story = {
+  name: 'Routing rules, agent picked',
+  ...rulesAgentBoard({
+    value: agentRuleDraft({ agentId: 'agent-work', agentLabel: 'Claude - Work' }),
+    agents: ruleAgents,
+    defaultAgentName: 'Claude - Personal',
+  }),
+};
+
+/** The rule's agent was deleted: the select keeps its name marked unavailable and the help says to pick another. */
+export const DeskRulesAgentGone: Story = {
+  name: 'Routing rules, agent deleted',
+  ...rulesAgentBoard({
+    value: agentRuleDraft({ agentId: 'agent-deleted', agentLabel: 'Claude - Legacy key' }),
+    agents: ruleAgents,
+    defaultAgentName: 'Claude - Personal',
+  }),
+};
+
+/** The agent list is still loading: the select is disabled and shows "Loading agents…". */
+export const DeskRulesAgentLoading: Story = {
+  name: 'Routing rules, agent list loading',
+  ...rulesAgentBoard({ value: agentRuleDraft({}), agentsState: 'loading' }),
+};
+
+/** The reader may not list agents: the select is locked on the rule's own agent. */
+export const DeskRulesAgentLocked: Story = {
+  name: 'Routing rules, no permission to list agents',
+  ...rulesAgentBoard({ value: agentRuleDraft({}) }),
+};
+
+/** A rule on the project default, and a row whose agent has no working credential. */
+export const DeskRulesAgentWarning: Story = {
+  name: 'Routing rules, agent without credential',
+  ...rulesAgentBoard({
+    value: agentRuleDraft({ agentId: null, agentLabel: undefined }),
+    agents: ruleAgents,
+    defaultAgentName: 'Claude - Personal',
+  }),
+};
+
+/** Fits the window: a short canvas with a long list, so the list's own scroll box and the pinned header and pager show. */
+export const DeskRulesAgentFitsViewport: Story = {
+  name: 'Routing rules, fits the window',
+  decorators: [
+    (S) => (
+      <div style={{ width: 1440, height: 560 }}>
+        <S />
+      </div>
+    ),
+  ],
+  globals: viewport(1440, 900),
+  render: () => (
+    <DeskRulesScreen
+      frame={deskFrame}
+      height="viewport"
+      rules={pagedRules(20)}
+      skills={skills.map((s) => s.name)}
+      maxRunsPerTicket={agentSettings.maxRunsPerTicket}
+      pagination={pagination(1, 24)}
     />
   ),
 };
@@ -292,7 +430,7 @@ export const DeskRules: Story = {
 const promptReady = { state: 'ready', systemLines: promptSystemLines } as const;
 
 /** Editing a custom prompt rule: the prompt, its counter and the read-only lines Agent Desk adds. */
-export const DeskRulesPrompt: Story = {
+export const DeskRulesAgentPrompt: Story = {
   name: 'Routing rules, custom prompt',
   decorators: artboard(1080),
   globals: viewport(1440, 1080),
@@ -310,7 +448,7 @@ export const DeskRulesPrompt: Story = {
 };
 
 /** New custom prompt rule: nothing typed yet, the system lines still loading. */
-export const DeskRulesPromptNew: Story = {
+export const DeskRulesAgentPromptNew: Story = {
   name: 'Routing rules, new custom prompt',
   decorators: artboard(1080),
   globals: viewport(1440, 1080),
@@ -347,7 +485,7 @@ export const DeskRulesPromptNew: Story = {
 };
 
 /** Prompt over the limit, and the system lines failed to load. */
-export const DeskRulesPromptError: Story = {
+export const DeskRulesAgentPromptError: Story = {
   name: 'Routing rules, custom prompt errors',
   decorators: artboard(1080),
   globals: viewport(1440, 1080),
@@ -387,7 +525,7 @@ export const DeskRulesPromptError: Story = {
 };
 
 /** New rule pane after a save the server refused: a duplicate command (409 with pointer /command). */
-export const DeskRulesNewRuleError: Story = {
+export const DeskRulesAgentNewRuleError: Story = {
   name: 'Routing rules, new rule refused',
   decorators: artboard(900),
   globals: viewport(1440, 900),
@@ -861,7 +999,7 @@ const pagination = (page: number, total: number): PaginationProps => ({
 });
 
 /** Page 2 of 2 of 24 routing rules: the control sits between the list and the guards card. */
-export const DeskRulesPaged: Story = {
+export const DeskRulesAgentPaged: Story = {
   name: 'Routing rules, page 2 of 2',
   decorators: artboard(900),
   globals: viewport(1440, 900),
@@ -877,7 +1015,7 @@ export const DeskRulesPaged: Story = {
 };
 
 /** No routing rules: the empty state, no control. */
-export const DeskRulesEmpty: Story = {
+export const DeskRulesAgentEmpty: Story = {
   name: 'Routing rules, empty',
   decorators: artboard(900),
   globals: viewport(1440, 900),

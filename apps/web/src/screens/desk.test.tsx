@@ -308,6 +308,20 @@ describe('DeskRules', () => {
     expect(screen.queryByRole('complementary')).toBeNull();
   });
 
+  it('fits the window: height="viewport" reaches the shell (BR-61)', () => {
+    const { container } = render(<DeskRules frame={deskFrame} rules={rules} {...base} height="viewport" />);
+    expect(container.querySelector('[class*="appViewport"]')).not.toBeNull();
+  });
+
+  it('the header is pinned outside the list, and the list is a focusable named scroll area (BR-61)', () => {
+    render(<DeskRules frame={deskFrame} rules={rules} {...base} />);
+    const scroll = screen.getByRole('region', { name: 'Rules list' });
+    expect(scroll).toHaveAttribute('tabindex', '0');
+    expect(scroll.contains(screen.getByRole('heading', { level: 1, name: 'Routing rules' }))).toBe(false);
+    expect(scroll.contains(screen.getAllByRole('button', { name: 'New rule' })[0])).toBe(false);
+    expect(within(scroll).getAllByRole('switch', { name: /^Enable rule \// })).toHaveLength(rules.length);
+  });
+
   it('empty rules shows the empty state', () => {
     render(<DeskRules frame={deskFrame} rules={[]} {...base} />);
     expect(screen.getByRole('heading', { name: /No routing rules/ })).toBeInTheDocument();
@@ -703,7 +717,7 @@ describe('Desk lists with pagination', () => {
     onPageSizeChange: () => undefined,
   });
 
-  it('DeskRules puts the control between the list and Guards on every rule', () => {
+  it('DeskRules pins the control under the scrolling list, which ends with Guards (BR-61)', () => {
     render(
       <DeskRules
         frame={deskFrame}
@@ -716,8 +730,12 @@ describe('Desk lists with pagination', () => {
     const lastRule = screen.getAllByText(rules[rules.length - 1].command)[0];
     const nav = screen.getByRole('navigation', { name: 'Pagination' });
     const guards = screen.getByRole('heading', { name: 'Guards on every rule' });
-    expect(lastRule.compareDocumentPosition(nav) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(nav.compareDocumentPosition(guards) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    const scroll = screen.getByRole('region', { name: 'Rules list' });
+    expect(scroll).toContainElement(lastRule);
+    expect(scroll).toContainElement(guards);
+    expect(lastRule.compareDocumentPosition(guards) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(scroll.contains(nav)).toBe(false);
+    expect(guards.compareDocumentPosition(nav) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
   it('DeskRules with no rules shows No routing rules yet and no control', () => {

@@ -57,7 +57,7 @@ const groups: { heading: string; items: { board: BoardName; label: string }[] }[
     items: [
       { board: 'DeskSkills', label: 'Skills and Markdown editor' },
       { board: 'DeskSkillDelete', label: 'Delete skill confirmation' },
-      { board: 'DeskRules', label: 'Routing rules, list and edit' },
+      { board: 'DeskRulesAgent', label: 'Routing rules, list and edit' },
       { board: 'DeskAgentList', label: 'Agent and settings, Agents tab' },
     ],
   },

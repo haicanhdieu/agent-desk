@@ -24,7 +24,7 @@ export interface DeskRulesProps {
   /** `'viewport'` fits the page to the window (the app route): the page does not scroll, the rule list and the open pane's body do. */
   height?: 'viewport';
   rules: Rule[];
-  /** The paging control between the rule list and the guards card; not drawn without rules. */
+  /** The paging control pinned under the scrolling list; not drawn without rules. */
   pagination?: PaginationProps;
   /** Skill names offered in the rule form. */
   skills: string[];
@@ -64,6 +64,11 @@ export interface RulePaneProps {
   saving?: boolean;
   /** With it, the form offers Skill / Custom prompt (see `RuleFormProps.promptPreview`). */
   promptPreview?: PromptPreview;
+  /** The agents the "With agent" select offers. Without it the select is locked on the rule's own agent. */
+  agents?: RuleFormProps['agents'];
+  defaultAgentName?: string;
+  /** `loading`: the agent list is still coming. */
+  agentsState?: RuleFormProps['agentsState'];
 }
 
 /** The rule side pane: the rule form with Delete, Cancel and Save. Controlled: the caller owns the draft. */
@@ -80,6 +85,9 @@ export function RulePane({
   formError,
   saving,
   promptPreview,
+  agents,
+  defaultAgentName,
+  agentsState,
 }: RulePaneProps) {
   return (
     <SidePane
@@ -112,9 +120,12 @@ export function RulePane({
         value={value}
         skills={skills}
         agents={
-          value.agentId ? [{ id: value.agentId, label: value.agentLabel ?? value.agentId, provider: 'claude' }] : []
+          agents ??
+          (value.agentId ? [{ id: value.agentId, label: value.agentLabel ?? value.agentId, provider: 'claude' }] : [])
         }
-        agentLocked
+        defaultAgentName={defaultAgentName}
+        agentsState={agentsState}
+        agentLocked={!agents && agentsState !== 'loading'}
         modelField={
           modelField && {
             list: modelField.list,
@@ -203,7 +214,7 @@ export function DeskRules({
     <DeskFrame active="rules" {...frame}>
       <main className={styles.rulesMain}>
         <div className={styles.rulesCol}>
-          <div className={styles.split}>
+          <div className={`${styles.split} ${styles.rulesHead}`}>
             <div className={styles.stack6}>
               <h1>Routing rules</h1>
               <p className={`muted ${styles.helpLine13}`}>
@@ -214,39 +225,45 @@ export function DeskRules({
               New rule
             </Button>
           </div>
-          {rules.length === 0 ? (
-            <EmptyState
-              title="No routing rules yet"
-              headingLevel={2}
-              body="A rule maps a command in a comment, like /code-build, to a skill. Add one to let comments start runs."
-              action={
-                <Button variant="primary" icon="plus" onClick={onCreate}>
-                  New rule
-                </Button>
-              }
+          <div className={styles.rulesScroll} role="region" aria-label="Rules list" tabIndex={0}>
+            {rules.length === 0 ? (
+              <EmptyState
+                title="No routing rules yet"
+                headingLevel={2}
+                body="A rule maps a command in a comment, like /code-build, to a skill. Add one to let comments start runs."
+                action={
+                  <Button variant="primary" icon="plus" onClick={onCreate}>
+                    New rule
+                  </Button>
+                }
+              />
+            ) : (
+              <div className={styles.ruleList}>
+                {rules.map((r) => (
+                  <RuleRow
+                    key={r.id}
+                    rule={r}
+                    stats={r.stats}
+                    warning={r.warning}
+                    selected={r.id === editingId}
+                    onToggle={(next) => onToggle?.(r.id, next)}
+                    onSelect={() => onEdit?.(r.id)}
+                    onDelete={onDelete && (() => onDelete(r.id))}
+                  />
+                ))}
+              </div>
+            )}
+            <GuardsCard
+              maxRunsPerTicket={maxRunsPerTicket}
+              changeHref={guardLinks?.change ?? '/desk/agent'}
+              ignoredHref={guardLinks?.ignored ?? '/runs'}
             />
-          ) : (
-            <div className={styles.ruleList}>
-              {rules.map((r) => (
-                <RuleRow
-                  key={r.id}
-                  rule={r}
-                  stats={r.stats}
-                  warning={r.warning}
-                  selected={r.id === editingId}
-                  onToggle={(next) => onToggle?.(r.id, next)}
-                  onSelect={() => onEdit?.(r.id)}
-                  onDelete={onDelete && (() => onDelete(r.id))}
-                />
-              ))}
+          </div>
+          {rules.length > 0 && pagination && (
+            <div className={styles.rulesFoot}>
+              <Pagination {...pagination} />
             </div>
           )}
-          {rules.length > 0 && pagination && <Pagination {...pagination} />}
-          <GuardsCard
-            maxRunsPerTicket={maxRunsPerTicket}
-            changeHref={guardLinks?.change ?? '/desk/agent'}
-            ignoredHref={guardLinks?.ignored ?? '/runs'}
-          />
         </div>
         {form ??
           (editing && (

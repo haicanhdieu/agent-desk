@@ -2,7 +2,7 @@ import type { PromptPreviewDto, RuleDto } from '@agentdesk/contracts';
 import { TRIAGE_PROMPT } from '../rules';
 import { ids } from './ids';
 
-// Mirrors mocks/rules.ts (DeskRules). docs-update points at a skill that is not in the repo (warning derived client
+// Mirrors mocks/rules.ts (DeskRulesAgent). docs-update points at a skill that is not in the repo (warning derived client
 // side); qa-e2e is turned off.
 const rule = (
   id: string,

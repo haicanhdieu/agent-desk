@@ -250,12 +250,12 @@
    "title": "Desk \u2014 delete skill confirmation",
    "expand": "fill"
   },
-  "DeskRules.dc.html": {
+  "DeskRulesAgent.dc.html": {
    "x": 3040,
    "y": 7780,
    "w": 1440,
    "h": 900,
-   "title": "Desk \u2014 routing rules",
+   "title": "Desk \u2014 routing rules, agent picked (model resets to Default model)",
    "expand": "fill"
   },
   "SetupWorkspace.dc.html": {
@@ -298,28 +298,28 @@
    "title": "Run 60 \u2014 succeeded, prompt section open",
    "expand": "fill"
   },
-  "DeskRulesPrompt.dc.html": {
+  "DeskRulesAgentGone.dc.html": {
    "x": 9120,
    "y": 7780,
    "w": 1440,
-   "h": 1080,
-   "title": "Desk \u2014 routing rules, custom prompt",
+   "h": 900,
+   "title": "Desk \u2014 routing rules, the rule\u2019s agent was deleted",
    "expand": "fill"
   },
-  "DeskRulesPromptNew.dc.html": {
+  "DeskRulesAgentLoading.dc.html": {
    "x": 10640,
    "y": 7780,
    "w": 1440,
-   "h": 1080,
-   "title": "Desk \u2014 routing rules, new custom prompt, preview loading",
+   "h": 900,
+   "title": "Desk \u2014 routing rules, agent list loading",
    "expand": "fill"
   },
-  "DeskRulesPromptError.dc.html": {
+  "DeskRulesAgentLocked.dc.html": {
    "x": 12160,
    "y": 7780,
    "w": 1440,
-   "h": 1080,
-   "title": "Desk \u2014 routing rules, prompt too long, preview failed",
+   "h": 900,
+   "title": "Desk \u2014 routing rules, no permission to list agents (locked select)",
    "expand": "fill"
   },
   "Pagination.dc.html": {
@@ -418,20 +418,12 @@
    "title": "Projects \u2014 page 2 of 2, 26 projects",
    "expand": "fill"
   },
-  "DeskRulesPaged.dc.html": {
+  "DeskRulesAgentWarning.dc.html": {
    "x": 1520,
    "y": 10400,
    "w": 1440,
    "h": 900,
-   "title": "Desk \u2014 routing rules, page 2 of 2",
-   "expand": "fill"
-  },
-  "DeskRulesEmpty.dc.html": {
-   "x": 3040,
-   "y": 10400,
-   "w": 1440,
-   "h": 900,
-   "title": "Desk \u2014 routing rules, empty",
+   "title": "Desk \u2014 routing rules, agent names and a rule whose agent has no credential",
    "expand": "fill"
   },
   "DeskSkillsPaged.dc.html": {
@@ -3163,10 +3155,11 @@
   "RunRunningAutoResume.dc.html",
   "DeskSkills.dc.html",
   "DeskSkillDelete.dc.html",
-  "DeskRules.dc.html",
-  "DeskRulesPrompt.dc.html",
-  "DeskRulesPromptNew.dc.html",
-  "DeskRulesPromptError.dc.html",
+  "DeskRulesAgent.dc.html",
+  "DeskRulesAgentGone.dc.html",
+  "DeskRulesAgentLoading.dc.html",
+  "DeskRulesAgentLocked.dc.html",
+  "DeskRulesAgentWarning.dc.html",
   "DeskAgentList.dc.html",
   "DeskAgentListEmpty.dc.html",
   "DeskAgentListError.dc.html",
@@ -3243,8 +3236,6 @@
   "RouteLoading.dc.html",
   "RouteError.dc.html",
   "ProjectsPaged.dc.html",
-  "DeskRulesPaged.dc.html",
-  "DeskRulesEmpty.dc.html",
   "DeskSkillsPaged.dc.html",
   "DeskSkillsEmpty.dc.html",
   "DeskSetupPaged.dc.html",
