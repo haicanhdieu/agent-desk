@@ -111,7 +111,9 @@ export function RulePane({
       <RuleForm
         value={value}
         skills={skills}
-        agents={[value.agent]}
+        agents={
+          value.agentId ? [{ id: value.agentId, label: value.agentLabel ?? value.agentId, provider: 'claude' }] : []
+        }
         agentLocked
         modelField={
           modelField && {
@@ -155,7 +157,8 @@ function LocalRulePane({
     target: rule.target,
     labels: rule.labels,
     skill: rule.skill,
-    agent: rule.agent,
+    agentId: rule.agentId,
+    agentLabel: rule.agentLabel,
     enabled: rule.enabled,
     kind: rule.kind,
     prompt: rule.prompt,

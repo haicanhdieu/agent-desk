@@ -98,7 +98,9 @@ export function Setup4({
       <RuleForm
         value={draft}
         skills={skills}
-        agents={[draft.agent]}
+        agents={
+          draft.agentId ? [{ id: draft.agentId, label: draft.agentLabel ?? draft.agentId, provider: 'claude' }] : []
+        }
         modelField={modelList && { list: modelList, help: 'Default model is the one picked in step 2.' }}
         agentLocked
         spacious

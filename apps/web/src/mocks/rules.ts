@@ -1,3 +1,4 @@
+import type { RuleAgentOption } from '@/components/RuleSentence';
 import type { Rule } from './types';
 
 /** A custom prompt rule (prototype boards DeskRules, DeskRulesPrompt). */
@@ -27,7 +28,8 @@ export const rules: Rule[] = [
     target: 'issue',
     labels: ['user-story'],
     skill: 'code-build',
-    agent: 'Claude',
+    agentId: 'agent-claude',
+    agentLabel: 'Claude',
     enabled: true,
     stats: '14 runs this week, last 14:15',
   },
@@ -37,7 +39,8 @@ export const rules: Rule[] = [
     target: 'pr',
     labels: [],
     skill: 'code-review',
-    agent: 'Claude',
+    agentId: 'agent-claude',
+    agentLabel: 'Claude',
     enabled: true,
     stats: '9 runs this week, last 14:09',
   },
@@ -47,7 +50,8 @@ export const rules: Rule[] = [
     target: 'any',
     labels: [],
     skill: 'code-e2e',
-    agent: 'Claude',
+    agentId: 'agent-claude',
+    agentLabel: 'Claude',
     enabled: true,
     stats: '3 runs this week, last 10:02',
   },
@@ -59,7 +63,8 @@ export const rules: Rule[] = [
     skill: '',
     kind: 'prompt',
     prompt: TRIAGE_PROMPT,
-    agent: 'Claude',
+    agentId: 'agent-claude',
+    agentLabel: 'Claude',
     model: 'claude-haiku-4-5-20251001',
     enabled: true,
     stats: '5 runs this week, last 13:40',
@@ -70,7 +75,8 @@ export const rules: Rule[] = [
     target: 'pr',
     labels: [],
     skill: 'docs-update',
-    agent: 'Claude',
+    agentId: 'agent-claude',
+    agentLabel: 'Claude',
     enabled: true,
     stats: 'Never ran',
     warning:
@@ -82,8 +88,16 @@ export const rules: Rule[] = [
     target: 'pr',
     labels: ['needs-qa'],
     skill: 'qa-e2e',
-    agent: 'Claude',
+    agentId: 'agent-claude',
+    agentLabel: 'Claude',
     enabled: false,
     stats: 'Turned off 3 Nov',
   },
+];
+
+/** The agents a rule can name (rule form select): Claude Code, Codex and OpenCode. Display names match the agent fixtures. */
+export const ruleAgentOptions: RuleAgentOption[] = [
+  { id: 'agent-claude', label: 'Claude', provider: 'claude', connection: 'ok' },
+  { id: 'agent-codex', label: 'Codex - Work', provider: 'codex', model: 'gpt-5-codex', connection: 'no_credential' },
+  { id: 'agent-opencode', label: 'OpenCode - Own', provider: 'opencode', connection: 'no_credential' },
 ];

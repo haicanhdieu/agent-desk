@@ -320,7 +320,8 @@ export const DeskRulesPromptNew: Story = {
             skill: '',
             kind: 'prompt',
             prompt: '',
-            agent: 'Claude',
+            agentId: 'agent-claude',
+            agentLabel: 'Claude',
             enabled: true,
           }}
           skills={skills.map((s) => s.name)}
@@ -357,7 +358,8 @@ export const DeskRulesPromptError: Story = {
             skill: '',
             kind: 'prompt',
             prompt: `${TRIAGE_PROMPT}\n${'Check every linked issue as well. '.repeat(120)}`,
-            agent: 'Claude',
+            agentId: 'agent-claude',
+            agentLabel: 'Claude',
             enabled: true,
           }}
           skills={skills.map((s) => s.name)}
@@ -393,7 +395,8 @@ export const DeskRulesNewRuleError: Story = {
             target: 'pr',
             labels: [],
             skill: 'code-build',
-            agent: 'Claude',
+            agentId: 'agent-claude',
+            agentLabel: 'Claude',
             enabled: true,
           }}
           skills={skills.map((s) => s.name)}

@@ -59,7 +59,7 @@ export { ticketGroups, runs, tickets, prStateRuns, prStateTickets } from './runs
 export { linkedGroups } from './runsLinked';
 export { ignored, ignoredPrStates } from './ignored';
 export { skills, skillTemplates, skillPreviewSamples, skillDiffDraft } from './skills';
-export { rules, promptSystemLines, TRIAGE_PROMPT } from './rules';
+export { rules, promptSystemLines, ruleAgentOptions, TRIAGE_PROMPT } from './rules';
 export {
   agentSettings,
   agentRowView,

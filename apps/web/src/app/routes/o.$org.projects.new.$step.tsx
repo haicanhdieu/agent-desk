@@ -482,7 +482,8 @@ function RulesStep({ org, projectId }: { org: string; projectId: string }) {
     target: 'issue',
     labels: ['user-story'],
     skill: skillNames.includes('code-build') ? 'code-build' : (skillNames[0] ?? 'code-build'),
-    agent: agent.name,
+    agentId: agent.id,
+    agentLabel: agent.name,
     model: null,
     enabled: true,
   };

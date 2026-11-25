@@ -9,6 +9,7 @@ import { RuleSentence, type RuleDraft } from './RuleSentence';
 import { RuleForm } from './RuleForm';
 import { toModelList } from './ModelPicker';
 import { agentModelsFixtures } from '@/mocks/dto/agentModels';
+import { ruleAgentOptions } from '@/mocks';
 import { RuleRow } from './RuleRow';
 import { GuardsCard } from './GuardsCard';
 import { SkillList } from './SkillList';
@@ -26,7 +27,8 @@ const rule: RuleDraft = {
   target: 'issue',
   labels: ['user-story'],
   skill: 'code-build',
-  agent: 'Claude',
+  agentId: 'agent-claude',
+  agentLabel: 'Claude',
   enabled: true,
 };
 
@@ -100,7 +102,7 @@ describe('RuleSentence', () => {
 });
 
 describe('RuleForm', () => {
-  const props = { value: rule, skills: ['code-build', 'code-review'], agents: ['Claude'] };
+  const props = { value: rule, skills: ['code-build', 'code-review'], agents: ruleAgentOptions };
   it('changing posted-on calls onChange with target pr', async () => {
     const onChange = vi.fn();
     render(<RuleForm {...props} onChange={onChange} />);
@@ -143,7 +145,7 @@ describe('RuleForm Model field', () => {
   const props = {
     value: rule,
     skills: ['code-build'],
-    agents: ['Claude'],
+    agents: ruleAgentOptions,
     modelField: { list, help: 'Default model help' },
     onChange: () => {},
   };

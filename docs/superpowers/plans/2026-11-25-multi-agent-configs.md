@@ -861,10 +861,10 @@ graph LR
 
 - Produces: `RuleDraft.agentId: string | null` plus a display label (replaces the `agent` name); `RuleForm` agent options `{ id: string; label: string; provider: string }[]` with "Project default (<name>)" first, loading ("Loading agents…", disabled), locked without `agent:read` ("You can’t see the agent list. This rule keeps its agent."), gone (`<name> (unavailable)` with the spec text) and the model help of the spec; picking another agent resets Model to "Default model"; `RuleRow` shows "with <agent name>" or "with the project default agent" and the `warning` slot "<name> has no working credential. Runs from this rule will fail." only for no credential on a kind that needs one, or rejected; `RuleSentence` the same wording.
 
-- [ ] **Step 1: Write the failing tests** (BR-32, BR-40, BR-41): option order; saving "Project default" yields `agentId: null`; picking agent B resets the model, then a model from B's list is kept; a rule's own model still works; warning only for `no_credential` of a kind that needs a credential and for `rejected` (none for an OpenCode agent with no credential, BR-41, BR-68); loading, locked and gone states.
-- [ ] **Step 2: Update the stories** (agent select states, warning, gone, locked) from `@/mocks` fixtures.
-- [ ] **Step 3: Run** `pnpm --filter @agentdesk/web exec vitest run src/components/RuleForm.test.tsx src/components/RulePrompt.test.tsx src/components/Composites.test.tsx`. Expected: FAIL, then implement; the stale help "One agent per project in the PoC." goes.
-- [ ] **Step 4: Verify and commit.** `pnpm --filter @agentdesk/web typecheck`, the tests above and the story smoke test. Commit `feat(web): rule form agent selector with stories`.
+- [x] **Step 1: Write the failing tests** (BR-32, BR-40, BR-41): option order; saving "Project default" yields `agentId: null`; picking agent B resets the model, then a model from B's list is kept; a rule's own model still works; warning only for `no_credential` of a kind that needs a credential and for `rejected` (none for an OpenCode agent with no credential, BR-41, BR-68); loading, locked and gone states.
+- [x] **Step 2: Update the stories** (agent select states, warning, gone, locked) from `@/mocks` fixtures.
+- [x] **Step 3: Run** `pnpm --filter @agentdesk/web exec vitest run src/components/RuleForm.test.tsx src/components/RulePrompt.test.tsx src/components/Composites.test.tsx`. Expected: FAIL, then implement; the stale help "One agent per project in the PoC." goes.
+- [x] **Step 4: Verify and commit.** `pnpm --filter @agentdesk/web typecheck`, the tests above and the story smoke test. Commit `feat(web): rule form agent selector with stories`.
 
 ---
 

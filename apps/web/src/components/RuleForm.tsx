@@ -3,14 +3,19 @@ import { RULE_PROMPT_MAX } from '@agentdesk/contracts';
 import { Field, LabelInput, PrefixInput, Select, SegmentedControl, TextArea, Toggle } from '@/ds';
 import { ModelPicker, type ModelList } from './ModelPicker';
 import { PromptSystemPart, type PromptPreview } from './PromptSystemPart';
-import { RuleSentence, type RuleDraft, type RuleKind, type RuleTarget } from './RuleSentence';
+import { RuleSentence, type RuleAgentOption, type RuleDraft, type RuleKind, type RuleTarget } from './RuleSentence';
 import styles from './Composites.module.css';
 
 export interface RuleFormProps {
   value: RuleDraft;
   skills: string[];
-  agents: string[];
+  agents: RuleAgentOption[];
+  /** The project default agent's name, for the first option "Project default (<name>)". */
+  defaultAgentName?: string;
+  /** `loading`: the agent list is still coming; the select is disabled. */
+  agentsState?: 'ready' | 'loading';
   onChange(v: RuleDraft): void;
+  /** The reader cannot see the agent list (no `agent:read`): the rule keeps its agent. */
   agentLocked?: boolean;
   /** With it, the form shows a "Model" field (Default model first) after "With agent". */
   modelField?: { list: ModelList; help: ReactNode };
@@ -36,6 +41,8 @@ const TARGETS: { value: RuleTarget; label: string }[] = [
   { value: 'any', label: 'Any' },
 ];
 
+const projectDefaultLabel = (name?: string) => (name ? `Project default (${name})` : 'Project default');
+
 /** Keep a saved value selectable even when it is no longer in the option list (e.g. a deleted skill). */
 const withCurrent = (opts: string[], cur: string) => (opts.includes(cur) ? opts : [cur, ...opts]);
 
@@ -43,6 +50,8 @@ export function RuleForm({
   value,
   skills,
   agents,
+  defaultAgentName,
+  agentsState = 'ready',
   onChange,
   agentLocked,
   modelField,
@@ -52,6 +61,23 @@ export function RuleForm({
 }: RuleFormProps) {
   const set = (patch: Partial<RuleDraft>) => onChange({ ...value, ...patch });
   const kind: RuleKind = promptPreview ? (value.kind ?? 'skill') : 'skill';
+  const current = value.agentId === null ? undefined : agents.find((a) => a.id === value.agentId);
+  const gone = value.agentId !== null && !current && !agentLocked && agentsState === 'ready';
+  const currentName = value.agentLabel ?? value.agentId ?? '';
+  const agentHelp = gone
+    ? 'This agent no longer exists. Pick another agent or the project default before you save.'
+    : agentLocked
+      ? 'You can’t see the agent list. This rule keeps its agent.'
+      : 'Runs use the project default when this stays on Project default.';
+  const modelHelp = gone
+    ? 'The model of the deleted agent. Pick an agent to see its models.'
+    : current?.model
+      ? `Default model of ${current.label} is ${current.model}, set on Agent & settings.`
+      : modelField?.help;
+  const pickAgent = (id: string) => {
+    const next = agents.find((a) => a.id === id);
+    set({ agentId: next ? next.id : null, agentLabel: next?.label, model: null });
+  };
   const promptLength = (value.prompt ?? '').length;
   return (
     <div className={spacious ? `${styles.form} ${styles.formSpacious}` : styles.form}>
@@ -176,20 +202,37 @@ export function RuleForm({
             </div>
           </>
         )}
-        <Field label="With agent" help="One agent per project in the PoC.">
+        <Field label="With agent" help={agentHelp}>
           {({ id, describedBy }) => (
             <Select
               id={id}
               aria-describedby={describedBy}
-              disabled={agentLocked}
-              value={value.agent}
-              onChange={(e) => set({ agent: e.target.value })}
+              disabled={agentLocked || agentsState === 'loading'}
+              value={value.agentId ?? ''}
+              onChange={(e) => pickAgent(e.target.value)}
             >
-              {withCurrent(agents, value.agent).map((a) => (
-                <option key={a} value={a}>
-                  {a}
-                </option>
-              ))}
+              {agentLocked || agentsState === 'loading' ? (
+                <>
+                  <option value={value.agentId ?? ''}>
+                    {value.agentId === null ? projectDefaultLabel(defaultAgentName) : currentName}
+                  </option>
+                  {agentsState === 'loading' && (
+                    <option value="__loading" disabled>
+                      Loading agents…
+                    </option>
+                  )}
+                </>
+              ) : (
+                <>
+                  <option value="">{projectDefaultLabel(defaultAgentName)}</option>
+                  {gone && <option value={value.agentId ?? ''}>{currentName} (unavailable)</option>}
+                  {agents.map((a) => (
+                    <option key={a.id} value={a.id}>
+                      {a.label}
+                    </option>
+                  ))}
+                </>
+              )}
             </Select>
           )}
         </Field>
@@ -201,7 +244,7 @@ export function RuleForm({
             // null follows the default model; '' is Other model… with nothing typed yet and is not saveable.
             value={value.model ?? null}
             onChange={(model) => set({ model })}
-            help={modelField.help}
+            help={modelHelp}
             error={errors?.model}
           />
         )}
