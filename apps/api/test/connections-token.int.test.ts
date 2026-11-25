@@ -249,6 +249,15 @@ describe('sync with the stored GitHub user token', () => {
     expect(seen).toHaveLength(0);
   });
 
+  it('a linked account that stores no tokens at all behaves as not linked: org connections, no GitHub call', async () => {
+    reset();
+    const o = await ownerWithGithub({ access: null, refresh: null, expiresAt: null });
+    const res = await sync(o.cookie);
+    expect(res.statusCode).toBe(201);
+    expect(expectContract('connections.sync', res)).toEqual([]);
+    expect(seen).toHaveLength(0);
+  });
+
   it("never uses another user's token: a user without a linked account does not borrow one from the same org", async () => {
     reset();
     const o = await ownerWithGithub({ access: 'ghu_owner_only', expiresAt: new Date(Date.now() + HOUR) });
