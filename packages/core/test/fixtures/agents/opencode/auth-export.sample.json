@@ -1,0 +1,22 @@
+[
+  {
+    "id": "cred_canary_key_0001",
+    "integrationID": "example-provider",
+    "label": "Example key",
+    "active": true,
+    "value": { "type": "key", "key": "CANARY-FAKE-API-KEY-0001" }
+  },
+  {
+    "id": "cred_canary_oauth_0002",
+    "integrationID": "example-oauth",
+    "label": "Example sign-in (invented)",
+    "active": true,
+    "value": {
+      "type": "oauth",
+      "methodID": "example-method",
+      "refresh": "CANARY-FAKE-REFRESH-TOKEN-0002",
+      "access": "CANARY-FAKE-ACCESS-TOKEN-0002",
+      "expires": 1900000000000
+    }
+  }
+]

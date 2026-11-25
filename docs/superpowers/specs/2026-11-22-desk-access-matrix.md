@@ -32,6 +32,11 @@ Desk configuration (the fix):
 | -------- | ------------------ | - | - | - | - |
 | GET `/api/projects/:id/agent`, GET `/api/agents/:id/models` | `agent:read` (project) | yes | yes | no | no |
 | PUT `/api/projects/:id/agent` | `agent:update` (project) | yes | yes | no | no |
+| GET `/api/projects/:id/agents` (`agents.list`) | `agent:read` (project) | yes | yes | no | no |
+| POST `/api/projects/:id/agents` (`agents.create`) | `agent:update` (project) | yes | yes | no | no |
+| PATCH `/api/agents/:id` (`agents.update`), DELETE `/api/agents/:id` (`agents.remove`) | `agent:update` (project) | yes | yes | no | no |
+| POST `/api/agents/:id/default` (`agents.setDefault`) | `agent:update` (project) | yes | yes | no | no |
+| POST `/api/agents/:id/test` (`agents.test`) | `agent:update` (project) | yes | yes | no | no |
 | PUT `/api/agents/:id/credential` | `secret:update` (project) | yes | yes | no | no |
 | GET `/api/projects/:id/setup-script`, `/versions`, `/versions/:v`, GET `/plugins`, GET `/setup-tests/latest` | `setup:read` (project) | yes | yes | no | no |
 | PUT `/api/projects/:id/setup-script` | `setup:update` (project) | yes | yes | no | no |
@@ -79,7 +84,7 @@ Projects, runs, tickets (unchanged):
 
 An admin granted on one project (project scope) reads and changes the Desk of that project only and gets 404 on another project's Desk routes. They can still list the roles, because `assignment:read` is a project-level permission and they invite people to their project.
 
-Tenant data touched by the Desk routes: the project's agent, skills, rules, setup script and setup tests, all under `withOrg` and the project filter. This change adds no route and widens nothing.
+Tenant data touched by the Desk routes: the project's agent, skills, rules, setup script and setup tests, all under `withOrg` and the project filter. This change documents the new agent configuration routes above (`agents.*`); no existing role is widened.
 
 ## UI routes: expected access
 
