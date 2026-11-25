@@ -1,9 +1,10 @@
+import type { CredentialType as ContractCredentialType } from '@agentdesk/contracts';
 import { useState, type FormEvent } from 'react';
 import { Button, Field, Icon, InlineStatus, PasswordInput, SegmentedControl, StatusIcon } from '@/ds';
 import styles from './SecretField.module.css';
 
 export type SecretFieldState = 'empty' | 'entering' | 'saved' | 'replacing';
-export type CredentialType = 'oauth_token' | 'api_key';
+export type CredentialType = ContractCredentialType;
 
 export interface SecretFieldProps {
   state: SecretFieldState;
@@ -31,6 +32,7 @@ export interface SecretFieldProps {
 const typeName: Record<CredentialType, string> = {
   oauth_token: 'Claude Code OAuth token',
   api_key: 'API key',
+  auth_json: 'Auth file',
 };
 
 const typeOptions: { value: CredentialType; label: string }[] = [

@@ -1,5 +1,6 @@
 export * from './access';
 export * from './enums';
+export * from './agent-kinds';
 export * from './net';
 export * from './org-context';
 export * from './problem';

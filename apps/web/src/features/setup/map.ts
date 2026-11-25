@@ -28,7 +28,7 @@ export const repoMeta = (repo: RepoDto): string =>
 /** Clock time (UTC, as the fixtures and boards show it), e.g. "14:01:37". */
 export const clockTime = (iso: string): string => new Date(iso).toISOString().slice(11, 19);
 
-const CREDENTIAL_NAMES = { oauth_token: 'Claude Code token', api_key: 'API key' } as const;
+const CREDENTIAL_NAMES = { oauth_token: 'Claude Code token', api_key: 'API key', auth_json: 'Auth file' } as const;
 
 /** Stepper detail of the credential step, e.g. "Claude Code token, opus". */
 export const credentialDetail = (agent: AgentDto): string | undefined =>
