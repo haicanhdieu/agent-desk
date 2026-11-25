@@ -58,12 +58,28 @@
    "title": "Setup 1 \u2014 connect repository, webhook",
    "expand": "fill"
   },
-  "Setup2.dc.html": {
+  "Setup2DefaultAgent.dc.html": {
    "x": 1520,
    "y": 2560,
    "w": 1440,
    "h": 900,
-   "title": "Setup 2 \u2014 Claude credential",
+   "title": "Setup 2 \u2014 Add agent, pick the agent you work with",
+   "expand": "fill"
+  },
+  "Setup2AgentCodex.dc.html": {
+   "x": 12160,
+   "y": 2560,
+   "w": 1440,
+   "h": 900,
+   "title": "Setup 2 \u2014 Add agent, OpenAI Codex picked (sign-in file or API key, no address)",
+   "expand": "fill"
+  },
+  "Setup2AgentRejected.dc.html": {
+   "x": 13680,
+   "y": 2560,
+   "w": 1440,
+   "h": 900,
+   "title": "Setup 2 \u2014 Add agent, the test failed (Continue anyway)",
    "expand": "fill"
   },
   "Setup3.dc.html": {
@@ -3100,7 +3116,9 @@
   "Setup1.dc.html",
   "Setup1Polling.dc.html",
   "Setup1PollingOk.dc.html",
-  "Setup2.dc.html",
+  "Setup2DefaultAgent.dc.html",
+  "Setup2AgentCodex.dc.html",
+  "Setup2AgentRejected.dc.html",
   "SetupWorkspace.dc.html",
   "Setup3.dc.html",
   "Setup4.dc.html",
@@ -3498,7 +3516,7 @@
    "y": 2320,
    "text": "First-run setup",
    "kind": "title1",
-   "maxW": 12080
+   "maxW": 15120
   },
   "t-runs": {
    "x": 0,

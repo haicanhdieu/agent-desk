@@ -1,10 +1,17 @@
-import type { ConnectionDto, CreateRuleRequest, ProjectDto } from '@agentdesk/contracts';
+import {
+  AGENT_KIND_CAPABILITIES,
+  AGENT_KINDS_COMING_SOON,
+  AgentKind,
+  type ConnectionDto,
+  type CreateRuleRequest,
+  type ProjectDto,
+} from '@agentdesk/contracts';
 import { useQuery, useSuspenseQueries, useSuspenseQuery } from '@tanstack/react-query';
 import { createFileRoute, notFound, redirect, useLocation, useNavigate } from '@tanstack/react-router';
 import { useState } from 'react';
 import { toastFromError } from '@/app/boundaries';
 import { useNow } from '@/app/useNow';
-import type { RuleDraft } from '@/components';
+import type { ProviderPickerOption, RuleDraft } from '@/components';
 import { toModelList } from '@/components/ModelPicker';
 import { CommandChip, useToast } from '@/ds';
 import { useAppBar } from '@/features/chrome/appBar';
@@ -48,6 +55,7 @@ import { resolveStep } from '@/features/setup/resume';
 import { SetupSearch, SetupStepParam } from '@/features/setup/steps';
 import { SKILL_TEMPLATES } from '@/features/setup/templates';
 import { connectionCopy } from '@/mocks/connection';
+import type { AgentKindView } from '@/mocks/types';
 import { Setup1, Setup2, Setup3, Setup4, SetupReady, type Setup1Draft, type Setup2Draft } from '@/screens';
 
 // Setup (spec §4.5): one route per step, each saving on Continue. Which step shows comes only from the server's
@@ -337,6 +345,22 @@ const AGENT_POINTERS = {
   '/maxConcurrentRuns': 'maxConcurrent',
 } as const;
 
+const AGENT_KIND_VIEWS: AgentKindView[] = AgentKind.options.map((kind) => ({
+  kind,
+  ...AGENT_KIND_CAPABILITIES[kind],
+}));
+
+/**
+ * The picker's cards. Until the wizard can swap the placeholder (Task 31) only the project's own agent is
+ * choosable; the other runnable kinds show as chips.
+ */
+function agentProviders(current: string): ProviderPickerOption[] {
+  return [
+    ...AGENT_KIND_VIEWS.map((k) => ({ kind: k.kind, label: k.label, logo: k.logo, available: k.kind === current })),
+    ...AGENT_KINDS_COMING_SOON.map((c) => ({ kind: c.id, label: c.label, logo: c.logo, available: false })),
+  ];
+}
+
 function AgentStep({ org, projectId }: { org: string; projectId: string }) {
   const bar = useAppBar(org);
   const goTo = useGoToStep(org);
@@ -360,7 +384,7 @@ function AgentStep({ org, projectId }: { org: string; projectId: string }) {
       const saved = await save(project, agent, {
         model: d.model,
         maxConcurrentRuns: max,
-        credentialType: d.credentialType,
+        credentialType: d.credentialType ?? 'oauth_token',
         credential: d.credential,
         ...(d.credential !== '' && addressChanged && { baseUrl: d.baseUrl === '' ? null : d.baseUrl }),
       });
@@ -379,7 +403,11 @@ function AgentStep({ org, projectId }: { org: string; projectId: string }) {
       org={bar.org}
       projectName={project.name}
       repo={project.repoPath}
-      credentialType={agent.credential.type ?? 'oauth_token'}
+      kinds={AGENT_KIND_VIEWS}
+      providers={agentProviders(agent.provider)}
+      savedProvider={agent.credential.set ? agent.provider : undefined}
+      credentialType={agent.credential.type ?? undefined}
+      credentialSaved={agent.credential.set}
       secretState="entering"
       modelList={toModelList(models, agent.baseUrl)}
       baseUrl={agent.baseUrl ?? ''}

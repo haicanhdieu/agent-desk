@@ -186,6 +186,11 @@
   color: var(--text);
   font-size: var(--fs-13);
 }
+.faintLine {
+  font-size: var(--fs-12_5);
+  color: var(--faint);
+  margin: 0;
+}
 .semi {
   font-weight: 600;
   color: var(--text);

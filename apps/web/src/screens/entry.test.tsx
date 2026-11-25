@@ -31,6 +31,12 @@ describe('ProjectsEmpty', () => {
     expect(screen.getByRole('link', { name: 'Create project' })).toHaveAttribute('href', '/new');
     expect(screen.getAllByRole('main')).toHaveLength(1);
   });
+  it('names the agent step "Add an agent", for any provider', () => {
+    render(<ProjectsEmpty user={user} createHref="/new" canCreate />);
+    expect(screen.getByText('Add an agent')).toBeInTheDocument();
+    expect(screen.getByText('Choose the agent you work with and add its credential.')).toBeInTheDocument();
+    expect(screen.queryByText('Add Claude')).toBeNull();
+  });
 });
 
 describe('Projects', () => {

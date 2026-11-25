@@ -14,7 +14,7 @@ const org = {
   settingsHref: '#settings',
 };
 const steps = [
-  { label: 'Add Claude credential', detail: 'Claude Code token, opus' },
+  { label: 'Add agent', detail: 'Claude Code, opus' },
   { label: 'Add skills', optional: true },
   { label: 'Add first rule' },
 ];
@@ -87,6 +87,26 @@ export const Saving: Story = {
       back: '#',
       onSkip: () => undefined,
       next: { label: 'Commit 2 skills and continue', onClick: () => undefined, pending: true },
+    },
+  },
+};
+/** A second button before Continue and a note under the footer (the Agent step after a failed test). */
+export const ContinueAnyway: Story = {
+  args: {
+    user,
+    org,
+    projectName: 'invoicer-api',
+    steps,
+    current: 0,
+    stepLabel: 'Step 2 of 5',
+    title: 'Add your agent',
+    intro: 'Pick the agent you work with. Runs use it unless a rule picks another agent.',
+    children: <p className="muted">Agent fields go here.</p>,
+    footer: {
+      back: '#',
+      also: { label: 'Continue anyway', onClick: () => undefined },
+      note: 'Not ready yet? You can leave setup and come back; the project keeps your progress.',
+      next: { label: 'Continue', onClick: () => undefined },
     },
   },
 };

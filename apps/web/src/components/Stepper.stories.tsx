@@ -3,7 +3,7 @@ import { Stepper } from './Stepper';
 
 const steps = [
   { label: 'Connect repository', detail: 'harbor-labs/invoicer-api' },
-  { label: 'Add Claude credential', detail: 'Claude Code token, opus' },
+  { label: 'Add agent', detail: 'Claude Code, opus' },
   { label: 'Add skills', optional: true, detail: 'code-build, code-review' },
   { label: 'Add first rule' },
 ];

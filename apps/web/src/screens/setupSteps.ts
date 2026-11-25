@@ -19,14 +19,14 @@ export function setupSteps({
 }: SetupStepDetails = {}): StepperProps['steps'] {
   return [
     { label: 'Connect repository', detail: repo },
-    { label: 'Add Claude credential', detail: credential },
+    { label: 'Add agent', detail: credential },
     ...(withWorkspace ? [{ label: 'Prepare workspace', optional: true, detail: workspace }] : []),
     { label: 'Add skills', optional: true, detail: skills },
     { label: 'Add first rule', optional: true },
   ];
 }
 
-export const DEFAULT_CREDENTIAL_DETAIL = 'Claude Code token, opus';
+export const DEFAULT_CREDENTIAL_DETAIL = 'Claude Code, opus';
 
 export interface SetupNav {
   backHref?: string;

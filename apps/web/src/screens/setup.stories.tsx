@@ -1,9 +1,12 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
+import { userEvent, within } from 'storybook/test';
 import { AppShell } from '@/components';
 import { CommandChip } from '@/ds';
 import {
+  agentKindViews,
   agentSettings,
   connectionCopy,
+  providerPickerChoices,
   promptSystemLines,
   rules,
   setupPlugins,
@@ -161,38 +164,146 @@ export const Setup1PollingFailed: Story = {
   ),
 };
 
-export const Setup2: Story = {
-  name: 'Setup 2, Claude credential',
+/** Standard names while no credential exists, per provider (the Add agent pane's `no_credential` note). */
+const builtinList = (ids: string[]) =>
+  toModelList(
+    {
+      status: 'success',
+      data: { source: 'builtin', reason: 'no_credential', models: ids.map((id) => ({ id, label: id })) },
+    },
+    null,
+  );
+const liveModels = toModelList({ status: 'success', data: agentModelsFixtures.live }, null);
+const noCredentialModels = toModelList({ status: 'success', data: agentModelsFixtures.noCredential }, null);
+
+const setup2Props = {
+  user,
+  ...bar,
+  projectName,
+  repo,
+  kinds: agentKindViews,
+  providers: providerPickerChoices,
+  secretState: 'entering' as const,
+  modelList: liveModels,
+  modelLists: {
+    claude: noCredentialModels,
+    codex: builtinList(['gpt-5-codex', 'gpt-5']),
+    opencode: builtinList([]),
+  },
+  maxConcurrent: agentSettings.maxConcurrent,
+  onContinue: () => undefined,
+};
+type Canvas = ReturnType<typeof within>;
+const pickRadio = (c: Canvas, name: string) => userEvent.click(c.getByRole('radio', { name }));
+
+/** The board: nothing picked, the three agents and the ten Coming soon chips; no field shows yet. */
+export const Setup2DefaultAgent: Story = {
+  name: 'Setup 2, add agent, nothing picked',
+  render: () => <Setup2Screen {...setup2Props} />,
+};
+
+/** No credential yet: the standard names with the reason note (Claude Code picked). */
+export const Setup2DefaultAgentFallback: Story = {
+  name: 'Setup 2, add agent, no credential yet',
+  render: () => <Setup2Screen {...setup2Props} />,
+  play: async ({ canvasElement }) => {
+    await pickRadio(within(canvasElement), 'Claude Code');
+  },
+};
+
+/** Claude Code picked with live models: the address field shows. */
+export const Setup2AgentClaude: Story = {
+  name: 'Setup 2, add agent, Claude Code picked',
   render: () => (
     <Setup2Screen
-      user={user}
-      {...bar}
-      projectName={projectName}
-      repo={repo}
-      credentialType={agentSettings.credential.type}
-      secretState="entering"
-      modelList={toModelList({ status: 'success', data: agentModelsFixtures.live }, null)}
-      maxConcurrent={agentSettings.maxConcurrent}
+      {...setup2Props}
+      modelLists={{ ...setup2Props.modelLists, claude: liveModels }}
       accepted={{ at: '14:03:02', secretName: 'agentdesk/proj-invoicer-api-claude' }}
     />
   ),
+  play: async ({ canvasElement }) => {
+    await pickRadio(within(canvasElement), 'Claude Code');
+  },
 };
 
-/** No credential yet: the standard names with the reason note. */
-export const Setup2Fallback: Story = {
-  name: 'Setup 2, Claude credential, no credential yet',
+/** The board: Codex picked, a sign-in file or an API key, no address field. */
+export const Setup2AgentCodex: Story = {
+  name: 'Setup 2, add agent, OpenAI Codex picked',
+  render: () => <Setup2Screen {...setup2Props} />,
+  play: async ({ canvasElement }) => {
+    await pickRadio(within(canvasElement), 'OpenAI Codex');
+  },
+};
+
+/** OpenCode picked with its endpoint and key choice: two fields, the endpoint help and the required model. */
+export const Setup2AgentOpenCode: Story = {
+  name: 'Setup 2, add agent, OpenCode, API endpoint and key',
+  ...tall,
+  render: () => <Setup2Screen {...setup2Props} />,
+  play: async ({ canvasElement }) => {
+    const c = within(canvasElement);
+    await pickRadio(c, 'OpenCode');
+    await pickRadio(c, 'API endpoint and key');
+  },
+};
+
+/** The board: the test failed; the credential stays saved and "Continue anyway" appears beside Continue. */
+export const Setup2AgentRejected: Story = {
+  name: 'Setup 2, add agent, the test failed',
+  ...tall,
   render: () => (
     <Setup2Screen
-      user={user}
-      {...bar}
-      projectName={projectName}
-      repo={repo}
-      credentialType={agentSettings.credential.type}
-      secretState="entering"
-      modelList={toModelList({ status: 'success', data: agentModelsFixtures.noCredential }, null)}
-      maxConcurrent={agentSettings.maxConcurrent}
+      {...setup2Props}
+      onContinueAnyway={() => undefined}
+      testFailed={{
+        status: 'Credential rejected',
+        message: 'The provider refused the saved credential. Replace it, then test again.',
+      }}
     />
   ),
+  play: async ({ canvasElement }) => {
+    const c = within(canvasElement);
+    await pickRadio(c, 'Claude Code');
+    await pickRadio(c, 'API key');
+  },
+};
+
+/** Saving: the progress line and a busy Continue. */
+export const Setup2AgentSaving: Story = {
+  name: 'Setup 2, add agent, saving',
+  render: () => <Setup2Screen {...setup2Props} saving progress="Saving credential..." />,
+  play: async ({ canvasElement }) => {
+    await pickRadio(within(canvasElement), 'Claude Code');
+  },
+};
+
+/** Messages under the fields (the API's pointers). */
+export const Setup2AgentFieldErrors: Story = {
+  name: 'Setup 2, add agent, field errors',
+  ...tall,
+  render: () => (
+    <Setup2Screen
+      {...setup2Props}
+      errors={{
+        credential: 'Paste the token to continue.',
+        baseUrl: 'Use a public https address.',
+        model: 'Enter a model name.',
+        maxConcurrent: 'Enter a whole number from 1 to 10.',
+      }}
+    />
+  ),
+  play: async ({ canvasElement }) => {
+    await pickRadio(within(canvasElement), 'Claude Code');
+  },
+};
+
+/** Continue with no agent picked: the message under the cards. */
+export const Setup2AgentNoneChosen: Story = {
+  name: 'Setup 2, add agent, Continue with nothing picked',
+  render: () => <Setup2Screen {...setup2Props} />,
+  play: async ({ canvasElement }) => {
+    await userEvent.click(within(canvasElement).getByRole('button', { name: 'Continue' }));
+  },
 };
 
 const workspace = { user, ...bar, projectName, repo, plugins: { plugins: setupPlugins.planned } };
@@ -265,8 +376,6 @@ export const Setup3: Story = {
   ),
 };
 
-const liveModels = toModelList({ status: 'success', data: agentModelsFixtures.live }, null);
-
 export const Setup4: Story = {
   name: 'Setup 4, first rule',
   render: () => (
@@ -281,6 +390,7 @@ export const Setup4: Story = {
       maxRunsPerTicket={agentSettings.maxRunsPerTicket}
       promptPreview={{ state: 'ready', systemLines: promptSystemLines }}
       modelList={liveModels}
+      defaultAgentName="Claude"
     />
   ),
 };
@@ -300,6 +410,7 @@ export const Setup4Skip: Story = {
       maxRunsPerTicket={agentSettings.maxRunsPerTicket}
       promptPreview={{ state: 'ready', systemLines: promptSystemLines }}
       modelList={liveModels}
+      defaultAgentName="Claude"
       onSkip={() => undefined}
     />
   ),
@@ -322,6 +433,7 @@ export const Setup4Prompt: Story = {
       maxRunsPerTicket={agentSettings.maxRunsPerTicket}
       promptPreview={{ state: 'ready', systemLines: promptSystemLines }}
       modelList={liveModels}
+      defaultAgentName="Claude"
     />
   ),
 };

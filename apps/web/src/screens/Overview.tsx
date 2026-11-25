@@ -20,7 +20,7 @@ const groups: { heading: string; items: { board: BoardName; label: string }[] }[
       { board: 'Setup1', label: '1. Connect repository, webhook' },
       { board: 'Setup1Polling', label: '1. Connect repository, polling, first check' },
       { board: 'Setup1PollingOk', label: '1. Connect repository, polling connected' },
-      { board: 'Setup2', label: '2. Claude credential' },
+      { board: 'Setup2DefaultAgent', label: '2. Agent' },
       { board: 'Setup3', label: '3. Skills from templates' },
       { board: 'Setup4', label: '4. First rule' },
       { board: 'SetupReady', label: 'Ready to trigger' },

@@ -458,10 +458,10 @@ describe('SettingsSection / DangerZone / SidePane / SurfaceCard / SetupLayout', 
       <SetupLayout
         user={{ login: 'kim-hale', initials: 'KH' }}
         projectName="invoicer-api"
-        steps={[{ label: 'One' }, { label: 'Two' }, { label: 'Three' }, { label: 'Four' }]}
+        steps={[{ label: 'One' }, { label: 'Add agent' }, { label: 'Three' }, { label: 'Four' }]}
         current={1}
         stepLabel="Step 2 of 4"
-        title="Add Claude credential"
+        title="Add your agent"
         intro={<>Intro text</>}
         aside={<p>aside</p>}
         footer={{ back: '/s1', skip: '/s3', next: { label: 'Continue', href: '/s3' } }}
@@ -469,7 +469,7 @@ describe('SettingsSection / DangerZone / SidePane / SurfaceCard / SetupLayout', 
         <p>content</p>
       </SetupLayout>,
     );
-    expect(screen.getByRole('heading', { level: 1, name: 'Add Claude credential' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 1, name: 'Add your agent' })).toBeInTheDocument();
     expect(screen.getByText('Step 2 of 4')).toBeInTheDocument();
     expect(screen.getByText('invoicer-api')).toBeInTheDocument();
     expect(screen.getByText(/Progress is saved/)).toBeInTheDocument();
@@ -477,7 +477,32 @@ describe('SettingsSection / DangerZone / SidePane / SurfaceCard / SetupLayout', 
     expect(screen.getByRole('link', { name: 'Skip' })).toHaveAttribute('href', '/s3');
     expect(screen.getByRole('link', { name: 'Continue' })).toHaveAttribute('href', '/s3');
     expect(screen.getByText('aside')).toBeInTheDocument();
-    expect(document.querySelector('[aria-current="step"]')).toHaveTextContent('Two');
+    expect(document.querySelector('[aria-current="step"]')).toHaveTextContent('Add agent');
+  });
+  it('SetupLayout offers a second button before next and a note under the footer', async () => {
+    const also = vi.fn();
+    render(
+      <SetupLayout
+        user={{ login: 'kim-hale', initials: 'KH' }}
+        projectName="invoicer-api"
+        steps={[{ label: 'One' }, { label: 'Two' }]}
+        current={1}
+        title="T"
+        footer={{
+          back: '/s1',
+          also: { label: 'Continue anyway', onClick: also },
+          note: 'Not ready yet? You can leave setup and come back; the project keeps your progress.',
+          next: { label: 'Continue', onClick: () => undefined },
+        }}
+      >
+        <p>content</p>
+      </SetupLayout>,
+    );
+    const buttons = screen.getAllByRole('button').map((b) => b.textContent);
+    expect(buttons.indexOf('Continue anyway')).toBeLessThan(buttons.indexOf('Continue'));
+    await userEvent.click(screen.getByRole('button', { name: 'Continue anyway' }));
+    expect(also).toHaveBeenCalledOnce();
+    expect(screen.getByText(/Not ready yet\?/)).toBeInTheDocument();
   });
   it('SetupLayout without back/skip renders only next', () => {
     render(

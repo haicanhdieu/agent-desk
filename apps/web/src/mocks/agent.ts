@@ -9,6 +9,14 @@ import type {
   ProviderPickerOptions,
 } from './types';
 
+/** One card or chip of the provider picker (same shape as `ProviderPickerOption` of the component). */
+export interface ProviderPickerChoice {
+  kind: string;
+  label: string;
+  logo: string;
+  available: boolean;
+}
+
 const AGENT_KINDS = AgentKind.options;
 
 // Prototype board: DeskAgentLimits (Limits).
@@ -87,6 +95,12 @@ export const providerPickerOptions: ProviderPickerOptions = {
   })),
   comingSoon: AGENT_KINDS_COMING_SOON.map(({ id, label, logo }) => ({ id, label, logo })),
 };
+
+/** The picker's cards, then its Coming-soon chips, as `ProviderPicker` takes them. */
+export const providerPickerChoices: ProviderPickerChoice[] = [
+  ...providerPickerOptions.runnable.map((o) => ({ kind: o.kind, label: o.label, logo: o.logo, available: true })),
+  ...providerPickerOptions.comingSoon.map((o) => ({ kind: o.id, label: o.label, logo: o.logo, available: false })),
+];
 
 /** The runnable providers with their capability rows, for the pane's provider-specific fields. */
 export const agentKindViews: AgentKindView[] = AGENT_KINDS.map((kind) => ({ kind, ...AGENT_KIND_CAPABILITIES[kind] }));

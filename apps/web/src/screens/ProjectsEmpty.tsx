@@ -24,7 +24,7 @@ export interface ProjectsEmptyProps {
 
 const steps = [
   { title: 'Connect a repo', body: 'Install the GitHub App on one repository.' },
-  { title: 'Add Claude', body: 'Paste an API key or Claude Code token.' },
+  { title: 'Add an agent', body: 'Choose the agent you work with and add its credential.' },
   { title: 'Add skills', body: 'Start from templates or use skills already in the repo.' },
   { title: 'Add a rule', body: 'Map a comment like /code-build to a skill.' },
 ];

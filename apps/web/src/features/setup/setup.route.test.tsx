@@ -41,6 +41,23 @@ const cacheText = (qc: QueryClient) =>
 
 afterEach(() => vi.restoreAllMocks());
 
+type User = Awaited<ReturnType<typeof renderRoute>>['user'];
+
+/** The Agent step starts with nothing picked; picks Claude Code (the project's agent) unless it is already shown. */
+async function openClaude(user: User) {
+  const claude = await screen.findByRole('radio', { name: 'Claude Code' });
+  if (!(claude instanceof HTMLInputElement) || !claude.checked) await user.click(claude);
+}
+const token = () => screen.getByLabelText('Subscription token', { selector: 'input[type="password"]' });
+async function tokenBox(user: User) {
+  await openClaude(user);
+  return token();
+}
+async function addressBox(user: User) {
+  await openClaude(user);
+  return screen.getByLabelText('API address');
+}
+
 const INSTALL_URL = 'https://github.com/apps/agent-desk/installations/new';
 
 /** `window.open` answers with a blank tab the test can read; jsdom has no tabs. */
@@ -90,7 +107,7 @@ describe('setup flow', () => {
     expect(router.state.location.search).toEqual({ project: created.id });
 
     // Step agent: the credential is saved, then the project moves on to setup.
-    await user.type(await screen.findByLabelText('Token'), TOKEN);
+    await user.type(await tokenBox(user), TOKEN);
     await user.click(screen.getByRole('button', { name: 'Continue' }));
     await waitFor(() => expect(router.state.location.pathname).toBe(`${base}/setup`));
     expect(router.state.location.searchStr).toBe(`?project=${created.id}`);
@@ -276,7 +293,7 @@ describe('setup flow', () => {
     const id = seedAt('rules');
     const { router } = await renderRoute(`${base}/agent?project=${id}`);
     expect(router.state.location.pathname).toBe(`${base}/agent`);
-    expect(await screen.findByRole('heading', { name: 'Add the Claude credential' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Add your agent' })).toBeInTheDocument();
   });
 
   it('a later step without a project goes back to the repo step', async () => {
@@ -298,7 +315,7 @@ describe('setup flow', () => {
       errors: [{ pointer: '/value', detail: 'The token was rejected by Claude.' }],
     });
     const { router, user } = await renderRoute(`${base}/agent?project=${id}`);
-    const token = await screen.findByLabelText('Token');
+    const token = await tokenBox(user);
     await user.type(token, TOKEN);
     await user.click(screen.getByRole('button', { name: 'Continue' }));
 
@@ -865,7 +882,7 @@ describe('setup agent step and step 4 model wiring', () => {
     const id = seedAt('agent');
     const { sent, stop } = captureWrites();
     const { router, user } = await renderRoute(`${base}/agent?project=${id}`);
-    const address = await screen.findByLabelText('API address');
+    const address = await addressBox(user);
     await user.type(address, 'https://gw.example.com/anthropic');
     await user.click(screen.getByRole('button', { name: 'Continue' }));
     expect(await screen.findByText('Paste the token again to change the API address.')).toBeInTheDocument();
@@ -879,8 +896,8 @@ describe('setup agent step and step 4 model wiring', () => {
     const id = seedAt('agent');
     const { sent, stop } = captureWrites();
     const { router, user } = await renderRoute(`${base}/agent?project=${id}`);
-    await user.type(await screen.findByLabelText('API address'), ' https://gw.example.com/anthropic ');
-    await user.type(screen.getByLabelText('Token'), TOKEN);
+    await user.type(await addressBox(user), ' https://gw.example.com/anthropic ');
+    await user.type(token(), TOKEN);
     await user.click(screen.getByRole('button', { name: 'Continue' }));
     await waitFor(() => expect(router.state.location.pathname).toBe(`${base}/setup`));
     stop();
@@ -896,7 +913,7 @@ describe('setup agent step and step 4 model wiring', () => {
     const id = seedAt('agent');
     const { sent, stop } = captureWrites();
     const { router, user } = await renderRoute(`${base}/agent?project=${id}`);
-    await screen.findByLabelText('API address');
+    await addressBox(user);
     await user.click(screen.getByRole('button', { name: 'Continue' }));
     await waitFor(() => expect(router.state.location.pathname).toBe(`${base}/setup`));
     stop();
@@ -907,7 +924,7 @@ describe('setup agent step and step 4 model wiring', () => {
     const id = seedAt('agent');
     const { sent, stop } = captureWrites();
     const { router, user } = await renderRoute(`${base}/agent?project=${id}`);
-    await user.type(await screen.findByLabelText('Token'), TOKEN);
+    await user.type(await tokenBox(user), TOKEN);
     await user.click(screen.getByRole('button', { name: 'Continue' }));
     await waitFor(() => expect(router.state.location.pathname).toBe(`${base}/setup`));
     stop();
@@ -919,8 +936,8 @@ describe('setup agent step and step 4 model wiring', () => {
     agentRow().baseUrl = 'https://gw.example.com';
     const { sent, stop } = captureWrites();
     const { router, user } = await renderRoute(`${base}/agent?project=${id}`);
-    await user.clear(await screen.findByLabelText('API address'));
-    await user.type(screen.getByLabelText('Token'), TOKEN);
+    await user.clear(await addressBox(user));
+    await user.type(token(), TOKEN);
     await user.click(screen.getByRole('button', { name: 'Continue' }));
     await waitFor(() => expect(router.state.location.pathname).toBe(`${base}/setup`));
     stop();
@@ -943,8 +960,8 @@ describe('setup agent step and step 4 model wiring', () => {
     const modelsPath = `/api/agents/${agentId}/models`;
     const agentGetPath = `/api/projects/${id}/agent`;
     const { router, user } = await renderRoute(`${base}/agent?project=${id}`);
-    await user.type(await screen.findByLabelText('API address'), 'https://10.0.0.1');
-    await user.type(screen.getByLabelText('Token'), TOKEN);
+    await user.type(await addressBox(user), 'https://10.0.0.1');
+    await user.type(token(), TOKEN);
     const before = mockDb.requests('GET', modelsPath);
     const agentBefore = mockDb.requests('GET', agentGetPath);
     await user.click(screen.getByRole('button', { name: 'Continue' }));
@@ -957,7 +974,7 @@ describe('setup agent step and step 4 model wiring', () => {
   it('a failed refetch after the credential save says so and the step stays', async () => {
     const id = seedAt('agent');
     const { router, user } = await renderRoute(`${base}/agent?project=${id}`);
-    await user.type(await screen.findByLabelText('Token'), TOKEN);
+    await user.type(await tokenBox(user), TOKEN);
     scenarios.serverError('agents.get');
     await user.click(screen.getByRole('button', { name: 'Continue' }));
     expect(
@@ -975,7 +992,7 @@ describe('setup agent step and step 4 model wiring', () => {
       errors: [{ pointer: '/value', detail: 'The token was rejected by Claude.' }],
     });
     const { router, user } = await renderRoute(`${base}/agent?project=${id}`);
-    const token = await screen.findByLabelText('Token');
+    const token = await tokenBox(user);
     await user.type(token, TOKEN);
     scenarios.serverError('agents.get');
     await user.click(screen.getByRole('button', { name: 'Continue' }));
@@ -999,15 +1016,15 @@ describe('setup agent step and step 4 model wiring', () => {
       }),
     );
     const { router, user } = await renderRoute(`${base}/agent?project=${id}`);
-    await user.type(await screen.findByLabelText('API address'), address);
-    await user.type(screen.getByLabelText('Token'), TOKEN);
+    await user.type(await addressBox(user), address);
+    await user.type(token(), TOKEN);
     await user.click(screen.getByRole('button', { name: 'Continue' }));
     // The step refetched the agent: it shows the new address and asks for the token again.
     await waitFor(() => expect(screen.queryByText(/Set .* by /)).not.toBeInTheDocument());
     expect(router.state.location.pathname).toBe(`${base}/agent`);
     expect(projectRow(id).setupStep).toBe('agent');
 
-    await user.clear(screen.getByLabelText('Token'));
+    await user.clear(token());
     await user.click(screen.getByRole('button', { name: 'Continue' }));
     expect(await screen.findByText('Paste the token to continue.')).toBeInTheDocument();
     expect(screen.getByLabelText('API address')).toHaveValue(address);

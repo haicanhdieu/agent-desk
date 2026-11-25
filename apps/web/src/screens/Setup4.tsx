@@ -28,6 +28,8 @@ export interface Setup4Props extends SetupNav {
   /** The Model field's list; without it the field is hidden. */
   modelList?: ModelList;
   credentialDetail?: string;
+  /** The project default agent's name: the locked agent field then reads "Project default (<name>)". */
+  defaultAgentName?: string;
   agentSettingsHref?: string;
   ignoredHref?: string;
   /** Saves the rules. With it, the primary button is a button instead of the `nextHref` link. */
@@ -54,6 +56,7 @@ export function Setup4({
   maxRunsPerTicket,
   modelList,
   credentialDetail = DEFAULT_CREDENTIAL_DETAIL,
+  defaultAgentName,
   backHref = '#',
   nextHref = '#',
   agentSettingsHref = '#',
@@ -96,8 +99,9 @@ export function Setup4({
     >
       {formError && <Banner tone="err" icon={<Icon name="warning" size={16} />} title={formError} live="assertive" />}
       <RuleForm
-        value={draft}
+        value={defaultAgentName === undefined ? draft : { ...draft, agentId: null, agentLabel: undefined }}
         skills={skills}
+        defaultAgentName={defaultAgentName}
         agents={
           draft.agentId ? [{ id: draft.agentId, label: draft.agentLabel ?? draft.agentId, provider: 'claude' }] : []
         }

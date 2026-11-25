@@ -22,10 +22,20 @@ export interface ProviderPickerProps {
   error?: string;
   /** Focus the first card on mount (the Add pane). */
   autoFocus?: boolean;
+  /** The group's name. Default "Provider" (the wizard says "Agent"). */
+  legend?: string;
 }
 
 /** Radio cards for the providers a person can pick, then the Coming soon ones as plain chips. Names come from props. */
-export function ProviderPicker({ options, value, onChange, readOnly, error, autoFocus }: ProviderPickerProps) {
+export function ProviderPicker({
+  options,
+  value,
+  onChange,
+  readOnly,
+  error,
+  autoFocus,
+  legend = 'Provider',
+}: ProviderPickerProps) {
   const id = useId();
   const errorId = `${id}-error`;
   const comingId = `${id}-soon`;
@@ -42,7 +52,7 @@ export function ProviderPicker({ options, value, onChange, readOnly, error, auto
       aria-describedby={error ? errorId : undefined}
       aria-invalid={error ? true : undefined}
     >
-      <legend className={styles.legend}>Provider</legend>
+      <legend className={styles.legend}>{legend}</legend>
       <div className={styles.cards}>
         {runnable.map((o) => (
           <RadioCard

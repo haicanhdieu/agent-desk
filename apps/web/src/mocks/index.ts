@@ -66,6 +66,7 @@ export {
   agentRowViews,
   agentStatusView,
   providerPickerOptions,
+  providerPickerChoices,
   agentKindViews,
   agentPaneAgent,
   agentPaneAgents,
