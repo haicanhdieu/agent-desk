@@ -2,7 +2,7 @@ import { Writable } from 'node:stream';
 import { sql } from 'drizzle-orm';
 import pino from 'pino';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { credentialSecretName, type AgentHttpGet } from '@agentdesk/core';
+import { GuardedHttpError, credentialSecretName, type AgentHttpGet } from '@agentdesk/core';
 import { withOrg } from '@agentdesk/db';
 import type { AgentDto, Page } from '@agentdesk/contracts';
 import { createTestApp, type TestApp } from './helpers/app';
@@ -18,7 +18,13 @@ let orgId: string;
 let owner: string;
 let projectId: string;
 const logged: string[] = [];
-const agentHttp: AgentHttpGet = () => Promise.resolve({ status: 200, json: { data: [{ id: 'unused' }] } });
+const calls: { url: string; headers: Record<string, string> }[] = [];
+const defaultHttp: AgentHttpGet = () => Promise.resolve({ status: 200, json: { data: [{ id: 'unused' }] } });
+let httpImpl: AgentHttpGet = defaultHttp;
+const agentHttp: AgentHttpGet = (url, headers, opts) => {
+  calls.push({ url: url.toString(), headers });
+  return httpImpl(url, headers, opts);
+};
 
 beforeAll(async () => {
   const stream = new Writable({
@@ -245,5 +251,99 @@ describe('opencode with no credential (BR-41, BR-68)', () => {
     const body = res.json() as Record<string, unknown>;
     expect(body['agentId']).toBe(a.id);
     expect(Object.keys(body).filter((k) => /warn/i.test(k))).toEqual([]);
+  });
+});
+
+describe('opencode test connection (BR-20, BR-22, BR-68)', () => {
+  const testConn = (id: string) => call('POST', `/api/agents/${id}/test`);
+  const withHttp = async (impl: AgentHttpGet, run: () => Promise<void>): Promise<void> => {
+    httpImpl = impl;
+    try {
+      await run();
+    } finally {
+      httpImpl = defaultHttp;
+    }
+  };
+  const endpointAgent = async (baseUrl = ENDPOINT, key = KEY) => {
+    const a = await newOpencode();
+    expect((await putCred(a.id, { type: 'api_key', value: key, baseUrl })).statusCode).toBe(200);
+    return a;
+  };
+
+  it('no credential and a credentials file answer unsupported with zero outbound calls, and store it', async () => {
+    const none = await newOpencode();
+    const file = await newOpencode();
+    expect((await putCred(file.id, { type: 'auth_json', value: '{"a":{"b":"c"}}' })).statusCode).toBe(200);
+    calls.length = 0;
+    for (const a of [none, file]) {
+      const body = expectContract('agents.test', await testConn(a.id)) as { status: string; message: string };
+      expect(body).toMatchObject({ status: 'unsupported', message: 'This agent has no connection check.' });
+      expect((await one(a.id)).lastTest?.status).toBe('unsupported');
+    }
+    expect(calls).toEqual([]);
+  });
+
+  it('asks GET <baseUrl>/models with the bearer key and answers ok for a list', async () => {
+    const a = await endpointAgent();
+    calls.length = 0;
+    await withHttp(
+      () => Promise.resolve({ status: 200, json: { data: [{ id: 'm1' }] } }),
+      async () => {
+        const body = expectContract('agents.test', await testConn(a.id)) as { status: string };
+        expect(body.status).toBe('ok');
+      },
+    );
+    expect(calls).toEqual([{ url: `${ENDPOINT}/models`, headers: { authorization: `Bearer ${KEY}` } }]);
+    expect((await one(a.id)).lastTest?.status).toBe('ok');
+  });
+
+  it.each([
+    ['401', () => Promise.resolve({ status: 401, json: {} }), 'rejected'],
+    ['403', () => Promise.resolve({ status: 403, json: {} }), 'rejected'],
+    ['a transport error', () => Promise.reject(new Error('ECONNRESET')), 'unreachable'],
+    ['a redirect', () => Promise.reject(new GuardedHttpError('redirect')), 'unreachable'],
+    ['a stall', () => Promise.reject(new GuardedHttpError('timeout')), 'unreachable'],
+    ['a 500', () => Promise.resolve({ status: 500, json: {} }), 'invalid'],
+    ['an HTML body', () => Promise.reject(new GuardedHttpError('bad_json')), 'invalid'],
+    ['an oversized body', () => Promise.reject(new GuardedHttpError('too_large')), 'invalid'],
+    ['a body that is not a list', () => Promise.resolve({ status: 200, json: { data: 'x' } }), 'invalid'],
+  ] as [string, AgentHttpGet, string][])(
+    'maps %s to %s with a fixed message and keeps the agent saved',
+    async (_n, impl, status) => {
+      const a = await endpointAgent();
+      logged.length = 0;
+      await withHttp(impl, async () => {
+        const res = await testConn(a.id);
+        const body = expectContract('agents.test', res) as { status: string; message: string };
+        expect(body.status).toBe(status);
+        expect(res.body).not.toContain(KEY);
+        expect(res.body).not.toContain('ECONNRESET');
+      });
+      expect(logged.join('')).not.toContain(KEY);
+      const after = await one(a.id);
+      expect(after.credential.set).toBe(true);
+      expect(after.lastTest?.status).toBe(status);
+    },
+  );
+
+  it('two agents with different endpoints and keys never cross', async () => {
+    const a = await endpointAgent('https://a.example.com/v1', 'key-a-test');
+    const b = await endpointAgent('https://b.example.com/v1', 'key-b-test');
+    calls.length = 0;
+    await withHttp(
+      (url, headers) =>
+        Promise.resolve({
+          status: url.host === 'a.example.com' && headers['authorization'] === 'Bearer key-a-test' ? 200 : 401,
+          json: { data: [{ id: 'm' }] },
+        }),
+      async () => {
+        expect(((await testConn(a.id)).json() as { status: string }).status).toBe('ok');
+        expect(((await testConn(b.id)).json() as { status: string }).status).toBe('rejected');
+      },
+    );
+    expect(calls.map((c) => [c.url, c.headers['authorization']])).toEqual([
+      ['https://a.example.com/v1/models', 'Bearer key-a-test'],
+      ['https://b.example.com/v1/models', 'Bearer key-b-test'],
+    ]);
   });
 });

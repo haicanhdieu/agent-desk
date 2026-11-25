@@ -28,3 +28,22 @@ export function uniqueViolationConstraint(err: unknown): string | null {
   if (e === null) return null;
   return 'constraint' in e && typeof e.constraint === 'string' ? e.constraint : '';
 }
+
+/** True when `err` (or its drizzle-wrapped cause) is a Postgres foreign_key_violation (23503). */
+export function foreignKeyViolation(err: unknown): boolean {
+  for (let e: unknown = err, depth = 0; typeof e === 'object' && e !== null && depth < 4; depth += 1) {
+    if ('code' in e && e.code === '23503') return true;
+    e = 'cause' in e ? e.cause : undefined;
+  }
+  return false;
+}
+
+/** The violated constraint's name for a foreign_key_violation (from the error or its drizzle-wrapped cause), else null. */
+export function foreignKeyViolationConstraint(err: unknown): string | null {
+  for (let e: unknown = err, depth = 0; typeof e === 'object' && e !== null && depth < 4; depth += 1) {
+    if ('code' in e && e.code === '23503')
+      return 'constraint' in e && typeof e.constraint === 'string' ? e.constraint : '';
+    e = 'cause' in e ? e.cause : undefined;
+  }
+  return null;
+}

@@ -1,4 +1,4 @@
-import { Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { ConflictException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { and, asc, eq, gte, inArray, sql } from 'drizzle-orm';
 import { agents, projects, rules, runs, withOrg, type Db, type Tx } from '@agentdesk/db';
 import {
@@ -15,11 +15,14 @@ import {
 import { PROMPT_PREVIEW_ARGS, PROMPT_PREVIEW_TICKET, promptSystemLines, SkillNotFoundError } from '@agentdesk/core';
 import type { OrgContext } from '../auth/org-context';
 import { DB } from '../db/db.module';
-import { isUniqueViolation } from '../common/pg-errors';
+import { foreignKeyViolationConstraint, isUniqueViolation } from '../common/pg-errors';
 import { ConflictProblemException, UnprocessableProblemException } from '../common/zod-validation';
 import { SkillsService } from '../skills/skills.service';
 
 type RuleRow = typeof rules.$inferSelect;
+
+/** The rules -> agents foreign key (packages/db migration 0000): the one 23503 that means the agent was deleted. */
+const RULE_AGENT_FK = 'rules_agent_id_agents_id_fk';
 
 const WINDOW_MS = 30 * 24 * 60 * 60 * 1000;
 
@@ -187,6 +190,9 @@ export class RulesService {
       });
     } catch (err) {
       if (isUniqueViolation(err)) throw duplicateCommand();
+      // The agent was deleted between the lookup and the write (23503): a conflict, not a server error.
+      if (foreignKeyViolationConstraint(err) === RULE_AGENT_FK)
+        throw new ConflictException('The agent was deleted. Choose another agent.');
       throw err;
     }
   }
@@ -236,6 +242,9 @@ export class RulesService {
       });
     } catch (err) {
       if (isUniqueViolation(err)) throw duplicateCommand();
+      // The agent was deleted between the lookup and the write (23503): a conflict, not a server error.
+      if (foreignKeyViolationConstraint(err) === RULE_AGENT_FK)
+        throw new ConflictException('The agent was deleted. Choose another agent.');
       throw err;
     }
   }

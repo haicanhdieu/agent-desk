@@ -169,7 +169,9 @@ describe('BR-28: a project outside the caller scope is 404', () => {
     ['agents.list', 'GET', `/api/projects/${p2}/agents`, undefined],
     ['agents.create', 'POST', `/api/projects/${p2}/agents`, { provider: 'claude', name: 'Other project agent' }],
     ['agents.update', 'PATCH', `/api/agents/${agentP2}`, { name: 'Renamed' }],
+    ['agents.remove', 'DELETE', `/api/agents/${agentP2}`, undefined],
     ['agents.setDefault', 'POST', `/api/agents/${agentP2}/default`, undefined],
+    ['agents.test', 'POST', `/api/agents/${agentP2}/test`, undefined],
     ['agents.get', 'GET', `/api/projects/${p2}/agent`, undefined],
     ['agents.put', 'PUT', `/api/projects/${p2}/agent`, { model: 'sonnet', timeoutSeconds: 3600 }],
     [
@@ -236,8 +238,6 @@ describe('BR-28: a project outside the caller scope is 404', () => {
   // Exclusions: WebSocket upgrades cannot be driven through inject; their out-of-scope close codes are tested in terminal.int.test.ts.
   const excluded: Record<string, string> = {
     'projects.remove': 'project:delete is org-level, so no project-scoped caller holds it: 403 for them, see below',
-    'agents.remove': 'controller lands in plan Tasks 15/16; scope cases are added there',
-    'agents.test': 'controller lands in plan Tasks 15/16; scope cases are added there',
     'runs.terminal': 'WebSocket upgrade: close code covered in terminal.int.test.ts',
     'setupTests.terminal': 'WebSocket upgrade: close code covered in terminal.int.test.ts',
   };
@@ -256,7 +256,7 @@ describe('BR-28: a project outside the caller scope is 404', () => {
     for (const key of Object.keys(excluded)) expect(routeAccess[key as RouteKey].scope, key).toBe('project');
   });
 
-  it('has no agent route registered yet: add its P2 scope cases and delete it from excluded', () => {
+  it('has every agent route registered with a P2 scope case (none left in excluded)', () => {
     const registered = new Set<string>();
     for (const r of registeredRoutes(t)) {
       const m = routeEntryFor(r.method, r.url);

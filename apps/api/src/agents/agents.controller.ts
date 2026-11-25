@@ -1,6 +1,7 @@
-import { Body, Controller, Get, HttpCode, Inject, Param, Patch, Post, Put, Query } from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpCode, Inject, Param, Patch, Post, Put, Query } from '@nestjs/common';
 import {
   routes,
+  type AgentConnectionDto,
   type AgentDto,
   type AgentModelsDto,
   type CreateAgentRequest,
@@ -63,6 +64,18 @@ export class AgentsController {
   @HttpCode(200)
   setDefault(@CurrentOrg() org: OrgContext, @Param(AgentParam) p: { agentId: string }): Promise<AgentDto> {
     return this.service.setDefault(org, p.agentId);
+  }
+
+  @Delete(routePath(routes.agents.remove))
+  @HttpCode(204)
+  remove(@CurrentOrg() org: OrgContext, @Param(AgentParam) p: { agentId: string }): Promise<void> {
+    return this.service.remove(org, p.agentId);
+  }
+
+  @Post(routePath(routes.agents.test))
+  @HttpCode(200)
+  test(@CurrentOrg() org: OrgContext, @Param(AgentParam) p: { agentId: string }): Promise<AgentConnectionDto> {
+    return this.service.test(org, p.agentId);
   }
 
   @Get(routePath(routes.agents.get))

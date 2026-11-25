@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { isUniqueViolation, uniqueViolationConstraint } from './pg-errors';
+import { foreignKeyViolationConstraint, isUniqueViolation, uniqueViolationConstraint } from './pg-errors';
 
 describe('unique violation helpers', () => {
   const pg = { code: '23505', constraint: 'agents_project_name_idx' };
@@ -18,5 +18,20 @@ describe('unique violation helpers', () => {
 
   it('gives an empty constraint when the pg error carries none', () => {
     expect(uniqueViolationConstraint({ code: '23505' })).toBe('');
+  });
+});
+
+describe('foreignKeyViolationConstraint', () => {
+  const fk = { code: '23503', constraint: 'rules_agent_id_agents_id_fk' };
+
+  it('reads the constraint of a foreign_key_violation, directly or behind a drizzle cause', () => {
+    expect(foreignKeyViolationConstraint(fk)).toBe('rules_agent_id_agents_id_fk');
+    expect(foreignKeyViolationConstraint(new Error('wrapped', { cause: fk }))).toBe('rules_agent_id_agents_id_fk');
+  });
+
+  it('is null for other errors and empty when the pg error carries no constraint', () => {
+    expect(foreignKeyViolationConstraint({ code: '23505', constraint: 'x' })).toBeNull();
+    expect(foreignKeyViolationConstraint('boom')).toBeNull();
+    expect(foreignKeyViolationConstraint({ code: '23503' })).toBe('');
   });
 });

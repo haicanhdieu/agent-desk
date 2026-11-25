@@ -1,13 +1,15 @@
-import { Inject, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { ConflictException, Inject, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { and, asc, count, desc, eq, inArray, sql } from 'drizzle-orm';
 import { agents, projects, rules, runs, withOrg, type Db, type Tx } from '@agentdesk/db';
 import {
   AGENT_KIND_CAPABILITIES,
+  AGENT_TEST_MESSAGES,
   AgentKind,
   AgentTestStatus,
   CredentialType,
   pageWindow,
   toPage,
+  type AgentConnectionDto,
   type AgentDto,
   type AgentModelsDto,
   type CreateAgentRequest,
@@ -26,11 +28,13 @@ import {
   credentialSecretName,
   parseCredentialSecret,
   type AgentHttpGet,
+  type Clock,
   type SecretStore,
 } from '@agentdesk/core';
 import type { OrgContext } from '../auth/org-context';
 import { CONFIG, type Config } from '../config/config.module';
-import { uniqueViolationConstraint } from '../common/pg-errors';
+import { CLOCK } from '../common/clock';
+import { describeError, foreignKeyViolation, uniqueViolationConstraint } from '../common/pg-errors';
 import {
   ConflictProblemException,
   UnprocessableProblemException,
@@ -43,9 +47,12 @@ import { AGENT_HTTP } from './agent-http.provider';
 import { blockingRunsCondition } from './blocking-runs';
 
 type AgentRow = typeof agents.$inferSelect;
+type AgentTestStatusWord = AgentTestStatus;
 
 /** The most bytes of a pasted credentials file (a Codex auth.json or an OpenCode export). */
 const AUTH_JSON_MAX_BYTES = 65536;
+/** The most rule commands a refused delete lists. */
+const RULE_LIST_MAX = 5;
 const DEFAULT_KEY = 'agents_project_default_key';
 
 const NAME_TAKEN = (): ConflictProblemException =>
@@ -178,6 +185,7 @@ export class AgentsService {
     @Inject(SECRET_STORE) private readonly secrets: SecretStore,
     @Inject(CONFIG) private readonly config: Config,
     @Inject(AGENT_HTTP) private readonly http: AgentHttpGet,
+    @Inject(CLOCK) private readonly clock: Clock,
   ) {}
 
   list(org: OrgContext, projectId: string, q: PageQuery): Promise<Page<AgentDto>> {
@@ -283,6 +291,124 @@ export class AgentsService {
       if (!saved) throw new NotFoundException('Agent not found');
       return dtoOf(tx, saved);
     });
+  }
+
+  /**
+   * Hard delete. The project row is locked first (the order every default-flag writer uses), then the agent row, so a
+   * rule or run insert (a key-share lock on the agent) and a set-default or create serialise with it. The 409s are
+   * checked in a fixed order: the only agent, the default, a rule that names it, a run that still needs it. The
+   * credential Secret goes after the commit and its failure never fails the request.
+   */
+  async remove(org: OrgContext, agentId: string): Promise<void> {
+    try {
+      await withOrg(this.db, org.orgId, async (tx) => {
+        const found = await agentById(tx, agentId);
+        await lockProject(tx, found.projectId);
+        const row = (await tx.select().from(agents).where(eq(agents.id, agentId)).for('update'))[0];
+        if (!row) throw new NotFoundException('Agent not found');
+        const [siblings] = await tx.select({ n: count() }).from(agents).where(eq(agents.projectId, row.projectId));
+        if ((siblings?.n ?? 0) <= 1) {
+          throw new ConflictException('A project needs at least one agent. Add another agent first.');
+        }
+        if (row.isDefault) throw new ConflictException('Set another agent as default first');
+        const named = await tx
+          .select({ command: rules.command })
+          .from(rules)
+          .where(and(eq(rules.projectId, row.projectId), eq(rules.agentId, agentId)))
+          .orderBy(asc(rules.command))
+          .limit(RULE_LIST_MAX + 1);
+        if (named.length > 0) {
+          const [total] = await tx
+            .select({ n: count() })
+            .from(rules)
+            .where(and(eq(rules.projectId, row.projectId), eq(rules.agentId, agentId)));
+          const shown = named.slice(0, RULE_LIST_MAX).map((r) => r.command);
+          const more = (total?.n ?? named.length) - shown.length;
+          throw new ConflictException(
+            `${total?.n ?? named.length} rule(s) use this agent: ${shown.join(', ')}${more > 0 ? ` and ${more} more` : ''}. Pick another agent for them first.`,
+          );
+        }
+        const [busy] = await tx
+          .select({ n: count() })
+          .from(runs)
+          .where(and(eq(runs.projectId, row.projectId), eq(runs.agentId, agentId), blockingRunsCondition()));
+        if ((busy?.n ?? 0) > 0) {
+          throw new ConflictException(
+            'A run that is queued, running, paused or has a kept session still uses this agent. Let it finish or close it first.',
+          );
+        }
+        await tx.delete(agents).where(eq(agents.id, agentId));
+      });
+    } catch (err) {
+      // A rule or run insert that slipped in (23503) is the same answer as one found by the checks.
+      if (foreignKeyViolation(err)) {
+        throw new ConflictException('A rule or run still uses this agent. Try again once it is free.');
+      }
+      throw err;
+    }
+    try {
+      await this.secrets.delete(credentialSecretName(org.orgId, agentId));
+    } catch (err) {
+      // An orphaned Secret is harmless (nothing reads it); log the class only: a store error can echo material.
+      this.logger.error(
+        `credential store delete failed for agent ${agentId}: ${err instanceof Error ? err.name : 'unknown'}`,
+      );
+    }
+  }
+
+  /**
+   * Checks the saved credential against the provider. The adapter call runs outside any transaction; the result is
+   * stored in a short one, only while the credential and address are still the ones that were tested. No credential
+   * on a kind that needs one answers `no_credential` and stores nothing; a kind that runs without one is asked
+   * anyway (its adapter answers `unsupported` with no outbound call).
+   */
+  async test(org: OrgContext, agentId: string): Promise<AgentConnectionDto> {
+    const agent = await withOrg(this.db, org.orgId, (tx) => agentById(tx, agentId));
+    const kind = AgentKind.parse(agent.provider);
+    const adapter = agentAdapterFor(kind, { http: this.http });
+    const hasMeta = agent.credentialType !== null && agent.credentialUpdatedAt !== null;
+    let credential: { type: CredentialType; value: string } | null = null;
+    if (hasMeta) {
+      let stored: Record<string, string> | null;
+      try {
+        stored = await this.secrets.get(credentialSecretName(org.orgId, agentId));
+      } catch (err) {
+        this.logger.error(
+          `credential store read failed for agent ${agentId}: ${err instanceof Error ? err.name : 'unknown'}`,
+        );
+        // eslint-disable-next-line preserve-caught-error -- deliberate: the cause may echo secret material.
+        throw new Error('credential store unavailable');
+      }
+      const parsed = parseCredentialSecret(stored);
+      // A missing or unusable Secret, or one saved for another address, is no credential; it is never sent anywhere.
+      if (parsed && credentialMatchesAddress(parsed, agent.baseUrl))
+        credential = { type: parsed.type, value: parsed.value };
+    }
+    if (credential === null && !AGENT_KIND_CAPABILITIES[kind].credentialOptional) {
+      return { status: 'no_credential', message: AGENT_TEST_MESSAGES.no_credential, testedAt: null };
+    }
+    let status: AgentTestStatusWord;
+    try {
+      status = await adapter.checkConnection({ credential, baseUrl: agent.baseUrl });
+    } catch (err) {
+      this.logger.warn(`connection check failed for agent ${agentId}: ${describeError(err)}`);
+      status = 'unreachable';
+    }
+    const at = this.clock.now();
+    await withOrg(this.db, org.orgId, (tx) =>
+      tx
+        .update(agents)
+        .set({ lastTestStatus: status, lastTestAt: at })
+        .where(
+          and(
+            eq(agents.id, agentId),
+            sql`${agents.credentialUpdatedAt} is not distinct from ${agent.credentialUpdatedAt}`,
+            sql`${agents.baseUrl} is not distinct from ${agent.baseUrl}`,
+          ),
+        ),
+    );
+    const host = status === 'unreachable' && agent.baseUrl !== null ? ` (${hostOf(agent.baseUrl)})` : '';
+    return { status, message: `${AGENT_TEST_MESSAGES[status]}${host}`, testedAt: at.toISOString() };
   }
 
   /** Compat: the project's default agent. */
