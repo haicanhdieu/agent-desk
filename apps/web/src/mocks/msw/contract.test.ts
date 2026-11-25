@@ -461,7 +461,8 @@ describe('MSW handler semantics', () => {
         enabled: true,
       },
     });
-    expect(created.agentId).toBe(ids.agent.invoicerApi);
+    // As the API: no agent means the rule follows the project default agent.
+    expect(created.agentId).toBeNull();
     const dup = await rejection(
       api.rules.create({
         params: { projectId: P },

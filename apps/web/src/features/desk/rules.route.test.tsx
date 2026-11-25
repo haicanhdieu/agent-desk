@@ -2,6 +2,7 @@ import type { Page, RuleDto } from '@agentdesk/contracts';
 import { screen, waitFor, within } from '@testing-library/react';
 import { http, HttpResponse } from 'msw';
 import { describe, expect, it } from 'vitest';
+import { agentsFixture } from '@/mocks/dto/agents';
 import { ids } from '@/mocks/dto/ids';
 import { mockDb } from '@/mocks/msw/db';
 import { server } from '@/mocks/msw/node';
@@ -65,7 +66,7 @@ describe('desk rules route', () => {
     expect(screen.getByText(/^14 runs in 30 days · last /)).toBeInTheDocument();
     expect(screen.getAllByText('Never ran').length).toBeGreaterThan(0);
     expect(screen.getByText(/Skill docs-update is not in \.claude\/skills\/ on main/)).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Change' })).toHaveAttribute('href', `${base}/desk/agent`);
+    expect(screen.getByRole('link', { name: 'Change' })).toHaveAttribute('href', `${base}/desk/agent?tab=limits`);
     expect(screen.getByRole('link', { name: 'Runs, Ignored' })).toHaveAttribute('href', `${base}/runs`);
     expect(screen.queryByRole('complementary')).toBeNull();
   });
@@ -529,7 +530,7 @@ describe('desk rules route', () => {
       await waitFor(() => expect(screen.queryByRole('complementary')).toBeNull());
       expect(projectRules().find((r) => r.command === 'follows-default')).toMatchObject({
         model: null,
-        agentId: ids.agent.invoicerApi,
+        agentId: null,
       });
     });
 
@@ -788,6 +789,231 @@ describe('desk rules route', () => {
       await user.click(within(pane('Edit rule')).getByRole('button', { name: 'Cancel' }));
       await waitFor(() => expect(router.state.location.search).toEqual({ page: '2' }));
     });
+  });
+});
+
+describe('rule agent', () => {
+  const agentSelect = (root: HTMLElement) => within(root).getByRole('combobox', { name: 'With agent' });
+  const optionNames = (select: HTMLElement) =>
+    within(select)
+      .getAllByRole('option')
+      .map((o) => o.textContent);
+  // The scenario seeds these fixtures (ids included) into the project.
+  const agentNamed = (name: string) => {
+    const found = agentsFixture.find((a) => a.name === name);
+    if (!found) throw new Error(`agent ${name} is not a fixture`);
+    return found;
+  };
+  const withAgents = () => scenarios.agents('deleteBlocked');
+  const bodies = (method: 'post' | 'patch') => {
+    const seen: unknown[] = [];
+    const handler = async ({ request }: { request: Request }) => {
+      seen.push(await request.clone().json());
+      return undefined;
+    };
+    server.use(
+      method === 'post'
+        ? http.post('*/api/projects/:projectId/rules', handler)
+        : http.patch('*/api/rules/:ruleId', handler),
+    );
+    return seen;
+  };
+
+  it("BR-32: the select offers Project default and only this project's agents", async () => {
+    await renderRoute(`${rulesPage}?rule=new`, { scenario: withAgents });
+    const form = await screen.findByRole('complementary', { name: 'New rule' });
+    const mine = mockDb.state.agents.filter((a) => a.projectId === projectId);
+    expect(mockDb.state.agents.length).toBeGreaterThan(mine.length);
+    await waitFor(() => expect(optionNames(agentSelect(form))).toHaveLength(mine.length + 1));
+    expect(optionNames(agentSelect(form))).toEqual(['Project default (Claude - Personal)', ...mine.map((a) => a.name)]);
+    expect(agentSelect(form)).toHaveValue('');
+  });
+
+  it('BR-33: saving Project default on a rule that names an agent sends agentId null', async () => {
+    const sent = bodies('patch');
+    const { user } = await renderRoute(`${rulesPage}?rule=${ids.rule.r2}`, { scenario: withAgents });
+    const edit = await screen.findByRole('complementary', { name: 'Edit rule' });
+    await waitFor(() => expect(optionNames(agentSelect(edit)).length).toBeGreaterThan(1));
+    await user.selectOptions(agentSelect(edit), '');
+    await user.click(within(edit).getByRole('button', { name: 'Save rule' }));
+    await waitFor(() => expect(screen.queryByRole('complementary')).toBeNull());
+    expect(sent).toEqual([{ agentId: null }]);
+    expect(ruleRow(ids.rule.r2).agentId).toBeNull();
+    expect(screen.getByRole('button', { name: 'Edit rule /code-review' })).toHaveTextContent(
+      'with the project default agent',
+    );
+  });
+
+  it('BR-33: a new rule that picks an agent saves it, and reopening shows that agent', async () => {
+    const codex = agentNamed('Codex');
+    const sent = bodies('post');
+    const { user } = await renderRoute(`${rulesPage}?rule=new`, { scenario: withAgents });
+    const form = await screen.findByRole('complementary', { name: 'New rule' });
+    await waitFor(() => expect(optionNames(agentSelect(form)).length).toBeGreaterThan(1));
+    await user.type(within(form).getByLabelText('Command'), 'use-codex');
+    await user.selectOptions(agentSelect(form), codex.id);
+    await user.click(within(form).getByRole('button', { name: 'Save rule' }));
+    await waitFor(() => expect(screen.queryByRole('complementary')).toBeNull());
+    expect(sent).toEqual([expect.objectContaining({ command: 'use-codex', agentId: codex.id })]);
+    await user.click(screen.getByRole('button', { name: 'Edit rule /use-codex' }));
+    const edit = await screen.findByRole('complementary', { name: 'Edit rule' });
+    expect(agentSelect(edit)).toHaveValue(codex.id);
+    expect(screen.getByRole('button', { name: 'Edit rule /use-codex' })).toHaveTextContent('with Codex');
+  });
+
+  it('BR-34: changing the agent resets the model to Default model', async () => {
+    const claude = agentNamed('Claude - Personal');
+    const { user } = await renderRoute(`${rulesPage}?rule=${ids.rule.r2}`, {
+      scenario: () => {
+        withAgents();
+        Object.assign(ruleRow(ids.rule.r2), { agentId: claude.id, model: 'sonnet' });
+        scenarios.agentModels(claude.id, { kind: 'fallback', reason: 'empty' });
+      },
+    });
+    const edit = await screen.findByRole('complementary', { name: 'Edit rule' });
+    const model = () => within(edit).getByRole('combobox', { name: 'Model' });
+    await waitFor(() => expect(model()).toHaveDisplayValue('sonnet'));
+    await user.selectOptions(agentSelect(edit), agentNamed('Codex').id);
+    await waitFor(() => expect(model()).toHaveDisplayValue('Default model'));
+  });
+
+  it('BR-40 to BR-42: a row warns for no credential or a rejected one, not for OpenCode with none', async () => {
+    const names = ['Claude - New', 'Claude - Work', 'OpenCode - No sign-in'];
+    await renderRoute(rulesPage, {
+      scenario: () => {
+        withAgents();
+        const rules = mockDb.state.rules.filter((r) => r.projectId === projectId && r.enabled).slice(0, 3);
+        rules.forEach((r, i) => (r.agentId = agentNamed(names[i] ?? '').id));
+      },
+    });
+    await screen.findByRole('heading', { level: 1, name: 'Routing rules' });
+    expect(
+      screen.getByText('Claude - New has no working credential. Runs from this rule will fail.'),
+    ).toBeInTheDocument();
+    expect(
+      screen.getAllByText('Claude - Work has no working credential. Runs from this rule will fail.').length,
+    ).toBeGreaterThan(0);
+    expect(screen.queryByText(/OpenCode - No sign-in has no working credential/)).toBeNull();
+  });
+});
+
+describe('rule agent without the agent list', () => {
+  const agentSelect = (root: HTMLElement) => within(root).getByRole('combobox', { name: 'With agent' });
+  const claude = agentsFixture[0];
+  const sentPatches = () => {
+    const seen: unknown[] = [];
+    server.use(
+      http.patch('*/api/rules/:ruleId', async ({ request }) => {
+        seen.push(await request.clone().json());
+        return undefined;
+      }),
+    );
+    return seen;
+  };
+  const agentRequests = () => {
+    const seen: string[] = [];
+    server.events.on('request:start', ({ request }) => {
+      const url = new URL(request.url);
+      if (/\/agents(\/|$)/.test(url.pathname) && request.method === 'GET') seen.push(url.pathname);
+    });
+    return seen;
+  };
+  const readerOfRules = () =>
+    server.use(
+      http.get('*/api/me/access', () =>
+        HttpResponse.json({
+          userId: ids.user.alice,
+          platformAdmin: false,
+          assignments: [
+            {
+              roleKey: 'custom',
+              scope: { type: 'org' },
+              permissions: (['project:read', 'skill:read', 'rule:read', 'rule:update', 'rule:create'] as const).map(
+                (permission) => ({ permission, condition: 'any' }),
+              ),
+            },
+          ],
+        }),
+      ),
+    );
+  const editCommandAndSave = async (user: Awaited<ReturnType<typeof renderRoute>>['user'], root: HTMLElement) => {
+    const command = within(root).getByLabelText('Command');
+    await user.clear(command);
+    await user.type(command, 'renamed');
+    await user.click(within(root).getByRole('button', { name: 'Save rule' }));
+    await waitFor(() => expect(screen.queryByRole('complementary')).toBeNull());
+  };
+  const withRuleAgent = (agentId: string) => () => {
+    scenarios.agents('deleteBlocked');
+    Object.assign(ruleRow(ids.rule.r2), { agentId });
+  };
+
+  it('a reader without agent:read never asks for the agents, locks the selector and keeps the rule agent on save', async () => {
+    if (!claude) throw new Error('no agent fixture');
+    readerOfRules();
+    const requests = agentRequests();
+    const sent = sentPatches();
+    const { user } = await renderRoute(`${rulesPage}?rule=${ids.rule.r2}`, { scenario: withRuleAgent(claude.id) });
+    const edit = await screen.findByRole('complementary', { name: 'Edit rule' });
+    expect(agentSelect(edit)).toBeDisabled();
+    expect(agentSelect(edit)).toHaveValue(claude.id);
+    expect(within(edit).getByText('You can’t see the agent list. This rule keeps its agent.')).toBeInTheDocument();
+    expect(within(edit).getByRole('option', { name: 'Unavailable agent' })).toBeInTheDocument();
+    await editCommandAndSave(user, edit);
+    expect(sent).toEqual([{ command: 'renamed' }]);
+    expect(ruleRow(ids.rule.r2).agentId).toBe(claude.id);
+    expect(requests).toEqual([]);
+  });
+
+  it('while the agents load the selector is disabled and a save does not send an agent', async () => {
+    if (!claude) throw new Error('no agent fixture');
+    server.use(http.get('*/api/projects/:projectId/agents', () => new Promise<Response>(() => undefined)));
+    const sent = sentPatches();
+    const { user } = await renderRoute(`${rulesPage}?rule=${ids.rule.r2}`, { scenario: withRuleAgent(claude.id) });
+    const edit = await screen.findByRole('complementary', { name: 'Edit rule' });
+    expect(agentSelect(edit)).toBeDisabled();
+    expect(within(edit).getByRole('option', { name: 'Loading agents…' })).toBeInTheDocument();
+    await editCommandAndSave(user, edit);
+    expect(sent).toEqual([{ command: 'renamed' }]);
+    expect(ruleRow(ids.rule.r2).agentId).toBe(claude.id);
+  });
+
+  it('while the agents load a row does not read Unavailable agent, then shows the real name', async () => {
+    if (!claude) throw new Error('no agent fixture');
+    let release: () => void = () => undefined;
+    const gate = new Promise<void>((resolve) => (release = resolve));
+    server.use(
+      http.get('*/api/projects/:projectId/agents', async () => {
+        await gate;
+        return undefined;
+      }),
+    );
+    await renderRoute(rulesPage, { scenario: withRuleAgent(claude.id) });
+    const row = await screen.findByRole('button', { name: 'Edit rule /code-review' });
+    expect(row).not.toHaveTextContent('Unavailable agent');
+    expect(row).not.toHaveTextContent(claude.id);
+    release();
+    await waitFor(() => expect(row).toHaveTextContent(claude.name));
+  });
+
+  it('a row whose agent is gone reads Unavailable agent once the list is ready', async () => {
+    await renderRoute(rulesPage, { scenario: withRuleAgent('a0000000-0000-4000-8000-00000000dead') });
+    const row = await screen.findByRole('button', { name: 'Edit rule /code-review' });
+    await waitFor(() => expect(row).toHaveTextContent('Unavailable agent'));
+  });
+
+  it('a rule whose agent is gone keeps it as an unavailable choice, with no raw id, and saving keeps it', async () => {
+    const goneId = 'a0000000-0000-4000-8000-00000000dead';
+    const sent = sentPatches();
+    const { user } = await renderRoute(`${rulesPage}?rule=${ids.rule.r2}`, { scenario: withRuleAgent(goneId) });
+    const edit = await screen.findByRole('complementary', { name: 'Edit rule' });
+    await waitFor(() => expect(within(edit).getByRole('option', { name: /\(unavailable\)$/ })).toBeInTheDocument());
+    expect(agentSelect(edit)).toHaveValue(goneId);
+    expect(within(edit).queryByText(new RegExp(goneId))).toBeNull();
+    expect(screen.getByRole('button', { name: 'Edit rule /code-review' })).not.toHaveTextContent(goneId);
+    await editCommandAndSave(user, edit);
+    expect(sent).toEqual([{ command: 'renamed' }]);
+    expect(ruleRow(ids.rule.r2).agentId).toBe(goneId);
   });
 });
 

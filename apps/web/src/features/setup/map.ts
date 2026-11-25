@@ -1,9 +1,10 @@
-import type {
-  AgentDto,
-  PollInterval as PollSeconds,
-  ProjectConnectionDto,
-  RepoDto,
-  RuleDto,
+import {
+  AGENT_KIND_CAPABILITIES,
+  type AgentDto,
+  type PollInterval as PollSeconds,
+  type ProjectConnectionDto,
+  type RepoDto,
+  type RuleDto,
 } from '@agentdesk/contracts';
 import type { PollInterval } from '@/mocks/types';
 import { formatLimit } from '../duration';
@@ -28,13 +29,15 @@ export const repoMeta = (repo: RepoDto): string =>
 /** Clock time (UTC, as the fixtures and boards show it), e.g. "14:01:37". */
 export const clockTime = (iso: string): string => new Date(iso).toISOString().slice(11, 19);
 
-const CREDENTIAL_NAMES = { oauth_token: 'Claude Code token', api_key: 'API key', auth_json: 'Auth file' } as const;
-
-/** Stepper detail of the credential step, e.g. "Claude Code token, opus". */
-export const credentialDetail = (agent: AgentDto): string | undefined =>
-  agent.credential.set && agent.credential.type
-    ? `${CREDENTIAL_NAMES[agent.credential.type]}, ${agent.model}`
-    : undefined;
+/**
+ * Stepper detail of the credential step, e.g. "Claude Code, opus". The label comes from the capability table; a
+ * kind that works without a credential (OpenCode) shows it too, and with no model it is the label alone.
+ */
+export const credentialDetail = (agent: AgentDto, model: string = agent.model): string | undefined => {
+  const cap = AGENT_KIND_CAPABILITIES[agent.provider];
+  if (!agent.credential.set && !cap.credentialOptional) return undefined;
+  return model === '' ? cap.label : `${cap.label}, ${model}`;
+};
 
 export type SetupPolling =
   { state: 'checking' } | { state: 'ok'; lastChecked: string } | { state: 'failed'; reason: string };

@@ -782,11 +782,13 @@ describe('checklist is not refetched when a write does not complete a step', () 
     const before = count();
     await act(async () => {
       await expect(
-        result.current.save(project, agent, {
+        result.current.save(project, {
+          kind: agent.provider,
           model: agent.model,
           maxConcurrentRuns: 1,
           credentialType: 'oauth_token',
           credential: 'sk-ant-oat-123',
+          baseUrl: '',
         }),
       ).rejects.toBeDefined();
     });

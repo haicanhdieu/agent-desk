@@ -1,4 +1,5 @@
-import type { AgentDto, RuleDto, SkillSummaryDto } from '@agentdesk/contracts';
+import type { AgentConnectionDto, AgentDto, RuleDto, SkillSummaryDto } from '@agentdesk/contracts';
+import { ruleAgentWarning, type RuleAgentOption } from '@/components/RuleSentence';
 import type { Rule, Skill } from '@/mocks/types';
 import { relativeTime } from '../relativeTime';
 
@@ -40,12 +41,35 @@ export function ruleStats(stats: RuleDto['stats'], now: Date): string {
   return `${plural(stats.runs30d, 'run')} in 30 days · last ${relativeTime(stats.lastRunAt, now)}`;
 }
 
+/** The last known credential check of an agent: none saved, else the last test (none yet reads as unknown). */
+const connectionOf = (a: AgentDto): AgentConnectionDto['status'] | undefined =>
+  a.credential.set ? a.lastTest?.status : 'no_credential';
+
+/** One choice of the rule form's agent select. */
+export function toRuleAgentOption(a: AgentDto): RuleAgentOption {
+  return { id: a.id, label: a.name, provider: a.provider, model: a.model, connection: connectionOf(a) };
+}
+
+/** What a rule shows for an agent the reader cannot see or that no longer exists: never its raw id. */
+export const UNAVAILABLE_AGENT = 'Unavailable agent';
+/** What a rule shows for its agent while the agent list is loading: never its raw id, and not yet Unavailable. */
+export const LOADING_AGENT = 'Loading agent…';
+
 /**
  * A rule for the Desk screen. With the repo's skill names, a rule whose skill is missing gets the board's warning
- * (comments with its command are ignored until the skill exists).
+ * (comments with its command are ignored until the skill exists). A rule that names an agent shows its name, and a
+ * warning when that agent has no working credential (`agents` undefined: the list is still loading, so a neutral label); a rule with no agent follows the project default and shows none.
  */
-export function toRule(dto: RuleDto, agent: AgentDto, now: Date, skillNames?: string[]): Rule {
+export function toRule(dto: RuleDto, agents: AgentDto[] | undefined, now: Date, skillNames?: string[]): Rule {
   const missing = dto.skillName !== null && skillNames !== undefined && !skillNames.includes(dto.skillName);
+  const agent = dto.agentId === null ? undefined : agents?.find((a) => a.id === dto.agentId);
+  const warning = [
+    missing &&
+      `Skill ${dto.skillName} is not in .claude/skills/ on main. Comments with /${dto.command} are ignored until you add it or pick another skill.`,
+    agent && ruleAgentWarning(toRuleAgentOption(agent)),
+  ]
+    .filter((w): w is string => typeof w === 'string')
+    .join(' ');
   return {
     id: dto.id,
     command: dto.command,
@@ -55,12 +79,12 @@ export function toRule(dto: RuleDto, agent: AgentDto, now: Date, skillNames?: st
     kind: dto.kind,
     ...(dto.prompt !== null && { prompt: dto.prompt }),
     agentId: dto.agentId,
-    ...(dto.agentId !== null && { agentLabel: agent.name }),
+    ...(dto.agentId !== null && {
+      agentLabel: agents === undefined ? LOADING_AGENT : agent ? agent.name : UNAVAILABLE_AGENT,
+    }),
     model: dto.model,
     enabled: dto.enabled,
     stats: ruleStats(dto.stats, now),
-    ...(missing && {
-      warning: `Skill ${dto.skillName} is not in .claude/skills/ on main. Comments with /${dto.command} are ignored until you add it or pick another skill.`,
-    }),
+    ...(warning !== '' && { warning }),
   };
 }

@@ -17,8 +17,8 @@ import {
 import { useNow } from '@/app/useNow';
 import { useToast } from '@/ds';
 import { requireProjectPermission } from '@/features/access/guards';
-import { projectPaths, useDeskFrame } from '@/features/desk/frame';
-import { toRule } from '@/features/desk/map';
+import { projectPaths, useDeskFrame, useDeskRights } from '@/features/desk/frame';
+import { UNAVAILABLE_AGENT, toRule, toRuleAgentOption } from '@/features/desk/map';
 import { useDeleteRule, useToggleRule } from '@/features/desk/mutations';
 import { deskQueries } from '@/features/desk/queries';
 import { usePromptPreview } from '@/features/desk/promptPreview';
@@ -46,7 +46,6 @@ export const Route = createFileRoute('/o/$org/p/$project/desk/rules')({
     await Promise.all([
       loadPage(queryClient, deskQueries.rules(org, project, { page, pageSize: readPageSize() }), cause),
       queryClient.ensureQueryData(deskQueries.allSkills(org, project)),
-      queryClient.ensureQueryData(deskQueries.agent(org, project)),
     ]);
   },
   component: DeskRulesPage,
@@ -67,14 +66,18 @@ function DeskRulesPage() {
   );
   const ruleDtos = rulesPage.items;
   const { data: skillsPage } = useSuspenseQuery(deskQueries.allSkills(org, projectId));
-  const { data: agent } = useSuspenseQuery(deskQueries.agent(org, projectId));
+  // The agent list needs `agent:read`; without it the rows show no agent name and the form keeps each rule's agent.
+  const rights = useDeskRights(org, projectId);
+  const agentList = useQuery({ ...deskQueries.allAgents(org, projectId), enabled: rights.agent });
+  const agents = agentList.data?.items ?? [];
+  const agentsState = !rights.agent || agentList.isError ? 'locked' : agentList.data ? 'ready' : 'loading';
   const toggle = useToggleRule(org, projectId, {
     onError: (e) => toast.show(toastFromError(e)),
   });
   const remove = useDeleteRule(org, projectId);
 
   const skillNames = skillsPage.items.map((s) => s.name);
-  const rules = ruleDtos.map((r) => toRule(r, agent, now, skillNames));
+  const rules = ruleDtos.map((r) => toRule(r, agentsState === 'loading' ? undefined : agents, now, skillNames));
   const onPage = search.rule === undefined ? undefined : ruleDtos.find((r) => r.id === search.rule);
   // A rule linked from another page opens from the whole-set read (read only when the link needs it).
   const { data: wholeSet } = useQuery({
@@ -115,7 +118,7 @@ function DeskRulesPage() {
       skills={skillNames}
       editingId={editing?.id}
       maxRunsPerTicket={project.maxRunsPerTicket}
-      guardLinks={{ change: paths.agent, ignored: paths.runs }}
+      guardLinks={{ change: `${paths.agent}?tab=limits`, ignored: paths.runs }}
       onToggle={(id, enabled) => toggle.mutate({ id, enabled })}
       onCreate={() => open('new')}
       onEdit={open}
@@ -128,7 +131,8 @@ function DeskRulesPage() {
             org={org}
             projectId={projectId}
             rule={editing}
-            agent={agent}
+            agents={agents}
+            agentsState={agentsState}
             skills={skillNames}
             onClose={close}
             onDelete={editing && (() => onDelete(editing.id))}
@@ -144,22 +148,26 @@ interface RuleEditorProps {
   projectId: string;
   /** The rule to edit; none creates one. */
   rule?: RuleDto;
-  agent: AgentDto;
+  agents: AgentDto[];
+  /** `locked`: the reader cannot see the agent list (or it failed): each rule keeps its agent. */
+  agentsState: 'ready' | 'loading' | 'locked';
   skills: string[];
   onClose(): void;
   onDelete?(): void;
 }
 
-function RuleEditor({ org, projectId, rule, agent, skills, onClose, onDelete }: RuleEditorProps) {
+function RuleEditor({ org, projectId, rule, agents, agentsState, skills, onClose, onDelete }: RuleEditorProps) {
   const form = useRuleForm(org, projectId, {
     initial: rule,
     defaultSkill: skills[0],
-    defaultAgentId: agent.id,
     onSaved: onClose,
   });
   const { values } = form;
   const promptPreview = usePromptPreview(org, projectId, true);
-  const models = useQuery(deskQueries.agentModels(org, values.agentId));
+  // A rule with no agent follows the default one, so its model list and default model are that agent's.
+  const defaultAgent = agents.find((a) => a.isDefault);
+  const chosen = values.agentId === null ? defaultAgent : agents.find((a) => a.id === values.agentId);
+  const models = useQuery({ ...deskQueries.agentModels(org, chosen?.id ?? ''), enabled: chosen !== undefined });
   return (
     <RulePane
       title={rule ? 'Edit rule' : 'New rule'}
@@ -169,17 +177,22 @@ function RuleEditor({ org, projectId, rule, agent, skills, onClose, onDelete }: 
         labels: values.labelFilter,
         skill: values.skillName,
         agentId: values.agentId,
-        agentLabel: agent.name,
+        agentLabel: chosen?.name ?? (values.agentId === null ? undefined : UNAVAILABLE_AGENT),
         enabled: values.enabled,
         kind: values.kind,
         prompt: values.prompt,
         model: values.model,
       }}
-      modelField={{
-        list: toModelList(models, agent.baseUrl),
-        defaultModel: agent.model,
-        settingsHref: projectPaths(org, projectId).agent,
-      }}
+      modelField={
+        chosen && {
+          list: toModelList(models, chosen.baseUrl),
+          defaultModel: chosen.model,
+          settingsHref: projectPaths(org, projectId).agent,
+        }
+      }
+      agents={agentsState === 'locked' ? undefined : agents.map(toRuleAgentOption)}
+      defaultAgentName={defaultAgent?.name}
+      agentsState={agentsState === 'loading' ? 'loading' : 'ready'}
       skills={skills}
       promptPreview={promptPreview}
       onChange={(d) =>
@@ -191,7 +204,7 @@ function RuleEditor({ org, projectId, rule, agent, skills, onClose, onDelete }: 
           target: d.target,
           skillName: d.skill,
           enabled: d.enabled,
-          agentId: values.agentId,
+          agentId: d.agentId,
           model: d.model ?? null,
         })
       }

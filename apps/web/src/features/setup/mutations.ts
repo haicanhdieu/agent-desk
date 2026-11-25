@@ -1,21 +1,25 @@
-import type {
-  AgentDto,
-  ConnectionDto,
-  CreateProjectRequest,
-  CreateRuleRequest,
-  CredentialType,
-  ProjectDto,
-  SetupScriptDto,
-  SetupStep,
+import {
+  AGENT_KIND_CAPABILITIES,
+  AGENT_TEST_MESSAGES,
+  type AgentConnectionDto,
+  type AgentDto,
+  type AgentKind,
+  type AgentTestStatus,
+  type ConnectionDto,
+  type CreateProjectRequest,
+  type CreateRuleRequest,
+  type CredentialType,
+  type ProjectDto,
+  type SetupScriptDto,
+  type SetupStep,
 } from '@agentdesk/contracts';
 import { ApiError } from '@agentdesk/contracts/client';
 import { useMutation, useQueryClient, type QueryClient } from '@tanstack/react-query';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { WHOLE_SET } from '@/app/pagination';
 import { api } from '../api';
 import { authCall, authClient } from '../auth/client';
-import { refreshAfterCredential } from '../desk/agent.form';
-import { rulesKey, skillsKey } from '../desk/queries';
+import { agentsKey, deskQueries, rulesKey, skillsKey } from '../desk/queries';
 import { checklistKey } from '../onboarding/checklist';
 import { projectsListKey, projectsQueries } from '../projects/queries';
 import { setupQueries as scriptQueries, versionsKey } from '../setup-script/queries';
@@ -96,13 +100,23 @@ export function useSaveRepoStep(org: string) {
 }
 
 export interface AgentStepInput {
+  /** The picked agent kind. */
+  kind: AgentKind;
+  /** The default model; '' only for a kind whose model is optional. */
   model: string;
   maxConcurrentRuns: number;
-  credentialType: CredentialType;
-  /** The typed secret; empty keeps the credential already set. */
+  /** null = the kind needs no choice (nothing typed for a kind whose credential is optional). */
+  credentialType: CredentialType | null;
+  /** The typed secret; empty writes no credential. */
   credential: string;
-  /** Sent with the credential only: absent keeps the address, a string sets it, null clears it. */
-  baseUrl?: string | null;
+  /** The typed API address, '' = the kind's default. Sent only for a kind that has one, and only when it changed. */
+  baseUrl: string;
+}
+
+/** The connection test refused the credential or could not reach the address: the step stays (Continue anyway). */
+export interface AgentTestFailure {
+  status: AgentTestStatus;
+  message: string;
 }
 
 /**
@@ -118,66 +132,164 @@ export class CredentialRefreshError extends Error {
   }
 }
 
+const STEP_AGENT = stepIndex('agent');
+/** The name project creation gives the credential-less Claude it seeds (apps/api projects.service). */
+const PLACEHOLDER_NAME = 'Claude';
+
 /**
- * Step `agent`: the agent, then the credential, then the project. Not a Query mutation on purpose: mutation
- * variables live in the mutation cache, and the credential must never be kept anywhere after the request.
+ * Step `agent` (spec multi-agent configs, BR-53, BR-63 to BR-65): the agent of the picked kind, its credential, its
+ * connection test, then the project. A kind the project already has is reused (the placeholder for Claude Code, or the
+ * agent an earlier attempt created); otherwise one is created, made the default, and the credential-less placeholder
+ * it replaces is deleted (best effort). The project keeps at least one agent and exactly one default after every call.
+ * Not a Query mutation on purpose: mutation variables live in the mutation cache, and the credential must never be
+ * kept anywhere after the request.
  */
 export function useSaveAgentStep(org: string) {
   const qc = useQueryClient();
   const [pending, setPending] = useState(false);
-  const save = async (project: ProjectDto, agent: AgentDto, input: AgentStepInput): Promise<ProjectDto> => {
+  const [progress, setProgress] = useState<string>();
+  const running = useRef(false);
+
+  const save = async (
+    project: ProjectDto,
+    input: AgentStepInput,
+  ): Promise<{ project: ProjectDto } | { testFailed: AgentTestFailure } | undefined> => {
+    // A second Continue while one is running does nothing: it must not create a second agent.
+    if (running.current) return undefined;
+    running.current = true;
     setPending(true);
     try {
-      await api.agents.put({
-        params: { projectId: project.id },
-        body: {
-          model: input.model,
-          timeoutSeconds: agent.timeoutSeconds,
-          ...(agent.maxTurns !== null && { maxTurns: agent.maxTurns }),
-        },
-      });
-      if (input.credential !== '') await replaceCredential(qc, org, project.id, agent.id, input);
-      else await qc.invalidateQueries({ queryKey: setupQueries.agent(org, project.id).queryKey });
-      return await finishStep(qc, org, project, 'setup', { maxConcurrentRuns: input.maxConcurrentRuns });
+      const target = await prepareAgent(project, input, setProgress);
+      let tested: AgentConnectionDto['status'] | undefined;
+      if (input.credential !== '') {
+        setProgress('Saving credential...');
+        await replaceCredential(qc, org, project.id, target, input);
+        setProgress('Testing connection...');
+        const answer = await api.agents.test({ params: { agentId: target.id } });
+        tested = answer.status;
+      }
+      await refreshAgents(qc, org, project.id);
+      if (tested === 'rejected' || tested === 'unreachable') {
+        return { testFailed: { status: tested, message: AGENT_TEST_MESSAGES[tested] } };
+      }
+      return { project: await finishStep(qc, org, project, 'setup', { maxConcurrentRuns: input.maxConcurrentRuns }) };
+    } finally {
+      running.current = false;
+      setPending(false);
+      setProgress(undefined);
+    }
+  };
+
+  /** "Continue anyway" after a failed test: the agent and credential are saved, so only the project moves on. */
+  const continueAnyway = async (project: ProjectDto, maxConcurrentRuns: number): Promise<ProjectDto> => {
+    setPending(true);
+    try {
+      return await finishStep(qc, org, project, 'setup', { maxConcurrentRuns });
     } finally {
       setPending(false);
     }
   };
-  return { save, pending };
+  return { save, continueAnyway, pending, progress };
+}
+
+/** Resolves the agent the step configures: the project's agent of that kind, or a new default one. */
+async function prepareAgent(
+  project: ProjectDto,
+  input: AgentStepInput,
+  setProgress: (text: string) => void,
+): Promise<AgentDto> {
+  const cap = AGENT_KIND_CAPABILITIES[input.kind];
+  setProgress('Saving agent...');
+  const { items } = await api.agents.list({ params: { projectId: project.id }, query: WHOLE_SET });
+  const ofKind =
+    items.find((a) => a.provider === input.kind && a.isDefault) ?? items.find((a) => a.provider === input.kind);
+  let agent: AgentDto;
+  if (ofKind) {
+    // An empty model is valid only for a kind whose model is optional (OpenCode); for the others the model stays.
+    const unchanged = ofKind.model === input.model || (input.model === '' && !cap.modelOptional);
+    agent = unchanged
+      ? ofKind
+      : await api.agents.update({ params: { agentId: ofKind.id }, body: { model: input.model } });
+  } else {
+    agent = await api.agents.create({
+      params: { projectId: project.id },
+      body: { provider: input.kind, name: cap.label, ...(input.model !== '' && { model: input.model }) },
+    });
+  }
+  if (!agent.isDefault) agent = await api.agents.setDefault({ params: { agentId: agent.id } });
+  // On every Continue, a retry too: the delete of an earlier attempt may have failed, or the credential write after it.
+  // Only once the agent is the default (the line above succeeded), and never with a credential, a rule on it, or past
+  // this step.
+  const placeholder = replacedPlaceholder(items, agent);
+  if (placeholder && stepIndex(project.setupStep) <= STEP_AGENT) {
+    try {
+      await api.agents.remove({ params: { agentId: placeholder.id } });
+    } catch {
+      // Best effort: the row stays, not the default, and shows "Needs credential" in the Agents tab.
+    }
+  }
+  return agent;
 }
 
 /**
- * Writes the credential (with the address when it changed). After any attempt the agent and its model list are
- * refetched: a failed write after an address change leaves the new address with no credential (BR-16), and the
- * step must show that. The model list key is not under the project prefix, so it is invalidated explicitly.
+ * The credential-less Claude that project creation made, once another agent is the default: the default the step
+ * replaced, or on a retry the leftover non-default one. Not one with a credential or a rule on it.
+ */
+function replacedPlaceholder(items: AgentDto[], agent: AgentDto): AgentDto | undefined {
+  if (!agent.isDefault) return undefined;
+  const previousDefault = items.find((a) => a.isDefault && a.id !== agent.id);
+  const candidate =
+    previousDefault ??
+    items.find((a) => a.id !== agent.id && !a.isDefault && a.provider === 'claude' && a.name === PLACEHOLDER_NAME);
+  return candidate && !candidate.credential.set && candidate.usage.rules === 0 ? candidate : undefined;
+}
+
+/** The setup reads of the agent, the Desk's agent reads and the checklist, after the agents changed. */
+async function refreshAgents(qc: QueryClient, org: string, projectId: string): Promise<void> {
+  await Promise.all([
+    qc.invalidateQueries({ queryKey: agentsKey(org, projectId) }),
+    qc.invalidateQueries({ queryKey: deskQueries.agent(org, projectId).queryKey }),
+    qc.invalidateQueries({ queryKey: checklistKey(org) }),
+  ]);
+}
+
+/**
+ * Writes the credential (with the address when it changed and the kind has one). After a failed attempt the agent and
+ * its model list are refetched: a failed write after an address change leaves the new address with no credential
+ * (BR-16), and the step must show that. The model list key is not under the project prefix, so it is invalidated
+ * explicitly.
  */
 async function replaceCredential(
   qc: QueryClient,
   org: string,
   projectId: string,
-  agentId: string,
+  agent: AgentDto,
   input: AgentStepInput,
 ): Promise<void> {
+  const cap = AGENT_KIND_CAPABILITIES[input.kind];
+  const type = input.credentialType ?? cap.credentialTypes[0]?.type;
+  if (!type) return;
+  const addressChanged = cap.baseUrl !== null && input.baseUrl !== (agent.baseUrl ?? '');
   let writeError: unknown;
   let failed = false;
   try {
     await api.agents.putCredential({
-      params: { agentId },
+      params: { agentId: agent.id },
       body: {
-        type: input.credentialType,
+        type,
         value: input.credential,
-        ...(input.baseUrl !== undefined && { baseUrl: input.baseUrl }),
+        ...(addressChanged && { baseUrl: input.baseUrl === '' ? null : input.baseUrl }),
       },
     });
   } catch (e) {
     failed = true;
     writeError = e;
   }
-  const [refreshed] = await Promise.all([
-    refreshAfterCredential(qc, org, projectId, agentId),
-    failed ? undefined : qc.invalidateQueries({ queryKey: checklistKey(org) }),
+  const [agentRefresh] = await Promise.allSettled([
+    qc.invalidateQueries({ queryKey: agentsKey(org, projectId) }, { throwOnError: true }),
+    qc.invalidateQueries({ queryKey: deskQueries.agentModels(org, agent.id).queryKey }),
   ]);
-  if (!refreshed) throw new CredentialRefreshError(failed ? writeError : undefined);
+  if (agentRefresh.status === 'rejected') throw new CredentialRefreshError(failed ? writeError : undefined);
   if (failed) throw writeError;
 }
 

@@ -1065,7 +1065,8 @@ const impl: Impl = {
     const projectId = projectRow(params.projectId).id;
     assertUniqueCommand(projectId, body.command);
     const { kind, command, labelFilter, target, enabled } = body;
-    const agentId = body.agentId ?? agentOf(projectId).id;
+    // As the API: no agent means the rule follows the project's default agent (null).
+    const agentId = body.agentId ?? null;
     const rule: RuleDto = {
       id: mockDb.nextId(),
       projectId,
