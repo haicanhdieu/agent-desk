@@ -419,6 +419,7 @@ export interface AgentKindView {
   supportsMaxTurns: boolean;
   credentialOptional: boolean;
   modelOptional: boolean;
+  builtinModels: { id: string; label: string }[];
 }
 /** One saved agent as the Edit and View pane shows it. The credential value never appears here. */
 export interface AgentPaneAgent {

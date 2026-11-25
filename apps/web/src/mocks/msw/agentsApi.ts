@@ -1,7 +1,6 @@
 import {
   AGENT_KIND_CAPABILITIES,
   AGENT_TEST_MESSAGES,
-  FINAL_RUN_STATUSES,
   type AgentConnectionDto,
   type AgentDto,
   type AgentKind,
@@ -95,31 +94,22 @@ export function setDefaultAgent(agent: AgentDto): AgentDto {
 }
 
 /** Why a delete is refused, in the API's order: the only agent, the default, a rule, an open run; undefined when allowed. */
-function deleteRefusal(agent: AgentDto): { title: string; detail?: string } | undefined {
+function deleteRefusal(agent: AgentDto): string | undefined {
   const siblings = mockDb.state.agents.filter((a) => a.projectId === agent.projectId && a.id !== agent.id);
-  if (siblings.length === 0) return { title: 'A project needs at least one agent. Add another agent first.' };
-  if (agent.isDefault) return { title: 'Set another agent as default first' };
+  if (siblings.length === 0) return 'A project needs at least one agent. Add another agent first.';
+  if (agent.isDefault) return 'Set another agent as default first';
   const rules = mockDb.state.rules.filter((r) => r.agentId === agent.id);
   const ruleCount = Math.max(rules.length, agent.usage.rules);
   if (ruleCount > 0) {
-    const named = rules
-      .slice(0, 5)
-      .map((r) => `/${r.command}`)
-      .join(', ');
-    return {
-      title: 'A routing rule uses this agent',
-      detail: `${ruleCount} ${ruleCount === 1 ? 'rule names' : 'rules name'} it${named ? `: ${named}` : ''}. Point it at another agent first, then delete.`,
-    };
+    const shown = rules
+      .map((r) => r.command)
+      .sort()
+      .slice(0, 5);
+    const more = ruleCount - shown.length;
+    return `${ruleCount} rule(s) use this agent${shown.length > 0 ? `: ${shown.join(', ')}` : ''}${more > 0 ? ` and ${more} more` : ''}. Pick another agent for them first.`;
   }
   if (agent.usage.blockingRuns > 0) {
-    const runs = mockDb.state.runs.filter((r) => r.projectId === agent.projectId);
-    const open = runs.find((r) => r.status === 'paused') ?? runs.find((r) => !FINAL_RUN_STATUSES.some((s) => s === r.status));
-    return {
-      title: 'This agent has open runs',
-      detail: open
-        ? `Run ${open.number} is ${open.status === 'paused' ? 'paused and can be resumed' : 'still open'}. Finish it first, then delete.`
-        : 'A run is still open. Finish it first, then delete.',
-    };
+    return 'A run that is queued, running, paused or has a kept session still uses this agent. Let it finish or close it first.';
   }
   return undefined;
 }
@@ -130,7 +120,7 @@ export function removeAgent(agent: AgentDto): null {
     throw new Problem({ status: 500, title: 'Internal server error', type: 'internal' });
   }
   const refusal = deleteRefusal(agent);
-  if (refusal) throw conflict(refusal.title, undefined, refusal.detail);
+  if (refusal) throw conflict('Conflict', undefined, refusal);
   mockDb.state.agents = mockDb.state.agents.filter((a) => a.id !== agent.id);
   return null;
 }

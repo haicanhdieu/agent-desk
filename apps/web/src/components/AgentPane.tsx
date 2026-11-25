@@ -47,7 +47,7 @@ export interface AgentPaneProps {
   onClose(): void;
   onSubmit?(values: AgentPaneValues): void;
   /** Replaces the saved credential (and the address with it). Resolving `true` closes the replace panel. */
-  onReplaceCredential?(credential: AgentPaneCredential): void | Promise<boolean>;
+  onReplaceCredential?(credential: AgentPaneCredential, options: { makeDefault: boolean }): void | Promise<boolean>;
   onTest?(): void;
   /** A write is in flight: Save agent is disabled and reads `progress`. */
   saving?: boolean;
@@ -61,6 +61,8 @@ export interface AgentPaneProps {
   credentialError?: string;
   /** The agent was created but its credential was not saved. */
   partial?: { reason: string; requestId?: string };
+  /** With `partial`: the non-secret values typed in the Add pane, which seed this pane (never the secret). */
+  draft?: { makeDefault: boolean; authType: CredentialType | null; address: string };
   /** Another admin deleted the agent while the pane was open. */
   gone?: boolean;
   /** The reader may replace the credential (`secret:update`). Defaults to true outside View. */
@@ -71,6 +73,7 @@ const TITLES: Record<AgentPaneMode, string> = { add: 'Add agent', edit: 'Edit ag
 const NO_LOGIN_LINE =
   'OpenCode works without signing in. Leave the credential empty to use it that way, or add one of these.';
 const ENDPOINT_MODEL_HELP = 'The model id your endpoint serves, for example qwen3-coder.';
+const ADD_MODEL_NOTE = 'Leave the box untouched to use the first standard model.';
 const LISTED_MODEL_HELP = 'Loaded from the provider. Rules that don’t name a model use this one.';
 const REPLACE_HELP =
   'We save it, then test it with one small call. If the test fails it stays saved and the agent shows the result.';
@@ -103,6 +106,7 @@ export function AgentPane({
   fieldErrors = {},
   credentialError,
   partial,
+  draft,
   gone = false,
   canReplaceCredential,
 }: AgentPaneProps) {
@@ -114,11 +118,13 @@ export function AgentPane({
     k && !k.credentialOptional ? k.credentialTypes[0]?.type : undefined;
   const [name, setName] = useState(agent?.name ?? '');
   const [accountLabel, setAccountLabel] = useState(agent?.accountLabel ?? '');
-  const [authType, setAuthType] = useState<CredentialType | null>(agent?.credential.type ?? firstType(cap) ?? null);
-  const [address, setAddress] = useState(agent?.baseUrl ?? '');
+  const [authType, setAuthType] = useState<CredentialType | null>(
+    agent?.credential.type ?? draft?.authType ?? firstType(cap) ?? null,
+  );
+  const [address, setAddress] = useState(agent?.baseUrl || draft?.address || '');
   const [model, setModel] = useState<string | null>(agent && agent.model !== '' ? agent.model : null);
   const [maxTurns, setMaxTurns] = useState(agent?.maxTurns != null ? String(agent.maxTurns) : '');
-  const [makeDefault, setMakeDefault] = useState(agent?.isDefault ?? false);
+  const [makeDefault, setMakeDefault] = useState(agent?.isDefault === true || draft?.makeDefault === true);
   // The typed secret lives in SecretField; this copy only drives validation and is cleared on every hand-over.
   const [secret, setSecret] = useState('');
   const [entryKey, setEntryKey] = useState(0);
@@ -146,8 +152,16 @@ export function AgentPane({
   const needsAgain = addressChanged || authChanged;
   const secretState: SecretFieldState = !saved ? 'entering' : replacing || needsAgain ? 'replacing' : 'saved';
 
-  const modelRequired = cap !== undefined && (!cap.modelOptional || addressRequired);
-  const autoModel = cap !== undefined && !cap.modelOptional ? (modelList.models[0]?.id ?? '') : '';
+  // Add: choosing no model is fine for a kind with built-in models (the API saves its first one); an address-requiring
+  // choice needs one, and a model started and then emptied ("Other model…" with nothing typed) is an error.
+  const modelRequired =
+    cap !== undefined && (addressRequired || (!cap.modelOptional && (mode !== 'add' || model !== null)));
+  // Add has no saved credential to list from, so it offers the kind's standard names (BR-19). Choosing none sends none.
+  const pickerList: ModelList =
+    mode === 'add' && cap !== undefined
+      ? { models: cap.builtinModels, state: { kind: 'fallback', reason: 'no_credential', host: null } }
+      : modelList;
+  const autoModel = mode !== 'add' && cap !== undefined && !cap.modelOptional ? (modelList.models[0]?.id ?? '') : '';
   const shownModel = addressRequired ? (model ?? '') : cap?.modelOptional ? model : (model ?? autoModel);
   const effectiveModel = (shownModel ?? '').trim();
 
@@ -238,7 +252,7 @@ export function AgentPane({
     const body = credentialBody(value);
     if (!body || (addressRequired && typedAddress === '')) return;
     handOver();
-    const done = await onReplaceCredential?.(body);
+    const done = await onReplaceCredential?.(body, { makeDefault });
     if (done) setReplacing(false);
   };
 
@@ -439,13 +453,19 @@ export function AgentPane({
               )}
               <ModelPicker
                 label="Default model"
-                list={modelList}
+                list={pickerList}
                 value={shownModel}
                 onChange={setModel}
                 withDefault={cap.modelOptional && !addressRequired}
                 defaultLabel={`${cap.label} default`}
                 help={addressRequired ? ENDPOINT_MODEL_HELP : cap.modelOptional ? cap.modelHelp : LISTED_MODEL_HELP}
-                typedHelp={addressRequired ? ENDPOINT_MODEL_HELP : cap.modelHelp}
+                typedHelp={
+                  addressRequired
+                    ? ENDPOINT_MODEL_HELP
+                    : mode === 'add' && !cap.modelOptional
+                      ? `${cap.modelHelp} ${ADD_MODEL_NOTE}`
+                      : cap.modelHelp
+                }
                 error={shown('model') ?? fieldErrors.model}
               />
               {mode !== 'add' && cap.supportsMaxTurns && (

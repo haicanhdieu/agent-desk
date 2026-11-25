@@ -1,6 +1,6 @@
 import { type AgentDto, AGENT_NAME_MAX } from '@agentdesk/contracts';
 // The contracts package's own client drives the handlers; the restriction is for app code.
- 
+
 import { ApiError, createApi } from '@agentdesk/contracts/client';
 import { describe, expect, it } from 'vitest';
 import { agentsFixture } from '../dto/agents';
@@ -208,7 +208,7 @@ describe('agents.remove', () => {
     const only = (await list())[0];
     const e = await removal(only?.id ?? '');
     expect(e.status).toBe(409);
-    expect(e.title).toBe('A project needs at least one agent. Add another agent first.');
+    expect(e.detail).toBe('A project needs at least one agent. Add another agent first.');
     expect(await list()).toHaveLength(1);
   });
 
@@ -217,7 +217,7 @@ describe('agents.remove', () => {
     const dflt = (await list()).find((a) => a.isDefault);
     const e = await removal(dflt?.id ?? '');
     expect(e.status).toBe(409);
-    expect(e.title).toBe('Set another agent as default first');
+    expect(e.detail).toBe('Set another agent as default first');
   });
 
   it('refuses an agent a rule names, with the rule command', async () => {
@@ -225,19 +225,18 @@ describe('agents.remove', () => {
     const work = await byName('Claude - Work');
     const e = await removal(work.id);
     expect(e.status).toBe(409);
-    expect(e.title).toBe('A routing rule uses this agent');
-    expect(e.detail).toContain('1 rule names it');
-    expect(e.detail).toContain('review');
+    expect(e.detail).toBe('1 rule(s) use this agent: review. Pick another agent for them first.');
     expect((await list()).some((a) => a.id === work.id)).toBe(true);
   });
 
-  it('refuses an agent with a run that blocks it, naming the run', async () => {
+  it('refuses an agent with a run that blocks it, in the API words (no run number)', async () => {
     scenarios.agents('deleteBlocked');
     const codex = await byName('Codex');
     const e = await removal(codex.id);
     expect(e.status).toBe(409);
-    expect(e.title).toBe('This agent has open runs');
-    expect(e.detail).toMatch(/^Run \d+ is /);
+    expect(e.detail).toBe(
+      'A run that is queued, running, paused or has a kept session still uses this agent. Let it finish or close it first.',
+    );
   });
 
   it('swapDeleteFails: the placeholder delete answers 500 and the agent stays', async () => {

@@ -67,7 +67,7 @@ export function AgentsPanel({
         <div className={styles.agentsCol}>
           <AgentList {...list} />
         </div>
-        {pane && <AgentPane {...pane} />}
+        {pane && <AgentPane key={`${pane.mode}-${pane.agent?.id ?? 'new'}`} {...pane} />}
       </div>
       {deleteDialog && <DeleteAgentDialog {...deleteDialog} />}
     </>

@@ -12,8 +12,8 @@ export type DeleteAgentDialogProps = DeleteAgentDialogBase &
     | { state: 'confirm' | 'deleting' }
     /** `blockedRules`: how many rules name the agent and the first command. */
     | { state: 'blockedRules'; rule: { count: number; command: string } }
-    /** `blockedRuns`: the open run and what state it is in, in words. */
-    | { state: 'blockedRuns'; run: { number: number; state: string } }
+    /** `blocked`: any other refusal (409): the headline and the API's own sentence. */
+    | { state: 'blocked'; reason: { title: string; text: string } }
     /** `error`: the problem title and the request id. */
     | { state: 'error'; error: { title: string; requestId?: string } }
   );
@@ -22,7 +22,7 @@ export type DeleteAgentDialogProps = DeleteAgentDialogBase &
 export function DeleteAgentDialog(props: DeleteAgentDialogProps) {
   const { state, name, onKeep, onDelete } = props;
   const deleting = state === 'deleting';
-  const blocked = state === 'blockedRules' || state === 'blockedRuns';
+  const blocked = state === 'blockedRules' || state === 'blocked';
   return (
     <Dialog
       open
@@ -56,9 +56,9 @@ export function DeleteAgentDialog(props: DeleteAgentDialogProps) {
             {`${props.rule.count} ${props.rule.count === 1 ? 'rule names' : 'rules name'} it: ${props.rule.command}. Point it at another agent first, then delete.`}
           </Banner>
         )}
-        {props.state === 'blockedRuns' && (
-          <Banner tone="warn" icon={<Icon name="warning" size={16} />} title="This agent has open runs">
-            {`Run ${props.run.number} is ${props.run.state}. Finish it first, then delete.`}
+        {props.state === 'blocked' && (
+          <Banner tone="warn" icon={<Icon name="warning" size={16} />} title={props.reason.title}>
+            {props.reason.text}
           </Banner>
         )}
         {props.state === 'error' && (

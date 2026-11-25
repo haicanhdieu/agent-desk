@@ -12,6 +12,8 @@ export interface AgentKindCapability {
   supportsMaxTurns: boolean;
   credentialOptional: boolean;
   modelOptional: boolean;
+  /** The standard model names; each adapter in packages/core serves the same list (pinned by a parity test). */
+  builtinModels: { id: string; label: string }[];
 }
 
 const API_KEY_HELP = 'Billed per token. Usage cost shows on each run.';
@@ -37,6 +39,11 @@ export const AGENT_KIND_CAPABILITIES: Record<AgentKind, AgentKindCapability> = {
     supportsMaxTurns: true,
     credentialOptional: false,
     modelOptional: false,
+    builtinModels: [
+      { id: 'opus', label: 'opus' },
+      { id: 'sonnet', label: 'sonnet' },
+      { id: 'haiku', label: 'haiku' },
+    ],
   },
   codex: {
     label: 'OpenAI Codex',
@@ -55,6 +62,12 @@ export const AGENT_KIND_CAPABILITIES: Record<AgentKind, AgentKindCapability> = {
     supportsMaxTurns: false,
     credentialOptional: false,
     modelOptional: false,
+    builtinModels: [
+      { id: 'gpt-6.1-sol', label: 'GPT-6.1 Sol' },
+      { id: 'gpt-6-sol', label: 'GPT-6 Sol' },
+      { id: 'gpt-6-luna', label: 'GPT-6 Luna' },
+      { id: 'gpt-5.5', label: 'GPT-5.5 (API key only)' },
+    ],
   },
   opencode: {
     label: 'OpenCode',
@@ -81,6 +94,12 @@ export const AGENT_KIND_CAPABILITIES: Record<AgentKind, AgentKindCapability> = {
     supportsMaxTurns: false,
     credentialOptional: true,
     modelOptional: true,
+    builtinModels: [
+      { id: 'opencode/big-pickle', label: 'Big Pickle (free)' },
+      { id: 'opencode/deepseek-v4.1-flash-free', label: 'DeepSeek V4.1 Flash (free)' },
+      { id: 'opencode/qwen4-max-free', label: 'Qwen4 Max (free)' },
+      { id: 'opencode/nemotron-3.5-super-vl-free', label: 'Nemotron 3.5 Super VL (free)' },
+    ],
   },
 };
 

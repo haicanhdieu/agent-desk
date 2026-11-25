@@ -23,7 +23,14 @@ export const Confirm: Story = { args: { ...base, state: 'confirm' } };
 export const Deleting: Story = { args: { ...base, state: 'deleting' } };
 export const BlockedByRule: Story = { args: { ...base, state: 'blockedRules', rule: { count: 1, command: 'fix' } } };
 export const BlockedByOpenRun: Story = {
-  args: { ...base, state: 'blockedRuns', run: { number: 12, state: 'paused and can be resumed' } },
+  args: {
+    ...base,
+    state: 'blocked',
+    reason: {
+      title: 'This agent has open runs',
+      text: 'A run that is queued, running, paused or has a kept session still uses this agent. Let it finish or close it first.',
+    },
+  },
 };
 export const ServerError: Story = {
   args: { ...base, state: 'error', error: { title: 'Something went wrong', requestId: 'req_8f3a21' } },

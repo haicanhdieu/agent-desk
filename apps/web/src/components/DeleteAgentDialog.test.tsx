@@ -39,12 +39,16 @@ describe('DeleteAgentDialog', () => {
     expect(screen.getAllByRole('button').map((b) => b.textContent)).toEqual(['Close']);
   });
 
-  it('blocked by an open run: the reason and only Close', () => {
+  it('blocked by anything else: the headline, the API sentence as text and only Close', () => {
     render(
-      <DeleteAgentDialog {...base} state="blockedRuns" run={{ number: 12, state: 'paused and can be resumed' }} />,
+      <DeleteAgentDialog
+        {...base}
+        state="blocked"
+        reason={{ title: 'This agent has open runs', text: 'A run <b>still</b> uses this agent.' }}
+      />,
     );
     expect(screen.getByText('This agent has open runs')).toBeInTheDocument();
-    expect(screen.getByText('Run 12 is paused and can be resumed. Finish it first, then delete.')).toBeInTheDocument();
+    expect(screen.getByText('A run <b>still</b> uses this agent.')).toBeInTheDocument();
     expect(screen.getAllByRole('button').map((b) => b.textContent)).toEqual(['Close']);
   });
 

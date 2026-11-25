@@ -1,7 +1,7 @@
 import { ApiError } from '@agentdesk/contracts/client';
 import { keepPreviousData, useQuery, useQueryClient, useSuspenseQuery } from '@tanstack/react-query';
 import { createFileRoute } from '@tanstack/react-router';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { z } from 'zod';
 import { toastFromError } from '@/app/boundaries';
 import {
@@ -16,6 +16,7 @@ import { useNow } from '@/app/useNow';
 import { useToast } from '@/ds';
 import type { AgentListProps } from '@/components';
 import { limitsOf, useSaveLimits } from '@/features/desk/agent.form';
+import { useAgentPane, useAgentRowActions, useAgentTester } from '@/features/desk/agent.pane';
 import { checkNowMessage, failedPollMessage } from '@/features/desk/checkNow';
 import { requireProjectPermission, useCan } from '@/features/access/guards';
 import { useDeskFrame } from '@/features/desk/frame';
@@ -67,6 +68,49 @@ function DeskAgentPage() {
   // `?tab=danger` without `project:delete` shows Agents.
   const tab: DeskAgentTab = search.tab === 'danger' && !mayDelete ? 'agents' : (search.tab ?? 'agents');
   const agents = useAgentsTab({ org, projectId, page: pageOfSearch(search), enabled: tab === 'agents' });
+
+  // The add and edit pane (`?agent=`) and the row actions. The pane belongs to the Agents tab only.
+  const mayUpdateSecrets = useCan(org, 'secret:update', { projectId });
+  const tester = useAgentTester(org, projectId);
+  const closePane = () => void navigate({ search: (prev) => ({ ...prev, agent: undefined }) });
+  const rowActions = useAgentRowActions(org, projectId, tester, {
+    onRemoved: (id) => {
+      if (search.agent === id) closePane();
+    },
+  });
+  const { pane, busy: paneBusy } = useAgentPane({
+    org,
+    projectId,
+    param: tab === 'agents' ? search.agent : undefined,
+    mayUpdate: mayUpdateAgents,
+    maySecret: mayUpdateSecrets,
+    tester,
+    onClose: closePane,
+    onOpenAgent: (id) => void navigate({ search: (prev) => ({ ...prev, agent: id }), replace: true }),
+  });
+  // Focus: the pane takes it on open (Add agent puts it on the first provider card itself), Escape closes the pane
+  // unless a save runs, and focus goes back to the control that opened it.
+  const opener = useRef<HTMLElement | null>(null);
+  const remember = () => {
+    opener.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+  };
+  const paneOpen = pane !== undefined;
+  const wasOpen = useRef(false);
+  useEffect(() => {
+    if (paneOpen && !wasOpen.current && pane.mode !== 'add') {
+      document.querySelector<HTMLElement>('aside[aria-labelledby] input:not([disabled])')?.focus();
+    }
+    if (!paneOpen && wasOpen.current && opener.current?.isConnected) opener.current.focus();
+    wasOpen.current = paneOpen;
+  }, [paneOpen, pane?.mode]);
+  useEffect(() => {
+    if (!paneOpen || paneBusy || rowActions.deleteDialog) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') closePane();
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  });
 
   const limits = useSaveLimits(org, projectId, limitsOf(project), {
     onSaved: () => toast.show({ tone: 'ok', title: 'Limits saved' }),
@@ -149,10 +193,19 @@ function DeskAgentPage() {
         // Changing tab drops `agent` and `page`: the pane closes and nothing typed outlives it.
         void navigate({ search: { tab: next === 'agents' ? undefined : next } })
       }
+      pane={pane}
+      deleteDialog={rowActions.deleteDialog}
       agents={{
         ...agents,
-        onAdd: () => void navigate({ search: (prev) => ({ ...prev, agent: 'new' }) }),
-        onEdit: (row) => void navigate({ search: (prev) => ({ ...prev, agent: row.id }) }),
+        ...rowActions.actions,
+        onAdd: () => {
+          remember();
+          void navigate({ search: (prev) => ({ ...prev, agent: 'new' }) });
+        },
+        onEdit: (row) => {
+          remember();
+          void navigate({ search: (prev) => ({ ...prev, agent: row.id }) });
+        },
         readOnly: !mayUpdateAgents,
       }}
       limits={limitsOf(project)}
@@ -186,7 +239,7 @@ function useAgentsTab({
   projectId: string;
   page: number;
   enabled: boolean;
-}): AgentsTabList & Pick<AgentListProps, 'onTest' | 'onSetDefault' | 'onDelete'> {
+}): AgentsTabList {
   const navigate = Route.useNavigate();
   const [pageSize] = usePageSize();
   const query = useQuery({
@@ -221,9 +274,5 @@ function useAgentsTab({
     ...(failed && query.error instanceof ApiError && query.error.requestId !== undefined
       ? { error: { requestId: query.error.requestId } }
       : {}),
-    // The row actions are wired with the add, edit, test, set default and delete flows.
-    onTest: () => undefined,
-    onSetDefault: () => undefined,
-    onDelete: () => undefined,
   };
 }

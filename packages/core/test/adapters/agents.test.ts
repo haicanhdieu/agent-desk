@@ -386,6 +386,10 @@ describe.each(registeredKinds)('shared adapter suite: %s', (kind) => {
     expect(env[0]).toEqual({ name: 'AGENT', value: kind });
   });
 
+  it('serves the same standard models as the contracts capability row', () => {
+    expect(AGENT_KIND_CAPABILITIES[kind].builtinModels).toEqual(adapter().builtinModels);
+  });
+
   it('has non-empty built-in models with valid ids', () => {
     const models = adapter().builtinModels;
     expect(models.length).toBeGreaterThan(0);

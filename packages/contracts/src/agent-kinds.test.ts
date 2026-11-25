@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { AgentKind, CredentialType } from './enums';
+import { AgentModelId } from './schemas/agents';
 import {
   AGENT_ACCOUNT_LABEL_MAX,
   AGENT_KIND_CAPABILITIES,
@@ -32,6 +33,18 @@ const texts = (kind: AgentKind): string[] => {
 };
 
 describe('agent kinds', () => {
+  it('every kind lists its standard models: unique valid ids and non-empty labels', () => {
+    for (const kind of AgentKind.options) {
+      const models = AGENT_KIND_CAPABILITIES[kind].builtinModels;
+      expect(models.length).toBeGreaterThan(0);
+      for (const m of models) {
+        expect(AgentModelId.safeParse(m.id).success).toBe(true);
+        expect(m.label.trim()).not.toBe('');
+      }
+      expect(new Set(models.map((m) => m.id)).size).toBe(models.length);
+    }
+  });
+
   it('every runnable kind has a capability row', () => {
     for (const kind of AgentKind.options) expect(AGENT_KIND_CAPABILITIES[kind]).toBeDefined();
     expect(Object.keys(AGENT_KIND_CAPABILITIES).sort()).toEqual([...AgentKind.options].sort());

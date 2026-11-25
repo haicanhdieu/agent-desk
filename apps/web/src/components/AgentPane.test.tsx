@@ -2,6 +2,7 @@ import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import axe from 'axe-core';
 import { describe, expect, it, vi } from 'vitest';
+import { AGENT_KIND_CAPABILITIES } from '@agentdesk/contracts';
 import { agentKindViews, agentPaneAgents, providerPickerOptions } from '@/mocks';
 import type { AgentKindView, AgentPaneAgent } from '@/mocks/types';
 import { AgentPane, type AgentPaneProps } from './AgentPane';
@@ -54,6 +55,7 @@ describe('AgentPane add', () => {
     expect(screen.getByLabelText('API address')).toBeInTheDocument();
     expect(screen.queryByLabelText('Max turns')).toBeNull();
     expect(screen.queryByText(/works without signing in/)).toBeNull();
+    expect(screen.getByText(/Leave the box untouched to use the first standard model\./)).toBeInTheDocument();
   });
 
   it('BR-5: Codex shows its own methods, no address and no Claude-only text', async () => {
@@ -121,7 +123,10 @@ describe('AgentPane add', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Replace' }));
     await type('Subscription token', 'new-secret{Enter}');
     expect(onReplaceCredential).toHaveBeenCalledTimes(1);
-    expect(onReplaceCredential).toHaveBeenCalledWith({ type: 'oauth_token', value: 'new-secret' });
+    expect(onReplaceCredential).toHaveBeenCalledWith(
+      { type: 'oauth_token', value: 'new-secret' },
+      { makeDefault: expect.any(Boolean) },
+    );
     expect(onSubmit).not.toHaveBeenCalled();
   });
 
@@ -222,6 +227,38 @@ describe('AgentPane add', () => {
     expect(screen.getByLabelText('API endpoint')).toHaveAccessibleDescription(/Use a public https address\./);
   });
 
+  it.each([
+    ['Claude Code', 'claude'],
+    ['OpenAI Codex', 'codex'],
+    ['OpenCode', 'opencode'],
+  ] as const)(
+    'BR-19: %s lists its standard model names in the Add picker and sends the one picked',
+    async (name, kind) => {
+      const { onSubmit } = setup({ modelList: { models: [], state: { kind: 'error' } } });
+      await pick(name);
+      const names = AGENT_KIND_CAPABILITIES[kind].builtinModels.map((m) => m.id);
+      const select = screen.getByRole('combobox', { name: 'Default model' });
+      const shown = Array.from(select.querySelectorAll('option')).map((o) => o.textContent);
+      for (const id of names) expect(shown).toContain(id);
+      expect(screen.getByText(/Save a credential to load the provider's list\./)).toBeInTheDocument();
+      await userEvent.selectOptions(select, names[1] ?? '');
+      await type('Name', 'Pick');
+      if (kind === 'claude') await type('Subscription token', 'tok');
+      if (kind === 'codex') await type('auth.json contents', 'x');
+      await userEvent.click(screen.getByRole('button', { name: 'Save agent' }));
+      expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({ provider: kind, model: names[1] }));
+    },
+  );
+
+  it('BR-19: choosing no standard name sends no model', async () => {
+    const { onSubmit } = setup();
+    await pick('Claude Code');
+    await type('Name', 'None');
+    await type('Subscription token', 'tok');
+    await userEvent.click(screen.getByRole('button', { name: 'Save agent' }));
+    expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({ model: '' }));
+  });
+
   it('a failed model list never blocks typing a model', async () => {
     const { onSubmit } = setup({ modelList: { models: [], state: { kind: 'error' } } });
     await pick('Claude Code');
@@ -261,7 +298,7 @@ describe('AgentPane add', () => {
     expect(box).not.toBeChecked();
     await userEvent.click(box);
     await userEvent.click(screen.getByRole('button', { name: 'Save agent' }));
-    expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({ makeDefault: true, model: 'opus' }));
+    expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({ makeDefault: true, model: '' }));
   });
 
   it('BR-8 to BR-11: shows the API field errors under their fields', async () => {
@@ -368,7 +405,10 @@ describe('AgentPane edit', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Replace' }));
     await type('Subscription token', 'new-secret');
     await userEvent.click(screen.getByRole('button', { name: 'Save and test' }));
-    expect(onReplaceCredential).toHaveBeenCalledWith({ type: 'oauth_token', value: 'new-secret' });
+    expect(onReplaceCredential).toHaveBeenCalledWith(
+      { type: 'oauth_token', value: 'new-secret' },
+      { makeDefault: expect.any(Boolean) },
+    );
     expect(await screen.findByRole('button', { name: 'Replace' })).toHaveAttribute('aria-expanded', 'false');
     expect(document.body.innerHTML).not.toContain('new-secret');
   });
@@ -382,7 +422,10 @@ describe('AgentPane edit', () => {
     expect(screen.getByRole('button', { name: 'Save agent' })).toBeDisabled();
     await type('API key', 'k');
     await userEvent.click(screen.getByRole('button', { name: 'Save and test' }));
-    expect(onReplaceCredential).toHaveBeenCalledWith({ type: 'api_key', value: 'k' });
+    expect(onReplaceCredential).toHaveBeenCalledWith(
+      { type: 'api_key', value: 'k' },
+      { makeDefault: expect.any(Boolean) },
+    );
   });
 
   it('BR-15: OpenCode file to endpoint and key needs the endpoint and the key before Save and test', async () => {
@@ -395,11 +438,14 @@ describe('AgentPane edit', () => {
     expect(screen.getByRole('button', { name: 'Save and test' })).toBeDisabled();
     await type('API endpoint', 'https://llm.example/v1');
     await userEvent.click(screen.getByRole('button', { name: 'Save and test' }));
-    expect(onReplaceCredential).toHaveBeenCalledWith({
-      type: 'api_key',
-      value: 'k',
-      baseUrl: 'https://llm.example/v1',
-    });
+    expect(onReplaceCredential).toHaveBeenCalledWith(
+      {
+        type: 'api_key',
+        value: 'k',
+        baseUrl: 'https://llm.example/v1',
+      },
+      { makeDefault: expect.any(Boolean) },
+    );
   });
 
   it('BR-68: an OpenCode agent with no credential shows No credential and the entering fields', () => {

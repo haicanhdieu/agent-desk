@@ -810,7 +810,14 @@ export const DeskAgentDeleteBlocked: Story = agentsBoard(
 );
 export const DeskAgentDeleteBlockedRuns: Story = agentsBoard(
   'Delete refused, a run is still open',
-  toDelete({ ...deleteBase, state: 'blockedRuns', run: { number: 12, state: 'paused and can be resumed' } }),
+  toDelete({
+    ...deleteBase,
+    state: 'blocked',
+    reason: {
+      title: 'This agent has open runs',
+      text: 'A run that is queued, running, paused or has a kept session still uses this agent. Let it finish or close it first.',
+    },
+  }),
 );
 export const DeskAgentDeleteError: Story = agentsBoard(
   'Delete failed',
