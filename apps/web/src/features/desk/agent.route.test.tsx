@@ -11,7 +11,6 @@ import { renderRoute } from '@/test/renderRoute';
 const projectId = ids.project.invoicerApi;
 const agentPage = `/o/alice/p/${projectId}/desk/agent`;
 const projectPath = `/api/projects/${projectId}`;
-const agentPath = `${projectPath}/agent`;
 
 interface Sent {
   method: string;
@@ -50,17 +49,14 @@ const projectRow = () => {
   if (!row) throw new Error('project not in the mock store');
   return row;
 };
-const agentRow = () => {
-  const row = mockDb.state.agents.find((a) => a.projectId === projectId);
-  if (!row) throw new Error('agent not in the mock store');
-  return row;
-};
 
 /** Opens the screen and then the named tab (the screen starts on Agents; every setting here sits on another tab). */
 async function openPage(tab: 'Limits' | 'GitHub connection' | 'Danger zone' = 'Limits') {
   const rendered = await renderRoute(agentPage);
   expect(await screen.findByRole('heading', { level: 1, name: 'Agent & settings' })).toBeInTheDocument();
   fireEvent.click(screen.getByRole('tab', { name: tab }));
+  // The tab is in the URL: it shows once the navigation settles.
+  await waitFor(() => expect(screen.getByRole('tab', { name: tab })).toHaveAttribute('aria-selected', 'true'));
   return rendered;
 }
 
@@ -71,8 +67,8 @@ const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 describe('desk agent route', () => {
   it('shows the limits and the connection from the API', async () => {
     const { user } = await openPage();
-    expect(field('Run time limit')).toHaveValue('30');
-    expect(unitSelect()).toHaveValue('minutes');
+    expect(field('Run time limit')).toHaveValue('24');
+    expect(unitSelect()).toHaveValue('hours');
     expect(field('Concurrent runs')).toHaveValue('2');
     expect(field('Runs per ticket')).toHaveValue('10');
     await user.click(screen.getByRole('tab', { name: 'GitHub connection' }));
@@ -80,20 +76,20 @@ describe('desk agent route', () => {
     expect(screen.getByRole('radio', { name: 'Webhook' })).toHaveAttribute('aria-checked', 'true');
   });
 
-  it('a 500 on agents.get shows the error banner with Retry', async () => {
-    await renderRoute(agentPage, { scenario: () => scenarios.serverError('agents.get') });
+  it('a 500 on the agent list shows the error banner with Retry', async () => {
+    await renderRoute(agentPage, { scenario: () => scenarios.agents('listError') });
     expect(await screen.findByRole('button', { name: 'Retry' })).toBeInTheDocument();
   });
 
   it('shows a 24 h limit as 24 hours', async () => {
-    agentRow().timeoutSeconds = 86400;
+    projectRow().timeoutSeconds = 86400;
     await openPage();
     expect(field('Run time limit')).toHaveValue('24');
     expect(unitSelect()).toHaveValue('hours');
   });
 
   it('shows a 7 day limit as 7 days', async () => {
-    agentRow().timeoutSeconds = 604800;
+    projectRow().timeoutSeconds = 604800;
     await openPage();
     expect(field('Run time limit')).toHaveValue('7');
     expect(unitSelect()).toHaveValue('days');
@@ -109,15 +105,15 @@ describe('desk agent route', () => {
     await user.click(screen.getByRole('button', { name: 'Save limits' }));
     expect(await screen.findByText('Limits saved')).toBeInTheDocument();
     await waitFor(() => expect(sent.every((s) => s.body !== undefined)).toBe(true));
-    expect(sent).toEqual([{ method: 'PUT', path: agentPath, body: { model: 'opus', timeoutSeconds: 172800 } }]);
-    expect(agentRow().timeoutSeconds).toBe(172800);
+    expect(sent).toEqual([{ method: 'PATCH', path: projectPath, body: { timeoutSeconds: 172800 } }]);
+    expect(projectRow().timeoutSeconds).toBe(172800);
 
     sent.length = 0;
     await user.selectOptions(unitSelect(), 'hours');
     await user.clear(timeout);
     await user.type(timeout, '30');
     await user.click(screen.getByRole('button', { name: 'Save limits' }));
-    await waitFor(() => expect(agentRow().timeoutSeconds).toBe(108000));
+    await waitFor(() => expect(projectRow().timeoutSeconds).toBe(108000));
   });
 
   it('a limit above 7 days is refused: the /timeoutSeconds message shows on Run time limit and the form stays filled', async () => {
@@ -138,12 +134,12 @@ describe('desk agent route', () => {
     expect(messages).toMatch(/7 days/);
     expect(timeout).toHaveValue('8');
     expect(unitSelect()).toHaveValue('days');
-    expect(sent.filter((s) => s.method === 'PUT' && s.path === agentPath)).toHaveLength(1);
+    expect(sent.filter((s) => s.method === 'PATCH' && s.path === projectPath)).toHaveLength(1);
     expect(sent[0]?.body).toMatchObject({ timeoutSeconds: 691200 });
-    expect(agentRow().timeoutSeconds).toBe(1800);
+    expect(projectRow().timeoutSeconds).toBe(86400);
   });
 
-  it('shows the keep times from the agent: 7 days and 24 hours', async () => {
+  it('shows the keep times from the project: 7 days and 24 hours', async () => {
     await openPage();
     expect(field('Keep a paused run for')).toHaveValue('7');
     expect(screen.getByLabelText('Keep a paused run for unit')).toHaveValue('days');
@@ -162,10 +158,8 @@ describe('desk agent route', () => {
     await user.click(screen.getByRole('button', { name: 'Save limits' }));
     expect(await screen.findByText('Limits saved')).toBeInTheDocument();
     await waitFor(() => expect(sent.every((s) => s.body !== undefined)).toBe(true));
-    expect(sent).toEqual([
-      { method: 'PUT', path: agentPath, body: { model: 'opus', timeoutSeconds: 1800, pausedKeepSeconds: 259200 } },
-    ]);
-    expect(agentRow().pausedKeepSeconds).toBe(259200);
+    expect(sent).toEqual([{ method: 'PATCH', path: projectPath, body: { pausedKeepSeconds: 259200 } }]);
+    expect(projectRow().pausedKeepSeconds).toBe(259200);
   });
 
   it('shows the idle end from the agent as an editable field', async () => {
@@ -184,10 +178,8 @@ describe('desk agent route', () => {
     await user.click(screen.getByRole('button', { name: 'Save limits' }));
     expect(await screen.findByText('Limits saved')).toBeInTheDocument();
     await waitFor(() => expect(sent.every((s) => s.body !== undefined)).toBe(true));
-    expect(sent).toEqual([
-      { method: 'PUT', path: agentPath, body: { model: 'opus', timeoutSeconds: 1800, idleEndSeconds: 5400 } },
-    ]);
-    expect(agentRow().idleEndSeconds).toBe(5400);
+    expect(sent).toEqual([{ method: 'PATCH', path: projectPath, body: { idleEndSeconds: 5400 } }]);
+    expect(projectRow().idleEndSeconds).toBe(5400);
     expect(field('End idle runs after')).toHaveValue('90');
   });
 
@@ -201,7 +193,7 @@ describe('desk agent route', () => {
     expect(idle).toHaveAttribute('aria-invalid', 'true');
     expect(idle).toHaveValue('2');
     expect(screen.queryByText('Limits saved')).toBeNull();
-    expect(agentRow().idleEndSeconds).toBe(1800);
+    expect(projectRow().idleEndSeconds).toBe(1800);
   });
 
   it('saving 2 automatic resumes sends autoResumeMax 2 and shows it after a reload', async () => {
@@ -214,10 +206,8 @@ describe('desk agent route', () => {
     await user.click(screen.getByRole('button', { name: 'Save limits' }));
     expect(await screen.findByText('Limits saved')).toBeInTheDocument();
     await waitFor(() => expect(sent.every((s) => s.body !== undefined)).toBe(true));
-    expect(sent).toEqual([
-      { method: 'PUT', path: agentPath, body: { model: 'opus', timeoutSeconds: 1800, autoResumeMax: 2 } },
-    ]);
-    expect(agentRow().autoResumeMax).toBe(2);
+    expect(sent).toEqual([{ method: 'PATCH', path: projectPath, body: { autoResumeMax: 2 } }]);
+    expect(projectRow().autoResumeMax).toBe(2);
     expect(field('Automatic resumes after a crash')).toHaveValue('2');
   });
 
@@ -231,7 +221,7 @@ describe('desk agent route', () => {
     expect(resumes).toHaveAttribute('aria-invalid', 'true');
     expect(resumes).toHaveValue('12');
     expect(screen.queryByText('Limits saved')).toBeNull();
-    expect(agentRow().autoResumeMax).toBe(5);
+    expect(projectRow().autoResumeMax).toBe(5);
   });
 
   it('0 for a finished run sends doneKeepSeconds 0', async () => {
@@ -243,10 +233,8 @@ describe('desk agent route', () => {
     await user.click(screen.getByRole('button', { name: 'Save limits' }));
     expect(await screen.findByText('Limits saved')).toBeInTheDocument();
     await waitFor(() => expect(sent.every((s) => s.body !== undefined)).toBe(true));
-    expect(sent).toEqual([
-      { method: 'PUT', path: agentPath, body: { model: 'opus', timeoutSeconds: 1800, doneKeepSeconds: 0 } },
-    ]);
-    expect(agentRow().doneKeepSeconds).toBe(0);
+    expect(sent).toEqual([{ method: 'PATCH', path: projectPath, body: { doneKeepSeconds: 0 } }]);
+    expect(projectRow().doneKeepSeconds).toBe(0);
   });
 
   it('31 days for a paused run shows the contract message and saves nothing', async () => {
@@ -260,14 +248,13 @@ describe('desk agent route', () => {
     expect(paused).toHaveAttribute('aria-invalid', 'true');
     expect(paused).toHaveValue('31');
     expect(screen.queryByText('Limits saved')).toBeNull();
-    expect(agentRow().pausedKeepSeconds).toBe(604800);
+    expect(projectRow().pausedKeepSeconds).toBe(604800);
   });
 
-  it('saving limits sends only the changed fields, and the agent body comes from the freshly fetched agent', async () => {
+  it('saving limits sends only the changed fields in one project request, never a stale value', async () => {
     const sent = captureWrites();
     const { user } = await openPage();
-    // Someone changes the model and the runs-per-ticket limit after the page loaded.
-    agentRow().model = 'sonnet';
+    // Someone changes the runs-per-ticket limit after the page loaded.
     projectRow().maxRunsPerTicket = 20;
     const concurrent = field('Concurrent runs');
     await user.clear(concurrent);
@@ -275,23 +262,15 @@ describe('desk agent route', () => {
     const timeout = field('Run time limit');
     await user.clear(timeout);
     await user.type(timeout, '45');
+    await user.selectOptions(unitSelect(), 'minutes');
     await user.click(screen.getByRole('button', { name: 'Save limits' }));
 
-    await waitFor(() => expect(sent).toHaveLength(2));
-    await waitFor(() => expect(sent.every((s) => s.body !== undefined)).toBe(true));
-    expect(sent.find((s) => s.method === 'PATCH')).toEqual({
-      method: 'PATCH',
-      path: projectPath,
-      body: { maxConcurrentRuns: 3 },
-    });
-    expect(sent.find((s) => s.method === 'PUT')).toEqual({
-      method: 'PUT',
-      path: agentPath,
-      body: { model: 'sonnet', timeoutSeconds: 2700 },
-    });
-    await waitFor(() => expect(agentRow().timeoutSeconds).toBe(2700));
-    expect(projectRow()).toMatchObject({ maxConcurrentRuns: 3, maxRunsPerTicket: 20 });
     expect(await screen.findByText('Limits saved')).toBeInTheDocument();
+    await waitFor(() => expect(sent.every((s) => s.body !== undefined)).toBe(true));
+    expect(sent).toEqual([
+      { method: 'PATCH', path: projectPath, body: { maxConcurrentRuns: 3, timeoutSeconds: 2700 } },
+    ]);
+    expect(projectRow()).toMatchObject({ maxConcurrentRuns: 3, maxRunsPerTicket: 20, timeoutSeconds: 2700 });
   });
 
   it('nothing changed: Save limits sends nothing and shows no toast', async () => {
@@ -303,7 +282,7 @@ describe('desk agent route', () => {
     expect(screen.queryByText('Limits saved')).toBeNull();
   });
 
-  it('one limit request fails, the other saves; the retry resends only the failed field', async () => {
+  it('a refused limit saves nothing; the retry sends the changed fields once they are valid', async () => {
     const sent = captureWrites();
     const { user } = await openPage();
     const concurrent = field('Concurrent runs');
@@ -317,7 +296,7 @@ describe('desk agent route', () => {
 
     await waitFor(() => expect(timeout).toHaveAttribute('aria-invalid', 'true'));
     expect(concurrent).not.toHaveAttribute('aria-invalid');
-    expect(projectRow().maxConcurrentRuns).toBe(3);
+    expect(projectRow().maxConcurrentRuns).toBe(2);
     expect(screen.queryByText('Limits saved')).toBeNull();
 
     sent.length = 0;
@@ -327,7 +306,9 @@ describe('desk agent route', () => {
     await user.click(screen.getByRole('button', { name: 'Save limits' }));
     expect(await screen.findByText('Limits saved')).toBeInTheDocument();
     await waitFor(() => expect(sent.every((x) => x.body !== undefined)).toBe(true));
-    expect(sent).toEqual([{ method: 'PUT', path: agentPath, body: { model: 'opus', timeoutSeconds: 2700 } }]);
+    expect(sent).toEqual([
+      { method: 'PATCH', path: projectPath, body: { maxConcurrentRuns: 3, timeoutSeconds: 2700 } },
+    ]);
     expect(timeout).not.toHaveAttribute('aria-invalid');
   });
 

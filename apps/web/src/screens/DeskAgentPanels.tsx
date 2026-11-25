@@ -156,7 +156,7 @@ export function GitHubPanel({
   );
 }
 
-/** The limits as the person is editing them. Lives in the screen, so a tab switch keeps unsaved edits. */
+/** The limits as the person is editing them. Lives in the Limits tab, so leaving the tab drops unsaved edits. */
 export function useLimitsForm(initial: AgentLimits) {
   const [units, setUnits] = useState<Record<'timeout' | 'pausedKeep' | 'doneKeep', DurationUnit>>(() => ({
     timeout: splitMinutes(initial.timeoutMinutes).unit,

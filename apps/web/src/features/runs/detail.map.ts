@@ -392,7 +392,7 @@ function endNote(
       return {
         title: `Timed out at the ${formatLimit(run.timeoutSeconds)} limit`,
         body: run.failureReason ?? '',
-        actions: links.agent ? [{ label: 'Change time limit', href: links.agent, icon: 'clock' }] : [],
+        actions: links.agent ? [{ label: 'Change time limit', href: `${links.agent}?tab=limits`, icon: 'clock' }] : [],
       };
     default:
       return { title: endedAt ? `Cancelled at ${endedAt}.` : 'Cancelled.', body: '', actions: [] };

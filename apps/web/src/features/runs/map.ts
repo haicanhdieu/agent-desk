@@ -340,7 +340,7 @@ export function toConnectionWarning(
 ): ConnectionWarning | undefined {
   if (status.tone === 'ok') return undefined;
   const details = agentHref
-    ? [{ label: connectionCopy.connectionDetails, href: agentHref, variant: 'ghost' as const }]
+    ? [{ label: connectionCopy.connectionDetails, href: `${agentHref}?tab=github`, variant: 'ghost' as const }]
     : [];
   if (status.mode === 'webhook') {
     const last = dto.webhook?.lastEventAt;
@@ -350,7 +350,9 @@ export function toConnectionWarning(
       title: last ? `No webhooks from GitHub since ${since(last, now)}` : 'No webhooks from GitHub yet',
       body: 'Comments posted since then have not started runs. Start the webhook relay and redeliver missed events from the app settings in GitHub, or switch this project to polling, which needs no public URL.',
       actions: [
-        ...(agentHref ? [{ label: connectionCopy.switchToPolling, href: agentHref, variant: 'primary' as const }] : []),
+        ...(agentHref
+          ? [{ label: connectionCopy.switchToPolling, href: `${agentHref}?tab=github`, variant: 'primary' as const }]
+          : []),
         { label: connectionCopy.checkAgain, icon: 'refresh' as const },
         ...details,
       ],

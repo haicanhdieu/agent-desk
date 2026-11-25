@@ -112,9 +112,9 @@ export const connectionWarnings = {
     title: 'No webhooks from GitHub since 11:42',
     body: 'Comments posted since then have not started runs. The last delivery attempt failed with HTTP 502 at the relay. Start the webhook relay and redeliver missed events from the app settings in GitHub, or switch this project to polling, which needs no public URL.',
     actions: [
-      { label: connectionCopy.switchToPolling, href: '/desk/agent', variant: 'primary' },
+      { label: connectionCopy.switchToPolling, href: '/desk/agent?tab=github', variant: 'primary' },
       { label: connectionCopy.checkAgain, icon: 'refresh' },
-      { label: connectionCopy.connectionDetails, href: '/desk/agent', variant: 'ghost' },
+      { label: connectionCopy.connectionDetails, href: '/desk/agent?tab=github', variant: 'ghost' },
     ],
   },
   pollingFailed: {
@@ -124,7 +124,7 @@ export const connectionWarnings = {
     body: `The last good check was at 11:42. ${connectionCopy.pollingFailedBody} Reinstall the GitHub App or give it access to this repository again.`,
     actions: [
       { label: connectionCopy.retryNow, icon: 'refresh' },
-      { label: connectionCopy.connectionDetails, href: '/desk/agent', variant: 'ghost' },
+      { label: connectionCopy.connectionDetails, href: '/desk/agent?tab=github', variant: 'ghost' },
     ],
   },
 } satisfies Record<string, ConnectionWarning>;

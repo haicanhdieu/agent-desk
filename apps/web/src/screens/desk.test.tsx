@@ -453,7 +453,7 @@ describe('DeskAgent', () => {
     expect(screen.getByRole('heading', { level: 2, name: 'Limits' })).toBeInTheDocument();
   });
 
-  it('keeps unsaved limit edits when the person switches tabs and back', async () => {
+  it('TC-58.4: drops unsaved limit edits when the person switches tabs and back', async () => {
     render(<DeskAgent {...base} />);
     await userEvent.click(screen.getByRole('tab', { name: 'Limits' }));
     const idle = screen.getByLabelText('End idle runs after');
@@ -461,7 +461,7 @@ describe('DeskAgent', () => {
     await userEvent.type(idle, '45');
     await userEvent.click(screen.getByRole('tab', { name: 'Agents' }));
     await userEvent.click(screen.getByRole('tab', { name: 'Limits' }));
-    expect(screen.getByLabelText('End idle runs after')).toHaveValue('45');
+    expect(screen.getByLabelText('End idle runs after')).toHaveValue(String(base.limits.idleEndMinutes));
   });
 
   it('fits the window: height="viewport" reaches the shell (BR-61)', () => {

@@ -16,8 +16,10 @@ import {
   REFRESH_ERROR,
   toAgentSettings,
   useReplaceCredential,
+  useSaveLimits,
   useSaveAgent,
 } from './agent.form';
+import { projectsQueries } from '../projects/queries';
 import { deskQueries } from './queries';
 
 const now = new Date('2026-11-12T14:14:00.000Z');
@@ -29,11 +31,13 @@ function fixture<T>(list: T[]): T {
 }
 const agent: AgentDto = fixture(agentFixtures);
 const project: ProjectDto = fixture(projectFixtures);
-const base = limitsOf(agent, project);
+const base = limitsOf(project);
 
 describe('limitsOf', () => {
-  it('carries the agent automatic resume limit', () => {
-    expect(limitsOf({ ...agent, autoResumeMax: 2 }, project).autoResumeMax).toBe(2);
+  it('reads every limit from the project, not the agent', () => {
+    expect(limitsOf({ ...project, autoResumeMax: 2 }).autoResumeMax).toBe(2);
+    expect(limitsOf({ ...project, timeoutSeconds: 7200 }).timeoutMinutes).toBe(120);
+    expect(limitsOf(project).timeoutMinutes).toBe(Math.round(project.timeoutSeconds / 60));
   });
 });
 
@@ -44,7 +48,7 @@ describe('toAgentSettings', () => {
       model: 'opus',
       baseUrl: '',
       credential: { type: 'oauth_token', setAt: '12 Oct', setBy: 'kim-hale' },
-      timeoutMinutes: 30,
+      timeoutMinutes: 1440,
       pausedKeepMinutes: 10080,
       doneKeepMinutes: 1440,
       idleEndMinutes: 30,
@@ -72,13 +76,13 @@ describe('limitsRequests', () => {
     expect(hasLimitChanges(limitsRequests(base, { ...base }))).toBe(false);
   });
 
-  it('the idle end comes from the agent, in minutes', () => {
-    expect(limitsOf({ ...agent, idleEndSeconds: 5400 }, project).idleEndMinutes).toBe(90);
+  it('the idle end comes from the project, in minutes', () => {
+    expect(limitsOf({ ...project, idleEndSeconds: 5400 }).idleEndMinutes).toBe(90);
   });
 
   it('a changed idle end is sent in seconds, with the other changed limits', () => {
     const req = limitsRequests(base, { ...base, maxRunsPerTicket: 20, idleEndMinutes: 15 });
-    expect(req).toEqual({ project: { maxRunsPerTicket: 20 }, idleEndSeconds: 900 });
+    expect(req).toEqual({ maxRunsPerTicket: 20, idleEndSeconds: 900 });
     expect(hasLimitChanges(limitsRequests(base, { ...base, idleEndMinutes: 15 }))).toBe(true);
   });
 
@@ -88,7 +92,7 @@ describe('limitsRequests', () => {
 
   it('a changed timeout is sent in seconds', () => {
     expect(limitsRequests(base, { ...base, timeoutMinutes: 60, maxConcurrent: 3 })).toEqual({
-      project: { maxConcurrentRuns: 3 },
+      maxConcurrentRuns: 3,
       timeoutSeconds: 3600,
     });
   });
@@ -348,5 +352,31 @@ describe('useReplaceCredential', () => {
     });
     expect(result.current.error).toBeUndefined();
     expect(result.current.addressError).toBeUndefined();
+  });
+});
+
+describe('useSaveLimits (project-wide)', () => {
+  it('sends the changed limits in one projects.update and no agent request', async () => {
+    const sent = bodies();
+    const { qc, wrapper } = withClient();
+    const onSaved = vi.fn();
+    const { result } = renderHook(() => useSaveLimits('alice', projectId, base, { onSaved }), { wrapper });
+    await act(() => result.current.save({ ...base, timeoutMinutes: 60, maxConcurrent: 3, autoResumeMax: 2 }));
+    await vi.waitFor(() => expect(sent.length).toBe(1));
+    expect(sent).toEqual([{ timeoutSeconds: 3600, maxConcurrentRuns: 3, autoResumeMax: 2 }]);
+    expect(onSaved).toHaveBeenCalledOnce();
+    expect(qc.getQueryData(projectsQueries.detail('alice', projectId).queryKey)).toMatchObject({
+      timeoutSeconds: 3600,
+      maxConcurrentRuns: 3,
+    });
+  });
+
+  it('a refused limit puts the problem message on its field and does not call onSaved', async () => {
+    const { wrapper } = withClient();
+    const onSaved = vi.fn();
+    const { result } = renderHook(() => useSaveLimits('alice', projectId, base, { onSaved }), { wrapper });
+    await act(() => result.current.save({ ...base, timeoutMinutes: 8 * 1440 }));
+    expect(result.current.errors.timeoutMinutes).toMatch(/7 days/);
+    expect(onSaved).not.toHaveBeenCalled();
   });
 });

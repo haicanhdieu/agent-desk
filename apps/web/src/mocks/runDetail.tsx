@@ -1,3 +1,4 @@
+import { agentListId } from './dto/ids';
 import { runsById, tickets } from './runs';
 import { runRunningUsage, runSucceededUsage, usageBoardDetails } from './usageBoards';
 import type { RunDetailData, RunDetailKey } from './types';
@@ -259,7 +260,7 @@ const runDetailsBase: Record<BaseKey, RunDetailData> = {
         </>
       ),
       actions: [
-        { label: 'Replace credential', href: '/desk/agent', icon: 'key' },
+        { label: 'Replace credential', href: `/desk/agent?agent=${agentListId(1)}`, icon: 'key' },
         { label: 'Copy /code-review', icon: 'copy' },
         { label: 'Open PR #133', href: GH, icon: 'external' },
       ],
@@ -348,7 +349,7 @@ const runDetailsBase: Record<BaseKey, RunDetailData> = {
         </>
       ),
       actions: [
-        { label: 'Change time limit', href: '/desk/agent', icon: 'clock' },
+        { label: 'Change time limit', href: '/desk/agent?tab=limits', icon: 'clock' },
         { label: 'Copy /code-e2e', icon: 'copy' },
       ],
     },

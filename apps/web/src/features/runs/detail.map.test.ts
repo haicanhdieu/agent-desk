@@ -788,11 +788,13 @@ describe('toRunDetail', () => {
       expect(detail(r).endNote?.actions).toEqual([]);
     });
 
-    it('timed out: the limit, Change time limit, a full meter', () => {
+    it('TC-60.4: timed out: the limit, Change time limit, a full meter', () => {
       const r = ended({ status: 'timed_out', startedAt: local(10, 2, 4), finishedAt: local(10, 32, 4) });
       const d = detail(r);
       expect(d.endNote?.title).toBe('Timed out at the 30 min limit');
-      expect(d.endNote?.actions).toEqual([{ label: 'Change time limit', href: links.agent, icon: 'clock' }]);
+      expect(d.endNote?.actions).toEqual([
+        { label: 'Change time limit', href: `${links.agent}?tab=limits`, icon: 'clock' },
+      ]);
       expect(d.time).toEqual({ elapsed: '30:00', limit: '30 min', percent: 100 });
     });
 

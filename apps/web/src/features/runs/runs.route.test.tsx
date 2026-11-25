@@ -279,13 +279,13 @@ describe('runs route', () => {
     }
   });
 
-  it('shows the silent-webhook warning on the problems view of a silent project', async () => {
+  it('TC-60.1, TC-60.2: shows the silent-webhook warning on the problems view of a silent project', async () => {
     const docs = ids.project.docsSite;
     await renderRoute(`/o/alice/p/${docs}/runs?filter=ignored`);
     expect(await screen.findByText(/^No webhooks from GitHub since/)).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Switch to polling' })).toHaveAttribute(
       'href',
-      `/o/alice/p/${docs}/desk/agent`,
+      `/o/alice/p/${docs}/desk/agent?tab=github`,
     );
   });
 

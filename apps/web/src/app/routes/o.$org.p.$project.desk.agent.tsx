@@ -1,29 +1,49 @@
 import { ApiError } from '@agentdesk/contracts/client';
-import { useQueryClient, useSuspenseQuery } from '@tanstack/react-query';
+import { keepPreviousData, useQuery, useQueryClient, useSuspenseQuery } from '@tanstack/react-query';
 import { createFileRoute } from '@tanstack/react-router';
 import { useRef, useState } from 'react';
+import { z } from 'zod';
 import { toastFromError } from '@/app/boundaries';
+import {
+  PageSearch,
+  pageOfSearch,
+  pageToSearch,
+  useClampToLastPage,
+  usePageSize,
+  usePaginationProps,
+} from '@/app/pagination';
 import { useNow } from '@/app/useNow';
 import { useToast } from '@/ds';
+import type { AgentListProps } from '@/components';
 import { limitsOf, useSaveLimits } from '@/features/desk/agent.form';
 import { checkNowMessage, failedPollMessage } from '@/features/desk/checkNow';
 import { requireProjectPermission, useCan } from '@/features/access/guards';
 import { useDeskFrame } from '@/features/desk/frame';
 import { forgetProject, useCheckNow, useDeleteProject, useSaveTrigger } from '@/features/desk/mutations';
+import { toAgentRowView } from '@/features/desk/agents.map';
 import { deskQueries } from '@/features/desk/queries';
 import { pollIntervalLabel } from '@/features/projects/map';
 import { projectsQueries } from '@/features/projects/queries';
 import { lastEvent, pollSeconds } from '@/features/setup/map';
 import { connectionCopy } from '@/mocks/connection';
 import type { PollInterval, TriggerMode } from '@/mocks/types';
-import { DeskAgent } from '@/screens';
+import { DeskAgent, type DeskAgentTab } from '@/screens';
+
+// `tab` is left out of the URL for Agents. `agent` (the add or edit pane) and `page` belong to Agents only; any bad value
+// falls back to its default (spec: tab navigation and URL).
+const AgentSearch = PageSearch.extend({
+  tab: z.enum(['github', 'limits', 'danger']).optional().catch(undefined),
+  agent: z
+    .union([z.literal('new'), z.uuid()])
+    .optional()
+    .catch(undefined),
+});
 
 export const Route = createFileRoute('/o/$org/p/$project/desk/agent')({
+  validateSearch: (search) => AgentSearch.parse(search),
   // Desk config is for roles that hold `agent:read` on this project; the guard runs before any loader.
   beforeLoad: ({ context: { queryClient }, params }) =>
     requireProjectPermission(queryClient, params.org, 'agent:read', params.project),
-  loader: ({ context: { queryClient }, params: { org, project } }) =>
-    queryClient.ensureQueryData(deskQueries.agent(org, project)),
   component: DeskAgentPage,
 });
 
@@ -31,6 +51,7 @@ type Trigger = { mode: TriggerMode; interval: PollInterval };
 
 function DeskAgentPage() {
   const { org, project: projectId } = Route.useParams();
+  const search = Route.useSearch();
   const navigate = Route.useNavigate();
   const qc = useQueryClient();
   const toast = useToast();
@@ -40,9 +61,14 @@ function DeskAgentPage() {
   const mayDelete = useCan(org, 'project:delete');
   const { data: project } = useSuspenseQuery(projectsQueries.detail(org, projectId));
   const { data: connection } = useSuspenseQuery(projectsQueries.connection(org, projectId));
-  const { data: agent } = useSuspenseQuery(deskQueries.agent(org, projectId));
+  const mayUpdateAgents = useCan(org, 'agent:update', { projectId });
 
-  const limits = useSaveLimits(org, projectId, limitsOf(agent, project), {
+  // Each tab loads its own data: the agent list only while Agents is open, so one tab failing never blanks the page.
+  // `?tab=danger` without `project:delete` shows Agents.
+  const tab: DeskAgentTab = search.tab === 'danger' && !mayDelete ? 'agents' : (search.tab ?? 'agents');
+  const agents = useAgentsTab({ org, projectId, page: pageOfSearch(search), enabled: tab === 'agents' });
+
+  const limits = useSaveLimits(org, projectId, limitsOf(project), {
     onSaved: () => toast.show({ tone: 'ok', title: 'Limits saved' }),
   });
 
@@ -118,7 +144,18 @@ function DeskAgentPage() {
     <DeskAgent
       frame={frame}
       height="viewport"
-      limits={limitsOf(agent, project)}
+      tab={tab}
+      onTabChange={(next) =>
+        // Changing tab drops `agent` and `page`: the pane closes and nothing typed outlives it.
+        void navigate({ search: { tab: next === 'agents' ? undefined : next } })
+      }
+      agents={{
+        ...agents,
+        onAdd: () => void navigate({ search: (prev) => ({ ...prev, agent: 'new' }) }),
+        onEdit: (row) => void navigate({ search: (prev) => ({ ...prev, agent: row.id }) }),
+        readOnly: !mayUpdateAgents,
+      }}
+      limits={limitsOf(project)}
       github={github}
       trigger={picked ?? saved}
       pollInterval={saved.interval}
@@ -134,4 +171,59 @@ function DeskAgentPage() {
       onDeleteProject={mayDelete ? onDeleteProject : undefined}
     />
   );
+}
+
+type AgentsTabList = Pick<AgentListProps, 'rows' | 'state' | 'onRetry' | 'pagination' | 'error'>;
+
+/** The Agents tab's list: one page of agents, its paging, and its loading, empty and error states. */
+function useAgentsTab({
+  org,
+  projectId,
+  page,
+  enabled,
+}: {
+  org: string;
+  projectId: string;
+  page: number;
+  enabled: boolean;
+}): AgentsTabList & Pick<AgentListProps, 'onTest' | 'onSetDefault' | 'onDelete'> {
+  const navigate = Route.useNavigate();
+  const [pageSize] = usePageSize();
+  const query = useQuery({
+    ...deskQueries.agents(org, projectId, { page, pageSize }),
+    placeholderData: keepPreviousData,
+    enabled,
+  });
+  const go = (p: number, replace = false) =>
+    void navigate({ search: (prev) => ({ ...prev, page: pageToSearch(p) }), replace });
+  const total = query.data?.total ?? 0;
+  useClampToLastPage(page, pageSize, total, (p) => go(p, true));
+  const pagination = usePaginationProps({
+    page: query.data?.page ?? page,
+    pageSize: query.data?.pageSize,
+    total,
+    busy: query.isPlaceholderData,
+    go,
+  });
+  const failed = query.isError && query.data === undefined;
+  const state: AgentListProps['state'] = failed
+    ? 'error'
+    : query.data === undefined
+      ? 'loading'
+      : total === 0
+        ? 'empty'
+        : 'ready';
+  return {
+    rows: (query.data?.items ?? []).map(toAgentRowView),
+    state,
+    onRetry: () => void query.refetch(),
+    pagination,
+    ...(failed && query.error instanceof ApiError && query.error.requestId !== undefined
+      ? { error: { requestId: query.error.requestId } }
+      : {}),
+    // The row actions are wired with the add, edit, test, set default and delete flows.
+    onTest: () => undefined,
+    onSetDefault: () => undefined,
+    onDelete: () => undefined,
+  };
 }

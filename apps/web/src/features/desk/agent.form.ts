@@ -25,43 +25,43 @@ export function toAgentSettings(agent: AgentDto, project: ProjectDto, now: Date)
       setAt: credential.set && credential.updatedAt ? relativeTime(credential.updatedAt, now) : '',
       setBy: credential.setBy ?? '',
     },
-    ...limitsOf(agent, project),
+    ...limitsOf(project),
   };
 }
 
-export function limitsOf(agent: AgentDto, project: ProjectDto): AgentLimits {
+export function limitsOf(project: ProjectDto): AgentLimits {
   return {
-    timeoutMinutes: Math.round(agent.timeoutSeconds / 60),
-    pausedKeepMinutes: Math.round(agent.pausedKeepSeconds / 60),
-    doneKeepMinutes: Math.round(agent.doneKeepSeconds / 60),
-    idleEndMinutes: Math.round(agent.idleEndSeconds / 60),
+    timeoutMinutes: Math.round(project.timeoutSeconds / 60),
+    pausedKeepMinutes: Math.round(project.pausedKeepSeconds / 60),
+    doneKeepMinutes: Math.round(project.doneKeepSeconds / 60),
+    idleEndMinutes: Math.round(project.idleEndSeconds / 60),
     maxConcurrent: project.maxConcurrentRuns,
     maxRunsPerTicket: project.maxRunsPerTicket,
-    autoResumeMax: agent.autoResumeMax,
+    autoResumeMax: project.autoResumeMax,
   };
 }
 
-export interface LimitsRequests {
-  project?: Pick<UpdateProjectRequest, 'maxConcurrentRuns' | 'maxRunsPerTicket'>;
-  timeoutSeconds?: number;
-  pausedKeepSeconds?: number;
-  doneKeepSeconds?: number;
-  idleEndSeconds?: number;
-  autoResumeMax?: number;
-}
+/** The limit fields of `UpdateProjectRequest`: every limit is project-wide and one request writes them. */
+export type LimitsRequests = Pick<
+  UpdateProjectRequest,
+  | 'maxConcurrentRuns'
+  | 'maxRunsPerTicket'
+  | 'timeoutSeconds'
+  | 'pausedKeepSeconds'
+  | 'doneKeepSeconds'
+  | 'idleEndSeconds'
+  | 'autoResumeMax'
+>;
 
 /**
  * What a limits save sends: only the fields changed since `base` (what the form opened with, or last saved), so a
- * limit changed elsewhere meanwhile is not overwritten. Minutes become seconds for the agent.
+ * limit changed elsewhere meanwhile is not overwritten. Minutes become seconds.
  */
 export function limitsRequests(base: AgentLimits, next: AgentLimits): LimitsRequests {
   const changed = (k: LimitField) => !Object.is(base[k], next[k]);
-  const project = {
+  return {
     ...(changed('maxConcurrent') && { maxConcurrentRuns: next.maxConcurrent }),
     ...(changed('maxRunsPerTicket') && { maxRunsPerTicket: next.maxRunsPerTicket }),
-  };
-  return {
-    ...(Object.keys(project).length > 0 && { project }),
     ...(changed('timeoutMinutes') && { timeoutSeconds: Math.round(next.timeoutMinutes * 60) }),
     ...(changed('pausedKeepMinutes') && { pausedKeepSeconds: Math.round(next.pausedKeepMinutes * 60) }),
     ...(changed('doneKeepMinutes') && { doneKeepSeconds: Math.round(next.doneKeepMinutes * 60) }),
@@ -70,7 +70,7 @@ export function limitsRequests(base: AgentLimits, next: AgentLimits): LimitsRequ
   };
 }
 
-/** problem+json pointers of the two limit requests → the screen's limit fields. */
+/** problem+json pointers of the limits request → the screen's limit fields. */
 export const LIMIT_POINTERS: Record<string, LimitField> = {
   '/timeoutSeconds': 'timeoutMinutes',
   '/pausedKeepSeconds': 'pausedKeepMinutes',
@@ -85,18 +85,11 @@ const LIMIT_FIELDS: ReadonlySet<string> = new Set(Object.values(LIMIT_POINTERS))
 const isLimitField = (k: string): k is LimitField => LIMIT_FIELDS.has(k);
 
 /** True when a limits save has something to send. */
-export const hasLimitChanges = (req: LimitsRequests): boolean =>
-  req.project !== undefined ||
-  req.timeoutSeconds !== undefined ||
-  req.pausedKeepSeconds !== undefined ||
-  req.doneKeepSeconds !== undefined ||
-  req.idleEndSeconds !== undefined ||
-  req.autoResumeMax !== undefined;
+export const hasLimitChanges = (req: LimitsRequests): boolean => Object.keys(req).length > 0;
 
 /**
- * Saves the limits: `projects.update` for the run limits and `agents.put` for the timeout and keep times, in parallel. `agents.put`
- * replaces the agent, so its other fields come from the agent fetched right before the write. Field messages come
- * from the problem pointers; one save at a time.
+ * Saves the project-wide limits with one `projects.update` (they apply to every agent). Field messages come from the
+ * problem pointers; one save at a time.
  */
 export function useSaveLimits(org: string, projectId: string, initial: AgentLimits, { onSaved }: { onSaved(): void }) {
   const qc = useQueryClient();
@@ -106,76 +99,28 @@ export function useSaveLimits(org: string, projectId: string, initial: AgentLimi
   const [errors, setErrors] = useState<Partial<Record<LimitField, string>>>({});
   const [formError, setFormError] = useState<string>();
 
-  const saveProject = async (body: NonNullable<LimitsRequests['project']>) => {
-    const saved = await api.projects.update({ params: { projectId }, body });
-    qc.setQueryData(projectsQueries.detail(org, projectId).queryKey, saved);
-    base.current = {
-      ...base.current,
-      maxConcurrent: saved.maxConcurrentRuns,
-      maxRunsPerTicket: saved.maxRunsPerTicket,
-    };
-  };
-  const saveAgent = async (
-    changes: Pick<
-      LimitsRequests,
-      'timeoutSeconds' | 'pausedKeepSeconds' | 'doneKeepSeconds' | 'idleEndSeconds' | 'autoResumeMax'
-    >,
-  ) => {
-    const agent = await qc.fetchQuery({ ...deskQueries.agent(org, projectId), staleTime: 0 });
-    // `agents.put` replaces the agent: the run time limit is always sent, the keep times and idle end only when
-    // changed (absent keeps the stored value).
-    const saved = await api.agents.put({
-      params: { projectId },
-      body: {
-        model: agent.model,
-        timeoutSeconds: changes.timeoutSeconds ?? agent.timeoutSeconds,
-        ...(agent.maxTurns !== null && { maxTurns: agent.maxTurns }),
-        ...(changes.pausedKeepSeconds !== undefined && { pausedKeepSeconds: changes.pausedKeepSeconds }),
-        ...(changes.doneKeepSeconds !== undefined && { doneKeepSeconds: changes.doneKeepSeconds }),
-        ...(changes.idleEndSeconds !== undefined && { idleEndSeconds: changes.idleEndSeconds }),
-        ...(changes.autoResumeMax !== undefined && { autoResumeMax: changes.autoResumeMax }),
-      },
-    });
-    qc.setQueryData(deskQueries.agent(org, projectId).queryKey, saved);
-    base.current = {
-      ...base.current,
-      timeoutMinutes: Math.round(saved.timeoutSeconds / 60),
-      pausedKeepMinutes: Math.round(saved.pausedKeepSeconds / 60),
-      doneKeepMinutes: Math.round(saved.doneKeepSeconds / 60),
-      idleEndMinutes: Math.round(saved.idleEndSeconds / 60),
-      autoResumeMax: saved.autoResumeMax,
-    };
-  };
-
   const save = async (next: AgentLimits) => {
     if (inFlight.current) return;
-    const requests = limitsRequests(base.current, next);
+    const body = limitsRequests(base.current, next);
     // Nothing changed since the last save: nothing to send and nothing to confirm.
-    if (!hasLimitChanges(requests)) return;
+    if (!hasLimitChanges(body)) return;
     inFlight.current = true;
     setSaving(true);
     setErrors({});
     setFormError(undefined);
     try {
-      const { project, ...agentChanges } = requests;
-      const agentChanged = hasLimitChanges(agentChanges);
-      const results = await Promise.allSettled([
-        project && saveProject(project),
-        agentChanged && saveAgent(agentChanges),
-      ]);
+      const saved = await api.projects.update({ params: { projectId }, body });
+      qc.setQueryData(projectsQueries.detail(org, projectId).queryKey, saved);
+      base.current = limitsOf(saved);
+      void qc.invalidateQueries({ queryKey: projectsListKey(org) });
+      onSaved();
+    } catch (e) {
+      const problem = fieldErrorsFromProblem(e, LIMIT_POINTERS);
+      // The problem's fields are keyed by the map's values, i.e. limit fields.
       const fields: Partial<Record<LimitField, string>> = {};
-      const forms: string[] = [];
-      for (const r of results) {
-        if (r.status === 'fulfilled') continue;
-        const problem = fieldErrorsFromProblem(r.reason, LIMIT_POINTERS);
-        // The problem's fields are keyed by the map's values, i.e. limit fields.
-        for (const [k, v] of Object.entries(problem.fields)) if (isLimitField(k)) fields[k] ??= v;
-        if (problem.form) forms.push(problem.form);
-      }
-      if (project) void qc.invalidateQueries({ queryKey: projectsListKey(org) });
+      for (const [k, v] of Object.entries(problem.fields)) if (isLimitField(k)) fields[k] = v;
       setErrors(fields);
-      setFormError(forms.length > 0 ? forms.join(' ') : undefined);
-      if (results.every((r) => r.status === 'fulfilled')) onSaved();
+      setFormError(problem.form);
     } finally {
       inFlight.current = false;
       setSaving(false);

@@ -136,7 +136,10 @@ function ProjectsPage() {
       projectHref={(p) => `${orgPath}/p/${encodeURIComponent(p.id)}/runs`}
       // Project settings is the Desk agent page: only for roles that may read it on that project.
       settingsHref={(p) => settingsHref(p.id)}
-      switchToPollingHref={(p) => settingsHref(p.id)}
+      switchToPollingHref={(p) => {
+        const href = settingsHref(p.id);
+        return href === undefined ? undefined : `${href}?tab=github`;
+      }}
       pagination={pagination}
       org={bar.org}
       {...(pending > 0 && { invitationsBanner: { count: pending, href: '/invitations' } })}

@@ -11,6 +11,7 @@ import {
   GitHubPanel,
   LimitsPanel,
   useLimitsForm,
+  type LimitsPanelProps,
   type AgentLimits,
   type LimitField,
 } from './DeskAgentPanels';
@@ -88,6 +89,12 @@ const NO_LIST: AgentListProps = {
   onDelete: () => undefined,
 };
 
+/** The Limits tab with its own form state: leaving the tab drops unsaved edits (BR-58), saved values stay. */
+function LimitsTab({ limits, ...panel }: { limits: AgentLimits } & Omit<LimitsPanelProps, 'form'>) {
+  const form = useLimitsForm(limits);
+  return <LimitsPanel form={form} {...panel} />;
+}
+
 export function DeskAgent({
   frame,
   height,
@@ -134,7 +141,6 @@ export function DeskAgent({
     setPollEvery(next.interval);
     onTriggerChange?.(next);
   };
-  const limitsForm = useLimitsForm(limits);
 
   const page = (
     <DeskFrame active="agent" {...frame} connection={connection ?? frame.connection}>
@@ -170,8 +176,8 @@ export function DeskAgent({
           />
         </TabPanel>
         <TabPanel value="limits" active={active} idPrefix={TAB_PREFIX}>
-          <LimitsPanel
-            form={limitsForm}
+          <LimitsTab
+            limits={limits}
             onSave={onSaveLimits}
             errors={limitsErrors}
             error={limitsError}
