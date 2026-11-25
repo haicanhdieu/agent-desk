@@ -1,0 +1,337 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Desk — agents, edit, model list could not load, typed model</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#15181E; --panel:#1B1F26; --raised:#232832; --line:#2C323D; --line2:#3A4150;
+  --text:#E3E6EB; --muted:#A3ABB8; --faint:#8A93A2; --accent:#93A9FF; --term:#0F1216;
+  --run:#52C4D9; --idle:#F5B83D; --ok:#6CCF96; --fail:#F2776B; --late:#EE9A57; --off:#9AA2AF;
+  --sans:'IBM Plex Sans',system-ui,-apple-system,'Segoe UI',sans-serif;
+  --mono:'IBM Plex Mono',ui-monospace,'SFMono-Regular',Menlo,Consolas,monospace;
+}
+body{margin:0;background:var(--bg);color:var(--text);font-family:var(--sans);font-size:14px;line-height:1.45;color-scheme:dark}
+a{color:var(--accent);text-decoration:none}
+a:hover{text-decoration:underline}
+*{box-sizing:border-box}
+button,input,select,textarea{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.app{display:flex;flex-direction:column;width:100%;background:var(--bg)}
+.mono{font-family:var(--mono);font-size:12.5px}
+.muted{color:var(--muted)}
+.faint{color:var(--faint)}
+.row{display:flex;align-items:center;gap:8px}
+.grow{flex:1 1 auto;min-width:0}
+h1{font-size:22px;line-height:1.25;font-weight:600;margin:0;text-wrap:balance;letter-spacing:-.01em}
+h2{font-size:16px;font-weight:600;margin:0}
+h3{font-size:14px;font-weight:600;margin:0}
+p{margin:0}
+.top{height:52px;flex:0 0 52px;display:flex;align-items:center;gap:14px;padding:0 16px;border-bottom:1px solid var(--line);background:var(--panel)}
+.brand{display:flex;align-items:center;gap:8px;font-weight:600;color:var(--text);font-size:14px}
+.brand svg{color:var(--text)}
+.sep{width:1px;height:22px;background:var(--line2)}
+.switch{display:flex;align-items:center;gap:8px;padding:5px 10px;border:1px solid var(--line2);border-radius:6px;background:var(--raised);color:var(--text);cursor:pointer}
+.switch .org{color:var(--muted)}
+.tabs{display:flex;gap:2px;height:100%}
+.tabs a{display:flex;align-items:center;gap:7px;padding:0 12px;color:var(--muted);border-bottom:2px solid transparent;height:100%;font-weight:500}
+.tabs a:hover{color:var(--text);text-decoration:none}
+.tabs a.on{color:var(--text);border-bottom-color:var(--text)}
+.count-idle{display:inline-flex;align-items:center;gap:4px;background:var(--idle);color:#1A1405;font-size:11.5px;font-weight:600;border-radius:9px;padding:0 7px;height:18px}
+.avatar{width:26px;height:26px;border-radius:50%;background:#3B4A6B;color:#DCE3F5;display:inline-flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;flex:0 0 auto}
+.avatar.bot{background:#2F3A36;color:#BFE6D2;border-radius:6px}
+.avatar.sm{width:20px;height:20px;font-size:9.5px}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:7px;height:32px;padding:0 12px;border-radius:6px;border:1px solid var(--line2);background:var(--raised);color:var(--text);font-weight:500;font-size:13.5px;cursor:pointer;white-space:nowrap}
+.btn:hover{border-color:#566078;text-decoration:none}
+.btn.primary{background:var(--text);color:#14171C;border-color:var(--text)}
+.btn.go{background:var(--idle);color:#1A1405;border-color:var(--idle)}
+.btn.danger{color:var(--fail);border-color:#5A3431;background:#2A1E1F}
+.btn.solid-danger{background:var(--fail);color:#1E0E0C;border-color:var(--fail)}
+.btn.ghost{background:transparent;border-color:transparent;color:var(--muted)}
+.btn.ghost:hover{color:var(--text);border-color:var(--line2)}
+.btn:disabled,.btn.dis{opacity:.45;cursor:not-allowed}
+.btn.lg{height:40px;padding:0 18px;font-size:14.5px}
+.btn.sm{height:26px;padding:0 9px;font-size:12.5px}
+.iconbtn{width:32px;padding:0}
+kbd{font-family:var(--mono);font-size:11px;border:1px solid var(--line2);border-bottom-width:2px;border-radius:4px;padding:0 4px;color:var(--muted)}
+.st{display:inline-flex;align-items:center;gap:6px;font-weight:500;font-size:13px;white-space:nowrap}
+.st svg{flex:0 0 auto}
+.st-queued{color:var(--off)}
+.st-starting{color:var(--run)}
+.st-running{color:var(--run)}
+.st-idle{color:var(--idle)}
+.st-succeeded{color:var(--ok)}
+.st-failed{color:var(--fail)}
+.st-timed_out{color:var(--late)}
+.st-cancelled{color:var(--off)}
+.st-pill{padding:3px 9px 3px 7px;border-radius:999px;border:1px solid currentColor;background:rgba(255,255,255,.02)}
+.st-idle.st-pill{background:var(--idle);color:#1A1405;border-color:var(--idle)}
+.cmd{font-family:var(--mono);font-size:12.5px;background:#262C38;border:1px solid var(--line2);border-radius:4px;padding:0 5px;color:#D7DDF0;white-space:nowrap}
+.lbl{display:inline-flex;align-items:center;gap:5px;font-size:12px;border:1px solid var(--line2);border-radius:999px;padding:0 8px;height:20px;color:var(--muted);white-space:nowrap}
+.lbl i{width:7px;height:7px;border-radius:50%;display:inline-block}
+.kind{display:inline-flex;align-items:center;gap:5px;color:var(--muted);font-size:12.5px;white-space:nowrap}
+.tref{font-family:var(--mono);font-size:12.5px;color:var(--text)}
+.banner{display:flex;gap:12px;align-items:flex-start;padding:12px 16px;border-radius:8px;border:1px solid var(--line2);background:var(--panel)}
+.banner .b-ico{flex:0 0 auto;margin-top:1px}
+.banner.warn{border-color:#5B4520;background:#251F14}
+.banner.warn .b-ico{color:var(--idle)}
+.banner.err{border-color:#5A3431;background:#261A1A}
+.banner.err .b-ico{color:var(--fail)}
+.banner.late{border-color:#5A3F2A;background:#261D16}
+.banner.late .b-ico{color:var(--late)}
+.banner.ok{border-color:#2D4A3A;background:#17221C}
+.banner.ok .b-ico{color:var(--ok)}
+.banner.off{border-color:var(--line2);background:var(--panel)}
+.banner.off .b-ico{color:var(--off)}
+.banner.idle{border-color:var(--idle);background:#2A2214}
+.field{display:flex;flex-direction:column;gap:6px}
+.field>label,.flabel{font-size:13px;font-weight:500;color:var(--text)}
+.help{font-size:12.5px;color:var(--muted)}
+.input{height:34px;border:1px solid var(--line2);background:#12151A;border-radius:6px;padding:0 10px;color:var(--text);width:100%}
+.input.mono{font-family:var(--mono);font-size:13px}
+.prefix{display:flex;align-items:center;border:1px solid var(--line2);background:#12151A;border-radius:6px;height:34px;overflow:hidden}
+.prefix span{padding:0 4px 0 10px;color:var(--faint);font-family:var(--mono)}
+.prefix input{border:0;background:transparent;height:100%;padding:0 10px 0 0;font-family:var(--mono);font-size:13px;width:100%}
+.seg{display:inline-flex;flex:0 0 auto;align-self:flex-start;border:1px solid var(--line2);border-radius:6px;overflow:hidden;background:#12151A}
+.seg button{border:0;background:transparent;padding:0 12px;height:32px;color:var(--muted);cursor:pointer;border-right:1px solid var(--line2)}
+.seg button:last-child{border-right:0}
+.seg button.on{background:var(--raised);color:var(--text);font-weight:600}
+.toggle{width:34px;height:20px;border-radius:10px;background:var(--line2);position:relative;display:inline-block;flex:0 0 auto;border:0;padding:0;cursor:pointer}
+.toggle::after{content:"";position:absolute;width:14px;height:14px;border-radius:50%;background:#C9CFDA;top:3px;left:3px}
+.toggle.on{background:#4E6BD8}
+.toggle.on::after{left:17px;background:#fff}
+table{border-collapse:collapse;width:100%}
+th{font-size:12.5px;font-weight:500;color:var(--muted);text-align:left;padding:8px 12px;border-bottom:1px solid var(--line)}
+td{padding:9px 12px;border-bottom:1px solid var(--line);vertical-align:middle}
+.num{font-variant-numeric:tabular-nums;font-family:var(--mono);font-size:12.5px;white-space:nowrap}
+.termwrap{display:flex;flex-direction:column;background:var(--term);min-width:0}
+.termbar{height:38px;flex:0 0 38px;display:flex;align-items:center;gap:12px;padding:0 10px 0 6px;border-bottom:1px solid #1F242C;background:#13161B}
+.vtab{display:inline-flex;align-items:center;gap:6px;height:28px;padding:0 10px;border-radius:5px;font-size:13px;color:var(--muted);border:0;background:transparent}
+.vtab.on{background:var(--raised);color:var(--text);font-weight:500}
+.vtab.soon{opacity:.6;cursor:not-allowed}
+.soon-tag{font-size:11px;border:1px dashed var(--line2);border-radius:4px;padding:0 5px;color:var(--faint)}
+.term{flex:1 1 auto;overflow:hidden;padding:12px 16px;display:flex;flex-direction:column;justify-content:flex-end;font-family:var(--mono);font-size:13px;line-height:1.55;color:#D5DAE1;white-space:pre;position:relative}
+.t-dim{color:#7E8796}
+.t-b{font-weight:600;color:#EEF1F5}
+.t-cy{color:#6FD0E0}
+.t-gr{color:#7AD69F}
+.t-rd{color:#F28A80}
+.t-yl{color:#F2C46B}
+.t-add{color:#7AD69F;background:rgba(122,214,159,.08)}
+.t-del{color:#F28A80;background:rgba(242,138,128,.08)}
+.t-dot{color:#7AD69F}
+.t-dotw{color:#EEF1F5}
+.t-mag{color:#C8A2F0}
+.t-acc{color:#B9C6FF}
+.cursor{display:inline-block;width:8px;height:16px;background:#E3E6EB;vertical-align:-3px}
+.conn{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;color:var(--muted)}
+.conn i{width:8px;height:8px;border-radius:50%;background:var(--ok);display:inline-block}
+.side{width:344px;flex:0 0 344px;border-left:1px solid var(--line);background:var(--panel);display:flex;flex-direction:column;overflow:hidden}
+.sec{padding:14px 16px;border-bottom:1px solid var(--line);display:flex;flex-direction:column;gap:10px}
+.sec-h{font-size:12.5px;color:var(--muted);font-weight:500;display:flex;align-items:center;justify-content:space-between}
+.kv{margin:0;display:grid;grid-template-columns:96px minmax(0,1fr);gap:7px 10px;font-size:13px;align-items:baseline}
+.kv dt{color:var(--muted)}
+.kv dd{margin:0;min-width:0}
+.meter{height:5px;border-radius:3px;background:var(--line2);overflow:hidden}
+.meter i{display:block;height:100%;background:var(--run)}
+.chain{display:flex;flex-direction:column;gap:0}
+.cstep{display:grid;grid-template-columns:20px minmax(0,1fr);gap:10px;position:relative;padding-bottom:12px}
+.cstep::before{content:"";position:absolute;left:9px;top:20px;bottom:0;width:2px;background:var(--line2)}
+.cstep:last-child::before{display:none}
+.cstep.here .cbox{border-color:var(--line2);background:var(--raised)}
+.cbox .row{flex-wrap:wrap;row-gap:2px}
+.cbox b{white-space:nowrap}
+.cbox{border:1px solid transparent;border-radius:6px;padding:4px 8px;margin:-4px 0 0 -8px;display:flex;flex-direction:column;gap:2px}
+.cstep.future .cbox{color:var(--faint)}
+.grp td{background:#191D24;border-bottom:1px solid var(--line)}
+.child td:first-child{position:relative}
+.tree{display:inline-block;width:22px;height:20px;position:relative;vertical-align:middle;margin-right:4px}
+.tree::before{content:"";position:absolute;left:8px;top:-12px;bottom:8px;border-left:1.5px solid var(--line2)}
+.tree::after{content:"";position:absolute;left:8px;width:12px;top:10px;border-top:1.5px solid var(--line2)}
+.tree.mid::before{bottom:-14px}
+tr.needs td{background:#221D13}
+tr.needs td:first-child{box-shadow:inset 3px 0 0 var(--idle)}
+.filters{display:flex;gap:6px;flex-wrap:wrap}
+.fchip{height:28px;padding:0 10px;border-radius:999px;border:1px solid var(--line2);background:transparent;color:var(--muted);font-size:13px;display:inline-flex;align-items:center;gap:6px;cursor:pointer}
+.fchip.on{background:var(--raised);color:var(--text);border-color:#566078}
+.fchip b{font-weight:600;color:var(--text);font-variant-numeric:tabular-nums}
+.subnav{width:220px;flex:0 0 220px;border-right:1px solid var(--line);padding:16px 10px;display:flex;flex-direction:column;gap:2px;background:var(--bg)}
+.subnav a{display:flex;align-items:center;gap:9px;padding:7px 10px;border-radius:6px;color:var(--muted);font-weight:500}
+.subnav a.on{background:var(--raised);color:var(--text)}
+.subnav a:hover{color:var(--text);text-decoration:none}
+.subnav .grp-h{font-size:12px;color:var(--faint);padding:14px 10px 6px}
+.editor{font-family:var(--mono);font-size:13px;line-height:1.6;white-space:pre;background:#12151A;color:#D5DAE1}
+.ln{color:#5C6575;text-align:right;padding-right:14px;user-select:none}
+.md-h{color:#B9C6FF;font-weight:600}
+.md-k{color:#C8A2F0}
+.md-c{color:#7AD69F}
+.md-f{color:#7E8796}
+.overlay{position:absolute;inset:0;background:rgba(10,12,16,.62);display:flex;align-items:center;justify-content:center}
+.dialog{width:520px;background:var(--panel);border:1px solid var(--line2);border-radius:10px;box-shadow:0 20px 60px rgba(0,0,0,.5);display:flex;flex-direction:column}
+.dialog .d-b{padding:20px;display:flex;flex-direction:column;gap:14px}
+.dialog .d-f{padding:14px 20px;border-top:1px solid var(--line);display:flex;justify-content:flex-end;gap:8px}
+.pop{position:absolute;background:var(--panel);border:1px solid var(--line2);border-radius:8px;box-shadow:0 14px 40px rgba(0,0,0,.55);padding:14px;display:flex;flex-direction:column;gap:10px;z-index:5}
+.note{font-size:12.5px;color:var(--muted)}
+.steps{display:flex;flex-direction:column;gap:2px}
+.step{display:grid;grid-template-columns:26px minmax(0,1fr);gap:10px;padding:10px 12px;border-radius:8px;align-items:start}
+.step.on{background:var(--raised)}
+.sn{width:24px;height:24px;border-radius:50%;border:1.5px solid var(--line2);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600;color:var(--muted);font-variant-numeric:tabular-nums}
+.step.done .sn{background:var(--ok);border-color:var(--ok);color:#0F1A13}
+.step.on .sn{border-color:var(--text);color:var(--text)}
+.radio-card{border:1px solid var(--line2);border-radius:8px;padding:12px 14px;display:flex;gap:12px;align-items:flex-start;background:var(--panel)}
+.radio-card.on{border-color:#7C8FD8;background:#1E2333}
+.rdot{width:16px;height:16px;border-radius:50%;border:1.5px solid var(--line2);flex:0 0 auto;margin-top:2px}
+.on>.rdot{border:5px solid var(--accent)}
+.cbx{width:16px;height:16px;border-radius:4px;border:1.5px solid var(--line2);flex:0 0 auto;margin-top:2px;display:inline-flex;align-items:center;justify-content:center}
+.cbx.on{background:var(--accent);border-color:var(--accent);color:#11131A}
+.sentence{font-size:16px;line-height:1.9}
+.sentence .cmd,.sentence .slot{font-size:14px}
+.slot{display:inline-flex;align-items:center;gap:6px;border-bottom:1.5px dashed #6B7690;padding:0 2px;font-weight:600}
+.textarea{display:block;min-height:132px;border:1px solid var(--line2);background:#12151A;border-radius:6px;padding:8px 10px;color:var(--text);width:100%;line-height:1.5;resize:vertical}
+.textarea.bad{border-color:var(--fail)}
+.ferr{font-size:12.5px;color:var(--fail)}
+.counter{font-variant-numeric:tabular-nums;white-space:nowrap;color:var(--faint)}
+.counter.over{color:var(--fail)}
+.sys-l{display:inline-flex;align-items:center;gap:6px;font-size:13px;font-weight:500;color:var(--muted)}
+.sys{margin:0;display:flex;flex-direction:column;border:1px dashed var(--line2);border-radius:6px;background:var(--panel);padding:10px 12px;font-family:var(--mono);font-size:12.5px;line-height:1.6;color:var(--faint);white-space:pre-wrap;overflow-wrap:anywhere}
+.sys .ph{color:var(--muted);font-style:italic}
+.sys.err{flex-direction:row;align-items:center;justify-content:space-between;gap:12px;font-family:var(--sans);white-space:normal}
+.skel{display:block;height:12px;border-radius:6px;background:var(--raised)}
+.pfirst{display:inline-block;max-width:320px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;vertical-align:bottom;color:var(--muted)}
+.prompt-box{margin:0;max-height:220px;overflow:auto;padding:8px 10px;border:1px solid var(--line);border-radius:6px;background:#12151A;font-family:var(--mono);font-size:12px;line-height:1.55;color:#D5DAE1;white-space:pre-wrap;overflow-wrap:anywhere}
+.pager{container-type:inline-size;width:100%}
+.pg{display:flex;align-items:center;justify-content:space-between;gap:8px 16px;flex-wrap:wrap}
+.pg-range{font-size:13px;color:var(--muted);white-space:nowrap}
+.pg-pages{display:flex;align-items:center;gap:4px}
+.pg-slots{display:flex;align-items:center;gap:4px}
+.pg-slots.n{display:none}
+.pg-gap{width:32px;text-align:center}
+.pg-tools{display:flex;align-items:center;gap:16px}
+.pg-field{display:flex;align-items:center;gap:8px;white-space:nowrap}
+.pg-lbl{font-size:13px;color:var(--muted)}
+.pg-jump{width:64px;height:32px}
+.pg-size{width:76px;height:32px}
+.pg .btn[aria-current="page"]{font-weight:600;border-color:#566078}
+.pg .dim{opacity:.45}
+@container (max-width: 1069px){
+  .pg-lbl,.pg-step-t{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+  .pg-step{width:32px;padding:0}
+  .pg-field{gap:6px}
+}
+@container (max-width: 789px){
+  .pg-word{display:none}
+  .pg-slots.w{display:none}
+  .pg-slots.n{display:flex}
+  .pg{gap:8px 12px}
+  .pg-tools{gap:8px}
+  .pg-gap{width:20px}
+  .pg-jump{width:48px}
+  .pg-size{width:64px}
+}
+@container (max-width: 589px){
+  .pg-range{display:none}
+  .pg .btn{height:26px;font-size:12.5px}
+  .pg .iconbtn,.pg-step,.pg-gap{width:26px}
+  .pg-go{padding:0 9px}
+  .pg-jump,.pg-size{height:26px}
+  .pg-jump{width:40px}
+  .pg-size{width:56px;padding:0 6px}
+  .pg-pages,.pg-slots{gap:2px}
+  .pg,.pg-tools,.pg-field{gap:6px}
+}
+@container (max-width: 359px){
+  .pg-slots.n .pg-x{display:none}
+}
+.input.bad{border-color:var(--fail)}
+/* scroll areas keep their children at full height */
+[data-sc]>*{flex:none}
+</style>
+</helmet>
+<div class="app" style="min-height:900px;height:900px;position:relative;overflow:hidden;">
+<header class="top">
+<a href="Projects.dc.html" class="brand" aria-label="Agent Desk, all projects"><svg xmlns="http://www.w3.org/2000/svg" width="128" height="32" viewBox="0 0 480 120" role="img" aria-label="Agent Desk"><g transform="translate(0 18) scale(1.1)"><path d="M34 8H86C95 8 102 15 102 24V34C94 37 94 49 102 52V62C102 71 95 78 86 78H34C25 78 18 71 18 62V52C26 49 26 37 18 34V24C18 15 25 8 34 8Z" fill="none" stroke="#ffffff" stroke-width="7" stroke-linejoin="round"/><path d="M39 31L53 43L39 55" fill="none" stroke="#ffffff" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/><path d="M58 56H70" fill="none" stroke="#ffffff" stroke-width="6" stroke-linecap="round"/><path d="M77 27V42C77 49 82 53 88 53" fill="none" stroke="#756eff" stroke-width="5" stroke-linecap="round"/><circle cx="77" cy="24" r="7" fill="#756eff"/><circle cx="91" cy="55" r="7" fill="#20c9b0"/></g><text x="142" y="79" font-family="Inter, ui-sans-serif, system-ui, -apple-system, Segoe UI, sans-serif" font-size="54" font-weight="750" letter-spacing="-2.4" fill="#ffffff">Agent <tspan fill="#756eff">Desk</tspan></text></svg></a>
+<span class="sep"></span>
+<button class="switch" aria-label="Switch project"><span class="org">harbor-labs /</span><b style="font-weight:600">invoicer-api</b><svg aria-hidden="true" class="" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg></button>
+<nav class="tabs" aria-label="Project">
+<a href="Runs.dc.html" class=""><svg aria-hidden="true" class="" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M8 6h12M8 12h12M8 18h12M4 6h.01M4 12h.01M4 18h.01"/></svg>Runs<span class="count-idle" title="1 run needs you">1 needs you</span></a>
+<a href="DeskSkills.dc.html" class="on"><svg aria-hidden="true" class="" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/></svg>Settings</a>
+</nav>
+<span class="grow"></span>
+<a class="btn ghost sm" href="https://github.com/"><svg aria-hidden="true" class="" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></svg>Repo on GitHub</a>
+<button class="btn ghost iconbtn" aria-label="Notifications on"><svg aria-hidden="true" class="" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M6 16V11a6 6 0 0 1 12 0v5l1.5 2h-15z"/><path d="M10 20a2 2 0 0 0 4 0"/></svg></button>
+<span class="avatar" title="kim-hale">KH</span>
+</header>
+<div style="flex:1;display:flex;min-height:0">
+<nav class="subnav" aria-label="Desk">
+<div class="grp-h" style="padding-top:2px">Desk</div>
+<a href="DeskSkills.dc.html" class=""><svg aria-hidden="true" class="" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M9 13h6M9 17h4"/></svg>Skills</a>
+<a href="DeskRules.dc.html" class=""><svg aria-hidden="true" class="" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="6" r="2.2"/><circle cx="18" cy="18" r="2.2"/><path d="M8.2 6H15a3 3 0 0 1 0 6H9a3 3 0 0 0 0 6h6.8"/></svg>Routing rules</a>
+<a href="DeskSetup.dc.html" class=""><svg aria-hidden="true" class="" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M4 17l6-6-6-6M12 19h8"/></svg>Workspace setup</a>
+<a href="DeskAgentList.dc.html" class="on"><svg aria-hidden="true" class="" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="8" width="16" height="11" rx="2.5"/><path d="M12 4v4M9 13h.01M15 13h.01"/></svg>Agent &amp; settings</a>
+<div class="grp-h">Access</div>
+<a href="DeskMembers.dc.html" class=""><svg aria-hidden="true" class="" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><path d="M16 4.5a3.5 3.5 0 0 1 0 7M18 14a6 6 0 0 1 3.5 6"/></svg>Members</a>
+<a href="DeskAudit.dc.html" class=""><svg aria-hidden="true" class="" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>Audit log</a>
+<div class="grp-h">Repository</div>
+<div style="padding:4px 10px;display:flex;flex-direction:column;gap:6px;font-size:12.5px">
+<span style="color:var(--text);display:flex;flex-direction:column"><span class="faint" style="font-size:12px">harbor-labs /</span><span class="mono">invoicer-api</span></span>
+<span class="row muted" style="gap:6px"><svg aria-hidden="true" class="" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="5.5" r="2"/><circle cx="6" cy="18.5" r="2"/><circle cx="18" cy="7.5" r="2"/><path d="M6 7.5v9M18 9.5c0 4-6 3-11.5 7"/></svg><span class="mono">main</span></span>
+<span class="row" style="gap:6px;color:var(--ok)"><span class="st st-succeeded" title="status: succeeded"><svg aria-hidden="true" width="12" height="12" viewBox="0 0 16 16"><circle cx="8" cy="8" r="7" fill="currentColor"/><path d="M4.8 8.2l2.2 2.2 4.2-4.6" fill="none" stroke="#0F1A13" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="muted">Connected</span></span>
+</div>
+</nav>
+<main style="flex:1;min-width:0;display:flex;flex-direction:column;overflow:hidden">
+<div style="padding:24px 40px 0"><h1>Agent &amp; settings</h1></div>
+<div class="tabs" role="tablist" aria-label="Agent and project settings" style="height:40px;flex:0 0 40px;padding:0 32px;margin-top:14px;border-bottom:1px solid var(--line)"><a href="DeskAgentList.dc.html" class="on" role="tab" id="agent-settings-tab-agents" aria-selected="true" aria-controls="agent-settings-panel-agents">Agents</a><a href="DeskAgentGitHub.dc.html" class="" role="tab" id="agent-settings-tab-github" aria-selected="false" aria-controls="agent-settings-panel-github" tabindex="-1">GitHub connection</a><a href="DeskAgentLimits.dc.html" class="" role="tab" id="agent-settings-tab-limits" aria-selected="false" aria-controls="agent-settings-panel-limits" tabindex="-1">Limits</a><a href="#" class="" role="tab" id="agent-settings-tab-danger" aria-selected="false" aria-controls="agent-settings-panel-danger" tabindex="-1">Danger zone</a></div>
+<div id="agent-settings-panel-agents" role="tabpanel" aria-labelledby="agent-settings-tab-agents" style="flex:1;min-height:0;display:flex;overflow:hidden"><div style="flex:1 1 0;min-width:0;min-height:0;display:flex;flex-direction:column;overflow:hidden">
+<div style="flex:0 0 auto;padding:22px 28px 16px"><div class="row" style="justify-content:space-between;align-items:flex-start;gap:16px"><div style="display:flex;flex-direction:column;gap:4px"><h2 style="font-size:16px">Agents</h2><p class="muted" style="font-size:13px">Configure the agent runtimes and accounts available to this project.</p><p class="muted" style="font-size:13px">The default agent runs a command when its routing rule does not pick an agent.</p></div><button class="btn primary"><svg aria-hidden="true" class="" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>Add agent</button></div></div>
+<div data-sc="list" tabindex="0" role="region" aria-label="Agents list" style="flex:1 1 0;min-height:0;overflow-y:auto;padding:0 28px 24px"><ul aria-label="Agents" style="margin:0;padding:0;border:1px solid var(--line);border-radius:10px;overflow:visible"><li style="list-style:none;position:relative;display:grid;grid-template-columns:32px minmax(0,1fr) auto;gap:14px;align-items:center;padding:12px 8px 12px 14px;">
+<span style="display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;flex:0 0 auto;border:1px solid var(--line2);border-radius:8px;background:var(--raised);color:var(--text)"><svg aria-hidden="true" focusable="false" width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path fill-rule="evenodd" clip-rule="evenodd" d="M20.998 10.949H24v3.102h-3v3.028h-1.487V20H18v-2.921h-1.487V20H15v-2.921H9V20H7.488v-2.921H6V20H4.487v-2.921H3V14.05H0V10.95h3V5h17.998v5.949zM6 10.949h1.488V8.102H6v2.847zm10.51 0H18V8.102h-1.49v2.847z"/></svg></span>
+<div style="min-width:0;display:flex;flex-direction:column;gap:2px"><span class="row" style="gap:8px;min-width:0"><b style="font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0" title="Claude - Personal">Claude - Personal</b><span class="lbl" style="flex:0 0 auto">Default</span></span><span class="muted" style="font-size:12.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="Claude Code · Personal · Subscription token">Claude Code · Personal · Subscription token</span><span class="mono faint" style="font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">claude-opus-4-5-20251101</span></div>
+<div class="row" style="gap:6px;flex-wrap:wrap;justify-content:flex-end"><span role="status" style="display:inline-flex"><span class="st st-succeeded" title="status: ok"><svg aria-hidden="true" width="14" height="14" viewBox="0 0 16 16"><circle cx="8" cy="8" r="7" fill="currentColor"/><path d="M4.8 8.2l2.2 2.2 4.2-4.6" fill="none" stroke="#0F1A13" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>Ready</span></span><button class="btn sm" aria-label="Edit Claude - Personal">Edit</button><button class="btn ghost iconbtn" aria-label="Actions for Claude - Personal" aria-haspopup="menu" aria-expanded="false"><svg aria-hidden="true" class="" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="5" cy="12" r="1.2" fill="currentColor"/><circle cx="12" cy="12" r="1.2" fill="currentColor"/><circle cx="19" cy="12" r="1.2" fill="currentColor"/></svg></button></div></li><li style="list-style:none;position:relative;border-top:1px solid var(--line);display:grid;grid-template-columns:32px minmax(0,1fr) auto;gap:14px;align-items:center;padding:12px 8px 12px 14px;background:var(--raised);box-shadow:inset 3px 0 0 var(--accent);">
+<span style="display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;flex:0 0 auto;border:1px solid var(--line2);border-radius:8px;background:var(--raised);color:var(--text)"><svg aria-hidden="true" focusable="false" width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path fill-rule="evenodd" clip-rule="evenodd" d="M20.998 10.949H24v3.102h-3v3.028h-1.487V20H18v-2.921h-1.487V20H15v-2.921H9V20H7.488v-2.921H6V20H4.487v-2.921H3V14.05H0V10.95h3V5h17.998v5.949zM6 10.949h1.488V8.102H6v2.847zm10.51 0H18V8.102h-1.49v2.847z"/></svg></span>
+<div style="min-width:0;display:flex;flex-direction:column;gap:2px"><span class="row" style="gap:8px;min-width:0"><b style="font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0" title="Claude - Work">Claude - Work</b></span><span class="muted" style="font-size:12.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="Claude Code · Work · API key">Claude Code · Work · API key</span><span class="mono faint" style="font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">claude-sonnet-4-5-20250929</span></div>
+<div class="row" style="gap:6px;flex-wrap:wrap;justify-content:flex-end"><span role="status" style="display:inline-flex"><span class="st st-succeeded" title="status: ok"><svg aria-hidden="true" width="14" height="14" viewBox="0 0 16 16"><circle cx="8" cy="8" r="7" fill="currentColor"/><path d="M4.8 8.2l2.2 2.2 4.2-4.6" fill="none" stroke="#0F1A13" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>Ready</span></span><button class="btn sm" aria-label="Edit Claude - Work" aria-expanded="true">Edit</button><button class="btn ghost iconbtn" aria-label="Actions for Claude - Work" aria-haspopup="menu" aria-expanded="false"><svg aria-hidden="true" class="" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="5" cy="12" r="1.2" fill="currentColor"/><circle cx="12" cy="12" r="1.2" fill="currentColor"/><circle cx="19" cy="12" r="1.2" fill="currentColor"/></svg></button></div></li><li style="list-style:none;position:relative;border-top:1px solid var(--line);display:grid;grid-template-columns:32px minmax(0,1fr) auto;gap:14px;align-items:center;padding:12px 8px 12px 14px;">
+<span style="display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;flex:0 0 auto;border:1px solid var(--line2);border-radius:8px;background:var(--raised);color:var(--text)"><svg aria-hidden="true" focusable="false" width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path fill-rule="evenodd" clip-rule="evenodd" d="M8.086.457a6.105 6.105 0 013.046-.415c1.333.153 2.521.72 3.564 1.7a.117.117 0 00.107.029c1.408-.346 2.762-.224 4.061.366l.063.03.154.076c1.357.703 2.33 1.77 2.918 3.198.278.679.418 1.388.421 2.126a5.655 5.655 0 01-.18 1.631.167.167 0 00.04.155 5.982 5.982 0 011.578 2.891c.385 1.901-.01 3.615-1.183 5.14l-.182.22a6.063 6.063 0 01-2.934 1.851.162.162 0 00-.108.102c-.255.736-.511 1.364-.987 1.992-1.199 1.582-2.962 2.462-4.948 2.451-1.583-.008-2.986-.587-4.21-1.736a.145.145 0 00-.14-.032c-.518.167-1.04.191-1.604.185a5.924 5.924 0 01-2.595-.622 6.058 6.058 0 01-2.146-1.781c-.203-.269-.404-.522-.551-.821a7.74 7.74 0 01-.495-1.283 6.11 6.11 0 01-.017-3.064.166.166 0 00.008-.074.115.115 0 00-.037-.064 5.958 5.958 0 01-1.38-2.202 5.196 5.196 0 01-.333-1.589 6.915 6.915 0 01.188-2.132c.45-1.484 1.309-2.648 2.577-3.493.282-.188.55-.334.802-.438.286-.12.573-.22.861-.304a.129.129 0 00.087-.087A6.016 6.016 0 015.635 2.31C6.315 1.464 7.132.846 8.086.457zm-.804 7.85a.848.848 0 00-1.473.842l1.694 2.965-1.688 2.848a.849.849 0 001.46.864l1.94-3.272a.849.849 0 00.007-.854l-1.94-3.393zm5.446 6.24a.849.849 0 000 1.695h4.848a.849.849 0 000-1.696h-4.848z"/></svg></span>
+<div style="min-width:0;display:flex;flex-direction:column;gap:2px"><span class="row" style="gap:8px;min-width:0"><b style="font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0" title="Codex - Reviews">Codex - Reviews</b></span><span class="muted" style="font-size:12.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="OpenAI Codex · Team · Sign-in file">OpenAI Codex · Team · Sign-in file</span><span class="mono faint" style="font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">gpt-5-codex</span></div>
+<div class="row" style="gap:6px;flex-wrap:wrap;justify-content:flex-end"><span role="status" style="display:inline-flex"><span class="st st-queued" title="status: not_tested"><svg aria-hidden="true" width="14" height="14" viewBox="0 0 16 16"><circle cx="8" cy="8" r="5.5" fill="none" stroke="currentColor" stroke-width="1.6"/></svg>Not tested</span></span><button class="btn sm" aria-label="Edit Codex - Reviews">Edit</button><button class="btn ghost iconbtn" aria-label="Actions for Codex - Reviews" aria-haspopup="menu" aria-expanded="false"><svg aria-hidden="true" class="" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="5" cy="12" r="1.2" fill="currentColor"/><circle cx="12" cy="12" r="1.2" fill="currentColor"/><circle cx="19" cy="12" r="1.2" fill="currentColor"/></svg></button></div></li><li style="list-style:none;position:relative;border-top:1px solid var(--line);display:grid;grid-template-columns:32px minmax(0,1fr) auto;gap:14px;align-items:center;padding:12px 8px 12px 14px;">
+<span style="display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;flex:0 0 auto;border:1px solid var(--line2);border-radius:8px;background:var(--raised);color:var(--text)"><svg aria-hidden="true" focusable="false" width="18" height="18" viewBox="0 0 240 300" fill="currentColor"><path opacity="0.28" d="M180 240H60V120H180V240Z"/><path d="M180 60H60V240H180V60ZM240 300H0V0H240V300Z"/></svg></span>
+<div style="min-width:0;display:flex;flex-direction:column;gap:2px"><span class="row" style="gap:8px;min-width:0"><b style="font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0" title="OpenCode">OpenCode</b></span><span class="muted" style="font-size:12.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="OpenCode · API endpoint and key">OpenCode · API endpoint and key</span><span class="mono faint" style="font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">openai/gpt-5</span></div>
+<div class="row" style="gap:6px;flex-wrap:wrap;justify-content:flex-end"><span role="status" style="display:inline-flex"><span class="st st-cancelled" title="status: unsupported"><svg aria-hidden="true" width="14" height="14" viewBox="0 0 16 16"><circle cx="8" cy="8" r="7" fill="currentColor"/><path d="M5 8h6" stroke="#14171C" stroke-width="1.8" stroke-linecap="round"/></svg>Not checkable</span></span><button class="btn sm" aria-label="Edit OpenCode">Edit</button><button class="btn ghost iconbtn" aria-label="Actions for OpenCode" aria-haspopup="menu" aria-expanded="false"><svg aria-hidden="true" class="" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="5" cy="12" r="1.2" fill="currentColor"/><circle cx="12" cy="12" r="1.2" fill="currentColor"/><circle cx="19" cy="12" r="1.2" fill="currentColor"/></svg></button></div></li><li style="list-style:none;position:relative;border-top:1px solid var(--line);display:grid;grid-template-columns:32px minmax(0,1fr) auto;gap:14px;align-items:center;padding:12px 8px 12px 14px;">
+<span style="display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;flex:0 0 auto;border:1px solid var(--line2);border-radius:8px;background:var(--raised);color:var(--text)"><svg aria-hidden="true" focusable="false" width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path fill-rule="evenodd" clip-rule="evenodd" d="M20.998 10.949H24v3.102h-3v3.028h-1.487V20H18v-2.921h-1.487V20H15v-2.921H9V20H7.488v-2.921H6V20H4.487v-2.921H3V14.05H0V10.95h3V5h17.998v5.949zM6 10.949h1.488V8.102H6v2.847zm10.51 0H18V8.102h-1.49v2.847z"/></svg></span>
+<div style="min-width:0;display:flex;flex-direction:column;gap:2px"><span class="row" style="gap:8px;min-width:0"><b style="font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0" title="Claude - Staging">Claude - Staging</b></span><span class="muted" style="font-size:12.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="Claude Code · Staging · API key">Claude Code · Staging · API key</span><span class="mono faint" style="font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">claude-sonnet-4-5-20250929</span></div>
+<div class="row" style="gap:6px;flex-wrap:wrap;justify-content:flex-end"><span role="status" style="display:inline-flex"><span class="st st-idle" title="status: no_credential"><svg aria-hidden="true" width="14" height="14" viewBox="0 0 16 16"><circle cx="8" cy="8" r="7" fill="currentColor"/><rect x="7.1" y="4" width="1.8" height="8" rx=".6" fill="#1A1405"/></svg>Needs credential</span></span><button class="btn sm" aria-label="Edit Claude - Staging">Edit</button><button class="btn ghost iconbtn" aria-label="Actions for Claude - Staging" aria-haspopup="menu" aria-expanded="false"><svg aria-hidden="true" class="" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="5" cy="12" r="1.2" fill="currentColor"/><circle cx="12" cy="12" r="1.2" fill="currentColor"/><circle cx="19" cy="12" r="1.2" fill="currentColor"/></svg></button></div></li><li style="list-style:none;position:relative;border-top:1px solid var(--line);display:grid;grid-template-columns:32px minmax(0,1fr) auto;gap:14px;align-items:center;padding:12px 8px 12px 14px;">
+<span style="display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;flex:0 0 auto;border:1px solid var(--line2);border-radius:8px;background:var(--raised);color:var(--text)"><svg aria-hidden="true" focusable="false" width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path fill-rule="evenodd" clip-rule="evenodd" d="M20.998 10.949H24v3.102h-3v3.028h-1.487V20H18v-2.921h-1.487V20H15v-2.921H9V20H7.488v-2.921H6V20H4.487v-2.921H3V14.05H0V10.95h3V5h17.998v5.949zM6 10.949h1.488V8.102H6v2.847zm10.51 0H18V8.102h-1.49v2.847z"/></svg></span>
+<div style="min-width:0;display:flex;flex-direction:column;gap:2px"><span class="row" style="gap:8px;min-width:0"><b style="font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0" title="Claude - Legacy key">Claude - Legacy key</b></span><span class="muted" style="font-size:12.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="Claude Code · Old key · API key">Claude Code · Old key · API key</span><span class="mono faint" style="font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">claude-haiku-4-5-20251001</span></div>
+<div class="row" style="gap:6px;flex-wrap:wrap;justify-content:flex-end"><span role="status" style="display:inline-flex"><span class="st st-failed" title="status: rejected"><svg aria-hidden="true" width="14" height="14" viewBox="0 0 16 16"><circle cx="8" cy="8" r="7" fill="currentColor"/><path d="M5.6 5.6l4.8 4.8M10.4 5.6l-4.8 4.8" stroke="#1E0E0C" stroke-width="1.8" stroke-linecap="round"/></svg>Credential rejected</span></span><button class="btn sm" aria-label="Edit Claude - Legacy key">Edit</button><button class="btn ghost iconbtn" aria-label="Actions for Claude - Legacy key" aria-haspopup="menu" aria-expanded="false"><svg aria-hidden="true" class="" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="5" cy="12" r="1.2" fill="currentColor"/><circle cx="12" cy="12" r="1.2" fill="currentColor"/><circle cx="19" cy="12" r="1.2" fill="currentColor"/></svg></button></div></li></ul></div>
+</div><aside aria-label="Edit agent" style="width:560px;flex:0 0 560px;min-height:0;border-left:1px solid var(--line);background:var(--bg);display:flex;flex-direction:column;overflow:hidden">
+<div class="row" style="flex:0 0 auto;justify-content:space-between;padding:18px 24px 14px;border-bottom:1px solid var(--line)"><span class="row" style="gap:10px;min-width:0"><span style="display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;flex:0 0 auto;border:1px solid var(--line2);border-radius:6px;background:var(--raised);color:var(--text)"><svg aria-hidden="true" focusable="false" width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path fill-rule="evenodd" clip-rule="evenodd" d="M20.998 10.949H24v3.102h-3v3.028h-1.487V20H18v-2.921h-1.487V20H15v-2.921H9V20H7.488v-2.921H6V20H4.487v-2.921H3V14.05H0V10.95h3V5h17.998v5.949zM6 10.949h1.488V8.102H6v2.847zm10.51 0H18V8.102h-1.49v2.847z"/></svg></span><h2 style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="Claude - Work">Edit agent</h2></span><button class="btn ghost iconbtn" aria-label="Close"><svg aria-hidden="true" class="" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div>
+<div data-sc="pane" tabindex="0" role="region" aria-label="Edit agent form" style="flex:1 1 0;min-height:0;overflow-y:auto;padding:16px 24px 20px;display:flex;flex-direction:column;gap:16px">
+<div class="field"><span class="flabel">Provider</span><div class="row" style="gap:10px;height:42px;padding:0 10px;border:1px solid var(--line2);border-radius:8px;background:var(--panel);color:var(--muted)"><span style="display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;flex:0 0 auto;border:1px solid var(--line2);border-radius:6px;background:var(--raised);color:var(--text)"><svg aria-hidden="true" focusable="false" width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path fill-rule="evenodd" clip-rule="evenodd" d="M20.998 10.949H24v3.102h-3v3.028h-1.487V20H18v-2.921h-1.487V20H15v-2.921H9V20H7.488v-2.921H6V20H4.487v-2.921H3V14.05H0V10.95h3V5h17.998v5.949zM6 10.949h1.488V8.102H6v2.847zm10.51 0H18V8.102h-1.49v2.847z"/></svg></span><span style="color:var(--text)">Claude Code</span><span class="grow"></span><span class="faint" style="font-size:12.5px">Fixed after creation</span></div></div>
+<div class="field"><label for="ag-name">Name</label><input id="ag-name" class="input" value="Claude - Work" aria-describedby="ag-nameh"><span id="ag-nameh" class="help">How this agent shows in rules and runs, for example Claude - Personal.</span></div><div class="field"><label for="ag-label">Account label <span class="faint" style="font-weight:400">optional</span></label><input id="ag-label" class="input" value="Work" aria-describedby="ag-labelh"><span id="ag-labelh" class="help">Optional. Who or what this account is, for example Personal or Work.</span></div>
+<div class="field"><label for="ag-addr">API address</label><input id="ag-addr" class="input mono" value="https://gateway.harbor-labs.com/anthropic" placeholder="https://api.anthropic.com" aria-describedby="ag-addrh"><span id="ag-addrh" class="help">Optional. Leave empty for Anthropic’s default. Runs get it as <span class="mono">ANTHROPIC_BASE_URL</span>. Public https addresses only. Changing it needs the credential again.</span></div>
+<div class="field"><span class="flabel">Credential</span><div class="row" style="gap:12px;padding:12px 14px;border:1px solid var(--line2);border-radius:8px;background:var(--panel)"><span class="faint" style="display:inline-flex"><svg aria-hidden="true" class="" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="15" r="4"/><path d="M11 12l9-9M17 6l3 3M15 8l2 2"/></svg></span><div class="grow" style="display:flex;flex-direction:column;gap:2px"><b style="font-weight:500">API key</b><span class="faint" style="font-size:12.5px">Set 3 Nov 2026 by jordan-wu. Hidden for good after saving.</span></div><span role="status" style="display:inline-flex;font-size:13px"><span class="st st-succeeded" title="status: ok"><svg aria-hidden="true" width="14" height="14" viewBox="0 0 16 16"><circle cx="8" cy="8" r="7" fill="currentColor"/><path d="M4.8 8.2l2.2 2.2 4.2-4.6" fill="none" stroke="#0F1A13" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>Ready</span></span><button class="btn sm" aria-expanded="false">Replace</button></div></div>
+<div class="field"><label for="ag-model">Default model</label><select id="ag-model" class="input mono"><option>opus</option><option>sonnet</option><option>haiku</option><option selected>Other model…</option></select><input id="ag-model-typed" class="input mono" aria-label="Model name" value="anthropic/claude-sonnet-4-5"><span class="help" style="color:var(--faint)">Showing the standard names. The model list at gateway.harbor-labs.com could not be loaded.</span><span class="help">Sent to Claude Code exactly as typed. Rules that don’t name a model use this one.</span></div>
+<div class="field"><label for="ag-turns">Max turns <span class="faint" style="font-weight:400">optional</span></label><input id="ag-turns" class="input num" value="40" aria-describedby="ag-turnsh" style="width:90px"><span id="ag-turnsh" class="help">Optional. The most turns one run may take on this agent. Leave empty for no limit.</span></div>
+<div class="field"><label class="row" style="gap:10px;font-size:13.5px;"><span class="cbx" id="ag-def" role="checkbox" aria-checked="false" tabindex="0"></span><span>Use as the project default</span></label></div>
+<div class="field"><span class="flabel">Connection</span><div class="row" style="gap:12px;padding:12px 14px;border:1px solid var(--line2);border-radius:8px;background:var(--panel);align-items:center"><div class="grow" role="status" aria-live="polite"><span class="muted" style="font-size:13px">Last test 10:48.</span></div><button class="btn sm">Test connection</button></div></div>
+</div>
+<div style="flex:0 0 auto;border-top:1px solid var(--line);background:var(--bg);padding:12px 24px 14px;display:flex;flex-direction:column;gap:8px"><div class="row" style="gap:8px"><span class="grow"></span><button class="btn ghost">Cancel</button><button class="btn primary">Save agent</button></div>
+<p class="faint" style="font-size:12.5px">Saving does not change runs that already started.</p></div>
+</aside></div>
+</main></div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview": {"width": 1440, "height": 900}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>
