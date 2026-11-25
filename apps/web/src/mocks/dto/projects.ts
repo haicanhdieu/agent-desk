@@ -7,6 +7,12 @@ import { ids } from './ids';
 const base = {
   maxConcurrentRuns: 2,
   maxRunsPerTicket: 10,
+  // Stand-ins until the project fixtures are rebuilt (Task 20 replaces).
+  timeoutSeconds: 86400,
+  pausedKeepSeconds: 604800,
+  doneKeepSeconds: 86400,
+  idleEndSeconds: 1800,
+  autoResumeMax: 5,
   setupStep: 'ready',
 } as const;
 

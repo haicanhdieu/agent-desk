@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { CreateRuleRequest, UpdateRuleRequest } from './rules';
+import { CreateRuleRequest, RuleDto, UpdateRuleRequest } from './rules';
 
 const base = { command: 'triage', labelFilter: [], target: 'any', enabled: true };
 
@@ -71,5 +71,37 @@ describe('rule model and agent', () => {
   it('UpdateRuleRequest accepts model null and an agentId alone', () => {
     expect(UpdateRuleRequest.safeParse({ model: null }).success).toBe(true);
     expect(UpdateRuleRequest.safeParse({ agentId }).success).toBe(true);
+  });
+});
+
+describe('rule agentId', () => {
+  const ID = '00000000-0000-4000-8000-000000000001';
+  it('is optional on create and never null', () => {
+    expect(CreateRuleRequest.safeParse({ ...base, kind: 'prompt', prompt: 'x' }).success).toBe(true);
+    expect(CreateRuleRequest.safeParse({ ...base, kind: 'prompt', prompt: 'x', agentId: ID }).success).toBe(true);
+    expect(CreateRuleRequest.safeParse({ ...base, kind: 'prompt', prompt: 'x', agentId: null }).success).toBe(false);
+  });
+  it('is absent, null or a uuid on update, and nothing else', () => {
+    expect(UpdateRuleRequest.safeParse({}).success).toBe(true);
+    expect(UpdateRuleRequest.safeParse({ agentId: null }).success).toBe(true);
+    expect(UpdateRuleRequest.parse({ agentId: ID }).agentId).toBe(ID);
+    expect(UpdateRuleRequest.safeParse({ agentId: 'nope' }).success).toBe(false);
+  });
+  it('RuleDto carries a nullable agentId', () => {
+    const dto = {
+      id: ID,
+      projectId: ID,
+      command: 'c',
+      labelFilter: [],
+      target: 'any',
+      agentId: null,
+      model: null,
+      kind: 'prompt',
+      skillName: null,
+      prompt: 'p',
+      enabled: true,
+      stats: { runs30d: 0, lastRunAt: null },
+    };
+    expect(RuleDto.safeParse(dto).success).toBe(true);
   });
 });

@@ -14,6 +14,10 @@ import {
   type Tx,
 } from '@agentdesk/db';
 import {
+  AGENT_AUTO_RESUME_MAX_DEFAULT,
+  AGENT_DONE_KEEP_SECONDS_DEFAULT,
+  AGENT_IDLE_END_SECONDS_DEFAULT,
+  AGENT_PAUSED_KEEP_SECONDS_DEFAULT,
   AGENT_TIMEOUT_SECONDS_DEFAULT,
   PollInterval,
   Provider,
@@ -162,6 +166,12 @@ export class ProjectsService {
       pollIntervalSeconds: PollInterval.parse(row.pollIntervalSeconds),
       maxConcurrentRuns: row.maxConcurrentRuns,
       maxRunsPerTicket: row.maxRunsPerTicket,
+      // Stand-ins until the project limit columns land (Task 14 replaces).
+      timeoutSeconds: AGENT_TIMEOUT_SECONDS_DEFAULT,
+      pausedKeepSeconds: AGENT_PAUSED_KEEP_SECONDS_DEFAULT,
+      doneKeepSeconds: AGENT_DONE_KEEP_SECONDS_DEFAULT,
+      idleEndSeconds: AGENT_IDLE_END_SECONDS_DEFAULT,
+      autoResumeMax: AGENT_AUTO_RESUME_MAX_DEFAULT,
       setupStep: SetupStep.parse(row.setupStep),
       createdAt: row.createdAt.toISOString(),
       counts: { needsYou: counts?.needsYou ?? 0, running: counts?.running ?? 0, queued: counts?.queued ?? 0 },

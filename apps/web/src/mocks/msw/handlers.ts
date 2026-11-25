@@ -751,6 +751,11 @@ const impl: Impl = {
       pollIntervalSeconds: body.pollIntervalSeconds ?? 300,
       maxConcurrentRuns: 2,
       maxRunsPerTicket: 10,
+      timeoutSeconds: 86400,
+      pausedKeepSeconds: 604800,
+      doneKeepSeconds: 86400,
+      idleEndSeconds: 1800,
+      autoResumeMax: 5,
       setupStep: 'agent',
       createdAt: now(),
     };
@@ -780,6 +785,10 @@ const impl: Impl = {
       idleEndSeconds: 1800,
       autoResumeMax: 5,
       credential: { set: false, type: null, updatedAt: null, setBy: null },
+      accountLabel: null,
+      isDefault: true,
+      lastTest: null,
+      usage: { rules: 0, blockingRuns: 0 },
     });
     return toProjectDto(row);
   },
@@ -853,6 +862,25 @@ const impl: Impl = {
   },
   'projects.ignored': ({ params, query }) => slicePage(db().ignored[projectRow(params.projectId).id] ?? [], query),
 
+  // Stand-ins until the agent configuration handlers land (Task 21 replaces).
+  'agents.list': () => {
+    throw notFound('Agent');
+  },
+  'agents.create': () => {
+    throw notFound('Agent');
+  },
+  'agents.update': () => {
+    throw notFound('Agent');
+  },
+  'agents.remove': () => {
+    throw notFound('Agent');
+  },
+  'agents.setDefault': () => {
+    throw notFound('Agent');
+  },
+  'agents.test': () => {
+    throw notFound('Agent');
+  },
   'agents.get': ({ params }) => agentOf(projectRow(params.projectId).id),
   'agents.put': ({ params, body }) => {
     const agent = agentOf(projectRow(params.projectId).id);

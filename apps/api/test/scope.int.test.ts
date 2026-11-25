@@ -18,6 +18,8 @@ import { ProjectsService } from '../src/projects/projects.service';
 import { createTestApp, type TestApp } from './helpers/app';
 import { createOrg, inviteAndLogin, userIdOf } from './helpers/auth';
 import { expectContract } from './helpers/contract';
+import { routeEntryFor } from '../src/access/route-entry';
+import { registeredRoutes } from './helpers/routes';
 import { makeUsageEntry } from './helpers/usage';
 import { freshStateDir, installFake, makeProject, wideFakeRepos } from './helpers/fixtures';
 
@@ -230,6 +232,12 @@ describe('BR-28: a project outside the caller scope is 404', () => {
   // Exclusions: WebSocket upgrades cannot be driven through inject; their out-of-scope close codes are tested in terminal.int.test.ts.
   const excluded: Record<string, string> = {
     'projects.remove': 'project:delete is org-level, so no project-scoped caller holds it: 403 for them, see below',
+    'agents.list': 'controller lands in plan Tasks 15/16; scope cases are added there',
+    'agents.create': 'controller lands in plan Tasks 15/16; scope cases are added there',
+    'agents.update': 'controller lands in plan Tasks 15/16; scope cases are added there',
+    'agents.remove': 'controller lands in plan Tasks 15/16; scope cases are added there',
+    'agents.setDefault': 'controller lands in plan Tasks 15/16; scope cases are added there',
+    'agents.test': 'controller lands in plan Tasks 15/16; scope cases are added there',
     'runs.terminal': 'WebSocket upgrade: close code covered in terminal.int.test.ts',
     'setupTests.terminal': 'WebSocket upgrade: close code covered in terminal.int.test.ts',
   };
@@ -246,6 +254,16 @@ describe('BR-28: a project outside the caller scope is 404', () => {
         .sort(),
     ).toEqual(scoped);
     for (const key of Object.keys(excluded)) expect(routeAccess[key as RouteKey].scope, key).toBe('project');
+  });
+
+  it('has no agent route registered yet: add its P2 scope cases and delete it from excluded', () => {
+    const registered = new Set<string>();
+    for (const r of registeredRoutes(t)) {
+      const m = routeEntryFor(r.method, r.url);
+      if (m.kind === 'route') registered.add(m.key);
+    }
+    const stale = Object.keys(excluded).filter((k) => k.startsWith('agents.') && registered.has(k));
+    expect(stale, 'add the P2 scope cases for these routes and delete them from excluded').toEqual([]);
   });
 
   it('names only route keys that exist in the route table', () => {

@@ -487,6 +487,8 @@ async function decideInTx(
   // Freeze the model on the run: the rule's own, else the agent's default as it is now.
   let runModel = decision.rule.model;
   if (runModel === null) {
+    // Stand-in until rules may carry no agent (Task 9 replaces).
+    if (decision.rule.agentId === null) throw new Error('rule has no agent');
     const [agent] = await tx
       .select({ model: agents.model })
       .from(agents)

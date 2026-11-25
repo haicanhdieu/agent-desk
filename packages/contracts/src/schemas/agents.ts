@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { AGENT_ACCOUNT_LABEL_MAX, AGENT_NAME_MAX } from '../agent-kinds';
 import { AgentKind, CredentialType } from '../enums';
 import { isBlockedIp } from '../net';
 import { Id, Timestamp } from './common';
@@ -6,6 +7,9 @@ import { Id, Timestamp } from './common';
 const AGENT_MODEL_ID_MESSAGE = 'Use 1 to 200 letters, digits or . _ : / @ [ ] + -, starting with a letter or digit.';
 const AGENT_BASE_URL_MESSAGE =
   'Use a public https address with no username, password, query or fragment, up to 2048 characters.';
+
+export const AgentTestStatus = z.enum(['ok', 'rejected', 'unreachable', 'invalid', 'unsupported']);
+export type AgentTestStatus = z.infer<typeof AgentTestStatus>;
 
 export const AgentDto = z.object({
   id: Id,
@@ -28,6 +32,10 @@ export const AgentDto = z.object({
     updatedAt: Timestamp.nullable(),
     setBy: z.string().nullable(),
   }),
+  accountLabel: z.string().nullable(),
+  isDefault: z.boolean(),
+  lastTest: z.object({ status: AgentTestStatus, at: Timestamp }).nullable(),
+  usage: z.object({ rules: z.number().int(), blockingRuns: z.number().int() }),
 });
 export type AgentDto = z.infer<typeof AgentDto>;
 
@@ -162,3 +170,42 @@ export type PutCredentialRequest = z.infer<typeof PutCredentialRequest>;
 
 export const PutCredentialResponse = z.object({ updatedAt: Timestamp });
 export type PutCredentialResponse = z.infer<typeof PutCredentialResponse>;
+
+const AgentName = z.string().trim().min(1).max(AGENT_NAME_MAX);
+const AgentAccountLabel = z.string().trim().min(1).max(AGENT_ACCOUNT_LABEL_MAX);
+
+/** Strict: provider-specific options, the address and the credential type are not accepted here. */
+export const CreateAgentRequest = z.strictObject({
+  provider: AgentKind,
+  name: AgentName,
+  accountLabel: AgentAccountLabel.optional(),
+  /** Absent: the adapter's first built-in model (empty for a `modelOptional` kind). */
+  model: AgentModelId.optional(),
+  maxTurns: z.number().int().min(1).optional(),
+});
+export type CreateAgentRequest = z.infer<typeof CreateAgentRequest>;
+
+export const UpdateAgentRequest = z.strictObject({
+  name: AgentName.optional(),
+  accountLabel: AgentAccountLabel.nullable().optional(),
+  /** An empty string parses here; the service accepts it only for a `modelOptional` kind. */
+  model: z.union([z.literal(''), AgentModelId]).optional(),
+  maxTurns: z.number().int().min(1).nullable().optional(),
+});
+export type UpdateAgentRequest = z.infer<typeof UpdateAgentRequest>;
+
+export const AgentConnectionDto = z.object({
+  status: z.union([AgentTestStatus, z.literal('no_credential')]),
+  message: z.string(),
+  testedAt: Timestamp.nullable(),
+});
+export type AgentConnectionDto = z.infer<typeof AgentConnectionDto>;
+
+export const AGENT_TEST_MESSAGES: Record<AgentConnectionDto['status'], string> = {
+  ok: 'Connected',
+  rejected: 'The credential was rejected. Check it and save it again.',
+  unreachable: 'The address could not be reached. Check it and try again.',
+  invalid: 'The answer could not be understood, so the connection could not be verified.',
+  unsupported: 'This agent has no connection check.',
+  no_credential: 'No credential is saved for this agent.',
+};

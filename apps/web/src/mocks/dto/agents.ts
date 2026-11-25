@@ -16,6 +16,11 @@ const agent = (id: string, projectId: string): AgentDto => ({
   idleEndSeconds: 1800,
   autoResumeMax: 5,
   credential: { set: true, type: 'oauth_token', updatedAt: '2026-10-12T09:30:00.000Z', setBy: 'kim-hale' },
+  // Stand-ins until the agent fixtures are rebuilt (Task 20 replaces).
+  accountLabel: null,
+  isDefault: true,
+  lastTest: null,
+  usage: { rules: 0, blockingRuns: 0 },
 });
 
 export const agentFixtures: AgentDto[] = [

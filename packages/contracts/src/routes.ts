@@ -42,8 +42,11 @@ import {
   PlatformSessionDto,
 } from './schemas/platform';
 import {
+  AgentConnectionDto,
   AgentDto,
   AgentModelsDto,
+  CreateAgentRequest,
+  UpdateAgentRequest,
   PutAgentRequest,
   PutCredentialRequest,
   PutCredentialResponse,
@@ -194,6 +197,45 @@ export const routes = {
     },
   },
   agents: {
+    list: {
+      method: 'GET',
+      path: '/api/projects/:projectId/agents',
+      params: projectParams,
+      query: PageQuery,
+      response: pageOf(AgentDto),
+    },
+    create: {
+      method: 'POST',
+      path: '/api/projects/:projectId/agents',
+      params: projectParams,
+      body: CreateAgentRequest,
+      response: AgentDto,
+    },
+    update: {
+      method: 'PATCH',
+      path: '/api/agents/:agentId',
+      params: z.object({ agentId: z.uuid() }),
+      body: UpdateAgentRequest,
+      response: AgentDto,
+    },
+    remove: {
+      method: 'DELETE',
+      path: '/api/agents/:agentId',
+      params: z.object({ agentId: z.uuid() }),
+      response: empty,
+    },
+    setDefault: {
+      method: 'POST',
+      path: '/api/agents/:agentId/default',
+      params: z.object({ agentId: z.uuid() }),
+      response: AgentDto,
+    },
+    test: {
+      method: 'POST',
+      path: '/api/agents/:agentId/test',
+      params: z.object({ agentId: z.uuid() }),
+      response: AgentConnectionDto,
+    },
     get: { method: 'GET', path: '/api/projects/:projectId/agent', params: projectParams, response: AgentDto },
     put: {
       method: 'PUT',

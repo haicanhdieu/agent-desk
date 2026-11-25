@@ -50,6 +50,11 @@ function toDto(row: AgentRow): AgentDto {
       updatedAt: row.credentialUpdatedAt?.toISOString() ?? null,
       setBy: row.credentialSetBy,
     },
+    // Stand-ins until the agent configuration columns land (Task 14 replaces).
+    accountLabel: null,
+    isDefault: true,
+    lastTest: null,
+    usage: { rules: 0, blockingRuns: 0 },
   };
 }
 

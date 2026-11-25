@@ -226,7 +226,7 @@ export class RulesService {
     try {
       return await withOrg(this.db, org.orgId, async (tx) => {
         if (body.agentId !== undefined)
-          set.agentId = (await this.resolveAgent(tx, existing.projectId, body.agentId)).id;
+          set.agentId = (await this.resolveAgent(tx, existing.projectId, body.agentId ?? undefined)).id;
         const row =
           Object.keys(set).length === 0
             ? (await tx.select().from(rules).where(eq(rules.id, ruleId)))[0]

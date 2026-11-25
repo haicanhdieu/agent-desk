@@ -328,10 +328,10 @@ graph LR
   - `routes.agents.{list,create,update,remove,setDefault,test}`: `GET /api/projects/:projectId/agents` (`pageOf(AgentDto)`), `POST /api/projects/:projectId/agents` (`CreateAgentRequest` to `AgentDto`), `PATCH /api/agents/:agentId`, `DELETE /api/agents/:agentId` (empty), `POST /api/agents/:agentId/default` (`AgentDto`), `POST /api/agents/:agentId/test` (`AgentConnectionDto`).
   - `routeAccess`: `agents.list` `project('agent:read')`; `agents.create` `project('agent:update')`; `agents.update`, `agents.remove`, `agents.setDefault`, `agents.test` `project('agent:update', 'agentId')`.
 
-- [ ] **Step 1: Write the failing tests.** `agents.test.ts`: name and label boundaries (256 accepted, 257 and empty and spaces-only refused, trimmed) and hostile strings (shell metacharacters, newline, control characters, 61/81/10k characters) for name, label and model (BR-8, BR-11); `CreateAgentRequest` refuses each coming-soon id and an unknown provider with the issue on `/provider` (BR-51); neither request accepts `provider`, `baseUrl` or a credential on update; `AgentDto` and `AgentConnectionDto` parse a fixture and carry no `value` key and no `options` key; a create or update body with `options` is refused by the strict schema; each `AGENT_TEST_MESSAGES` value is non-empty; the `PutAgentCredential` request still accepts `type` `auth_json` with a string `value` and an optional `baseUrl`. `rules.test.ts`: `agentId` absent, `null` and a uuid are valid on update; absent on create. `routes.test.ts` and `route-access.test.ts`: every new route has a table entry and a `routeAccess` entry with the permissions above.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/contracts test`. Expected: FAIL.
-- [ ] **Step 3: Implement** the schemas, routes and access entries; add the stand-ins so `pnpm --filter @agentdesk/api --filter @agentdesk/web typecheck` passes (minimal edits only).
-- [ ] **Step 4: Verify and commit.** `pnpm --filter @agentdesk/contracts test`; typecheck contracts, api, web, core, worker. Commit `feat(contracts): add agent configuration DTOs, routes and project limits`.
+- [x] **Step 1: Write the failing tests.** `agents.test.ts`: name and label boundaries (256 accepted, 257 and empty and spaces-only refused, trimmed) and hostile strings (shell metacharacters, newline, control characters, 61/81/10k characters) for name, label and model (BR-8, BR-11); `CreateAgentRequest` refuses each coming-soon id and an unknown provider with the issue on `/provider` (BR-51); neither request accepts `provider`, `baseUrl` or a credential on update; `AgentDto` and `AgentConnectionDto` parse a fixture and carry no `value` key and no `options` key; a create or update body with `options` is refused by the strict schema; each `AGENT_TEST_MESSAGES` value is non-empty; the `PutAgentCredential` request still accepts `type` `auth_json` with a string `value` and an optional `baseUrl`. `rules.test.ts`: `agentId` absent, `null` and a uuid are valid on update; absent on create. `routes.test.ts` and `route-access.test.ts`: every new route has a table entry and a `routeAccess` entry with the permissions above.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/contracts test`. Expected: FAIL.
+- [x] **Step 3: Implement** the schemas, routes and access entries; add the stand-ins so `pnpm --filter @agentdesk/api --filter @agentdesk/web typecheck` passes (minimal edits only).
+- [x] **Step 4: Verify and commit.** `pnpm --filter @agentdesk/contracts test`; typecheck contracts, api, web, core, worker. Commit `feat(contracts): add agent configuration DTOs, routes and project limits`.
 
 ---
 
@@ -640,6 +640,7 @@ graph LR
 - Test: `apps/api/test/agents.int.test.ts`
 - Test: `apps/api/test/agents-opencode.int.test.ts`
 - Test: `apps/api/test/agents-opencode-address.int.test.ts`
+- Test: `apps/api/test/scope.int.test.ts` (P2 scope cases; delete the agent keys from `excluded`)
 
 **Interfaces:**
 
@@ -665,6 +666,7 @@ graph LR
 - Modify: `apps/api/src/agents/agents.controller.ts`
 - Test: `apps/api/test/agents-multi.int.test.ts`
 - Test: `apps/api/test/agents-opencode.int.test.ts`
+- Test: `apps/api/test/scope.int.test.ts` (P2 scope cases; delete the agent keys from `excluded`)
 - Test: `apps/api/test/authz.int.test.ts`
 - Test: `apps/api/test/audit-tagging.int.test.ts`
 

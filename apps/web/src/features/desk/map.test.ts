@@ -86,6 +86,10 @@ const agent: AgentDto = {
   idleEndSeconds: 1800,
   autoResumeMax: 5,
   credential: { set: true, type: 'oauth_token', updatedAt: null, setBy: null },
+  accountLabel: null,
+  isDefault: true,
+  lastTest: null,
+  usage: { rules: 0, blockingRuns: 0 },
 };
 
 describe('ruleStats', () => {
