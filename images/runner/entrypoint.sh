@@ -4,7 +4,8 @@
 # {store: source}, optional), SETUP_SCRIPT (optional), SETUP_TIMEOUT_SECONDS (digits, else 600), RUN_MODE (`setup_test`
 # opens an idle shell instead of the agent; `resume` continues a saved session on the run volume), AGENT (fixed list,
 # default claude), RESUME_NOTE (optional, resume only: one message sent as the continued session's first prompt),
-# AGENT_MODEL (optional, passed to the agent as --model), ANTHROPIC_BASE_URL (optional custom API
+# AGENT_CREDENTIAL_FILE (optional secret, a pasted credentials file; only prepare.sh of the kind reads it, then it is unset),
+# AGENT_CREDENTIAL_VERSION (optional, non-secret), AGENT_MODEL (optional, passed to the agent as --model), ANTHROPIC_BASE_URL (optional custom API
 # address, only its origin is printed), and CLAUDE_CODE_OAUTH_TOKEN or ANTHROPIC_API_KEY. AGENTDESK_REPO_DIR, AGENTDESK_LIB_DIR,
 # AGENTDESK_HOME_SKEL and AGENTDESK_RUN_DIR (default /run/agentdesk, the in-memory volume that holds the `stop` and
 # `agent-exit` files) are test seams. Untrusted values are only ever expanded as quoted values, never evaluated.
@@ -26,6 +27,8 @@ fi
 # The agent name picks a command file from a fixed list; the value is never used as a path.
 case "${AGENT:-claude}" in
   claude) AGENT_DIR=claude ;;
+  codex) AGENT_DIR=codex ;;
+  opencode) AGENT_DIR=opencode ;;
   *)
     echo 'agentdesk: unsupported agent' >&2
     exit 2
@@ -33,6 +36,54 @@ case "${AGENT:-claude}" in
 esac
 # shellcheck source=/dev/null
 . "$LIB_DIR/agents/$AGENT_DIR/commands.sh"
+
+# One launch line per agent start, always the first log line (BR-52; fresh and resume; not setup_test, where no agent
+# runs): the agent, its model and the
+# origin of its API address. Values are only printed with printf '%s', and only the characters of a model id and an
+# address (letters, digits and . _ : / @ [ ] + -) are kept; anything else (control characters, C1 bytes, spaces) becomes
+# ?, so a value cannot forge a marker line. The origin is scheme://host[:port] only: a value that does not have that
+# exact shape (userinfo, odd scheme, empty host) prints as default, so no credential reaches the log.
+if [ "${RUN_MODE:-}" != setup_test ]; then
+  launch_model="${AGENT_MODEL:-default}"
+  launch_endpoint=default
+  # A kind's commands.sh may define agent_endpoint (prints the address); otherwise AGENT_ENDPOINT_URL names it.
+  endpoint_url="${AGENT_ENDPOINT_URL:-}"
+  if declare -F agent_endpoint > /dev/null; then endpoint_url="$(agent_endpoint)"; fi
+  if [ -n "$endpoint_url" ] && [[ "$endpoint_url" == *://* ]]; then
+    endpoint_scheme="${endpoint_url%%://*}"
+    endpoint_rest="${endpoint_url#*://}"
+    endpoint_rest="${endpoint_rest%%[/?#]*}"
+    if [[ "$endpoint_scheme" =~ ^[A-Za-z][A-Za-z0-9+.-]*$ ]] &&
+      [[ "$endpoint_rest" =~ ^([A-Za-z0-9._-]+|\[[0-9A-Fa-f:.]+\])(:[0-9]+)?$ ]]; then
+      launch_endpoint="$endpoint_scheme://$endpoint_rest"
+    fi
+  fi
+  printf 'agentdesk: agent %s model %s endpoint %s\n' "$AGENT_DIR" "${launch_model//[!A-Za-z0-9._:\/@+\[\]-]/?}" \
+    "${launch_endpoint//[!A-Za-z0-9._:\/@+\[\]-]/?}"
+fi
+
+# Helpers for the optional agents/<kind>/prepare.sh (sourced below, after the launch line; its output is discarded).
+# write_credential_file DEST: writes the secret AGENT_CREDENTIAL_FILE to DEST byte for byte, mode 0600 from creation.
+write_credential_file() {
+  mkdir -p "$(dirname -- "$1")"
+  (umask 077 && printf '%s' "${AGENT_CREDENTIAL_FILE-}" > "$1")
+  chmod 0600 "$1"
+}
+# credential_version_changed: true on first start (nothing recorded) or when the non-secret AGENT_CREDENTIAL_VERSION
+# differs from the value recorded under $HOME/.agentdesk/ after the last successful prepare.
+credential_version_changed() {
+  local recorded
+  [ -f "$HOME/.agentdesk/credential-version" ] || return 0
+  recorded="$(cat -- "$HOME/.agentdesk/credential-version")"
+  [ "$recorded" != "${AGENT_CREDENTIAL_VERSION-}" ]
+}
+# credential_import_failed: ends the pod with the fixed reason and a distinct exit code, never the CLI's output.
+# The message goes to fd 4 (the real stdout), because prepare.sh's own output is discarded.
+CREDENTIAL_IMPORT_FAILED_EXIT_CODE=77
+credential_import_failed() {
+  echo 'agentdesk: the agent credential could not be imported' >&4
+  exit "$CREDENTIAL_IMPORT_FAILED_EXIT_CODE"
+}
 
 # A rotating workspace token lives in a mounted file (AGENTDESK_TOKEN_FILE). git reads it through the credential helper
 # on every call; the `gh` wrapper on PATH does the same. Without the file, REPO_CLONE_URL / GH_TOKEN carry the token.
@@ -222,25 +273,21 @@ else
   session_cmd="$AGENT_START_CMD"
 fi
 
-# One launch line per agent start (fresh and resume; not setup_test, where no agent runs): the agent, its model and the
-# origin of its API address. Values are only printed with printf '%s', and only the characters of a model id and an
-# address (letters, digits and . _ : / @ [ ] + -) are kept; anything else (control characters, C1 bytes, spaces) becomes
-# ?, so a value cannot forge a marker line. The origin is scheme://host[:port] only: a value that does not have that
-# exact shape (userinfo, odd scheme, empty host) prints as default, so no credential reaches the log.
+# Per-kind preparation (not setup_test, where no agent runs): the kind's optional prepare.sh writes credential files
+# from env (write_credential_file) and may end the pod with credential_import_failed. Its output is discarded, so no
+# credential text can reach the log; the secret env value is unset afterwards so neither the agent nor the shell sees it.
 if [ "${RUN_MODE:-}" != setup_test ]; then
-  launch_model="${AGENT_MODEL:-default}"
-  launch_endpoint=default
-  if [ -n "${AGENT_ENDPOINT_URL:-}" ] && [[ "$AGENT_ENDPOINT_URL" == *://* ]]; then
-    endpoint_scheme="${AGENT_ENDPOINT_URL%%://*}"
-    endpoint_rest="${AGENT_ENDPOINT_URL#*://}"
-    endpoint_rest="${endpoint_rest%%[/?#]*}"
-    if [[ "$endpoint_scheme" =~ ^[A-Za-z][A-Za-z0-9+.-]*$ ]] &&
-      [[ "$endpoint_rest" =~ ^([A-Za-z0-9._-]+|\[[0-9A-Fa-f:.]+\])(:[0-9]+)?$ ]]; then
-      launch_endpoint="$endpoint_scheme://$endpoint_rest"
+  if [ -f "$LIB_DIR/agents/$AGENT_DIR/prepare.sh" ]; then
+    exec 4>&1
+    # shellcheck source=/dev/null
+    . "$LIB_DIR/agents/$AGENT_DIR/prepare.sh" > /dev/null 2>&1
+    exec 4>&-
+    mkdir -p "$HOME/.agentdesk"
+    if [ -n "${AGENT_CREDENTIAL_VERSION:-}" ]; then
+      printf '%s' "$AGENT_CREDENTIAL_VERSION" > "$HOME/.agentdesk/credential-version"
     fi
   fi
-  printf 'agentdesk: agent %s model %s endpoint %s\n' "$AGENT_DIR" "${launch_model//[!A-Za-z0-9._:\/@+\[\]-]/?}" \
-    "${launch_endpoint//[!A-Za-z0-9._:\/@+\[\]-]/?}"
+  unset AGENT_CREDENTIAL_FILE
 fi
 
 # remain-on-exit keeps the dead pane so its exit status and scrollback can be read. It is set before new-session (same

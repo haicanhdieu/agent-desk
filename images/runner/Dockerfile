@@ -3,6 +3,12 @@
 FROM node:22-slim
 
 ARG CLAUDE_CODE_VERSION=2.1.323
+# Codex and OpenCode CLIs: exact versions from the spikes (packages/core/test/fixtures/agents/*/spike.json), never
+# latest, a tag or a range. The OpenCode sha256 is of its linux-arm64 platform binary (the install note in spike.json);
+# the build fails when the installed binary differs. Nothing else is installed for other agents.
+ARG CODEX_VERSION=0.172.0
+ARG OPENCODE_VERSION=2.4.1
+ARG OPENCODE_SHA256=6495e0563da9966f8c2a2ff564c8561158c5751b65a1dde421b1dcfd43af3b6b
 # Pinned like Claude Code (security.md). The keyring checksum guards the apt repo's signing key.
 ARG GH_VERSION=2.106.0
 
@@ -16,7 +22,8 @@ RUN apt-get update \
  && apt-get update \
  && apt-get install -y --no-install-recommends "gh=${GH_VERSION}" \
  && rm -rf /var/lib/apt/lists/* \
- && npm install -g "@anthropic-ai/claude-code@${CLAUDE_CODE_VERSION}" \
+ && npm install -g "@anthropic-ai/claude-code@${CLAUDE_CODE_VERSION}" "@openai/codex@${CODEX_VERSION}" "@opencode/cli@${OPENCODE_VERSION}" \
+ && echo "${OPENCODE_SHA256}  $(npm root -g)/@opencode/cli/node_modules/@opencode/cli-linux-arm64/bin/opencode" | sha256sum -c - \
  && npm cache clean --force
 
 # uid 10001 matches the Job's securityContext.
@@ -42,19 +49,20 @@ COPY bin/agentdesk-end /usr/local/lib/agentdesk/bin/agentdesk-end
 # Status protocol: agent-neutral declare command + the Claude Code adapter (hooks via managed settings,
 # which a repo's .claude/settings.json cannot override).
 COPY agentdesk-status.mjs /usr/local/lib/agentdesk/agentdesk-status.mjs
-COPY agents/claude/hook.mjs /usr/local/lib/agentdesk/agents/claude/hook.mjs
-COPY agents/claude/transcript.mjs /usr/local/lib/agentdesk/agents/claude/transcript.mjs
+# Per-kind agent files (commands.sh, prepare.sh, hook.mjs, transcript.mjs, managed config): the whole directory.
+COPY agents/ /usr/local/lib/agentdesk/agents/
 COPY agents/claude/managed-settings.json /etc/claude-code/managed-settings.json
-COPY agents/claude/commands.sh /usr/local/lib/agentdesk/agents/claude/commands.sh
+# Codex managed hooks (system requirements layer: a repo cannot override them and they run without the hook-trust step).
+COPY agents/codex/managed-config.toml /etc/codex/requirements.toml
 RUN chmod 0755 /usr/local/bin/entrypoint.sh /usr/local/lib/agentdesk/git-credential-agentdesk \
     /usr/local/lib/agentdesk/bin/gh /usr/local/lib/agentdesk/hooks/prepare-commit-msg \
     /usr/local/lib/agentdesk/bin/agentdesk-attach \
     /usr/local/lib/agentdesk/bin/agentdesk-detach /usr/local/lib/agentdesk/bin/agentdesk-session \
     /usr/local/lib/agentdesk/bin/agentdesk-end \
  && chmod 0644 /usr/local/lib/agentdesk/select-plugins.mjs /usr/local/lib/agentdesk/agentdesk-status.mjs \
-    /usr/local/lib/agentdesk/agents/claude/hook.mjs /usr/local/lib/agentdesk/agents/claude/commands.sh \
-    /usr/local/lib/agentdesk/agents/claude/transcript.mjs \
-    /etc/claude-code/managed-settings.json \
+    /etc/claude-code/managed-settings.json /etc/codex/requirements.toml \
+ && find /usr/local/lib/agentdesk/agents -type d -exec chmod 0755 {} + -o -type f -exec chmod 0644 {} + \
+ && chown -R root:root /usr/local/lib/agentdesk/agents \
  && printf '#!/bin/sh\nexec node /usr/local/lib/agentdesk/agentdesk-status.mjs "$@"\n' > /usr/local/bin/agentdesk-status \
  && chmod 0755 /usr/local/bin/agentdesk-status \
  && mkdir -p /home/runner/.agentdesk && chown 10001:10001 /home/runner/.agentdesk \

@@ -1000,3 +1000,194 @@ describe('entrypoint transcript flush', () => {
     expect(r.exitCode).toBe(0);
   }, 30_000);
 });
+
+describe('entrypoint kind-driven agent files (BR-52, BR-68)', () => {
+  const root = join(import.meta.dirname, '..');
+
+  // A lib dir that links everything in the runner dir except agents/, which holds only the given kind directories.
+  const kindLib = (kinds: Record<string, Record<string, string>>) => {
+    const lib = mkdtempSync(join(tmpdir(), 'kindlib-'));
+    for (const name of readdirSync(root)) {
+      if (name !== 'agents' && name !== 'node_modules' && name !== 'test')
+        symlinkSync(join(root, name), join(lib, name));
+    }
+    for (const [kind, files] of Object.entries(kinds)) {
+      mkdirSync(join(lib, 'agents', kind), { recursive: true });
+      for (const [name, content] of Object.entries(files)) writeFileSync(join(lib, 'agents', kind, name), content);
+    }
+    return lib;
+  };
+  const stubCommands = (extra = '') =>
+    `AGENT_START_CMD='exec stub-agent'\nAGENT_RESUME_CMD='exec stub-agent --resume'\n${extra}`;
+  const dirs = () => {
+    const home = mkdtempSync(join(tmpdir(), 'home-'));
+    const repo = mkdtempSync(join(tmpdir(), 'repo-'));
+    return { home, repo };
+  };
+  const GIT = { '.git/HEAD': 'ref: refs/heads/main' };
+
+  it.each(['codex', 'opencode'])('accepts AGENT=%s and starts its session', async (kind) => {
+    const lib = kindLib({ [kind]: { 'commands.sh': stubCommands() } });
+    const r = await runEntrypoint({ AGENT: kind, AGENTDESK_LIB_DIR: lib }, {});
+    expect(r.exitCode).toBe(0);
+    expect(r.stdout).toContain('agentdesk: session started');
+    expect(r.stdout).toContain(`agentdesk: agent ${kind} model default endpoint default`);
+  });
+
+  it.each(['claude', 'codex', 'opencode'])('prints the %s launch line as the first log line (BR-52)', async (kind) => {
+    const lib = kindLib({ [kind]: { 'commands.sh': stubCommands() } });
+    const r = await runEntrypoint({ AGENT: kind, AGENTDESK_LIB_DIR: lib }, {});
+    expect(r.stdout[0]).toBe(`agentdesk: agent ${kind} model default endpoint default`);
+  });
+
+  it.each(['antigravity', 'unknown', '../claude', 'Codex', ''])(
+    'refuses AGENT=%j with exit 2 before anything is cloned',
+    async (kind) => {
+      const lib = kindLib({ claude: { 'commands.sh': stubCommands() } });
+      const r = await runEntrypoint({ AGENT: kind, AGENTDESK_LIB_DIR: lib }, {});
+      // An empty AGENT means the default (claude), so it is accepted.
+      if (kind === '') {
+        expect(r.exitCode).toBe(0);
+        return;
+      }
+      expect(r.exitCode).toBe(2);
+      expect(r.calls.filter((c) => c.cmd === 'git')).toEqual([]);
+      expect(r.stdout.some((l) => l.startsWith('agentdesk: agent '))).toBe(false);
+    },
+  );
+
+  it('prints agentdesk: agent <kind> model <m> endpoint <origin> from agent_endpoint of the kind', async () => {
+    const lib = kindLib({
+      codex: {
+        'commands.sh': stubCommands('agent_endpoint() { printf "%s" "https://llm.example.com:8443/v1?k=1"; }\n'),
+      },
+    });
+    const r = await runEntrypoint({ AGENT: 'codex', AGENT_MODEL: 'gpt-x', AGENTDESK_LIB_DIR: lib }, {});
+    const lines = r.stdout.filter((l) => l.startsWith('agentdesk: agent '));
+    expect(lines).toEqual(['agentdesk: agent codex model gpt-x endpoint https://llm.example.com:8443']);
+  });
+
+  it('agent_endpoint output that is not a plain origin (userinfo) prints as default', async () => {
+    const lib = kindLib({
+      codex: { 'commands.sh': stubCommands('agent_endpoint() { printf "%s" "https://user:pw@llm.example.com"; }\n') },
+    });
+    const r = await runEntrypoint({ AGENT: 'codex', AGENTDESK_LIB_DIR: lib }, {});
+    expect(r.stdout).toContain('agentdesk: agent codex model default endpoint default');
+    expect(r.stdout.join('\n')).not.toContain('pw@');
+  });
+
+  it('runs prepare.sh before the session starts, and its output is never in the log', async () => {
+    const prepare = [
+      'printf \'{"cmd":"prepare","argv":[]}\\n\' >> "$STUB_LOG"',
+      'echo PREPARE-STDOUT-TEXT',
+      'echo PREPARE-STDERR-TEXT >&2',
+      '',
+    ].join('\n');
+    const lib = kindLib({ codex: { 'commands.sh': stubCommands(), 'prepare.sh': prepare } });
+    const r = await runEntrypoint({ AGENT: 'codex', AGENTDESK_LIB_DIR: lib }, {});
+    const names = r.calls.map((c) => (c.cmd === 'tmux' && c.argv.includes('new-session') ? 'new-session' : c.cmd));
+    expect(names.indexOf('prepare')).toBeGreaterThan(-1);
+    expect(names.indexOf('prepare')).toBeLessThan(names.indexOf('new-session'));
+    expect(r.stdout.join('\n')).not.toContain('PREPARE-');
+  });
+
+  it('does not run prepare.sh in setup_test mode, where no agent starts', async () => {
+    const lib = kindLib({
+      codex: { 'commands.sh': stubCommands(), 'prepare.sh': 'echo ran >> "$STUB_LOG"\n' },
+    });
+    const r = await runEntrypoint({ AGENT: 'codex', RUN_MODE: 'setup_test', AGENTDESK_LIB_DIR: lib }, {});
+    expect(r.stdout.some((l) => l.startsWith('agentdesk: agent '))).toBe(false);
+    expect(r.exitCode).toBe(0);
+  });
+
+  describe('credential helpers for prepare.sh', () => {
+    const SECRET = '{"tokens":{"a":"ünï\\ncode"},"pad":"' + 'x'.repeat(10_000) + '"}\n\n';
+    const prepareFile = (dest: string) =>
+      [
+        `mkdir -p "${dirname(dest)}"`,
+        `if credential_version_changed; then echo changed >> "${dirname(dest)}/cred.log"; else echo unchanged >> "${dirname(dest)}/cred.log"; fi`,
+        `write_credential_file "${dest}"`,
+        '',
+      ].join('\n');
+
+    it('write_credential_file writes the value byte for byte with mode 0600 and never echoes it', async () => {
+      const { home } = dirs();
+      const dest = join(home, 'cred', 'auth.json');
+      const lib = kindLib({ codex: { 'commands.sh': stubCommands(), 'prepare.sh': prepareFile(dest) } });
+      const r = await runEntrypoint(
+        { AGENT: 'codex', HOME: home, AGENT_CREDENTIAL_FILE: SECRET, AGENTDESK_LIB_DIR: lib },
+        {},
+      );
+      expect(r.exitCode).toBe(0);
+      expect(readFileSync(dest, 'utf8')).toBe(SECRET);
+      expect(statSync(dest).mode & 0o777).toBe(0o600);
+      expect(r.stdout.join('\n')).not.toContain('tokens');
+      expect(JSON.stringify(r.calls)).not.toContain('tokens');
+    });
+
+    it('credential_version_changed is true on first start, false on a resume with the same version and true when the version differs', async () => {
+      const { home, repo } = dirs();
+      const dest = join(home, 'auth.json');
+      const lib = kindLib({ codex: { 'commands.sh': stubCommands(), 'prepare.sh': prepareFile(dest) } });
+      const base = { AGENT: 'codex', HOME: home, AGENTDESK_REPO_DIR: join(repo, 'r'), AGENTDESK_LIB_DIR: lib };
+      const first = await runEntrypoint(
+        { ...base, AGENT_CREDENTIAL_FILE: SECRET, AGENT_CREDENTIAL_VERSION: 'v1' },
+        GIT,
+      );
+      expect(first.exitCode).toBe(0);
+      const same = await runEntrypoint(
+        { ...base, RUN_MODE: 'resume', AGENT_CREDENTIAL_FILE: SECRET, AGENT_CREDENTIAL_VERSION: 'v1' },
+        {},
+      );
+      expect(same.exitCode).toBe(0);
+      const other = await runEntrypoint(
+        { ...base, RUN_MODE: 'resume', AGENT_CREDENTIAL_FILE: SECRET, AGENT_CREDENTIAL_VERSION: 'v2' },
+        {},
+      );
+      expect(other.exitCode).toBe(0);
+      expect(
+        readFileSync(join(dirname(dest), 'cred.log'), 'utf8')
+          .split('\n')
+          .filter(Boolean),
+      ).toEqual(['changed', 'unchanged', 'changed']);
+      expect(readFileSync(join(home, '.agentdesk', 'credential-version'), 'utf8')).toBe('v2');
+    });
+
+    it('an import failure exits with the distinct code and the log holds the fixed reason and none of the CLI output or file text', async () => {
+      const { home } = dirs();
+      const dest = join(home, 'auth.json');
+      const prepare = [
+        `write_credential_file "${dest}"`,
+        'echo "CLI-OUTPUT-LEAK $AGENT_CREDENTIAL_FILE"',
+        'echo "CLI-STDERR-LEAK" >&2',
+        'credential_import_failed',
+        'echo NOT-REACHED',
+        '',
+      ].join('\n');
+      const lib = kindLib({ opencode: { 'commands.sh': stubCommands(), 'prepare.sh': prepare } });
+      const r = await runEntrypoint(
+        { AGENT: 'opencode', HOME: home, AGENT_CREDENTIAL_FILE: 'SECRET-FILE-TEXT', AGENTDESK_LIB_DIR: lib },
+        {},
+      );
+      expect(r.exitCode).toBe(77);
+      expect(r.stdout).toContain('agentdesk: the agent credential could not be imported');
+      const log = r.stdout.join('\n');
+      for (const leak of ['CLI-OUTPUT-LEAK', 'CLI-STDERR-LEAK', 'SECRET-FILE-TEXT', 'NOT-REACHED']) {
+        expect(log).not.toContain(leak);
+      }
+      expect(r.calls.some((c) => c.cmd === 'tmux' && c.argv.includes('new-session'))).toBe(false);
+    });
+
+    it('does not record the version after a failed import, so the next start imports again', async () => {
+      const { home } = dirs();
+      const lib = kindLib({
+        opencode: { 'commands.sh': stubCommands(), 'prepare.sh': 'credential_import_failed\n' },
+      });
+      await runEntrypoint(
+        { AGENT: 'opencode', HOME: home, AGENT_CREDENTIAL_VERSION: 'v1', AGENTDESK_LIB_DIR: lib },
+        {},
+      );
+      expect(existsSync(join(home, '.agentdesk', 'credential-version'))).toBe(false);
+    });
+  });
+});

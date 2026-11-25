@@ -25,11 +25,11 @@ describe('runner Dockerfile', () => {
     expect(text.indexOf('sha256sum -c -')).toBeLessThan(text.indexOf('github-cli.list'));
   });
 
-  it('copies the baked home into a skeleton folder owned by 10001, and ships the agent command file', async () => {
+  it('copies the baked home into a skeleton folder owned by 10001, and ships the agent files', async () => {
     const text = await readFile(dockerfile, 'utf8');
     expect(text).toContain('/usr/local/share/agentdesk/home-skel');
     expect(text).toMatch(/chown -R 10001:10001[^\n]*\/usr\/local\/share\/agentdesk\/home-skel/);
-    expect(text).toContain('agents/claude/commands.sh');
+    expect(text).toContain('COPY agents/ /usr/local/lib/agentdesk/agents/');
   });
 
   it('ships agentdesk-attach, -detach, -end and -session executable on PATH, with a /run/agentdesk fallback owned by 10001', async () => {
@@ -43,16 +43,49 @@ describe('runner Dockerfile', () => {
     }
     expect(joined).toMatch(/mkdir -p [^\n]*\/run\/agentdesk[^\n]*chown[^\n]*10001:10001[^\n]*\/run\/agentdesk/);
   });
+});
 
-  it('ships the Claude transcript adapter, with the same mode as hook.mjs', async () => {
-    const text = await readFile(dockerfile, 'utf8');
-    const file = '/usr/local/lib/agentdesk/agents/claude/transcript.mjs';
-    expect(text).toContain(`COPY agents/claude/transcript.mjs ${file}`);
-    const chmod =
-      text
-        .replace(/\\\n/g, ' ')
-        .split('\n')
-        .find((l) => l.includes('chmod 0644')) ?? '';
-    expect(chmod).toContain(file);
+describe('runner Dockerfile agent CLIs (BR-52)', () => {
+  const read = async () => readFile(dockerfile, 'utf8');
+  const joined = async () => (await read()).replace(/\\\n/g, ' ');
+
+  it('pins @openai/codex to an exact version', async () => {
+    const text = await read();
+    expect(text).toMatch(/^ARG CODEX_VERSION=\d+\.\d+\.\d+$/m);
+    expect(text).toContain('"@openai/codex@${CODEX_VERSION}"');
+  });
+
+  it('pins @opencode/cli to an exact version with a sha256 checked at build time', async () => {
+    const text = await read();
+    expect(text).toMatch(/^ARG OPENCODE_VERSION=\d+\.\d+\.\d+$/m);
+    expect(text).toMatch(/^ARG OPENCODE_SHA256=[0-9a-f]{64}$/m);
+    expect(text).toContain('"@opencode/cli@${OPENCODE_VERSION}"');
+    const line =
+      (await joined()).split('\n').find((l) => l.includes('OPENCODE_SHA256') && l.includes('sha256sum')) ?? '';
+    expect(line).toContain('sha256sum -c -');
+  });
+
+  it('uses no latest, tag or range for the agent CLIs, no opencode-ai and nothing of Antigravity', async () => {
+    const text = await read();
+    for (const m of text.matchAll(/npm install[^\n]*/g)) {
+      expect(m[0]).not.toMatch(/@latest|@next|@\^|@~|@\*/);
+    }
+    expect(text).not.toMatch(/opencode-ai/);
+    expect(text).not.toMatch(/antigravity/i);
+  });
+
+  it('copies the whole agents/ directory and sets modes in one loop', async () => {
+    const text = await read();
+    expect(text).toContain('COPY agents/ /usr/local/lib/agentdesk/agents/');
+    expect(text).not.toMatch(/^COPY agents\/claude\/(hook|transcript|commands)/m);
+    const j = await joined();
+    expect(j).toMatch(/find \/usr\/local\/lib\/agentdesk\/agents[^\n]*chmod/);
+    expect(j).toMatch(/agents\/claude\/managed-settings\.json|\/etc\/claude-code\/managed-settings\.json/);
+  });
+
+  it('installs the Codex managed hook config as /etc/codex/requirements.toml', async () => {
+    const text = await read();
+    expect(text).toContain('COPY agents/codex/managed-config.toml /etc/codex/requirements.toml');
+    expect(await joined()).toContain('/etc/codex/requirements.toml');
   });
 });
