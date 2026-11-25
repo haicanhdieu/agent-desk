@@ -109,6 +109,93 @@ describe('projects', () => {
     expect((expectContract('projects.list', list) as Page<ProjectDto>).items.some((x) => x.id === p.id)).toBe(true);
   });
 
+  it('BR-50: create writes exactly one placeholder default agent; a second project gets its own', async () => {
+    const q =
+      'select provider, name, model, max_turns, is_default, credential_secret_name, credential_type from agents where project_id = $1';
+    const a = (await createProject({})).json() as ProjectDto;
+    const b = (await createProject({})).json() as ProjectDto;
+    const placeholder = {
+      provider: 'claude',
+      name: 'Claude',
+      model: 'sonnet',
+      max_turns: 50,
+      is_default: true,
+      credential_secret_name: null,
+      credential_type: null,
+    };
+    expect((await asOrg(aliceOrg, q, [a.id])).rows).toEqual([placeholder]);
+    expect((await asOrg(aliceOrg, q, [b.id])).rows).toEqual([placeholder]);
+    expect(a.setupStep).toBe('agent');
+    const agent = await t.app.inject({ method: 'GET', url: `/api/projects/${a.id}/agent`, headers: { cookie: alice } });
+    expect(agent.statusCode).toBe(200);
+    expect(agent.json()).toMatchObject({ projectId: a.id, name: 'Claude', provider: 'claude', isDefault: true });
+  });
+
+  it('a failed create leaves no project and no agent behind', async () => {
+    const first = (await createProject({})).json() as ProjectDto;
+    const count = async () => Number((await asOrg(aliceOrg, 'select count(*)::int as n from agents')).rows[0]?.['n']);
+    const before = await count();
+    const dup = await t.app.inject({
+      method: 'POST',
+      url: '/api/projects',
+      headers: { cookie: alice },
+      payload: { connectionId, repoPath: first.repoPath, triggerMode: 'webhook' },
+    });
+    expect(dup.statusCode).toBe(409);
+    expect(await count()).toBe(before);
+  });
+
+  it('BR-45: PATCH stores the five project-wide limits and GET returns them', async () => {
+    const p = (await createProject({})).json() as ProjectDto;
+    expect(p).toMatchObject({
+      timeoutSeconds: 86400,
+      pausedKeepSeconds: 604800,
+      doneKeepSeconds: 86400,
+      idleEndSeconds: 1800,
+      autoResumeMax: 5,
+    });
+    const limits = {
+      timeoutSeconds: 3600,
+      pausedKeepSeconds: 7200,
+      doneKeepSeconds: 0,
+      idleEndSeconds: 600,
+      autoResumeMax: 2,
+    };
+    const res = await patch(p.id, limits);
+    expect(res.statusCode).toBe(200);
+    expect(expectContract('projects.update', res)).toMatchObject(limits);
+    const got = await t.app.inject({ method: 'GET', url: `/api/projects/${p.id}`, headers: { cookie: alice } });
+    expect(expectContract('projects.get', got)).toMatchObject(limits);
+    const row = await asOrg(
+      aliceOrg,
+      'select timeout_seconds, paused_keep_seconds, done_keep_seconds, idle_end_seconds, auto_resume_max from projects where id = $1',
+      [p.id],
+    );
+    expect(row.rows).toEqual([
+      {
+        timeout_seconds: 3600,
+        paused_keep_seconds: 7200,
+        done_keep_seconds: 0,
+        idle_end_seconds: 600,
+        auto_resume_max: 2,
+      },
+    ]);
+  });
+
+  it.each([
+    { timeoutSeconds: 59 },
+    { timeoutSeconds: 604801 },
+    { pausedKeepSeconds: 3599 },
+    { doneKeepSeconds: 604801 },
+    { idleEndSeconds: 299 },
+    { autoResumeMax: 11 },
+  ])('PATCH refuses out-of-range limit %o and stores nothing', async (bad) => {
+    const p = (await createProject({})).json() as ProjectDto;
+    expect((await patch(p.id, bad)).statusCode).toBe(400);
+    const got = await t.app.inject({ method: 'GET', url: `/api/projects/${p.id}`, headers: { cookie: alice } });
+    expect(got.json()).toMatchObject({ timeoutSeconds: 86400, autoResumeMax: 5, idleEndSeconds: 1800 });
+  });
+
   it('rejects a duplicate repo with 409 and an unknown/foreign connection with 404', async () => {
     const first = (await createProject({ repoPath: 'dev/dup' })).json() as ProjectDto;
     expect(first.id).toBeDefined();

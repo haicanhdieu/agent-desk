@@ -28,7 +28,7 @@
   },
   "endpointEnv": null,
   "endpointNote": "No env var. The address is the custom provider's options.baseURL in the config.",
-  "modelFlag": "-m, --model <provider/model#variant> on `opencode run`; the TUI selects with the same config and its own picker.",
+  "modelFlag": "-m, --model <provider/model#variant> on `opencode run` only. The TUI has no --model flag: it starts on the `model` key of $XDG_CONFIG_HOME/opencode/opencode.json (see parityNotes.perAgentModel).",
   "noLogin": {
     "works": true,
     "offers": "opencode/* free models (opencode models lists 11, e.g. opencode/big-pickle, opencode/deepseek-v4.1-flash-free), fetched from the network; no credential, import or --model needed",
@@ -128,7 +128,7 @@
   },
   "transcript": {
     "path": "$XDG_DATA_HOME/opencode/opencode.db (SQLite: tables session_v*, session_message, session_part, event, ...). There is no JSONL file on disk.",
-    "format": "Read it through the CLI: `opencode session export <id>` prints JSON { info: { id, model, cost, tokens, outcome, time, title, location }, messages: [ user { text, files }, assistant { agent, model, content[], finish, tokens }, idle { outcome } ] }. `opencode session list [--format json]` lists sessions. The fixture images/runner/test/fixtures/opencode-transcript/session.jsonl is that export, one object per line (info first).",
+    "format": "Read it through the CLI: `opencode session export <id>` prints JSON { info: { id, model, cost, tokens, outcome, time, title, location }, messages: [ user { text, files }, assistant { agent, model, content[], finish, tokens }, idle { outcome } ] }. `opencode session list [--format json]` lists sessions. The fixture images/runner/test/fixtures/opencode-transcript/session.json is a scrubbed real export (messages carry no kind field; a tool part is { type: 'tool', id, name, state: { status, input, content, metadata } }); `session list --standalone --format json` prints an array of { id, updated, created, projectId, directory }.",
     "note": "The runner cannot tail a file like Claude or Codex; it should collect the plugin event stream into a JSONL file (the events fixture) and call `session export` at the end or on pause."
   },
   "resume": {
@@ -179,6 +179,7 @@
     "perAgentModel": true
   },
   "parityNotes": {
+    "perAgentModel": "true: the TUI has no --model flag (`opencode --help` lists only --standalone, --server, --auto, --continue, --session, --prompt; no --agent either), but a `model` key in $XDG_CONFIG_HOME/opencode/opencode.json (user config file) or in OPENCODE_CONFIG_CONTENT makes it start on that model. Verified on CLI 2.4.1 under tmux with scratch HOME/XDG dirs against a local mock endpoint (throwaway key): the first chat request carried the chosen model, not the default (the default with no setting was org/model-a; the chosen one was org/model-b, the second in the list), for `agentdesk/org/model-b` (own endpoint; the first slash splits, the rest is one id) and for a native provider/model (`openai/gpt-test-b`; the very first request there is the CLI's small-model title call, the next ones carry the chosen model). Also worked: seeding $XDG_STATE_HOME/opencode/model.json {recent:[{providerID,modelID}]}. The config model wins over a seeded recent entry. Did NOT work: tui.json (its model key is ignored, the default stayed). Not applicable: --agent (no such flag), session pre-creation (not needed). The footer showed 'Build · org/model-b'. Not verified: a real native provider with a real login, and a --continue resume whose stored session used another model (the session model is likely to win there).",
     "watch": "true: events come from a plugin, not a hook command, so the runner needs the plugin file written at start (Task 10). needs_input is verified: permission.asked fires while a prompt blocks the run and permission.replied fires when it is answered.",
     "attach": "true with a note: the TUI under tmux was not driven in this spike; `opencode run` and --standalone were verified.",
     "pauseResume": "true: sessions persist in opencode.db on the per-run volume; `opencode run -s <id>` resumed by id (listed, exported). Credentials live in the same database, so token rotation follows the version-marker rule: a re-import of the same credential ids is skipped, see authImport.note."

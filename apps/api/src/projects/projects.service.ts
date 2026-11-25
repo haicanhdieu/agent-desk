@@ -14,11 +14,6 @@ import {
   type Tx,
 } from '@agentdesk/db';
 import {
-  AGENT_AUTO_RESUME_MAX_DEFAULT,
-  AGENT_DONE_KEEP_SECONDS_DEFAULT,
-  AGENT_IDLE_END_SECONDS_DEFAULT,
-  AGENT_PAUSED_KEEP_SECONDS_DEFAULT,
-  AGENT_TIMEOUT_SECONDS_DEFAULT,
   PollInterval,
   Provider,
   SetupStep,
@@ -166,12 +161,11 @@ export class ProjectsService {
       pollIntervalSeconds: PollInterval.parse(row.pollIntervalSeconds),
       maxConcurrentRuns: row.maxConcurrentRuns,
       maxRunsPerTicket: row.maxRunsPerTicket,
-      // Stand-ins until the project limit columns land (Task 14 replaces).
-      timeoutSeconds: AGENT_TIMEOUT_SECONDS_DEFAULT,
-      pausedKeepSeconds: AGENT_PAUSED_KEEP_SECONDS_DEFAULT,
-      doneKeepSeconds: AGENT_DONE_KEEP_SECONDS_DEFAULT,
-      idleEndSeconds: AGENT_IDLE_END_SECONDS_DEFAULT,
-      autoResumeMax: AGENT_AUTO_RESUME_MAX_DEFAULT,
+      timeoutSeconds: row.timeoutSeconds,
+      pausedKeepSeconds: row.pausedKeepSeconds,
+      doneKeepSeconds: row.doneKeepSeconds,
+      idleEndSeconds: row.idleEndSeconds,
+      autoResumeMax: row.autoResumeMax,
       setupStep: SetupStep.parse(row.setupStep),
       createdAt: row.createdAt.toISOString(),
       counts: { needsYou: counts?.needsYou ?? 0, running: counts?.running ?? 0, queued: counts?.queued ?? 0 },
@@ -275,13 +269,15 @@ export class ProjectsService {
           })
           .returning();
         if (!row) throw new Error('project insert returned no row');
+        // The placeholder default agent (no credential): the project's setup starts at the agent step.
         await tx.insert(agents).values({
           orgId: org.orgId,
           projectId: row.id,
+          provider: 'claude',
           name: 'Claude',
           model: 'sonnet',
           maxTurns: 50,
-          timeoutSeconds: AGENT_TIMEOUT_SECONDS_DEFAULT,
+          isDefault: true,
         });
         if (row.triggerMode === 'polling') {
           await tx.insert(pollCursors).values({ projectId: row.id, orgId: org.orgId, since: new Date() });
@@ -306,6 +302,11 @@ export class ProjectsService {
       if (body.pollIntervalSeconds !== undefined) set.pollIntervalSeconds = body.pollIntervalSeconds;
       if (body.maxConcurrentRuns !== undefined) set.maxConcurrentRuns = body.maxConcurrentRuns;
       if (body.maxRunsPerTicket !== undefined) set.maxRunsPerTicket = body.maxRunsPerTicket;
+      if (body.timeoutSeconds !== undefined) set.timeoutSeconds = body.timeoutSeconds;
+      if (body.pausedKeepSeconds !== undefined) set.pausedKeepSeconds = body.pausedKeepSeconds;
+      if (body.doneKeepSeconds !== undefined) set.doneKeepSeconds = body.doneKeepSeconds;
+      if (body.idleEndSeconds !== undefined) set.idleEndSeconds = body.idleEndSeconds;
+      if (body.autoResumeMax !== undefined) set.autoResumeMax = body.autoResumeMax;
       if (
         body.setupStep !== undefined &&
         STEP_ORDER.indexOf(body.setupStep) > STEP_ORDER.indexOf(SetupStep.parse(before.setupStep))

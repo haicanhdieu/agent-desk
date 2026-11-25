@@ -54,13 +54,16 @@ COPY agents/ /usr/local/lib/agentdesk/agents/
 COPY agents/claude/managed-settings.json /etc/claude-code/managed-settings.json
 # Codex managed hooks (system requirements layer: a repo cannot override them and they run without the hook-trust step).
 COPY agents/codex/managed-config.toml /etc/codex/requirements.toml
+# OpenCode system config: /etc/opencode/opencode.json is read as the lowest-priority source (CLI 2.4.1), so a repo or the
+# inline config can override it; OPENCODE_DISABLE_AUTOUPDATE=1 is the update guard that is verified.
+COPY agents/opencode/managed-config.json /etc/opencode/opencode.json
 RUN chmod 0755 /usr/local/bin/entrypoint.sh /usr/local/lib/agentdesk/git-credential-agentdesk \
     /usr/local/lib/agentdesk/bin/gh /usr/local/lib/agentdesk/hooks/prepare-commit-msg \
     /usr/local/lib/agentdesk/bin/agentdesk-attach \
     /usr/local/lib/agentdesk/bin/agentdesk-detach /usr/local/lib/agentdesk/bin/agentdesk-session \
     /usr/local/lib/agentdesk/bin/agentdesk-end \
  && chmod 0644 /usr/local/lib/agentdesk/select-plugins.mjs /usr/local/lib/agentdesk/agentdesk-status.mjs \
-    /etc/claude-code/managed-settings.json /etc/codex/requirements.toml \
+    /etc/claude-code/managed-settings.json /etc/codex/requirements.toml /etc/opencode/opencode.json \
  && find /usr/local/lib/agentdesk/agents -type d -exec chmod 0755 {} + -o -type f -exec chmod 0644 {} + \
  && chown -R root:root /usr/local/lib/agentdesk/agents \
  && printf '#!/bin/sh\nexec node /usr/local/lib/agentdesk/agentdesk-status.mjs "$@"\n' > /usr/local/bin/agentdesk-status \

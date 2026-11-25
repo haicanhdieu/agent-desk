@@ -343,35 +343,63 @@ describe('run reads', () => {
     });
   });
 
-  it('a run DTO carries its agent idle end, the default when the agent is gone', async () => {
+  it('BR-45: a run takes its time limit, idle end and paused keep from the project, not from the agent', async () => {
+    await withOrg(t.db, orgId, (tx) =>
+      tx
+        .update(agents)
+        .set({ timeoutSeconds: 120, idleEndSeconds: 400, pausedKeepSeconds: 4000 })
+        .where(eq(agents.projectId, projectId)),
+    );
+    const patch = (payload: Record<string, number>) =>
+      t.app.inject({ method: 'PATCH', url: `/api/projects/${projectId}`, headers: { cookie: alice }, payload });
     const agentId = (
       await withOrg(t.db, orgId, (tx) =>
         tx.select({ id: agents.id }).from(agents).where(eq(agents.projectId, projectId)).limit(1),
       )
     )[0]?.id;
-    if (!agentId) throw new Error('no agent');
-    await withOrg(t.db, orgId, (tx) => tx.update(agents).set({ idleEndSeconds: 600 }).where(eq(agents.id, agentId)));
     const r = await insertRun({ agentId });
-    expect(expectContract('runs.get', await get(`/api/runs/${r.id}`))).toMatchObject({ idleEndSeconds: 600 });
     const orphan = await insertRun({ agentId: null });
-    expect(expectContract('runs.get', await get(`/api/runs/${orphan.id}`))).toMatchObject({ idleEndSeconds: 1800 });
+    const expectLimits = async (limits: Record<string, number>) => {
+      for (const id of [r.id, orphan.id]) {
+        expect(expectContract('runs.get', await get(`/api/runs/${id}`))).toMatchObject(limits);
+      }
+      const list = expectContract('runs.list', await listRuns('')) as RunListResponse;
+      expect(list.items.find((i) => i.id === r.id)).toMatchObject(limits);
+    };
+    const custom = { timeoutSeconds: 3600, idleEndSeconds: 900, pausedKeepSeconds: 7200 };
+    expect((await patch(custom)).statusCode).toBe(200);
+    await expectLimits(custom);
+    const defaults = { timeoutSeconds: 86400, idleEndSeconds: 1800, pausedKeepSeconds: 604800 };
+    expect((await patch(defaults)).statusCode).toBe(200);
+    await expectLimits(defaults);
   });
 
-  it('a run carries its agent paused keep time, or the default for a deleted agent', async () => {
+  it('BR-31: agent.name is the live name after a rename and the queue-time name once the agent row is gone', async () => {
     const agentId = (
-      await withOrg(t.db, orgId, (tx) =>
-        tx.select({ id: agents.id }).from(agents).where(eq(agents.projectId, projectId)).limit(1),
-      )
-    )[0]?.id;
+      await withOrg(t.db, orgId, async (tx) => {
+        const [row] = await tx
+          .insert(agents)
+          .values({ orgId, projectId, name: 'Temp', provider: 'claude', model: 'sonnet', isDefault: false })
+          .returning({ id: agents.id });
+        return row;
+      })
+    )?.id;
     if (!agentId) throw new Error('no agent');
-    await withOrg(t.db, orgId, (tx) =>
-      tx.update(agents).set({ pausedKeepSeconds: 7200 }).where(eq(agents.id, agentId)),
-    );
-    const r = await insertRun({ agentId });
-    expect(expectContract('runs.get', await get(`/api/runs/${r.id}`))).toMatchObject({ pausedKeepSeconds: 7200 });
-    const orphan = await insertRun({ agentId: null });
-    expect(expectContract('runs.get', await get(`/api/runs/${orphan.id}`))).toMatchObject({
-      pausedKeepSeconds: 604800,
+    const r = await insertRun({ agentId, agentName: 'Queued name' });
+    await withOrg(t.db, orgId, (tx) => tx.update(agents).set({ name: 'Renamed' }).where(eq(agents.id, agentId)));
+    expect(expectContract('runs.get', await get(`/api/runs/${r.id}`))).toMatchObject({ agent: { name: 'Renamed' } });
+    await withOrg(t.db, orgId, (tx) => tx.delete(agents).where(eq(agents.id, agentId)));
+    expect(expectContract('runs.get', await get(`/api/runs/${r.id}`))).toMatchObject({
+      agent: { name: 'Queued name' },
+    });
+    const list = expectContract('runs.list', await listRuns('')) as RunListResponse;
+    expect(list.items.find((i) => i.id === r.id)?.agent.name).toBe('Queued name');
+  });
+
+  it('BR-54: (deleted agent) shows only for a legacy run with neither an agent row nor a recorded name', async () => {
+    const legacy = await insertRun({ agentId: null, agentName: null });
+    expect(expectContract('runs.get', await get(`/api/runs/${legacy.id}`))).toMatchObject({
+      agent: { name: '(deleted agent)' },
     });
   });
 
@@ -556,6 +584,33 @@ describe('resume, paused and kept sessions', () => {
     t.temporal.reset();
     const res = await post(`/api/runs/${run.id}/resume`);
     expect(res.statusCode).toBe(409);
+    expect(t.temporal.calls).toHaveLength(0);
+  });
+
+  it('BR-68: resume with no credential is accepted for an OpenCode agent and still 409 for a Claude Code agent', async () => {
+    const claudeId = await agentWithCredential(false);
+    const opencodeId = (
+      await withOrg(t.db, orgId, async (tx) => {
+        const [row] = await tx
+          .insert(agents)
+          .values({ orgId, projectId, name: 'OpenCode', provider: 'opencode', model: '', isDefault: false })
+          .returning({ id: agents.id });
+        return row;
+      })
+    )?.id;
+    if (!opencodeId) throw new Error('no agent');
+    const oc = await insertRun({
+      status: 'paused',
+      workflowId: 'run-x',
+      agentId: opencodeId,
+      sessionExpiresAt: later(),
+    });
+    t.temporal.reset();
+    expect((await post(`/api/runs/${oc.id}/resume`)).statusCode).toBe(204);
+    expect(t.temporal.callsOfKind('update')).toHaveLength(1);
+    const cl = await insertRun({ status: 'paused', workflowId: 'run-x', agentId: claudeId, sessionExpiresAt: later() });
+    t.temporal.reset();
+    expect((await post(`/api/runs/${cl.id}/resume`)).statusCode).toBe(409);
     expect(t.temporal.calls).toHaveLength(0);
   });
 
