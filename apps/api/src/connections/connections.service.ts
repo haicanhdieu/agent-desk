@@ -8,7 +8,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { and, eq, inArray } from 'drizzle-orm';
-import { account, connections, organization, pollCursors, projects, withOrg, type Db } from '@agentdesk/db';
+import { connections, organization, pollCursors, projects, withOrg, type Db } from '@agentdesk/db';
 import { Provider, can, type ConnectionDto, type InstallResponse, type RepoDto } from '@agentdesk/contracts';
 import { loadAccess, type AdapterRegistry, type NewConnection } from '@agentdesk/core';
 import { orgMembership } from '../access/check-access';
@@ -18,6 +18,7 @@ import { isUniqueViolation } from '../common/pg-errors';
 import { CONFIG, type Config } from '../config/config.module';
 import { DB } from '../db/db.module';
 import { ProjectSchedules } from '../projects/project-schedules';
+import { ProviderTokens } from './provider-tokens';
 import { signState, verifyState } from './install-state';
 
 type ConnectionRow = typeof connections.$inferSelect;
@@ -55,6 +56,7 @@ export class ConnectionsService {
     @Inject(CONFIG) private readonly config: Config,
     @Inject(ADAPTER_REGISTRY) private readonly registry: AdapterRegistry,
     @Inject(ProjectSchedules) private readonly schedules: ProjectSchedules,
+    @Inject(ProviderTokens) private readonly tokens: ProviderTokens,
   ) {}
 
   private requireProvider(provider: Provider): void {
@@ -97,14 +99,8 @@ export class ConnectionsService {
     if (!can(access, 'connection:create')) throw new ForbiddenException('Not allowed for your role here');
     this.requireProvider(provider);
 
-    const linked = await this.db.orm
-      .select({ token: account.accessToken })
-      .from(account)
-      .where(and(eq(account.userId, userId), eq(account.providerId, provider)))
-      .limit(1);
-    const fresh = await this.registry
-      .codeHost(provider)
-      .completeInstall(params, { userId, orgId, linkedAccountToken: linked[0]?.token ?? null });
+    const linkedAccountToken = await this.tokens.userToken(userId, provider);
+    const fresh = await this.registry.codeHost(provider).completeInstall(params, { userId, orgId, linkedAccountToken });
 
     let row: ConnectionRow;
     try {
@@ -174,14 +170,8 @@ export class ConnectionsService {
    */
   async sync(orgId: string, userId: string, provider: Provider): Promise<ConnectionDto[]> {
     this.requireProvider(provider);
-    const linked = await this.db.orm
-      .select({ token: account.accessToken })
-      .from(account)
-      .where(and(eq(account.userId, userId), eq(account.providerId, provider)))
-      .limit(1);
-    const found = await this.registry
-      .codeHost(provider)
-      .listInstallations({ userId, orgId, linkedAccountToken: linked[0]?.token ?? null });
+    const linkedAccountToken = await this.tokens.userToken(userId, provider);
+    const found = await this.registry.codeHost(provider).listInstallations({ userId, orgId, linkedAccountToken });
     for (const fresh of found) {
       try {
         const row = await this.upsert(orgId, userId, fresh);

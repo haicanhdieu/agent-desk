@@ -8,6 +8,7 @@ import { sessionEventFixtures, sessionRunFixtures, sessionTranscriptFixtures } f
 import { mockDb } from './db';
 import { applyMockLists, MOCK_LISTS_KEY, mockListHandlers, parseMockLists } from './e2eLists';
 import { handlers } from './handlers';
+import { GITHUB_SYNC_SCENARIO_KEY, GithubSyncScenario } from './githubSync';
 import { PR_STATES_SCENARIO_KEY } from './prStates';
 import { SKILL_REVIEW_KEY } from './skillReview';
 import { ONBOARDING_SCENARIO_KEY, parseOnboardingScenario } from './onboardingScenarios';
@@ -156,9 +157,22 @@ function loadProjectSpace(): void {
   if (picked !== undefined) applyProjectSpace(mockDb, picked);
 }
 
+function loadGithubSync(): void {
+  try {
+    const raw = sessionStorage.getItem(GITHUB_SYNC_SCENARIO_KEY);
+    if (raw === null) return;
+    const parsed = GithubSyncScenario.safeParse(raw);
+    if (parsed.success) scenarios.githubSync(parsed.data);
+  } catch {
+    // Storage blocked: sync answers normally.
+  }
+}
+
 function saveAuth(): void {
   try {
     sessionStorage.setItem(AUTH_KEY, JSON.stringify(mockDb.auth));
+    // The GitHub sign-in reloads the page; once it has cleared the sync failure, the reload must not bring it back.
+    if (mockDb.state.githubSyncScenario === undefined) sessionStorage.removeItem(GITHUB_SYNC_SCENARIO_KEY);
   } catch {
     // Storage blocked: auth state just won't survive a reload.
   }
@@ -176,6 +190,7 @@ export function startMockWorker(opts: { quiet?: boolean } = {}): Promise<unknown
     loadAuth();
     loadAgentModels();
     loadPrStates();
+    loadGithubSync();
     loadSkillReview();
     // Runs in the terminal lifecycle states (pausing, crashed, resume failed, resumed), for the mocked e2e specs.
     mockDb.addRuns(lifecycleRunFixtures, lifecycleEventFixtures);

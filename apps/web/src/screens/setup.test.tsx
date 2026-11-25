@@ -109,6 +109,21 @@ describe('Setup1', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Refresh repositories' }));
     expect(onRefresh).toHaveBeenCalledTimes(1);
   });
+  it('shows nothing about reconnecting until GitHub rejects the account token', () => {
+    render(<Setup1 {...s1Props} onRefresh={vi.fn()} onReconnect={vi.fn()} />);
+    expect(screen.queryByRole('button', { name: 'Reconnect GitHub' })).not.toBeInTheDocument();
+  });
+  it('when the GitHub token is rejected, says so and Reconnect GitHub calls onReconnect', async () => {
+    const onReconnect = vi.fn();
+    render(<Setup1 {...s1Props} onRefresh={vi.fn()} reconnectRequired onReconnect={onReconnect} />);
+    expect(screen.getByRole('alert')).toHaveTextContent('GitHub needs you to sign in again');
+    await userEvent.click(screen.getByRole('button', { name: 'Reconnect GitHub' }));
+    expect(onReconnect).toHaveBeenCalledTimes(1);
+  });
+  it('while the reconnect starts, Reconnect GitHub is disabled', () => {
+    render(<Setup1 {...s1Props} reconnectRequired onReconnect={vi.fn()} reconnecting />);
+    expect(screen.getByRole('button', { name: 'Reconnect GitHub' })).toBeDisabled();
+  });
   it('while refreshing, Refresh repositories is disabled and says so', () => {
     render(<Setup1 {...s1Props} onRefresh={vi.fn()} refreshing />);
     expect(screen.getByRole('button', { name: 'Refreshing repositories' })).toBeDisabled();

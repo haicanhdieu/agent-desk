@@ -19,6 +19,11 @@ export const connectionCopy = {
     polling: { title: 'Polling', description: 'Works without a public URL. Runs start up to one interval later.' },
   } satisfies Record<TriggerMode, { title: string; description: string }>,
   intervalLabel: 'Check every',
+  // Setup step 1: the signed-in GitHub account's token is no longer accepted.
+  reconnectTitle: 'GitHub needs you to sign in again',
+  reconnectBody:
+    'Agent Desk can no longer use your GitHub sign-in to look up the repositories you can reach. Sign in with GitHub again, then you come back to this step.',
+  reconnectAction: 'Reconnect GitHub',
   modeLaterHelp: 'You can change the mode later in project settings.',
   continueAfterCheck: 'Available after the first check',
 

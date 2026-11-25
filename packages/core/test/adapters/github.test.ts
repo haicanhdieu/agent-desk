@@ -11,6 +11,7 @@ import {
   prStatesQuery,
 } from '../../src/adapters/github/board';
 import { normalizeLinkedRefs } from '../../src/adapters/linked-refs';
+import { ProviderReauthRequiredError, ProviderUnavailableError } from '../../src/adapters/types';
 import { GithubCodeHostAdapter } from '../../src/adapters/github/codehost';
 import { GithubClients, assertSafeRef } from '../../src/adapters/github/app';
 import { verifyGithubSignature } from '../../src/adapters/github/webhook';
@@ -1132,6 +1133,74 @@ describe('github code host', () => {
 
     it('returns nothing without a linked account', async () => {
       expect(await host().listInstallations({ userId: 'u', linkedAccountToken: null })).toEqual([]);
+    });
+  });
+
+  describe('a failing user token request becomes a provider-neutral error', () => {
+    const user = { userId: 'u', linkedAccountToken: 'utok' };
+    const AUTH = { authorization: 'token utok' };
+    const fail = (path: (p: string) => boolean, status: number, headers: Record<string, string> = {}) =>
+      gh()
+        .intercept({ path, method: 'GET', headers: AUTH })
+        .reply(status, '{"message":"upstream detail that must not leak"}', {
+          headers: { ...JSON_HEADERS, ...headers },
+        });
+    const ok = (path: (p: string) => boolean, body: string) =>
+      gh().intercept({ path, method: 'GET', headers: AUTH }).reply(200, body, { headers: JSON_HEADERS });
+    const isUser = (p: string) => p === '/user';
+    const isInstalls = (p: string) => p.startsWith('/user/installations');
+    const RATE = { 'x-ratelimit-remaining': '0', 'x-ratelimit-reset': '1700000000' };
+
+    type Call = (u: typeof user) => Promise<unknown>;
+    const calls: [string, Call][] = [
+      ['listInstallations', (u) => host().listInstallations(u)],
+      ['completeInstall', (u) => host().completeInstall({ installation_id: '1' }, u)],
+    ];
+
+    describe.each(calls)('%s', (_name, call) => {
+      it('401 from GET /user is reauthorization required', async () => {
+        fail(isUser, 401);
+        await expect(call(user)).rejects.toBeInstanceOf(ProviderReauthRequiredError);
+      });
+
+      it('401 from GET /user/installations is reauthorization required', async () => {
+        ok(isUser, '{"id":100}');
+        fail(isInstalls, 401);
+        await expect(call(user)).rejects.toBeInstanceOf(ProviderReauthRequiredError);
+      });
+
+      it('403 with rate limit headers, and 429, are a rate limited provider', async () => {
+        fail(isUser, 403, RATE);
+        await expect(call(user)).rejects.toMatchObject({ name: 'ProviderUnavailableError', rateLimited: true });
+        ok(isUser, '{"id":100}');
+        fail(isInstalls, 429);
+        await expect(call(user)).rejects.toMatchObject({ name: 'ProviderUnavailableError', rateLimited: true });
+      });
+
+      it('a secondary rate limit (403 with retry-after) is a rate limited provider', async () => {
+        fail(isUser, 403, { 'retry-after': '30' });
+        await expect(call(user)).rejects.toMatchObject({ name: 'ProviderUnavailableError', rateLimited: true });
+      });
+
+      it('5xx is an unavailable provider and keeps only the upstream status', async () => {
+        ok(isUser, '{"id":100}');
+        fail(isInstalls, 502);
+        const err: unknown = await call(user).catch((e: unknown) => e);
+        expect(err).toBeInstanceOf(ProviderUnavailableError);
+        expect(err).toMatchObject({ rateLimited: false, upstreamStatus: 502 });
+        expect(JSON.stringify(err)).not.toContain('upstream detail');
+        expect(String((err as Error).message)).not.toContain('upstream detail');
+      });
+
+      it('a network failure is an unavailable provider', async () => {
+        gh().intercept({ path: isUser, method: 'GET', headers: AUTH }).replyWithError(new Error('socket hang up'));
+        await expect(call(user)).rejects.toBeInstanceOf(ProviderUnavailableError);
+      });
+
+      it('any other status (a plain 403, 404) is left as it is', async () => {
+        fail(isUser, 403);
+        await expect(call(user)).rejects.toMatchObject({ status: 403 });
+      });
     });
   });
 

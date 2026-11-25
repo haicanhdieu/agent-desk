@@ -1,5 +1,6 @@
 import type { RequestHandler } from 'msw';
 import type { AgentModelsScenario } from './agentModels';
+import type { GithubSyncScenario } from './githubSync';
 import type { PrStatesScenario } from './prStates';
 import { mockDb } from './db';
 import { applyOnboardingScenario, onboardingOverrides, type OnboardingScenario } from './onboardingScenarios';
@@ -44,6 +45,10 @@ export const scenarios = {
   /** How `tickets.prStates` answers until the store resets; undefined is the normal answer. */
   prStates(scenario: PrStatesScenario | undefined): void {
     mockDb.state.prStatesScenario = scenario;
+  },
+  /** How `connections.sync` fails until the mocked GitHub sign-in runs; undefined is the normal answer. */
+  githubSync(scenario: GithubSyncScenario | undefined): void {
+    mockDb.state.githubSyncScenario = scenario;
   },
   /** The default branch needs review: skill writes and deletes answer with a pending change request until the store resets. */
   skillReviewRequired(required = true): void {

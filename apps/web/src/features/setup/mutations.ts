@@ -13,12 +13,14 @@ import { useMutation, useQueryClient, type QueryClient } from '@tanstack/react-q
 import { useState } from 'react';
 import { WHOLE_SET } from '@/app/pagination';
 import { api } from '../api';
+import { authCall, authClient } from '../auth/client';
 import { refreshAfterCredential } from '../desk/agent.form';
 import { rulesKey, skillsKey } from '../desk/queries';
 import { checklistKey } from '../onboarding/checklist';
 import { projectsListKey, projectsQueries } from '../projects/queries';
 import { setupQueries as scriptQueries, versionsKey } from '../setup-script/queries';
 import { setupQueries } from './queries';
+import { isProviderReauthRequired } from './reauth';
 import { stepIndex } from './steps';
 import { SKILL_TEMPLATES } from './templates';
 
@@ -294,7 +296,8 @@ export function useRefreshRepositories(org: string) {
  * Connects a provider. An app already installed there never redirects back, so first link what the user's own
  * account can see; only when that adds no new connection (or the lookup fails), ask for the install page (a
  * full-page navigation away). A connection the org could already use does not count: the user may be asking to
- * change which repositories the app can access.
+ * change which repositories the app can access. A GitHub account that must be connected again is not a failed shortcut:
+ * the install page cannot fix it, so that error is passed on.
  */
 export function useInstallConnection(org: string) {
   const qc = useQueryClient();
@@ -305,7 +308,8 @@ export function useInstallConnection(org: string) {
       try {
         const known = new Set((await api.connections.list()).filter(usable).map((c) => c.id));
         linked = (await api.connections.sync({ params: { provider } })).find((c) => usable(c) && !known.has(c.id));
-      } catch {
+      } catch (e) {
+        if (isProviderReauthRequired(e)) throw e;
         // The lookup is a shortcut; when it fails the install page is still the way to connect.
       }
       if (linked) {
@@ -318,5 +322,18 @@ export function useInstallConnection(org: string) {
       const { url } = await api.connections.install({ params: { provider } });
       return { kind: 'install', url };
     },
+  });
+}
+
+/**
+ * Signs in with GitHub again, which stores a fresh GitHub token for the account, and comes back to `returnTo` (a
+ * relative path). The browser leaves the page on success, so the mutation only ever settles on a failure.
+ */
+export function useReconnectGithub() {
+  return useMutation({
+    mutationFn: (returnTo: string) =>
+      authCall(() =>
+        authClient.signIn.social({ provider: 'github', callbackURL: returnTo, errorCallbackURL: returnTo }),
+      ),
   });
 }

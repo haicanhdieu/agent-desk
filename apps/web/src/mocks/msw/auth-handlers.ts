@@ -137,6 +137,8 @@ export const authHandlers: HttpHandler[] = [
     const body = SocialSignInBody.safeParse(await jsonBody(request));
     if (!body.success) return authError(400, 'VALIDATION_ERROR', 'Invalid body');
     mockDb.signIn();
+    // A fresh GitHub sign-in stores a fresh GitHub token: whatever made the lookup fail is over.
+    mockDb.state.githubSyncScenario = undefined;
     return HttpResponse.json({ url: body.data.callbackURL ?? '/', redirect: body.data.disableRedirect !== true });
   }),
 

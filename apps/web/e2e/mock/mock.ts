@@ -1,6 +1,7 @@
 import type { Locator, Page } from '@playwright/test';
 import { AGENT_MODELS_SCENARIO_KEY, type AgentModelsScenario } from '../../src/mocks/msw/agentModels';
 import { SKILL_REVIEW_KEY } from '../../src/mocks/msw/skillReview';
+import { GITHUB_SYNC_SCENARIO_KEY, type GithubSyncScenario } from '../../src/mocks/msw/githubSync';
 import { PR_STATES_SCENARIO_KEY, type PrStatesScenario } from '../../src/mocks/msw/prStates';
 import { ids } from '../../src/mocks/dto/ids';
 import { MOCK_LISTS_KEY, type MockLists } from '../../src/mocks/msw/e2eLists';
@@ -128,6 +129,22 @@ export async function setPrStates(page: Page, scenario: PrStatesScenario): Promi
       sessionStorage.setItem(key, value);
     },
     [PR_STATES_SCENARIO_KEY, scenario] as const,
+  );
+}
+
+/**
+ * Makes `connections.sync` fail for this test until the page signs in with GitHub again (`reauth`: the stored GitHub
+ * token is dead; `unavailable`: GitHub is down). Call before the first `page.goto`. The key is seeded once per tab,
+ * so the reload that follows the GitHub sign-in does not bring the failure back.
+ */
+export async function setGithubSync(page: Page, scenario: GithubSyncScenario): Promise<void> {
+  await page.addInitScript(
+    ([key, seededKey, value]) => {
+      if (sessionStorage.getItem(seededKey) !== null) return;
+      sessionStorage.setItem(seededKey, '1');
+      sessionStorage.setItem(key, value);
+    },
+    [GITHUB_SYNC_SCENARIO_KEY, 'agentdesk.e2e.githubSyncSeeded', scenario] as const,
   );
 }
 

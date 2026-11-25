@@ -2,7 +2,12 @@ import { type ArgumentsHost, Catch, type ExceptionFilter, HttpException, HttpSta
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import { ZodValidationException } from 'nestjs-zod';
 import { z } from 'zod';
-import type { ProblemSchema } from '@agentdesk/contracts';
+import {
+  PROVIDER_REAUTH_REQUIRED_PROBLEM_TYPE,
+  PROVIDER_UNAVAILABLE_PROBLEM_TYPE,
+  type ProblemSchema,
+} from '@agentdesk/contracts';
+import { ProviderReauthRequiredError, ProviderUnavailableError } from '@agentdesk/core';
 import { describeError } from './pg-errors';
 import { requestContext } from './request-context';
 import {
@@ -57,6 +62,7 @@ export class ProblemFilter implements ExceptionFilter {
     let status: number = HttpStatus.INTERNAL_SERVER_ERROR;
     let detail: string | undefined;
     let errors: ValidationIssue[] | undefined;
+    let type: string | undefined;
 
     if (exception instanceof ValidationProblemException) {
       status = 400;
@@ -85,6 +91,20 @@ export class ProblemFilter implements ExceptionFilter {
       ) {
         errors = exception.issues;
       }
+    } else if (exception instanceof ProviderReauthRequiredError) {
+      // The user's token at the provider is dead: not 401 (that reads as an expired Agent Desk session).
+      status = 409;
+      type = PROVIDER_REAUTH_REQUIRED_PROBLEM_TYPE;
+      detail = 'Your account at the provider must be connected again.';
+      this.logger.warn({ err: exception.name }, 'provider token needs reauthorization');
+    } else if (exception instanceof ProviderUnavailableError) {
+      status = exception.rateLimited ? 429 : 503;
+      type = PROVIDER_UNAVAILABLE_PROBLEM_TYPE;
+      detail = exception.rateLimited
+        ? 'The provider is limiting requests. Try again later.'
+        : 'The provider is not available right now. Try again later.';
+      // Name and upstream status only: never the provider's message, headers or any token.
+      this.logger.warn({ err: exception.name, upstreamStatus: exception.upstreamStatus }, 'provider request failed');
     } else if (clientErrorStatus(exception) !== undefined) {
       // Fastify-native 4xx (malformed JSON, 413, 415, ...): fixed text per status, never the raw message.
       status = clientErrorStatus(exception) ?? 400;
@@ -96,7 +116,7 @@ export class ProblemFilter implements ExceptionFilter {
     }
 
     const problem: ProblemSchema = {
-      type: problemTypeOf(exception) ?? 'about:blank',
+      type: type ?? problemTypeOf(exception) ?? 'about:blank',
       title: TITLES[status] ?? HttpStatus[status] ?? 'Error',
       status,
       ...(detail !== undefined && status !== 500 ? { detail } : {}),

@@ -4,6 +4,8 @@ import {
   ORG_HEADER,
   ORG_MISMATCH_PROBLEM_TYPE,
   ORG_SUSPENDED_PROBLEM_TYPE,
+  PROVIDER_REAUTH_REQUIRED_PROBLEM_TYPE,
+  PROVIDER_UNAVAILABLE_PROBLEM_TYPE,
   can,
   holdsAnywhere,
   routeAccess,
@@ -682,6 +684,23 @@ const impl: Impl = {
   // The mock provider has nothing installed beyond what the org already has linked.
   'connections.sync': () => {
     const { orgId } = session();
+    const failing = db().githubSyncScenario;
+    if (failing === 'reauth') {
+      throw new Problem({
+        status: 409,
+        title: 'Conflict',
+        type: PROVIDER_REAUTH_REQUIRED_PROBLEM_TYPE,
+        detail: 'Your account at the provider must be connected again.',
+      });
+    }
+    if (failing === 'unavailable') {
+      throw new Problem({
+        status: 503,
+        title: 'Service Unavailable',
+        type: PROVIDER_UNAVAILABLE_PROBLEM_TYPE,
+        detail: 'The provider is not available right now. Try again later.',
+      });
+    }
     return db().connections.filter((c) => c.orgId === orgId);
   },
   'connections.install': ({ params }) => {
