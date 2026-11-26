@@ -103,6 +103,24 @@ export const AGENT_KIND_CAPABILITIES: Record<AgentKind, AgentKindCapability> = {
   },
 };
 
+/** The folder every agent shares; searched after the agent's own folder. */
+export const SKILL_FOLDER_GENERIC = '.agents/skills';
+
+/** The project folder each agent's CLI keeps its own skills in. */
+const AGENT_SKILL_FOLDER: Record<AgentKind, string> = {
+  claude: '.claude/skills',
+  codex: '.agents/skills',
+  opencode: '.opencode/skills',
+};
+
+/**
+ * The repo folders the Skills page searches for an agent kind, in precedence order: the agent's own folder, then
+ * `.agents/skills`. When a skill name is in both, the first folder wins.
+ */
+export function skillFolders(kind: AgentKind): string[] {
+  return [...new Set([AGENT_SKILL_FOLDER[kind], SKILL_FOLDER_GENERIC])];
+}
+
 export const AGENT_KINDS_COMING_SOON: readonly { id: string; label: string; logo: string }[] = [
   { id: 'gemini-cli', label: 'Gemini CLI', logo: 'gemini-cli' },
   { id: 'github-copilot-cli', label: 'GitHub Copilot CLI', logo: 'github-copilot-cli' },

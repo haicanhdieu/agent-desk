@@ -19,6 +19,7 @@ import {
   RepoFileError,
   SkillBranchExistsError,
   SkillChangeRequestError,
+  SkillNotFoundError,
   SkillConflictError,
   type AdapterProject,
 } from '../../src/adapters/types';
@@ -61,6 +62,13 @@ function mockInstallationToken(): void {
     .intercept({ path: '/app/installations/4242/access_tokens', method: 'POST' })
     .reply(201, fixture('installation.token.json'), { headers: JSON_HEADERS })
     .persist();
+}
+
+/** Intercepts the existence check that finds the folder an edited skill lives in. */
+function mockSkillFile(folder: string, name = 'fix'): void {
+  gh()
+    .intercept({ path: `/repos/acme/widgets/contents/${folder}/${name}/SKILL.md`, method: 'GET' })
+    .reply(200, fixture('contents.skill-file.json'), { headers: JSON_HEADERS });
 }
 
 /** Intercepts the default-branch metadata read that decides between a direct commit and a change request. */
@@ -705,14 +713,17 @@ describe('github code host', () => {
     ]);
   });
 
-  it('lists and reads skills from .agent/skills', async () => {
+  it('lists and reads skills from .claude/skills, then .agents/skills', async () => {
     mockInstallationToken();
     const base = '/repos/acme/widgets';
     gh()
-      .intercept({ path: `${base}/contents/.agent/skills`, method: 'GET' })
+      .intercept({ path: `${base}/contents/.agents/skills`, method: 'GET' })
+      .reply(404, '{"message":"Not Found"}', { headers: JSON_HEADERS });
+    gh()
+      .intercept({ path: `${base}/contents/.claude/skills`, method: 'GET' })
       .reply(200, fixture('contents.skills-dir.json'), { headers: JSON_HEADERS });
     gh()
-      .intercept({ path: `${base}/contents/.agent/skills/fix/SKILL.md`, method: 'GET' })
+      .intercept({ path: `${base}/contents/.claude/skills/fix/SKILL.md`, method: 'GET' })
       .reply(200, fixture('contents.skill-file.json'), { headers: JSON_HEADERS })
       .persist();
     gh()
@@ -724,7 +735,7 @@ describe('github code host', () => {
       {
         name: 'fix',
         description: 'Fix things',
-        path: '.agent/skills/fix/SKILL.md',
+        path: '.claude/skills/fix/SKILL.md',
         lastCommit: {
           sha: 'c0ffee0000000000000000000000000000000001',
           message: 'Add fix skill',
@@ -740,9 +751,10 @@ describe('github code host', () => {
   it('writes a skill with sha and committer identity', async () => {
     mockInstallationToken();
     mockBranch(false);
+    mockSkillFile('.claude/skills');
     gh()
       .intercept({
-        path: '/repos/acme/widgets/contents/.agent/skills/fix/SKILL.md',
+        path: '/repos/acme/widgets/contents/.claude/skills/fix/SKILL.md',
         method: 'PUT',
         body: (b) => {
           const o = JSON.parse(b) as { sha?: string; message: string; content: string; committer?: { name: string } };
@@ -765,7 +777,7 @@ describe('github code host', () => {
   it('deletes a skill and returns a commit result', async () => {
     mockInstallationToken();
     mockBranch(false);
-    const path = '/repos/acme/widgets/contents/.agent/skills/fix/SKILL.md';
+    const path = '/repos/acme/widgets/contents/.claude/skills/fix/SKILL.md';
     gh().intercept({ path, method: 'GET' }).reply(200, fixture('contents.skill-file.json'), { headers: JSON_HEADERS });
     gh()
       .intercept({ path: (p) => p.startsWith('/repos/acme/widgets/commits'), method: 'GET' })
@@ -781,7 +793,7 @@ describe('github code host', () => {
   });
 
   describe('skill changes on a protected default branch', () => {
-    const SKILL = '/repos/acme/widgets/contents/.agent/skills/fix/SKILL.md';
+    const SKILL = '/repos/acme/widgets/contents/.claude/skills/fix/SKILL.md';
     const REFS = '/repos/acme/widgets/git/refs';
     const bodyOf = (b: unknown): Record<string, unknown> => JSON.parse(String(b)) as Record<string, unknown>;
     const BRANCH_RE = /^agent-desk\/skill-(create|update|delete)-fix-[a-z0-9]+$/;
@@ -840,7 +852,7 @@ describe('github code host', () => {
           o.title === 'Create skill: fix' &&
           o.head === branch &&
           o.base === 'main' &&
-          String(o.body).includes('.agent/skills/fix/SKILL.md') &&
+          String(o.body).includes('.claude/skills/fix/SKILL.md') &&
           String(o.body).includes('add fix'),
       );
       const r = await host().writeSkill(project, 'fix', 'v1', 'add fix');
@@ -857,6 +869,7 @@ describe('github code host', () => {
       mockInstallationToken();
       mockBranch(true);
       mockRefCreate();
+      mockSkillFile('.claude/skills');
       gh()
         .intercept({ path: SKILL, method: 'PUT', body: (b) => bodyOf(b).sha === 'old' })
         .reply(200, '{"commit":{"sha":"c1"}}', { headers: JSON_HEADERS });
@@ -934,6 +947,7 @@ describe('github code host', () => {
       mockInstallationToken();
       mockBranch(true);
       mockRefCreate();
+      mockSkillFile('.claude/skills');
       gh().intercept({ path: SKILL, method: 'PUT' }).reply(409, '{"message":"sha"}', { headers: JSON_HEADERS });
       mockRefDelete();
       await expect(host().writeSkill(project, 'fix', 'v2', 'm', 'old')).rejects.toBeInstanceOf(SkillConflictError);
@@ -1267,6 +1281,166 @@ describe('github code host', () => {
     it('rejects unsafe paths before any request', async () => {
       await expect(host().readRepoFile(project, '../etc/passwd')).rejects.toThrow();
       await expect(host().readRepoFile(project, '/abs')).rejects.toThrow();
+    });
+  });
+
+  describe('skill folders', () => {
+    const base = '/repos/acme/widgets/contents';
+    const asCodex: AdapterProject = { ...project, skillFolders: ['.agents/skills'] };
+    const asOpencode: AdapterProject = { ...project, skillFolders: ['.opencode/skills', '.agents/skills'] };
+    const bodyIn = (folder: string, name: string) => `---\ndescription: from ${folder}\n---\n${name}\n`;
+    const file = (folder: string, name: string) =>
+      JSON.stringify({
+        name: 'SKILL.md',
+        path: `${folder}/${name}/SKILL.md`,
+        sha: `sha-${folder}`,
+        type: 'file',
+        encoding: 'base64',
+        content: Buffer.from(bodyIn(folder, name)).toString('base64'),
+      });
+    const dir = (folder: string, names: string[], type = 'dir') =>
+      gh()
+        .intercept({ path: `${base}/${folder}`, method: 'GET' })
+        .reply(200, JSON.stringify(names.map((name) => ({ name, path: `${folder}/${name}`, type, sha: 'x' }))), {
+          headers: JSON_HEADERS,
+        });
+    const missing = (path: string) =>
+      gh()
+        .intercept({ path: `${base}/${path}`, method: 'GET' })
+        .reply(404, '{"message":"Not Found"}', { headers: JSON_HEADERS });
+    const skillFile = (folder: string, name: string) =>
+      gh()
+        .intercept({ path: `${base}/${folder}/${name}/SKILL.md`, method: 'GET' })
+        .reply(200, file(folder, name), { headers: JSON_HEADERS });
+    const commits = () =>
+      gh()
+        .intercept({ path: (p) => p.startsWith('/repos/acme/widgets/commits'), method: 'GET' })
+        .reply(200, fixture('commits.skill.json'), { headers: JSON_HEADERS })
+        .persist();
+
+    it('lists the default agent folder, then .agents/skills; a duplicate name keeps the agent folder and its path', async () => {
+      mockInstallationToken();
+      commits();
+      dir('.claude/skills', ['fix', 'review']);
+      dir('.agents/skills', ['fix', 'deploy']);
+      skillFile('.claude/skills', 'fix');
+      skillFile('.claude/skills', 'review');
+      skillFile('.agents/skills', 'deploy');
+      const list = await host().listSkills(project);
+      expect(list.map((s) => [s.name, s.path, s.description])).toEqual([
+        ['fix', '.claude/skills/fix/SKILL.md', 'from .claude/skills'],
+        ['review', '.claude/skills/review/SKILL.md', 'from .claude/skills'],
+        ['deploy', '.agents/skills/deploy/SKILL.md', 'from .agents/skills'],
+      ]);
+      agent.assertNoPendingInterceptors();
+    });
+
+    it('lists skills of a repo that only has .agents/skills (Codex, OpenCode, Cursor repos)', async () => {
+      mockInstallationToken();
+      commits();
+      missing('.opencode/skills');
+      dir('.agents/skills', ['fix']);
+      skillFile('.agents/skills', 'fix');
+      expect((await host().listSkills(asOpencode)).map((s) => s.path)).toEqual(['.agents/skills/fix/SKILL.md']);
+    });
+
+    it('searches only .agents/skills for a Codex project', async () => {
+      mockInstallationToken();
+      commits();
+      dir('.agents/skills', ['fix']);
+      skillFile('.agents/skills', 'fix');
+      expect((await host().listSkills(asCodex)).map((s) => s.name)).toEqual(['fix']);
+      agent.assertNoPendingInterceptors();
+    });
+
+    it('a repo with no skill folder lists nothing', async () => {
+      mockInstallationToken();
+      missing('.claude/skills');
+      missing('.agents/skills');
+      expect(await host().listSkills(project)).toEqual([]);
+    });
+
+    it('a folder that is a symlink (an object, not a list) is skipped instead of failing', async () => {
+      mockInstallationToken();
+      commits();
+      gh()
+        .intercept({ path: `${base}/.claude/skills`, method: 'GET' })
+        .reply(
+          200,
+          JSON.stringify({ type: 'symlink', name: 'skills', path: '.claude/skills', target: '../.agent/skills' }),
+          {
+            headers: JSON_HEADERS,
+          },
+        );
+      dir('.agents/skills', ['fix']);
+      skillFile('.agents/skills', 'fix');
+      expect((await host().listSkills(project)).map((s) => s.path)).toEqual(['.agents/skills/fix/SKILL.md']);
+    });
+
+    it('a directory without SKILL.md is not a skill, and does not hide the same name in the next folder', async () => {
+      mockInstallationToken();
+      commits();
+      dir('.claude/skills', ['fix']);
+      dir('.agents/skills', ['fix']);
+      missing('.claude/skills/fix/SKILL.md');
+      skillFile('.agents/skills', 'fix');
+      expect((await host().listSkills(project)).map((s) => s.path)).toEqual(['.agents/skills/fix/SKILL.md']);
+    });
+
+    it('reads a skill from the first folder that has it', async () => {
+      mockInstallationToken();
+      commits();
+      missing('.claude/skills/fix/SKILL.md');
+      skillFile('.agents/skills', 'fix');
+      const s = await host().readSkill(project, 'fix');
+      expect(s.path).toBe('.agents/skills/fix/SKILL.md');
+      expect(s.sha).toBe('sha-.agents/skills');
+    });
+
+    it('a skill in no folder is not found', async () => {
+      mockInstallationToken();
+      missing('.claude/skills/fix/SKILL.md');
+      missing('.agents/skills/fix/SKILL.md');
+      await expect(host().readSkill(project, 'fix')).rejects.toBeInstanceOf(SkillNotFoundError);
+    });
+
+    it('creates a new skill in the default agent folder', async () => {
+      mockInstallationToken();
+      mockBranch(false);
+      gh()
+        .intercept({ path: `${base}/.opencode/skills/fix/SKILL.md`, method: 'PUT' })
+        .reply(201, '{"commit":{"sha":"c1"}}', { headers: JSON_HEADERS });
+      expect(await host().writeSkill(asOpencode, 'fix', 'v1', 'add')).toMatchObject({
+        kind: 'commit',
+        commitSha: 'c1',
+      });
+    });
+
+    it('edits a skill in the folder it lives in, not the default agent folder', async () => {
+      mockInstallationToken();
+      mockBranch(false);
+      missing('.claude/skills/fix/SKILL.md');
+      skillFile('.agents/skills', 'fix');
+      gh()
+        .intercept({
+          path: `${base}/.agents/skills/fix/SKILL.md`,
+          method: 'PUT',
+          body: (b) => JSON.parse(b).sha === 'old',
+        })
+        .reply(200, '{"commit":{"sha":"c2"}}', { headers: JSON_HEADERS });
+      expect(await host().writeSkill(project, 'fix', 'v2', 'edit', 'old')).toMatchObject({ commitSha: 'c2' });
+    });
+
+    it('deletes a skill from the folder it lives in', async () => {
+      mockInstallationToken();
+      mockBranch(false);
+      commits();
+      missing('.claude/skills/fix/SKILL.md');
+      skillFile('.agents/skills', 'fix');
+      gh()
+        .intercept({ path: `${base}/.agents/skills/fix/SKILL.md`, method: 'DELETE' })
+        .reply(200, '{"commit":{"sha":"d1"}}', { headers: JSON_HEADERS });
+      expect(await host().deleteSkill(project, 'fix', 'rm')).toMatchObject({ commitSha: 'd1' });
     });
   });
 

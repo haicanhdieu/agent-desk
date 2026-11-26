@@ -277,6 +277,10 @@ describe('SkillList', () => {
     expect(screen.getByText('.claude/skills/ on main')).toBeInTheDocument();
     expect(screen.getByText('1 rule, off')).toBeInTheDocument();
   });
+  it('names every folder searched, in order', () => {
+    render(<SkillList skills={skills} branch="main" folders={['.opencode/skills', '.agents/skills']} />);
+    expect(screen.getByText('.opencode/skills/, .agents/skills/ on main')).toBeInTheDocument();
+  });
   it('New skill calls onNew; empty list renders no list items', async () => {
     const onNew = vi.fn();
     render(<SkillList skills={[]} branch="main" onNew={onNew} />);

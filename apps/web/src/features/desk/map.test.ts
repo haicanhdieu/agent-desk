@@ -127,6 +127,16 @@ describe('toRule', () => {
     );
   });
 
+  it('names the folders searched when the skill is missing', () => {
+    expect(toRule(rule('docs-update', 'docs-update'), [agent], now, ['code-build'], ['.agents/skills']).warning).toBe(
+      'Skill docs-update is not in .agents/skills/ on main. Comments with /docs-update are ignored until you add it or pick another skill.',
+    );
+    expect(
+      toRule(rule('docs-update', 'docs-update'), [agent], now, ['code-build'], ['.claude/skills', '.agents/skills'])
+        .warning,
+    ).toContain('is not in .claude/skills/ or .agents/skills/ on main.');
+  });
+
   it('maps a prompt rule with its kind and prompt and no skill warning', () => {
     const dto: RuleDto = { ...rule('triage', 'x'), kind: 'prompt', skillName: null, prompt: 'Triage this.\nBe brief.' };
     const mapped = toRule(dto, [agent], now, ['code-build']);

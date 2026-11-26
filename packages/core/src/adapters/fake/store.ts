@@ -190,27 +190,31 @@ export class FakeStore {
     await this.atomicWrite(this.repoFile(repoPath, path), body);
   }
 
-  // ---- skills (skills/<repo>/<name>.md)
+  // ---- skills (skills/<repo>/<folder>/<name>.md, where folder is e.g. .claude/skills)
 
-  private skillFile(repoPath: string, name: string): string {
+  private skillFile(repoPath: string, folder: string, name: string): string {
     if (!SKILL_NAME.test(name)) throw new Error(`invalid skill name "${name}"`);
-    return this.path('skills', ...safeSegments(repoPath), `${name}.md`);
+    return this.path('skills', ...safeSegments(repoPath), ...safeSegments(folder), `${name}.md`);
   }
 
-  async readSkillFile(repoPath: string, name: string): Promise<{ body: string; sha: string; mtime: string } | null> {
-    const file = this.skillFile(repoPath, name);
+  async readSkillFile(
+    repoPath: string,
+    folder: string,
+    name: string,
+  ): Promise<{ body: string; sha: string; mtime: string } | null> {
+    const file = this.skillFile(repoPath, folder, name);
     const body = await this.readOrNull(file);
     if (body === null) return null;
     return { body, sha: sha1(body), mtime: (await stat(file)).mtime.toISOString() };
   }
 
-  async writeSkillFile(repoPath: string, name: string, body: string): Promise<string> {
-    await this.atomicWrite(this.skillFile(repoPath, name), body);
+  async writeSkillFile(repoPath: string, folder: string, name: string, body: string): Promise<string> {
+    await this.atomicWrite(this.skillFile(repoPath, folder, name), body);
     return sha1(body);
   }
 
-  async deleteSkillFile(repoPath: string, name: string): Promise<boolean> {
-    const file = this.skillFile(repoPath, name);
+  async deleteSkillFile(repoPath: string, folder: string, name: string): Promise<boolean> {
+    const file = this.skillFile(repoPath, folder, name);
     if ((await this.readOrNull(file)) === null) return false;
     await rm(file, { force: true });
     return true;
@@ -243,8 +247,8 @@ export class FakeStore {
     return this.readLines(this.path('change-requests.jsonl'), StoredChangeRequest);
   }
 
-  async listSkillNames(repoPath: string): Promise<string[]> {
-    const dir = this.path('skills', ...safeSegments(repoPath));
+  async listSkillNames(repoPath: string, folder: string): Promise<string[]> {
+    const dir = this.path('skills', ...safeSegments(repoPath), ...safeSegments(folder));
     try {
       return (await readdir(dir))
         .filter((f) => f.endsWith('.md'))

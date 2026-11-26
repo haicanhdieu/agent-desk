@@ -29,6 +29,23 @@ const list = (ids: string[]) => {
   return toModelList({ status: 'success', data }, null);
 };
 
+describe('RuleForm skill folders', () => {
+  it('the Skill help names the folders searched, and .claude/skills/ without any', () => {
+    const { rerender } = render(<RuleForm skills={['a']} agents={[]} value={draft} onChange={() => {}} />);
+    expect(screen.getByText('.claude/skills/')).toBeInTheDocument();
+    rerender(
+      <RuleForm
+        skills={['a']}
+        agents={[]}
+        value={draft}
+        onChange={() => {}}
+        skillFolders={['.opencode/skills', '.agents/skills']}
+      />,
+    );
+    expect(screen.getByText('.opencode/skills/, .agents/skills/')).toBeInTheDocument();
+  });
+});
+
 function Stateful(props: Partial<RuleFormProps> & { value?: RuleDraft; onValue?: (v: RuleDraft) => void }) {
   const [value, setValue] = useState(props.value ?? draft);
   return (
