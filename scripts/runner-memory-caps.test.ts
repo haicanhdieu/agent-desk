@@ -50,11 +50,11 @@ describe('runner-env.sh memory caps', () => {
   });
 
   it('caps the Node heap so garbage collection runs well before the pod limit', () => {
-    expect(sourced()['NODE_OPTIONS']).toBe('--max-old-space-size=1024');
+    expect(sourced()['NODE_OPTIONS']).toBe('--max-old-space-size=2560');
   });
 
   it('keeps NODE_OPTIONS the caller already set and adds the cap once', () => {
-    expect(sourced({ NODE_OPTIONS: '--no-warnings' })['NODE_OPTIONS']).toBe('--no-warnings --max-old-space-size=1024');
+    expect(sourced({ NODE_OPTIONS: '--no-warnings' })['NODE_OPTIONS']).toBe('--no-warnings --max-old-space-size=2560');
     expect(sourced({ NODE_OPTIONS: '--max-old-space-size=3072' })['NODE_OPTIONS']).toBe('--max-old-space-size=3072');
   });
 
@@ -71,7 +71,7 @@ describe('runner-env.sh memory caps', () => {
       encoding: 'utf8',
       env: { PATH: process.env['PATH'] ?? '', HOME: home },
     });
-    expect(r.stdout).toBe('--max-old-space-size=1024');
+    expect(r.stdout).toBe('--max-old-space-size=2560');
   });
 });
 

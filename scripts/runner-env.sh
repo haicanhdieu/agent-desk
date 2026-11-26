@@ -42,7 +42,9 @@ export E2E_WORKERS="${E2E_WORKERS:-1}"
 #   Each typecheck task is a ~700 MB tsc process, so two at once plus the agent (~0.7 GB) fill a 2 GiB pod.
 export CHECK_CONCURRENCY="${CHECK_CONCURRENCY:-1}"
 # - Node heap: its default follows the machine's memory, so a process grows lazily toward gigabytes before it collects.
+#   2560 MiB, not lower: the web `tsc` needs about 2 GiB of heap, and 1024 aborts it with exit 134 (V8 out of memory).
+#   It is a ceiling, not a reservation, so it fits a 4 GiB pod with one task at a time (CHECK_CONCURRENCY=1).
 case "${NODE_OPTIONS:-}" in
   *--max-old-space-size=*) ;;
-  *) export NODE_OPTIONS="${NODE_OPTIONS:+$NODE_OPTIONS }--max-old-space-size=1024" ;;
+  *) export NODE_OPTIONS="${NODE_OPTIONS:+$NODE_OPTIONS }--max-old-space-size=2560" ;;
 esac
