@@ -103,19 +103,20 @@ Valid values are unset, `0` and `1`; anything else stops setup with exit 64. The
 
 What setup installs and writes, as the runner user:
 
-| Where                                | What                                                                                                   |
-| ------------------------------------ | ------------------------------------------------------------------------------------------------------ |
-| `~/.local/bin`                       | `uv` 0.9.28 (sha256-checked release) and the `serena` command (registered by absolute path)            |
-| `~/.local/share/uv`                  | the Serena tool environment (`serena-agent` 2.1.0, with a uv-provided Python 3.12)                     |
-| `~/.serena`                          | Serena's own config and caches, created on first use                                                   |
-| `~/.claude.json` (local scope)       | the `serena` MCP server entry for this checkout, with `--agent-interface tools` and `--project <repo>` |
-| `<repo>/.serena`                     | Serena's project data; the script adds it to `.git/info/exclude` so it is never committed              |
-| `<repo>/.claude/settings.local.json` | Serena's four Claude Code hooks, merged into the file (already in this repo's `.gitignore`)            |
+| Where                                | What                                                                                                                                                  |
+| ------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `~/.local/bin`                       | `uv` 0.9.28 (sha256-checked release) and the `serena` command (registered by absolute path)                                                           |
+| `~/.local/share/uv`                  | the Serena tool environment (`serena-agent` 2.1.0, with a uv-provided Python 3.12)                                                                    |
+| `~/.serena`                          | Serena's own config and caches, created on first use                                                                                                  |
+| `~/.claude.json` (local scope)       | the `serena` MCP server entry for this checkout, with `--agent-interface tools` and `--project <repo>`                                                |
+| `<repo>/.serena`                     | Serena's project data, with the `typescript` language server set in `project.yml`; the script adds it to `.git/info/exclude` so it is never committed |
+| `<repo>/.claude/settings.local.json` | Serena's four Claude Code hooks, merged into the file (already in this repo's `.gitignore`)                                                           |
 
 Things to know:
 
 - Serena line numbers are 0-based. Claude Code's own file tools are 1-based.
-- The first use of a language downloads that language's server, so the pod needs network access then. Nothing is prefetched at setup.
+- The first use of a language downloads that language's server, so the pod needs network access then. Nothing is prefetched at setup. The first symbol query on a fresh pod is slow (about 1 to 2 minutes in a measured run) while the server starts and indexes.
+- Without a language server in `.serena/project.yml` (`language_servers: []`) every symbol query returns `[]` and the agent falls back to grep. Setup sets `typescript`; it fills in an empty list but keeps one set by hand.
 - Check it: `uv tool list` shows `serena-agent v2.1.0`, and `claude mcp get serena` shows `Command:` (the absolute path of `serena`, because the agent's `PATH` has no `~/.local/bin`) and the `Args:` line with `--project <repo>`. For the hooks, `grep -c serena-hooks .claude/settings.local.json` prints 4 (if you added no other lines that mention `serena-hooks`).
 - When it takes effect: Claude Code reads its MCP servers when it starts. On a fresh pod it works when setup runs as the project's `SETUP_SCRIPT` (before Claude starts). If you run setup in a live session, Serena appears after the next resume or restart.
 - Time: setup is capped by `SETUP_TIMEOUT_SECONDS` (default 600). The uv and Python download alone measured 66 to 112 seconds, so keep headroom with the other profile steps. A rerun is cheap but not free: `claude mcp get` health-checks the server, which starts it once per rerun.

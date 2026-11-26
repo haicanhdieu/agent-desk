@@ -29,6 +29,7 @@ fi
 SERENA_VERSION=2.1.0 # PyPI serena-agent
 UV_VERSION=0.9.28 # astral-sh/uv release
 UV_PYTHON=3.12 # interpreter uv provisions for the Serena tool environment
+SERENA_LANGUAGE=typescript # language server for this repo; Serena finds none on its own and then every symbol query is empty
 case "$(uname -m)" in
   aarch64 | arm64)
     uv_arch=aarch64
@@ -106,6 +107,23 @@ if [ "$registered" = 0 ]; then
     echo "runner-serena: claude mcp add failed; Serena is installed but not registered (run it by hand)" >&2
     exit 1
   fi
+fi
+
+step "language server ($SERENA_LANGUAGE, .serena/project.yml)"
+# Without a language server `find_symbol` and friends return [] and the agent falls back to grep. Serena writes
+# `language_servers: []` when it starts on an unconfigured project, so fix that case too.
+project_yml="$PWD/.serena/project.yml"
+if [ ! -f "$project_yml" ]; then
+  "$serena_bin" project create "$PWD" --language "$SERENA_LANGUAGE"
+elif grep -qx 'language_servers: \[\]' "$project_yml"; then
+  node - "$project_yml" "$SERENA_LANGUAGE" <<'JS'
+const fs = require('node:fs');
+const [file, language] = process.argv.slice(2);
+const text = fs.readFileSync(file, 'utf8');
+fs.writeFileSync(file, text.replace(/^language_servers: \[\]$/m, `language_servers: [${language}]`));
+JS
+else
+  echo "already configured"
 fi
 
 step "hooks (.claude/settings.local.json)"

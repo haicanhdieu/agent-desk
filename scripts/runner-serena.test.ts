@@ -51,6 +51,13 @@ const which = (tool: string): string =>
   spawnSync('bash', ['-c', `command -v ${tool}`], { encoding: 'utf8' }).stdout.trim();
 const BASH = which('bash');
 
+// The fake serena: logs its calls, and `project create <path> --language <l>` writes <path>/.serena/project.yml.
+const FAKE_SERENA = [
+  '#!/bin/sh',
+  'echo "serena $*" >> "$LOG"',
+  'if [ "$1 $2" = "project create" ]; then mkdir -p "$3/.serena"; echo "language_servers: [$5]" > "$3/.serena/project.yml"; fi',
+].join('\n');
+
 function stub(name: string, body: string, where = bin): void {
   writeFileSync(join(where, name), `#!/bin/sh\n${body}\n`);
   chmodSync(join(where, name), 0o755);
@@ -66,7 +73,7 @@ function buildUvTarball(): string {
     'echo "uv $*" >> "$LOG"',
     'case "$1" in',
     '  --version) echo "uv 0.9.28 (abc1234 2026-01-29)" ;;',
-    '  tool) if [ "$2" = dir ]; then echo "$HOME/.local/bin"; exit 0; fi; if [ "$2" = list ]; then [ -f "$HOME/.local/bin/serena" ] && echo "serena-agent v2.1.0"; exit 0; fi; printf "#!/bin/sh\\necho Serena 2.1.0\\n" > "$HOME/.local/bin/serena"; chmod +x "$HOME/.local/bin/serena"; cp "$HOME/.local/bin/serena" "$HOME/.local/bin/serena-hooks" ;;',
+    '  tool) if [ "$2" = dir ]; then echo "$HOME/.local/bin"; exit 0; fi; if [ "$2" = list ]; then [ -f "$HOME/.local/bin/serena" ] && echo "serena-agent v2.1.0"; exit 0; fi; cp "$FAKE_SERENA_FILE" "$HOME/.local/bin/serena"; chmod +x "$HOME/.local/bin/serena"; cp "$HOME/.local/bin/serena" "$HOME/.local/bin/serena-hooks" ;;',
     'esac',
   ].join('\n');
   writeFileSync(join(root, name, 'uv'), `${uv}\n`);
@@ -89,6 +96,7 @@ beforeEach(() => {
   serenaBin = join(dir, '.local', 'bin', 'serena');
   for (const d of [repo, bin, sys, state, join(dir, '.local', 'bin')]) mkdirSync(d, { recursive: true });
   writeFileSync(log, '');
+  writeFileSync(join(dir, 'fake-serena'), `${FAKE_SERENA}\n`);
   for (const tool of SYSTEM_TOOLS) if (which(tool) !== '') symlinkSync(which(tool), join(sys, tool));
   spawnSync('git', ['init', '-q', repo]);
   stub('uname', 'if [ "$1" = -m ]; then echo x86_64; else echo Linux; fi');
@@ -130,6 +138,7 @@ function run(env: Record<string, string | undefined> = { RUNNER_ENABLE_SERENA: '
     LOG: log,
     STATE: state,
     SERVE: join(dir, 'uv.tar.gz'),
+    FAKE_SERENA_FILE: join(dir, 'fake-serena'),
     FAKE_SHA: pinnedSha(),
   };
   for (const [k, v] of Object.entries(env)) {
@@ -230,6 +239,7 @@ describe('runner-serena.sh', () => {
       join(dir, '.local', 'bin'),
     );
     stub('serena-hooks', 'exit 0', join(dir, '.local', 'bin'));
+    stub('serena', FAKE_SERENA.split('\n').slice(1).join('\n'), join(dir, '.local', 'bin'));
   }
 
   it('downloads uv again when the installed uv is not the pin', () => {
@@ -276,6 +286,45 @@ describe('runner-serena.sh', () => {
     expect(r.status).toBe(0);
     expect(r.err).toContain('runner-serena: skipping');
     expect(calls()).toEqual([]);
+  });
+
+  describe('language server', () => {
+    const projectYml = (): string => join(repo, '.serena', 'project.yml');
+    const createCall = (): string => `serena project create ${repo} --language typescript`;
+
+    it('creates the Serena project with the typescript language server', () => {
+      const r = run();
+      expect([r.status, r.err]).toEqual([0, '']);
+      expect(calls()).toContain(createCall());
+      expect(readFileSync(projectYml(), 'utf8')).toBe('language_servers: [typescript]\n');
+    });
+
+    it('does not create it again when a language server is set', () => {
+      run();
+      writeFileSync(log, '');
+      const r = run();
+      expect(r.status).toBe(0);
+      expect(r.out).toContain('already configured');
+      expect(count('serena ')).toBe(0);
+    });
+
+    it('fills in an empty language_servers list that Serena wrote on its own', () => {
+      mkdirSync(join(repo, '.serena'), { recursive: true });
+      writeFileSync(projectYml(), 'project_name: "repo"\nlanguage_servers: []\nencoding: "utf-8"\n');
+      const r = run();
+      expect(r.status).toBe(0);
+      expect(count('serena project create')).toBe(0);
+      expect(readFileSync(projectYml(), 'utf8')).toBe(
+        'project_name: "repo"\nlanguage_servers: [typescript]\nencoding: "utf-8"\n',
+      );
+    });
+
+    it('keeps a language list someone set by hand', () => {
+      mkdirSync(join(repo, '.serena'), { recursive: true });
+      writeFileSync(projectYml(), 'language_servers: [python]\n');
+      run();
+      expect(readFileSync(projectYml(), 'utf8')).toBe('language_servers: [python]\n');
+    });
   });
 
   it('adds .serena/ to info/exclude once', () => {
