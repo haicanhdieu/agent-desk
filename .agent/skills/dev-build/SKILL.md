@@ -7,11 +7,11 @@ description: Use when asked to build, fix, implement or pick up a GitHub issue (
 
 You are the dev orchestrator. You take one ticket (a GitHub issue, or a description you file as one); subagents triage it, build it on a fresh branch, check it and open it as a PR to `main`. You keep the [project board](https://github.com/users/haicanhdieu/projects/4/views/1) and labels in step.
 
-Every run delivers exactly **one** PR to `main`. **Single mode** (most tickets): one branch, one worktree, phases 1 to 5. **Multi-unit mode** ([phases/multi-unit.md](phases/multi-unit.md)): Triage splits a plan into two or more PR-sized **units**; each is built, verified and reviewed in its own worktree, then merged locally into an integration branch (no sub-PRs), which becomes the one PR to `main`.
+Every run delivers exactly **one** PR to `main`. There is one workflow for every ticket. Triage splits the work into **units** ([phases/units.md](phases/units.md)): a bug or a small feature is one unit, a big plan is several PR-sized ones. Each unit runs the same loop (build, then verify: gates green, two self-review rounds). One unit commits straight on the run's branch; several units each get a worktree and are merged locally into an integration branch (no sub-PRs), which is checked once more (gates only) and becomes the one PR to `main`.
 
 This is the **build** step of build → review and merge → QA test → done. Columns, labels and who moves what: [docs/runbooks/dev-workflow.md](../../../docs/runbooks/dev-workflow.md). Read it once before your first run.
 
-No human in the loop. **You never halt on your own judgment.** A question that would need a human goes to the **Advisor** first ([Decisions](reference/decisions.md)). Every stop condition (a cap reached, an agent that failed twice, a blocked builder, a red verify round, red CI) goes to the Advisor; you stop only on its `needs_human`. Only the stops under "Never ask it" skip it. To stop, post the question on the issue; never wait in the terminal.
+No human in the loop. **You never halt on your own judgment.** A question that would need a human goes to the **Advisor** first ([Decisions](reference/decisions.md)). Every stop condition (a check stuck on the same failure, an agent that failed twice, a blocked builder, red CI) goes to the Advisor; you stop only on its `needs_human`. Only the stops under "Never ask it" skip it. To stop, post the question on the issue; never wait in the terminal.
 
 ## Input
 
@@ -24,13 +24,13 @@ Create a todo per phase. Never skip or reorder them. Read a phase's file when yo
 1. [Triage](phases/1-triage.md): the Triage agent; you act on its verdict.
 2. [Start](phases/2-start.md): `scripts/start.sh` (no model).
 3. [Build](phases/3-build.md): one Fixer (bug), or one Implementer per task in order (feature).
-4. [Verify](phases/4-verify.md): the E2E verifier first (with E2E requirements), then you run `scripts/verify.sh` while the Self-reviewer reads the diff. Red or findings go back to the builder. Cap: 3 rounds.
+4. [Verify](phases/4-verify.md): **gates** (E2E verifier when required, then `scripts/verify.sh`: lint, types, unit tests, e2e) fixed until green, classifying each failure against the requirement (fix the product if it is wrong, the test only if the test is wrong); then **self-review**, exactly 2 rounds, each followed by fixes and green gates. No Advisor, no third round.
 5. [Open PR](phases/5-open-pr.md): the PR agent runs `create-pr`; you read the PR back.
 
-- **Multi-unit** ([phases/multi-unit.md](phases/multi-unit.md), M1 to M6): replaces the rest of phase 2 and phases 3 to 5 when Triage returns two or more `UNITS`; it ends in phase 5 for the one PR.
+- **Units** ([phases/units.md](phases/units.md), M1 to M6): phases 2 to 4 run once per unit (scheduling, merging into the integration branch when there are two or more). With two or more units a final verify (gates only, no review) runs before phase 5.
 - **Any phase:** a would-be-human question or a stop condition goes to the Advisor ([reference/decisions.md](reference/decisions.md), at most 8 calls per run).
 
-You keep a **decisions list** (each Advisor question and decision; every later agent gets the accepted ones) and, in multi-unit mode, each Reviewer reply in your scratchpad.
+You keep a **decisions list** (each Advisor question and decision; every later agent gets the accepted ones) and each Self-reviewer reply in your scratchpad.
 
 Roles, tiers, efforts and how to spawn: [prompts/README.md](prompts/README.md). Issue comments, word for word: [templates/comments.md](templates/comments.md). Red flags, which hold even when the user says to hurry or skip a step: [reference/common-mistakes.md](reference/common-mistakes.md).
 

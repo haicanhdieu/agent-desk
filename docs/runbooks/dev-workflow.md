@@ -36,14 +36,14 @@ The board's **Status** field is the source of truth. A `status:*` label mirrors 
 
 Other labels:
 
-| Label              | On    | Meaning                                                                                                                             |
-| ------------------ | ----- | ----------------------------------------------------------------------------------------------------------------------------------- |
-| `bug`              | issue | Something is broken. `dev-build` takes the bug-fix path.                                                                            |
-| `enhancement`      | issue | New behavior. `dev-build` takes the feature path.                                                                                   |
-| `qa:failed`        | issue | QA found a problem after merge. `dev-build` takes the bug-fix path. Remove it when fixed.                                           |
-| `agent-authored`   | PR    | Written by an agent (`dev-build`, or fixes from `dev-review`).                                                                      |
-| `review:sensitive` | PR    | Touches a [sensitive path](../conventions/git-workflow.md#sensitive-paths). `dev-review` runs its security review at high effort.   |
-| `internal`         | PR    | A `dev-build` sub-PR into an integration branch (multi-unit plans). Never targets `main`; `dev-build` reviews and merges it itself. |
+| Label              | On    | Meaning                                                                                                                                   |
+| ------------------ | ----- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| `bug`              | issue | Something is broken. `dev-build` takes the bug-fix path.                                                                                  |
+| `enhancement`      | issue | New behavior. `dev-build` takes the feature path.                                                                                         |
+| `qa:failed`        | issue | QA found a problem after merge. `dev-build` takes the bug-fix path. Remove it when fixed.                                                 |
+| `agent-authored`   | PR    | Written by an agent (`dev-build`, or fixes from `dev-review`).                                                                            |
+| `review:sensitive` | PR    | Touches a [sensitive path](../conventions/git-workflow.md#sensitive-paths). `dev-review` runs its security review at high effort.         |
+| `internal`         | PR    | Legacy: a `dev-build` sub-PR into an integration branch. `dev-build` no longer opens sub-PRs (units merge locally). Never targets `main`. |
 
 PRs say `Closes #<n>` for each issue they deliver, so merging closes it. Use `Refs #<n>` only for related issues the PR does not finish. The card still moves to **QA** after merge; a failed QA reopens the issue.
 
@@ -76,9 +76,9 @@ A description is first filed as a new issue, so the board tracks it. The skill t
 2. Stops with a comment (status **Blocked**) if the requirement is unclear. It asks one question at a time.
 3. Creates `fix/<n>-<slug>` or `feat/<n>-<slug>` from the latest `origin/main` in its own worktree, and moves the card to **In progress**. If it blocked earlier after building had started and you have answered, it reopens that pushed branch and continues instead.
 4. Fixes (systematic debugging, then a failing test first) or implements the task list (test-driven). When an agent stops on a question a human would answer, an Advisor agent rules on it first from the repo's rules, ADRs and the ticket, and posts the decision on the issue (it is also listed in the PR). A question those sources don't settle, or that would change the architecture, a requirement or a rule, stops at **Blocked** with a comment asking you to pick one of up to 3 solutions.
-5. Verifies (at most 3 rounds; still red after that, it stops at **Blocked** with the failing output), pushes, opens a PR to `main`, labels it, and moves the card to **In review**.
+5. Verifies (lint, types, unit tests and e2e are fixed until green, deciding each time whether the product or the test is wrong against the requirement; then two self-review rounds, each followed by fixes and green checks), pushes, opens a PR to `main`, labels it, and moves the card to **In review**. A check stuck on the same failure goes to an Advisor agent, and to **Blocked** with the failing output only if that needs a human.
 
-A plan too big for one ~800-line PR is split into **units** ([multi-unit.md](../../.agent/skills/dev-build/phases/multi-unit.md)). Each unit is built on its own branch, verified, and opened as a draft sub-PR (label `internal`) into an integration branch `feat/<n>-<slug>`, where `dev-build` reviews it and merges it; independent units run in parallel. When all are merged, it verifies and reviews the whole branch and opens **one** PR from it to `main`. You never review the sub-PRs; the one PR to `main` is what goes to **In review**.
+Every ticket runs as one or more **units** ([units.md](../../.agent/skills/dev-build/phases/units.md)); a bug or a small feature is one unit. A plan too big for one ~800-line PR is split into several: each is built on its own branch and worktree, verified (green checks, two self-review rounds), and merged locally into an integration branch `feat/<n>-<slug>`; independent units run in parallel. When all are merged, the whole branch gets one more run of the checks (no review) and **one** PR from it goes to `main`. There are no sub-PRs; the one PR to `main` is what goes to **In review**, and `dev-review` reviews all of it.
 
 If the card is already In progress, In review, QA or Done, `dev-build` stops and tells you; it never takes over someone else's branch.
 

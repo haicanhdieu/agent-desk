@@ -2,7 +2,7 @@
 
 Done by you, with `scripts/start.sh` (no model). Ends with a branch, a worktree, the card in `In progress`, and the phase to continue at.
 
-**Mode from Triage's `UNITS`.** `single` (every bug, a feature with a task list in the issue, a plan that groups to one unit): continue here. Two or more: **multi-unit mode**; follow [multi-unit.md](multi-unit.md) from M1 instead of the rest of this phase and phases 3 to 5. On a resume, a `UNIT STATE` line marks a multi-unit run.
+**Mode from Triage's `UNITS`.** `single` (every bug, a feature with a task list in the issue, a plan that groups to one unit): continue here. Two or more: follow [units.md](units.md) from M1 instead of the rest of this phase; it runs this phase, [phase 3](3-build.md) and [phase 4](4-verify.md) once per unit. A single unit is the same loop with no merge ([units.md](units.md)). On a resume, a `UNIT STATE` line marks a run with several units.
 
 ```sh
 start.sh <n> <fix|feat> <slug>        # new run

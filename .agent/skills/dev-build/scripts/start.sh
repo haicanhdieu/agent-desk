@@ -2,7 +2,7 @@
 # Create (or, after a block, reopen) the worktree for a ticket and install deps.
 #
 #   bash start.sh <n> <fix|feat> <slug>                  new run: branch from fresh origin/main
-#   bash start.sh <n> <fix|feat> <slug> --integration    same, then push it (multi-unit integration branch)
+#   bash start.sh <n> <fix|feat> <slug> --integration    same, then push it (integration branch, two or more units)
 #   bash start.sh <n> --unit <id> --base <integration>   unit branch <integration>--u<id> from fresh origin/<integration>
 #   bash start.sh <n> --resume <branch>                  continue a run that blocked (integration, single or unit branch)
 #
