@@ -52,7 +52,7 @@ export const UpdateProjectRequest = z.object({
   triggerMode: TriggerMode.optional(),
   pollIntervalSeconds: PollInterval.optional(),
   maxConcurrentRuns: z.number().int().min(1).max(10).optional(),
-  maxRunsPerTicket: z.number().int().min(1).max(50).optional(),
+  maxRunsPerTicket: z.number().int().min(0).max(50).optional(),
   timeoutSeconds: z
     .number()
     .int()

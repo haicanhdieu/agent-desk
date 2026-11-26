@@ -650,6 +650,16 @@ describe('DeskAgent', () => {
       expect(onSaveLimits).toHaveBeenCalledWith(expect.objectContaining({ idleEndMinutes: 45 }));
     });
 
+    it('Runs per ticket says 0 or empty means unlimited, and an empty field saves 0', async () => {
+      const onSaveLimits = vi.fn();
+      open({ onSaveLimits });
+      const perTicket = screen.getByLabelText('Runs per ticket');
+      expect(perTicket).toHaveAccessibleDescription(expect.stringContaining('0 or empty means unlimited'));
+      await userEvent.clear(perTicket);
+      await userEvent.click(screen.getByRole('button', { name: 'Save limits' }));
+      expect(onSaveLimits).toHaveBeenCalledWith(expect.objectContaining({ maxRunsPerTicket: 0 }));
+    });
+
     it('read-only: the fields are disabled and there is no Save limits', () => {
       open({ limitsReadOnly: true });
       expect(screen.getByLabelText('Run time limit')).toBeDisabled();

@@ -21,4 +21,14 @@ describe('UpdateProjectRequest limits carry the readable messages', () => {
       true,
     );
   });
+
+  it('runs per ticket: 0 means unlimited, up to 50, whole numbers only', () => {
+    const ok = (n: number) => UpdateProjectRequest.safeParse({ maxRunsPerTicket: n }).success;
+    expect(ok(0)).toBe(true);
+    expect(ok(1)).toBe(true);
+    expect(ok(50)).toBe(true);
+    expect(ok(-1)).toBe(false);
+    expect(ok(1.5)).toBe(false);
+    expect(ok(51)).toBe(false);
+  });
 });
