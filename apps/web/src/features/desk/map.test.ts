@@ -227,4 +227,9 @@ describe('toRule agent', () => {
     ).toBe('rejected');
     expect(toRuleAgentOption(codex).connection).toBeUndefined();
   });
+
+  it('toRuleAgentOption marks kinds that need a credential (OpenCode does not)', () => {
+    expect(toRuleAgentOption(codex).needsCredential).toBe(true);
+    expect(toRuleAgentOption({ ...codex, provider: 'opencode' }).needsCredential).toBe(false);
+  });
 });

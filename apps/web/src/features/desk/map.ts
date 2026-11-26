@@ -1,4 +1,10 @@
-import type { AgentConnectionDto, AgentDto, RuleDto, SkillSummaryDto } from '@agentdesk/contracts';
+import {
+  AGENT_KIND_CAPABILITIES,
+  type AgentConnectionDto,
+  type AgentDto,
+  type RuleDto,
+  type SkillSummaryDto,
+} from '@agentdesk/contracts';
 import { ruleAgentWarning, type RuleAgentOption } from '@/components/RuleSentence';
 import type { Rule, Skill } from '@/mocks/types';
 import { relativeTime } from '../relativeTime';
@@ -47,7 +53,14 @@ const connectionOf = (a: AgentDto): AgentConnectionDto['status'] | undefined =>
 
 /** One choice of the rule form's agent select. */
 export function toRuleAgentOption(a: AgentDto): RuleAgentOption {
-  return { id: a.id, label: a.name, provider: a.provider, model: a.model, connection: connectionOf(a) };
+  return {
+    id: a.id,
+    label: a.name,
+    provider: a.provider,
+    needsCredential: !AGENT_KIND_CAPABILITIES[a.provider].credentialOptional,
+    model: a.model,
+    connection: connectionOf(a),
+  };
 }
 
 /** What a rule shows for an agent the reader cannot see or that no longer exists: never its raw id. */

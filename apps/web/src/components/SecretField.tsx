@@ -1,10 +1,9 @@
-import type { CredentialType as ContractCredentialType } from '@agentdesk/contracts';
 import { useState, type FormEvent, type KeyboardEvent } from 'react';
 import { Button, Field, Icon, InlineStatus, PasswordInput, SegmentedControl, StatusIcon } from '@/ds';
 import styles from './SecretField.module.css';
 
 export type SecretFieldState = 'empty' | 'entering' | 'saved' | 'replacing';
-export type CredentialType = ContractCredentialType;
+export type CredentialType = 'oauth_token' | 'api_key' | 'auth_json';
 
 export interface SecretFieldProps {
   state: SecretFieldState;

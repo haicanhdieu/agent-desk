@@ -9,9 +9,9 @@ import { RuleRow } from './RuleRow';
 import { RuleSentence, ruleAgentWarning, type RuleAgentOption, type RuleDraft } from './RuleSentence';
 
 const agents: RuleAgentOption[] = [
-  { id: 'a1', label: 'Claude - Personal', provider: 'claude', model: 'opus' },
-  { id: 'a2', label: 'Codex - Work', provider: 'codex', model: 'gpt-5' },
-  { id: 'a3', label: 'OpenCode - Own', provider: 'opencode' },
+  { id: 'a1', label: 'Claude - Personal', provider: 'claude', needsCredential: true, model: 'opus' },
+  { id: 'a2', label: 'Codex - Work', provider: 'codex', needsCredential: true, model: 'gpt-5' },
+  { id: 'a3', label: 'OpenCode - Own', provider: 'opencode', needsCredential: false },
 ];
 const draft: RuleDraft = {
   command: 'code-build',
@@ -137,7 +137,7 @@ describe('rule row agent wording and warning', () => {
     const text = 'Claude - Personal has no working credential. Runs from this rule will fail.';
     expect(w({ connection: 'no_credential' })).toBe(text);
     expect(w({ connection: 'rejected' })).toBe(text);
-    expect(w({ provider: 'codex', label: 'X', connection: 'no_credential' })).toBe(
+    expect(w({ label: 'X', connection: 'no_credential' })).toBe(
       'X has no working credential. Runs from this rule will fail.',
     );
     expect(w({ connection: 'ok' })).toBeUndefined();

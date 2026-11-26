@@ -1,5 +1,4 @@
 import type { ReactNode } from 'react';
-import { AGENT_KIND_CAPABILITIES, type AgentConnectionDto, type AgentKind } from '@agentdesk/contracts';
 import { CommandChip } from '@/ds';
 import styles from './Composites.module.css';
 
@@ -28,17 +27,18 @@ export type RuleDraft = {
 export interface RuleAgentOption {
   id: string;
   label: string;
-  provider: AgentKind;
+  provider: string;
+  /** True when a run on this agent fails without a credential (its kind does not make one optional). */
+  needsCredential: boolean;
   /** The agent's default model, for the Model help. */
   model?: string;
   /** The last known credential check; drives the row warning. */
-  connection?: AgentConnectionDto['status'];
+  connection?: 'ok' | 'invalid' | 'rejected' | 'unreachable' | 'unsupported' | 'no_credential';
 }
 
 /** The row warning for a rule's agent: no credential on a kind that needs one, or a rejected credential. */
 export function ruleAgentWarning(agent: RuleAgentOption): string | undefined {
-  const needsCredential = !AGENT_KIND_CAPABILITIES[agent.provider].credentialOptional;
-  const bad = agent.connection === 'rejected' || (agent.connection === 'no_credential' && needsCredential);
+  const bad = agent.connection === 'rejected' || (agent.connection === 'no_credential' && agent.needsCredential);
   return bad ? `${agent.label} has no working credential. Runs from this rule will fail.` : undefined;
 }
 

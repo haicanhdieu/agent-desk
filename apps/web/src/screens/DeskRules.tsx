@@ -121,7 +121,16 @@ export function RulePane({
         skills={skills}
         agents={
           agents ??
-          (value.agentId ? [{ id: value.agentId, label: value.agentLabel ?? value.agentId, provider: 'claude' }] : [])
+          (value.agentId
+            ? [
+                {
+                  id: value.agentId,
+                  label: value.agentLabel ?? value.agentId,
+                  provider: 'claude',
+                  needsCredential: true,
+                },
+              ]
+            : [])
         }
         defaultAgentName={defaultAgentName}
         agentsState={agentsState}

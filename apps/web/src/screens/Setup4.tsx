@@ -103,7 +103,16 @@ export function Setup4({
         skills={skills}
         defaultAgentName={defaultAgentName}
         agents={
-          draft.agentId ? [{ id: draft.agentId, label: draft.agentLabel ?? draft.agentId, provider: 'claude' }] : []
+          draft.agentId
+            ? [
+                {
+                  id: draft.agentId,
+                  label: draft.agentLabel ?? draft.agentId,
+                  provider: 'claude',
+                  needsCredential: true,
+                },
+              ]
+            : []
         }
         modelField={modelList && { list: modelList, help: 'Default model is the one picked in step 2.' }}
         agentLocked

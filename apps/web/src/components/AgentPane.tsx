@@ -1,12 +1,11 @@
 import { useState, type FormEvent } from 'react';
-import type { CredentialType } from '@agentdesk/contracts';
 import { Banner, Button, Checkbox, Field, Icon, SegmentedControl, TextInput } from '@/ds';
 import type { AgentKindView, AgentPaneAgent } from '@/mocks/types';
 import { AgentStatusMark } from './AgentStatus';
 import { ModelPicker, type ModelList } from './ModelPicker';
 import { ProviderMark } from './ProviderMark';
 import { ProviderPicker, type ProviderPickerOption } from './ProviderPicker';
-import { SecretField, type SecretFieldState } from './SecretField';
+import { SecretField, type CredentialType, type SecretFieldState } from './SecretField';
 import { SidePane } from './SidePane';
 import styles from './AgentPane.module.css';
 

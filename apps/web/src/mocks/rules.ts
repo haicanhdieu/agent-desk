@@ -97,7 +97,20 @@ export const rules: Rule[] = [
 
 /** The agents a rule can name (rule form select): Claude Code, Codex and OpenCode. Display names match the agent fixtures. */
 export const ruleAgentOptions: RuleAgentOption[] = [
-  { id: 'agent-claude', label: 'Claude', provider: 'claude', connection: 'ok' },
-  { id: 'agent-codex', label: 'Codex - Work', provider: 'codex', model: 'gpt-5-codex', connection: 'no_credential' },
-  { id: 'agent-opencode', label: 'OpenCode - Own', provider: 'opencode', connection: 'no_credential' },
+  { id: 'agent-claude', label: 'Claude', provider: 'claude', needsCredential: true, connection: 'ok' },
+  {
+    id: 'agent-codex',
+    label: 'Codex - Work',
+    provider: 'codex',
+    needsCredential: true,
+    model: 'gpt-5-codex',
+    connection: 'no_credential',
+  },
+  {
+    id: 'agent-opencode',
+    label: 'OpenCode - Own',
+    provider: 'opencode',
+    needsCredential: false,
+    connection: 'no_credential',
+  },
 ];
