@@ -55,7 +55,7 @@ export interface DeskSkillsProps {
   /** Rule commands (e.g. "/code-e2e") that use the skill being deleted. */
   rulesUsing?: string[];
   commitMessage?: string;
-  /** The repo folders searched for skills, in order; defaults to `.claude/skills` (stories). */
+  /** The repo folders searched for skills, in order; absent while they are not known: no folder is named. */
   folders?: string[];
   /** The project's default branch, where changes land. Null when it is not known; defaults to `main` (stories). */
   defaultBranch?: string | null;
@@ -227,7 +227,7 @@ export function DeskSkills({
   deleting,
   rulesUsing = [],
   commitMessage = '',
-  folders = ['.claude/skills'],
+  folders,
   defaultBranch = 'main',
   committing = false,
   deletePending = false,
@@ -286,8 +286,12 @@ export function DeskSkills({
                 body={
                   <>
                     A skill is a <span className="mono">SKILL.md</span> file under{' '}
-                    <span className="mono">{folders.map((f) => `${f}/`).join(' or ')}</span>. Start from one of the
-                    starter templates, or create a skill from scratch.
+                    {folders ? (
+                      <span className="mono">{folders.map((f) => `${f}/`).join(' or ')}</span>
+                    ) : (
+                      "the project's skill folders"
+                    )}
+                    . Start from one of the starter templates, or create a skill from scratch.
                   </>
                 }
                 action={

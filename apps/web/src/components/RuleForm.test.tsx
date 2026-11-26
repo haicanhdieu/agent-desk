@@ -30,9 +30,10 @@ const list = (ids: string[]) => {
 };
 
 describe('RuleForm skill folders', () => {
-  it('the Skill help names the folders searched, and .claude/skills/ without any', () => {
+  it('the Skill help names the folders searched, and no folder until they are known', () => {
     const { rerender } = render(<RuleForm skills={['a']} agents={[]} value={draft} onChange={() => {}} />);
-    expect(screen.getByText('.claude/skills/')).toBeInTheDocument();
+    expect(screen.getByText(/the project's skill folders/)).toBeInTheDocument();
+    expect(screen.queryByText(/claude\/skills/)).toBeNull();
     rerender(
       <RuleForm
         skills={['a']}

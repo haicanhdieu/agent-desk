@@ -159,7 +159,7 @@ RULE: RAM is capped (/sys/fs/cgroup/memory.max); exceeding it kills the pod. You
 Before you end a turn, run `agentdesk-status done "<one-line summary>"` if the task is complete, or `agentdesk-status needs_input "<your question>"` if you need an answer from the human.
 ```
 
-Because skills sit in `.claude/skills/` of the cloned repo, Claude Code discovers them without extra configuration. CLI flag names should be checked against the installed CLI version during M1. An interactive session has no turn limit, so the hard timeout and the idle timeout bound a run, and MAX\_TURNS in the Job spec is unused in the PoC.
+Because skills sit in the project's default agent folder (`.claude/skills/` for Claude Code) of the cloned repo, the agent discovers them without extra configuration. CLI flag names should be checked against the installed CLI version during M1. An interactive session has no turn limit, so the hard timeout and the idle timeout bound a run, and MAX\_TURNS in the Job spec is unused in the PoC.
 
 **Job spec, essentials**
 

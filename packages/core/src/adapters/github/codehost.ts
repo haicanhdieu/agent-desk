@@ -352,15 +352,17 @@ export class GithubCodeHostAdapter implements CodeHostAdapter {
     const path = skillPath(folder, name);
     const { owner, repo } = splitRepoPath(project.repoPath);
     const octokit = this.clients.installation(project.connectionExternalId);
-    let file: z.infer<typeof FileResponse>;
+    let data: unknown;
     try {
-      file = FileResponse.parse(
-        (await octokit.request('GET /repos/{owner}/{repo}/contents/{+path}', { owner, repo, path })).data,
-      );
+      data = (await octokit.request('GET /repos/{owner}/{repo}/contents/{+path}', { owner, repo, path })).data;
     } catch (e) {
       if (errorStatus(e) === 404) throw new SkillNotFoundError(name);
       throw e;
     }
+    // A SKILL.md that is a symlink (or a folder) comes back as one object with no content; it is not a skill.
+    const parsed = FileResponse.safeParse(data);
+    if (!parsed.success) throw new SkillNotFoundError(name);
+    const file = parsed.data;
     if (file.encoding !== 'base64') throw new Error(`unexpected encoding for ${path}`);
     const body = Buffer.from(file.content.replace(/\n/g, ''), 'base64').toString('utf8');
     const commits = CommitList.parse(

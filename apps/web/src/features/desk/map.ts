@@ -78,13 +78,13 @@ export function toRule(
   agents: AgentDto[] | undefined,
   now: Date,
   skillNames?: string[],
-  folders: string[] = ['.claude/skills'],
+  folders?: string[],
 ): Rule {
   const missing = dto.skillName !== null && skillNames !== undefined && !skillNames.includes(dto.skillName);
   const agent = dto.agentId === null ? undefined : agents?.find((a) => a.id === dto.agentId);
   const warning = [
     missing &&
-      `Skill ${dto.skillName} is not in ${folders.map((f) => `${f}/`).join(' or ')} on main. Comments with /${dto.command} are ignored until you add it or pick another skill.`,
+      `Skill ${dto.skillName} is not in ${folders ? folders.map((f) => `${f}/`).join(' or ') : "the project's skill folders"} on main. Comments with /${dto.command} are ignored until you add it or pick another skill.`,
     agent && ruleAgentWarning(toRuleAgentOption(agent)),
   ]
     .filter((w): w is string => typeof w === 'string')

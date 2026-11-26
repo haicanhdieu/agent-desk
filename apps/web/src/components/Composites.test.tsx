@@ -274,7 +274,8 @@ describe('SkillList', () => {
     expect(links).toHaveLength(2);
     expect(links[0]).toHaveAttribute('aria-current', 'page');
     expect(links[1]).not.toHaveAttribute('aria-current');
-    expect(screen.getByText('.claude/skills/ on main')).toBeInTheDocument();
+    expect(screen.getByText('Skill folders on main')).toBeInTheDocument();
+    expect(screen.queryByText(/claude\/skills/)).toBeNull();
     expect(screen.getByText('1 rule, off')).toBeInTheDocument();
   });
   it('names every folder searched, in order', () => {

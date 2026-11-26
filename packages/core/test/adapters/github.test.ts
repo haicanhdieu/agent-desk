@@ -1387,6 +1387,29 @@ describe('github code host', () => {
       expect((await host().listSkills(project)).map((s) => s.path)).toEqual(['.agents/skills/fix/SKILL.md']);
     });
 
+    it('a SKILL.md that is itself a symlink is not a skill: skipped in the list, not found on read', async () => {
+      mockInstallationToken();
+      commits();
+      dir('.claude/skills', ['fix']);
+      dir('.agents/skills', ['fix']);
+      gh()
+        .intercept({ path: `${base}/.claude/skills/fix/SKILL.md`, method: 'GET' })
+        .reply(
+          200,
+          JSON.stringify({ type: 'symlink', name: 'SKILL.md', path: '.claude/skills/fix/SKILL.md', target: 'x.md' }),
+          { headers: JSON_HEADERS },
+        );
+      skillFile('.agents/skills', 'fix');
+      expect((await host().listSkills(project)).map((s) => s.path)).toEqual(['.agents/skills/fix/SKILL.md']);
+
+      mockInstallationToken();
+      gh()
+        .intercept({ path: `${base}/.claude/skills/fix/SKILL.md`, method: 'GET' })
+        .reply(200, JSON.stringify({ type: 'symlink', name: 'SKILL.md', target: 'x.md' }), { headers: JSON_HEADERS });
+      missing('.agents/skills/fix/SKILL.md');
+      await expect(host().readSkill(project, 'fix')).rejects.toBeInstanceOf(SkillNotFoundError);
+    });
+
     it('reads a skill from the first folder that has it', async () => {
       mockInstallationToken();
       commits();

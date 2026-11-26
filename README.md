@@ -12,7 +12,7 @@ Agent Desk lets you delegate work to AI coding agents through the ticket board y
 
 ## Example: a ticket that starts an agent
 
-A skill is a procedure saved in your repo at `.claude/skills/<name>/SKILL.md`. A routing rule says "when a ticket comment matches X, run skill Y with agent Z". With a `code-review` skill and a matching rule, a comment on a pull request is all it takes:
+A skill is a procedure saved in your repo at `<name>/SKILL.md` under the project's default agent folder (`.claude/skills/` for Claude Code), then `.agents/skills/`. A routing rule says "when a ticket comment matches X, run skill Y with agent Z". With a `code-review` skill and a matching rule, a comment on a pull request is all it takes:
 
 ```text
 /code-review please focus on the auth changes

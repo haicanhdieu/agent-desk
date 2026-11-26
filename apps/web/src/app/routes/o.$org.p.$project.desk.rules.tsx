@@ -78,8 +78,9 @@ function DeskRulesPage() {
   const remove = useDeleteRule(org, projectId);
 
   const skillNames = skillsPage.items.map((s) => s.name);
+  const folders = agentsState === 'ready' ? skillFoldersOf(agents) : undefined;
   const rules = ruleDtos.map((r) =>
-    toRule(r, agentsState === 'loading' ? undefined : agents, now, skillNames, skillFoldersOf(agents)),
+    toRule(r, agentsState === 'loading' ? undefined : agents, now, skillNames, folders),
   );
   const onPage = search.rule === undefined ? undefined : ruleDtos.find((r) => r.id === search.rule);
   // A rule linked from another page opens from the whole-set read (read only when the link needs it).
@@ -137,7 +138,7 @@ function DeskRulesPage() {
             agents={agents}
             agentsState={agentsState}
             skills={skillNames}
-            skillFolders={skillFoldersOf(agents)}
+            skillFolders={folders}
             onClose={close}
             onDelete={editing && (() => onDelete(editing.id))}
           />
@@ -156,7 +157,7 @@ interface RuleEditorProps {
   /** `locked`: the reader cannot see the agent list (or it failed): each rule keeps its agent. */
   agentsState: 'ready' | 'loading' | 'locked';
   skills: string[];
-  skillFolders: string[];
+  skillFolders: string[] | undefined;
   onClose(): void;
   onDelete?(): void;
 }

@@ -36,6 +36,14 @@ describe('DeskSkills', () => {
     expect(screen.queryByLabelText('SKILL.md source')).toBeNull();
   });
 
+  it('the empty state names no folder until the folders are known', () => {
+    const { rerender } = render(<DeskSkills frame={deskFrame} skills={[]} />);
+    expect(screen.getByText(/under the project's skill folders/)).toBeInTheDocument();
+    expect(screen.queryByText(/claude\/skills/)).toBeNull();
+    rerender(<DeskSkills frame={deskFrame} skills={[]} folders={['.agents/skills']} />);
+    expect(screen.getByText('.agents/skills/')).toBeInTheDocument();
+  });
+
   it('dirty shows Unsaved changes and enables Submit changes; otherwise disabled', () => {
     const { rerender } = render(<DeskSkills frame={deskFrame} skills={skills} activeName="code-build" dirty />);
     expect(screen.getByText('Unsaved changes')).toBeInTheDocument();

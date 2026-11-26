@@ -6,7 +6,7 @@ export interface SkillListProps {
   skills: { name: string; description: string; ruleSummary: string; href?: string }[];
   activeName?: string;
   branch: string;
-  /** The repo folders searched for skills, in order. Defaults to Claude Code's `.claude/skills`. */
+  /** The repo folders searched for skills, in order. Absent while they are not known: no folder is named. */
   folders?: string[];
   onNew?(): void;
   /** Called on a plain click of a skill; the link's own navigation is then skipped. */
@@ -15,15 +15,7 @@ export interface SkillListProps {
   footer?: ReactNode;
 }
 
-export function SkillList({
-  skills,
-  activeName,
-  branch,
-  folders = ['.claude/skills'],
-  onNew,
-  onSelect,
-  footer,
-}: SkillListProps) {
+export function SkillList({ skills, activeName, branch, folders, onNew, onSelect, footer }: SkillListProps) {
   return (
     <div className={styles.skills}>
       <nav className={styles.skillsNav} aria-label="Skills">
@@ -34,7 +26,7 @@ export function SkillList({
           </Button>
         </div>
         <p className={styles.skillsPath}>
-          {folders.map((f) => `${f}/`).join(', ')} on {branch}
+          {folders ? folders.map((f) => `${f}/`).join(', ') : 'Skill folders'} on {branch}
         </p>
         <ul className={styles.skillItems}>
           {skills.map((s) => {

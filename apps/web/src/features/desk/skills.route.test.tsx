@@ -333,6 +333,29 @@ describe('desk skills folders follow the default agent', () => {
     expect(await screen.findByText('.opencode/skills/, .agents/skills/ on main')).toBeInTheDocument();
   });
 
+  it('names no folder while the agent list loads, then the default agent folders', async () => {
+    setDefaultProvider('codex');
+    mockDb.state.skills[projectId] = [];
+    let release: () => void = () => {};
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    server.use(
+      http.get('*/api/projects/:projectId/agents', async () => {
+        await gate;
+        return undefined;
+      }),
+    );
+    await renderRoute(`${base}/skills`);
+    const empty = await screen.findByRole('heading', { name: /No skills yet/ });
+    expect(screen.getByText('Skill folders on main')).toBeInTheDocument();
+    expect(empty.parentElement).toHaveTextContent("under the project's skill folders");
+    expect(screen.queryByText(/claude\/skills/)).toBeNull();
+    release();
+    expect(await screen.findByText('.agents/skills/ on main')).toBeInTheDocument();
+    expect(empty.parentElement).not.toHaveTextContent('.claude/skills/');
+  });
+
   it('a Claude project names .claude/skills/ then .agents/skills/', async () => {
     await renderRoute(`${base}/skills`);
     expect(await screen.findByText('.claude/skills/, .agents/skills/ on main')).toBeInTheDocument();
