@@ -424,8 +424,11 @@ export async function signInAndCreateProject(
   return { handle, projectId: projectId ?? '' };
 }
 
-/** From the workspace step (right after the Agent step) to the last step, "Trigger your first run". */
-export async function walkSetupSteps(page: Page): Promise<void> {
+/**
+ * From the workspace step (right after the Agent step) to the last step, "Trigger your first run". `onRulesStep` runs
+ * on the rules step ("Add your first rule") before the rules are saved.
+ */
+export async function walkSetupSteps(page: Page, onRulesStep?: (page: Page) => Promise<void>): Promise<void> {
   // Step 3: prepare the workspace. The test passes in the fake pod, then the starter script is saved as version 1.
   await expect(page.getByRole('heading', { name: 'Prepare the workspace', level: 1 })).toBeVisible();
   await page.getByRole('button', { name: 'Test setup' }).click();
@@ -438,6 +441,7 @@ export async function walkSetupSteps(page: Page): Promise<void> {
 
   // Step 5: the prefilled /code-build rule and the /code-review follow-up (pull requests).
   await expect(page.getByRole('heading', { name: 'Add your first rule', level: 1 })).toBeVisible();
+  await onRulesStep?.(page);
   await page.getByRole('button', { name: 'Save rules and finish' }).click();
 
   await expect(page).toHaveURL(/\/new\/ready\?project=/);

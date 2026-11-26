@@ -1,7 +1,7 @@
 import { randomBytes } from 'node:crypto';
 import { expect, test, type Page, type Response } from '@playwright/test';
 import { ProjectDto } from '@agentdesk/contracts';
-import { API, ok, openAgent, openAgentPane, readAgent } from './helpers';
+import { API, deskAgentUrl, ok, openAgent, openAgentPane, readAgent } from './helpers';
 import { buildCast, disposeCast, type Cast } from './rbac-cast';
 
 /*
@@ -59,6 +59,36 @@ test('TC-21.4 A opens P1 Agent & settings and finds no Delete project control', 
   await expect(a.page.getByRole('button', { name: 'Delete project' })).toHaveCount(0);
   await expect(a.page.getByText('Delete project')).toHaveCount(0);
   await expect(a.page.getByRole('tab', { name: 'Danger zone' })).toHaveCount(0);
+  // The same denial by address: ?tab=danger falls back to the Agents tab.
+  await a.page.goto(`${deskAgentUrl(slug, p1)}?tab=danger`);
+  await expect(
+    a.page
+      .getByRole('tablist', { name: 'Agent and project settings' })
+      .getByRole('tab', { name: 'Agents', exact: true, selected: true }),
+  ).toBeVisible();
+  await expect(a.page.getByRole('tab', { name: 'Danger zone' })).toHaveCount(0);
+});
+
+test('TC-57.4 A opens ?tab=danger and lands on Agents with no Danger zone tab, and DELETE of P1 answers 403 and P1 stays', async () => {
+  const { a, o, slug, p1 } = cast;
+  await a.page.goto(`${deskAgentUrl(slug, p1)}?tab=danger`);
+  await expect(a.page.getByRole('heading', { name: 'Agent & settings', level: 1 })).toBeVisible();
+  const tabs = a.page.getByRole('tablist', { name: 'Agent and project settings' });
+  await expect(tabs.getByRole('tab', { name: 'Agents', exact: true, selected: true })).toBeVisible();
+  await expect(tabs.getByRole('tab', { name: 'Danger zone' })).toHaveCount(0);
+
+  const res = await a.api.delete(`/api/projects/${p1}`);
+  expect(res.status(), await res.text()).toBe(403);
+  const stays = await o.api.get(`/api/projects/${p1}`);
+  expect(stays.status(), 'P1 still exists').toBe(200);
+});
+
+test('TC-57.5 O opens P1 Agent & settings and sees four tabs, Danger zone among them', async () => {
+  const { o, slug, p1 } = cast;
+  await openAgent(o.page, slug, p1);
+  const tabs = o.page.getByRole('tablist', { name: 'Agent and project settings' });
+  await expect(tabs.getByRole('tab')).toHaveCount(4);
+  await expect(tabs.getByRole('tab', { name: 'Danger zone', exact: true })).toBeVisible();
 });
 
 test('TC-22.1 A edits a routing rule on P1, saves it, and the change shows after a reload', async () => {
