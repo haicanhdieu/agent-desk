@@ -22,8 +22,15 @@ export function GuardsCard({ maxRunsPerTicket, changeHref, ignoredHref }: Guards
           <span className={styles.monoText}>agent-desk[bot]</span>. Anyone else is ignored.
         </li>
         <li>
-          <span className={styles.strong}>Runs per ticket:</span> at most <b>{maxRunsPerTicket}</b>.{' '}
-          {changeHref && <AppLink href={changeHref}>Change</AppLink>}
+          <span className={styles.strong}>Runs per ticket:</span>{' '}
+          {maxRunsPerTicket === 0 ? (
+            <b>unlimited</b>
+          ) : (
+            <>
+              at most <b>{maxRunsPerTicket}</b>
+            </>
+          )}
+          . {changeHref && <AppLink href={changeHref}>Change</AppLink>}
         </li>
         <li>
           <span className={styles.strong}>One at a time:</span> a ticket can have only one active run per skill.

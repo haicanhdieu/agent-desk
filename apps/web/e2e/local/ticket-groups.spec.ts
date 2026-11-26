@@ -224,6 +224,24 @@ test.describe('BR-9: the run limit stays per ticket', () => {
     await expect(runRows(page)).toHaveCount(3);
     expect((await readGroups(page)).flatMap((g) => g.runs).filter((t) => t === `#${issue}`)).toHaveLength(2);
   });
+
+  test('a limit of 0 is unlimited: runs go past the old cap and the Runs list shows no counts', async ({ page }) => {
+    const { handle, projectId } = await signInAndCreateProject(page);
+    await setRunLimit(page, projectId, 0);
+    const { issue, issueRun, pr } = await linkedPair(page, projectId);
+    await cancelRun(page, issueRun);
+    const second = await buildOn(page, projectId, issue);
+    await cancelRun(page, second);
+
+    const third = await commentOn(page, projectId, issue, '/code-build');
+
+    expect(third.runId).toBeTruthy();
+    await ignoredShowsLimit(page, handle, projectId, false);
+    const groups = await openRuns(page, handle, projectId, 4);
+    expect(groups).toHaveLength(1);
+    expect(groups[0]?.chain).toBe(`Issue #${issue} → PR #${pr}`);
+    expect(groups[0]?.chain).not.toMatch(/\d+ of \d+ runs/);
+  });
 });
 
 // ---- BR-12: a link to an issue without runs does not group ----

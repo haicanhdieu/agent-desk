@@ -261,6 +261,12 @@ describe('GuardsCard', () => {
     expect(screen.getByRole('link', { name: 'Runs, Ignored' })).toHaveAttribute('href', '/ignored');
     expect(screen.getAllByRole('listitem')).toHaveLength(4);
   });
+
+  it('says unlimited, not "at most 0", when the limit is 0', () => {
+    render(<GuardsCard maxRunsPerTicket={0} changeHref="/agent" />);
+    expect(screen.getByText('unlimited')).toBeInTheDocument();
+    expect(screen.queryByText(/at most/)).not.toBeInTheDocument();
+  });
 });
 
 describe('SkillList', () => {

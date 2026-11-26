@@ -47,12 +47,19 @@ export const CreateProjectRequest = z.object({
 });
 export type CreateProjectRequest = z.infer<typeof CreateProjectRequest>;
 
+const RUNS_PER_TICKET_MESSAGE = 'Runs per ticket must be a whole number from 0 to 50 (0 is unlimited)';
+
 export const UpdateProjectRequest = z.object({
   name: z.string().min(1).optional(),
   triggerMode: TriggerMode.optional(),
   pollIntervalSeconds: PollInterval.optional(),
   maxConcurrentRuns: z.number().int().min(1).max(10).optional(),
-  maxRunsPerTicket: z.number().int().min(0).max(50).optional(),
+  maxRunsPerTicket: z
+    .number()
+    .int({ message: RUNS_PER_TICKET_MESSAGE })
+    .min(0, { message: RUNS_PER_TICKET_MESSAGE })
+    .max(50, { message: RUNS_PER_TICKET_MESSAGE })
+    .optional(),
   timeoutSeconds: z
     .number()
     .int()
