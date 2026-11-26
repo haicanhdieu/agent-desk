@@ -1086,6 +1086,17 @@ describe('setup agent step and step 4 model wiring', () => {
     expect(rule?.model).toBe('claude-sonnet-4-5-20250929');
   });
 
+  it('step 4 shows the rule on the project default and saves it with no agent (BR-63, BR-64)', async () => {
+    const id = seedAt('rules');
+    const { router, user } = await renderRoute(`${base}/rules?project=${id}`);
+    expect(await screen.findByLabelText('With agent')).toHaveDisplayValue('Project default (Claude)');
+    await user.clear(screen.getByLabelText('Command'));
+    await user.type(screen.getByLabelText('Command'), 'on-default');
+    await user.click(screen.getByRole('button', { name: 'Save rules and finish' }));
+    await waitFor(() => expect(router.state.location.pathname).toBe(`${base}/ready`));
+    expect(mockDb.state.rules.find((r) => r.projectId === id && r.command === 'on-default')?.agentId).toBeNull();
+  });
+
   it('step 4 with Default model saves model null', async () => {
     const id = seedAt('rules');
     const { router, user } = await renderRoute(`${base}/rules?project=${id}`);
@@ -1514,11 +1525,21 @@ describe('wizard Agent step: pick and set up any runnable agent (BR-53, BR-63 to
   });
 
   it('the placeholder is not deleted when the step is already past the Agent step', async () => {
+    // The page locks the provider there (BR-65), so the guard is exercised on the hook itself.
     const id = seedPlaceholder('setup');
+    const { queryClient } = await renderRoute(`${base}/agent?project=${id}`);
+    const project = projectFixtures.find((p) => p.id === id);
+    if (!project) throw new Error('no project');
     const rec = record();
-    const { router, user } = await renderRoute(`${base}/agent?project=${id}`);
-    await pick(user, 'OpenCode');
-    await next(user, router);
+    const wrapper = ({ children }: { children: ReactNode }) =>
+      createElement(QueryClientProvider, { client: queryClient }, children);
+    const { result } = renderHook(() => useSaveAgentStep('alice'), { wrapper });
+    await act(async () => {
+      await result.current.save(
+        { ...project, setupStep: 'setup' },
+        { kind: 'opencode', model: '', maxConcurrentRuns: 1, credentialType: null, credential: '', baseUrl: '' },
+      );
+    });
     rec.stop();
     expect(rec.writes()).not.toContain('DELETE /api/agents/:id');
     expect(projectAgents()).toHaveLength(2);
@@ -1547,6 +1568,31 @@ describe('wizard Agent step: pick and set up any runnable agent (BR-53, BR-63 to
     await renderRoute(`${base}/agent?project=${id}`);
     expect(await screen.findByRole('radio', { name: 'Claude Code' })).toBeChecked();
     expect(screen.getByRole('radio', { name: 'OpenAI Codex' })).toBeDisabled();
+  });
+
+  it('BR-65: resuming past the Agent step shows the provider read-only even with no credential saved', async () => {
+    const id = seedPlaceholder('setup');
+    await renderRoute(`${base}/agent?project=${id}`);
+    expect(await screen.findByRole('radio', { name: 'Claude Code' })).toBeChecked();
+    expect(screen.getByRole('radio', { name: 'OpenAI Codex' })).toBeDisabled();
+  });
+
+  it('BR-65: resuming past the Agent step shows the agent name and the saved credential as set', async () => {
+    const id = seedAt('setup');
+    const agent = placeholder();
+    agent.name = 'Main agent';
+    agent.credential = { set: true, type: 'oauth_token', updatedAt: new Date().toISOString(), setBy: 'kim-hale' };
+    await renderRoute(`${base}/agent?project=${id}`);
+    expect(await screen.findByText('Main agent')).toBeInTheDocument();
+    expect(screen.getByText(/Set .* by kim-hale\./)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Replace' })).toBeInTheDocument();
+    expect(screen.queryByLabelText('Subscription token', { selector: 'input[type="password"]' })).toBeNull();
+  });
+
+  it('a project still at the Agent step with no credential lets the provider be picked', async () => {
+    const id = seedPlaceholder('agent');
+    await renderRoute(`${base}/agent?project=${id}`);
+    expect(await screen.findByRole('radio', { name: 'OpenAI Codex' })).toBeEnabled();
   });
 
   it('a legacy project with the seeded row continues with no create, no delete and no credential write', async () => {
@@ -1581,6 +1627,8 @@ describe('wizard Agent step: pick and set up any runnable agent (BR-53, BR-63 to
     await user.type(await tokenBox(user), TOKEN);
     await user.click(screen.getByRole('button', { name: 'Continue' }));
     expect(await screen.findByRole('button', { name: 'Continue anyway' })).toBeInTheDocument();
+    // The Banner names the failure with the status word of the list rows, never the raw status code.
+    expect(screen.getByText(status === 'rejected' ? 'Credential rejected' : "Can't reach address")).toBeInTheDocument();
     expect(router.state.location.pathname).toBe(`${base}/agent`);
     expect(projectRow(id).setupStep).toBe('agent');
   });

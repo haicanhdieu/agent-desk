@@ -1,7 +1,7 @@
 import { randomBytes } from 'node:crypto';
 import { expect, test, type Page, type Response } from '@playwright/test';
 import { ProjectDto } from '@agentdesk/contracts';
-import { API, deskAgentUrl, ok, openAgent, readAgent } from './helpers';
+import { API, ok, openAgent, openAgentPane, readAgent } from './helpers';
 import { buildCast, disposeCast, type Cast } from './rbac-cast';
 
 /*
@@ -50,12 +50,15 @@ const projectPath = /^\/api\/projects\/[^/]+$/;
 
 test('TC-21.4 A opens P1 Agent & settings and finds no Delete project control', async () => {
   const { a, slug, p1 } = cast;
+  // The page is loaded on each tab it offers this person: an absent control is not an unrendered page.
   await openAgent(a.page, slug, p1);
-  // The page is loaded: its sections are there, so an absent control is not an unrendered page.
-  await expect(a.page.getByRole('button', { name: 'Save agent' })).toBeVisible();
+  await expect(a.page.getByRole('button', { name: 'Add agent' })).toBeVisible();
+  await expect(a.page.getByRole('button', { name: 'Delete project' })).toHaveCount(0);
+  await openAgent(a.page, slug, p1, 'limits');
   await expect(a.page.getByRole('button', { name: 'Save limits' })).toBeVisible();
   await expect(a.page.getByRole('button', { name: 'Delete project' })).toHaveCount(0);
   await expect(a.page.getByText('Delete project')).toHaveCount(0);
+  await expect(a.page.getByRole('tab', { name: 'Danger zone' })).toHaveCount(0);
 });
 
 test('TC-22.1 A edits a routing rule on P1, saves it, and the change shows after a reload', async () => {
@@ -135,13 +138,13 @@ test('TC-22.4 A changes the trigger mode of P1 to Polling, and Polling shows aft
   const mode = (): ReturnType<Page['getByRole']> =>
     a.page.getByRole('radiogroup', { name: 'Trigger mode' }).getByRole('radio', { name: 'Polling' });
   try {
-    await openAgent(a.page, slug, p1);
+    await openAgent(a.page, slug, p1, 'github');
     await expect(mode()).toHaveAttribute('aria-checked', 'false');
     const saved = answerTo(a.page, 'PATCH', projectPath);
     await mode().click();
     expect((await saved).status(), 'the trigger mode save is accepted').toBe(200);
 
-    await openAgent(a.page, slug, p1);
+    await openAgent(a.page, slug, p1, 'github');
     await expect(mode()).toHaveAttribute('aria-checked', 'true');
   } finally {
     await quietly(() => o.api.patch(`/api/projects/${p1}`, { data: { triggerMode: 'webhook' } }));
@@ -151,7 +154,7 @@ test('TC-22.4 A changes the trigger mode of P1 to Polling, and Polling shows aft
 test('TC-22.5 A changes the concurrency of P1, saves it, and the new value shows after a reload', async () => {
   const { a, slug, p1 } = cast;
   const field = (): ReturnType<Page['getByLabel']> => a.page.getByLabel('Concurrent runs', { exact: true });
-  await openAgent(a.page, slug, p1);
+  await openAgent(a.page, slug, p1, 'limits');
   await expect(field()).toHaveValue('3');
   await field().fill('5');
   const saved = answerTo(a.page, 'PATCH', projectPath);
@@ -159,7 +162,7 @@ test('TC-22.5 A changes the concurrency of P1, saves it, and the new value shows
   expect((await saved).status(), 'the limits save is accepted').toBe(200);
   await expect(a.page.getByText('Limits saved')).toBeVisible();
 
-  await openAgent(a.page, slug, p1);
+  await openAgent(a.page, slug, p1, 'limits');
   await expect(field()).toHaveValue('5');
 });
 
@@ -168,7 +171,7 @@ test('TC-22.6 A changes the per-ticket limit of P1, saves it, and the new value 
   const field = (): ReturnType<Page['getByLabel']> => a.page.getByLabel('Runs per ticket', { exact: true });
   const before = ProjectDto.parse(await ok(await a.api.get(`/api/projects/${p1}`), 200, 'project')).maxRunsPerTicket;
   const next = String(before === 7 ? 8 : 7);
-  await openAgent(a.page, slug, p1);
+  await openAgent(a.page, slug, p1, 'limits');
   await expect(field()).toHaveValue(String(before));
   await field().fill(next);
   const saved = answerTo(a.page, 'PATCH', projectPath);
@@ -176,7 +179,7 @@ test('TC-22.6 A changes the per-ticket limit of P1, saves it, and the new value 
   expect((await saved).status(), 'the limits save is accepted').toBe(200);
   await expect(a.page.getByText('Limits saved')).toBeVisible();
 
-  await openAgent(a.page, slug, p1);
+  await openAgent(a.page, slug, p1, 'limits');
   await expect(field()).toHaveValue(next);
 });
 
@@ -185,13 +188,14 @@ test('TC-22.7 A changes the agent of P1, saves it, and the change shows after a 
   const models = ['opus', 'sonnet', 'haiku'];
   const before = (await readAgent(a.page, p1)).model;
   const next = models.find((m) => m !== before) ?? 'haiku';
-  await openAgent(a.page, slug, p1);
+  const agentId = (await readAgent(a.page, p1)).id;
+  await openAgentPane(a.page, slug, p1, agentId);
   await expect(a.page.getByRole('combobox', { name: 'Default model' })).toHaveValue(before);
   await a.page.getByRole('combobox', { name: 'Default model' }).selectOption({ label: next });
-  const saved = answerTo(a.page, 'PUT', /^\/api\/projects\/[^/]+\/agent$/);
+  const saved = answerTo(a.page, 'PATCH', /^\/api\/agents\/[^/]+$/);
   await a.page.getByRole('button', { name: 'Save agent' }).click();
   expect((await saved).status(), 'the agent save is accepted').toBe(200);
 
-  await a.page.goto(deskAgentUrl(slug, p1));
+  await openAgentPane(a.page, slug, p1, agentId);
   await expect(a.page.getByRole('combobox', { name: 'Default model' })).toHaveValue(next);
 });

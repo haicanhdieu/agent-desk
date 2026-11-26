@@ -34,6 +34,10 @@ const WORDS: Record<string, { tone: AgentStatusTone; text: string }> = {
   testing: { tone: 'off', text: 'Testing…' },
 };
 
+/** The words a status reads as, for a message that names it outside a row (an unknown status reads "Can't verify"). */
+export const agentStatusText = (status: string): string =>
+  (Object.hasOwn(WORDS, status) ? WORDS[status] : WORDS.invalid).text;
+
 /** Maps a status word to the row's tone, glyph and text. A status the web does not know reads "Can't verify". */
 export function AgentStatus({ status, credentialOptional = false }: AgentStatusProps) {
   if (status === 'no_credential' && credentialOptional) return <AgentStatusMark tone="off" text="No credential" />;

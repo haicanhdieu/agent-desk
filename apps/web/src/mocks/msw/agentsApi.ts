@@ -6,9 +6,11 @@ import {
   type AgentDto,
   type AgentKind,
   type CreateAgentRequest,
+  type OrgChecklistDto,
   type PutCredentialRequest,
   type UpdateAgentRequest,
 } from '@agentdesk/contracts';
+import { projectFixtures } from '../dto/projects';
 import { mockDb } from './db';
 import { Problem, conflict } from './http';
 
@@ -36,6 +38,23 @@ export function refuseUnknownProvider(raw: unknown): void {
 export function agentsOf(projectId: string): AgentDto[] {
   const mine = mockDb.state.agents.filter((a) => a.projectId === projectId);
   return [...mine.filter((a) => a.isDefault), ...mine.filter((a) => !a.isDefault)];
+}
+
+/**
+ * The checklist of a project the setup wizard created in the mock: "Add an agent" is done when the project's default
+ * agent is ready (it has a credential, or its kind runs without one), as the API reads it. The fixture projects keep
+ * their stored checklist (the onboarding scenarios set it); "Add a rule" stays as stored.
+ */
+export function checklistOf(stored: OrgChecklistDto): OrgChecklistDto {
+  const projectId = stored.projectId;
+  if (projectId === null || projectFixtures.some((p) => p.id === projectId)) return stored;
+  const lead = agentsOf(projectId)[0];
+  const ready =
+    lead !== undefined &&
+    lead.isDefault &&
+    (lead.credential.set || AGENT_KIND_CAPABILITIES[lead.provider].credentialOptional);
+  const steps = stored.steps.map((s) => (s.key === 'add_agent' ? { ...s, done: ready } : s));
+  return { ...stored, steps, complete: steps.every((s) => s.done) };
 }
 
 const takenName = (projectId: string, name: string, exceptId?: string) =>

@@ -155,7 +155,7 @@ export { useDocumentTitle } from './useDocumentTitle';
 export { ProviderMark, type ProviderMarkProps } from './ProviderMark';
 export { AgentRow, type AgentRowProps } from './AgentRow';
 export { AgentList, type AgentListProps } from './AgentList';
-export { AgentStatus, AgentStatusMark, type AgentStatusProps } from './AgentStatus';
+export { AgentStatus, AgentStatusMark, agentStatusText, type AgentStatusProps } from './AgentStatus';
 export { DeleteAgentDialog, type DeleteAgentDialogProps } from './DeleteAgentDialog';
 export {
   AgentPane,

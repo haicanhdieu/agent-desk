@@ -483,6 +483,64 @@ describe('Setup2 (FR-3, BR-53)', () => {
     expect(screen.getByRole('radio', { name: 'API key' })).toBeChecked();
     expect(screen.queryByText('Pick an agent to continue.')).toBeNull();
   });
+  it('BR-65: a return visit shows the agent name and the credential as set, with no token field', async () => {
+    const onContinue = vi.fn();
+    render(
+      s2({
+        onContinue,
+        savedProvider: 'codex',
+        credentialType: 'auth_json',
+        credentialSaved: true,
+        savedName: 'Codex main',
+        credentialInfo: { setAt: '2 days ago', setBy: 'kim-hale' },
+      }),
+    );
+    expect(screen.getByText('Codex main')).toBeInTheDocument();
+    expect(screen.getByText(/Set 2 days ago by kim-hale\./)).toBeInTheDocument();
+    expect(screen.queryByLabelText('auth.json contents')).toBeNull();
+    await userEvent.click(screen.getByRole('button', { name: 'Replace' }));
+    expect(screen.getByLabelText('auth.json contents')).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+    expect(screen.getByRole('button', { name: 'Replace' })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Continue' }));
+    expect(onContinue).toHaveBeenCalledWith(expect.objectContaining({ provider: 'codex', credential: '' }));
+  });
+  it('a resumed endpoint credential edited without Replace opens the entry and shows the missing-key message', async () => {
+    const onContinue = vi.fn();
+    render(
+      s2({
+        onContinue,
+        savedProvider: 'opencode',
+        credentialType: 'api_key',
+        credentialSaved: true,
+        credentialInfo: { setAt: '2 days ago', setBy: 'kim-hale' },
+        baseUrl: 'https://old.example.com/v1',
+        model: 'my-model',
+      }),
+    );
+    expect(screen.queryByRole('textbox', { name: 'API key' })).toBeNull();
+    await userEvent.type(screen.getByLabelText('API endpoint'), '/x');
+    await userEvent.click(screen.getByRole('button', { name: 'Continue' }));
+    expect(onContinue).not.toHaveBeenCalled();
+    expect(screen.getByText('Enter the API key for this endpoint.')).toBeInTheDocument();
+    expect(secretBox('API key')).toBeInTheDocument();
+  });
+  it('switching the credential type on a resumed visit drops the saved row for the new type', async () => {
+    const onContinue = vi.fn();
+    render(
+      s2({
+        onContinue,
+        savedProvider: 'codex',
+        credentialType: 'auth_json',
+        credentialSaved: true,
+        credentialInfo: { setAt: '2 days ago', setBy: 'kim-hale' },
+      }),
+    );
+    expect(screen.getByText(/Set 2 days ago by kim-hale\./)).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('radio', { name: 'API key' }));
+    expect(screen.queryByText(/Set 2 days ago by kim-hale\./)).toBeNull();
+    expect(secretBox('API key')).toBeInTheDocument();
+  });
   it('a rejected test shows the Banner and "Continue anyway", which advances', async () => {
     const onContinueAnyway = vi.fn();
     render(

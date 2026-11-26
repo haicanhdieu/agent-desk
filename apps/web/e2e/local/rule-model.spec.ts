@@ -1,7 +1,7 @@
 import { randomBytes } from 'node:crypto';
 import { expect, test, type Page } from '@playwright/test';
 import { RuleDto, pageOf } from '@agentdesk/contracts';
-import { API, ok, readAgent, signInAndCreateProject, signInAndStartProject } from './helpers';
+import { API, continueAgentStep, ok, readAgent, signInAndCreateProject, signInAndStartProject } from './helpers';
 
 /*
  * Local end-to-end for the rule form's Model field (Desk → Routing rules) and the setup wizard's Agent step (spec BR-19,
@@ -37,7 +37,12 @@ const wizardModel = (page: Page) => page.getByRole('combobox', { name: 'Default 
 const wizardModelName = (page: Page) => page.getByRole('textbox', { name: 'Model name' });
 const wizardAddress = (page: Page) => page.getByRole('textbox', { name: 'API address' });
 const wizardToken = (page: Page) => page.getByRole('textbox', { name: 'Token' });
-const agentStepHeading = (page: Page) => page.getByRole('heading', { name: 'Add the Claude credential', level: 1 });
+const agentStepHeading = (page: Page) => page.getByRole('heading', { name: 'Add your agent', level: 1 });
+
+/** A new project's agent step opens with nothing picked: pick Claude Code, whose fields then show. */
+async function pickClaude(page: Page) {
+  await page.getByRole('radio', { name: 'Claude Code', exact: true }).check();
+}
 
 /** The Agent step's picker has left its loading state once the whole list is there (no "Default model" entry here). */
 async function waitForWizardList(page: Page) {
@@ -57,12 +62,12 @@ async function openAgentStep(page: Page, handle: string, projectId: string) {
  */
 async function continueLeaveAndResume(page: Page, pickModel: () => Promise<void>) {
   const { handle, projectId } = await signInAndStartProject(page);
+  await pickClaude(page);
   await waitForWizardList(page);
   await wizardToken(page).fill(`sk-ant-e2e-${randomBytes(8).toString('hex')}`);
   await wizardAddress(page).fill(GATEWAY);
   await pickModel();
-  await page.getByRole('button', { name: 'Continue' }).click();
-  await expect(page.getByRole('heading', { name: 'Prepare the workspace', level: 1 })).toBeVisible();
+  await continueAgentStep(page);
 
   // Go to the project list: a full page load, so nothing of the step is kept in the browser. The row of the project
   // is there; the list has no link back into the wizard, so the Agent step is opened by its address.
@@ -77,9 +82,10 @@ async function continueLeaveAndResume(page: Page, pickModel: () => Promise<void>
  * this reads the credential where the app shows it, Desk → Agent & settings, and through the agent API.
  */
 async function expectCredentialSet(page: Page, handle: string, projectId: string) {
-  expect((await readAgent(page, projectId)).credential.set, 'the credential is set').toBe(true);
-  await page.goto(`/o/${handle}/p/${projectId}/desk/agent`);
-  await expect(page.getByRole('heading', { name: 'Agent & settings', level: 1 })).toBeVisible();
+  const agent = await readAgent(page, projectId);
+  expect(agent.credential.set, 'the credential is set').toBe(true);
+  await page.goto(`/o/${handle}/p/${projectId}/desk/agent?agent=${agent.id}`);
+  await expect(page.getByRole('complementary', { name: 'Edit agent' })).toBeVisible();
   await expect(page.getByText(SET_LINE)).toBeVisible();
 }
 
@@ -87,6 +93,7 @@ test('TC-19.5 with live lists off, the Agent step of a new project lists opus, s
   page,
 }) => {
   await signInAndStartProject(page);
+  await pickClaude(page);
   await waitForWizardList(page);
   await expect(page.getByText(LIVE_OFF_NOTE)).toBeVisible();
   // A note, not an error or a loading state.

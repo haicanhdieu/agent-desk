@@ -387,6 +387,44 @@ describe('projects', () => {
     });
   });
 
+  describe("orgs.checklist follows the created project's default agent (BR-64, BR-68)", () => {
+    const steps = async (): Promise<Record<string, boolean>> => {
+      const c = await api.orgs.checklist({ params: { orgId: ids.created(777) } });
+      return Object.fromEntries(c.steps.map((s) => [s.key, s.done]));
+    };
+    const createProject = async () => {
+      const used = new Set(mockDb.state.projects.map((p) => p.repoPath));
+      const found = Object.entries(mockDb.state.repos)
+        .flatMap(([connectionId, repos]) => repos.map((r) => ({ connectionId, repoPath: r.repoPath })))
+        .find((r) => !used.has(r.repoPath));
+      if (!found) throw new Error('no free repo fixture');
+      return api.projects.create({ body: { ...found, triggerMode: 'webhook' } });
+    };
+
+    it('the credential-less placeholder is not done; a credential on the default makes it done', async () => {
+      const project = await createProject();
+      expect(await steps()).toMatchObject({ create_project: true, add_agent: false });
+      const placeholder = (await api.agents.list({ params: { projectId: project.id }, query: {} })).items[0];
+      if (!placeholder) throw new Error('no placeholder');
+      await api.agents.putCredential({
+        params: { agentId: placeholder.id },
+        body: { type: 'oauth_token', value: 'sk-ant-oat01-x' },
+      });
+      expect(await steps()).toMatchObject({ add_agent: true });
+    });
+
+    it('a default OpenCode agent with no credential is done at once; a credential-less Codex default is not', async () => {
+      const project = await createProject();
+      const p = { projectId: project.id };
+      const codex = await api.agents.create({ params: p, body: { provider: 'codex', name: 'Codex' } });
+      await api.agents.setDefault({ params: { agentId: codex.id } });
+      expect(await steps()).toMatchObject({ add_agent: false });
+      const open = await api.agents.create({ params: p, body: { provider: 'opencode', name: 'OpenCode' } });
+      await api.agents.setDefault({ params: { agentId: open.id } });
+      expect(await steps()).toMatchObject({ add_agent: true });
+    });
+  });
+
   it('projects.update stores the five limits', async () => {
     const limits = {
       timeoutSeconds: 7200,

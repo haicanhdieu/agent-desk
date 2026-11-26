@@ -11,7 +11,8 @@ import { createFileRoute, notFound, redirect, useLocation, useNavigate } from '@
 import { useState } from 'react';
 import { toastFromError } from '@/app/boundaries';
 import { useNow } from '@/app/useNow';
-import type { ProviderPickerOption, RuleDraft } from '@/components';
+import { relativeTime } from '@/features/relativeTime';
+import { agentStatusText, type ProviderPickerOption, type RuleDraft } from '@/components';
 import { toModelList, type ModelList } from '@/components/ModelPicker';
 import { CommandChip, useToast } from '@/ds';
 import { useAppBar } from '@/features/chrome/appBar';
@@ -53,7 +54,7 @@ import {
 import { setupQueries } from '@/features/setup/queries';
 import { isProviderReauthRequired } from '@/features/setup/reauth';
 import { resolveStep } from '@/features/setup/resume';
-import { SetupSearch, SetupStepParam } from '@/features/setup/steps';
+import { SetupSearch, SetupStepParam, stepIndex } from '@/features/setup/steps';
 import { SKILL_TEMPLATES } from '@/features/setup/templates';
 import { connectionCopy } from '@/mocks/connection';
 import type { AgentKindView } from '@/mocks/types';
@@ -380,6 +381,7 @@ function builtinList(kind: AgentKind): ModelList {
 type AgentStepErrors = StepErrors<'credential' | 'model' | 'maxConcurrent' | 'baseUrl'>;
 
 function AgentStep({ org, projectId }: { org: string; projectId: string }) {
+  const now = useNow();
   const bar = useAppBar(org);
   const goTo = useGoToStep(org);
   const { data: project } = useSuspenseQuery(projectsQueries.detail(org, projectId));
@@ -393,6 +395,9 @@ function AgentStep({ org, projectId }: { org: string; projectId: string }) {
   const [testFailed, setTestFailed] = useState<AgentTestFailure>();
   const [maxConcurrent, setMaxConcurrent] = useState(project.maxConcurrentRuns);
   const models = useQuery(deskQueries.agentModels(org, agent.id));
+  // BR-65: coming back once setup has moved past this step, the provider is read-only, credential or not. A retry in
+  // the same visit keeps the project at `agent` and reuses the created agent.
+  const resumed = stepIndex(project.setupStep) > stepIndex('agent');
 
   const onContinue = async (d: Setup2Draft) => {
     const max = /^\d+$/.test(d.maxConcurrent.trim()) ? Number(d.maxConcurrent.trim()) : NaN;
@@ -459,9 +464,18 @@ function AgentStep({ org, projectId }: { org: string; projectId: string }) {
       repo={project.repoPath}
       kinds={AGENT_KIND_VIEWS}
       providers={agentProviders(agent.provider, mayChangeAgents)}
-      savedProvider={agent.credential.set ? agent.provider : undefined}
+      savedProvider={agent.credential.set || resumed ? agent.provider : undefined}
       credentialType={agent.credential.type ?? undefined}
       credentialSaved={agent.credential.set}
+      credentialInfo={
+        agent.credential.set && resumed
+          ? {
+              setAt: agent.credential.updatedAt ? relativeTime(agent.credential.updatedAt, now) : '',
+              setBy: agent.credential.setBy ?? '',
+            }
+          : undefined
+      }
+      savedName={resumed ? agent.name : undefined}
       secretState="entering"
       modelList={live}
       modelLists={{ ...BUILTIN_MODEL_LISTS, [agent.provider]: own }}
@@ -474,7 +488,7 @@ function AgentStep({ org, projectId }: { org: string; projectId: string }) {
       progress={progress}
       errors={errors.fields}
       formError={errors.form}
-      testFailed={testFailed}
+      testFailed={testFailed && { ...testFailed, status: agentStatusText(testFailed.status) }}
       onContinueAnyway={() => void onContinueAnyway()}
     />
   );
@@ -634,6 +648,7 @@ function RulesStep({ org, projectId }: { org: string; projectId: string }) {
       projectName={project.name}
       repo={project.repoPath}
       rule={rule}
+      defaultAgentName={agent.name}
       skills={skillNames}
       modelList={toModelList(models, agent.baseUrl)}
       promptPreview={promptPreview}

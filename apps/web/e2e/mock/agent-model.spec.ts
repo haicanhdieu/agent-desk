@@ -11,15 +11,25 @@ import {
 } from './mock';
 
 const GATEWAY = 'https://gateway.harbor-labs.com';
-const LOADED_NOTE = "Loaded from the provider. Rules that don't name a model use this one.";
-const TYPED_NOTE = "Sent to Claude Code exactly as typed. Rules that don't name a model use this one.";
+const LOADED_NOTE = 'Loaded from the provider. Rules that don’t name a model use this one.';
+const TYPED_NOTE = 'Sent to Claude Code exactly as typed. Rules that don’t name a model use this one.';
 const REPLACING_TEXTS = [
   'Replaced when you save',
   'Credential needed again',
   'The API address changed. A saved credential is only sent to the address it was saved with, so paste it again for the new one.',
 ];
 
-const open = async (page: Page) => page.goto(`/o/${ORG}/p/${INVOICER_API}/desk/agent`);
+/** The pane of the one seeded agent, by its deep link: the Agents tab with the Edit agent pane open. */
+const open = async (page: Page) => {
+  await page.goto(`/o/${ORG}/p/${INVOICER_API}/desk/agent?agent=${INVOICER_API_AGENT}`);
+  await expect(agentPane(page)).toBeVisible();
+};
+const agentPane = (page: Page) => page.getByRole('complementary', { name: 'Edit agent' });
+/** The agent's row on the Agents tab: Edit opens its pane (client-side, so the mock store is kept). */
+const editClaude = async (page: Page) => {
+  await page.getByRole('button', { name: 'Edit Claude', exact: true }).click();
+  await expect(agentPane(page)).toBeVisible();
+};
 const modelSelect = (page: Page) => page.getByLabel('Default model');
 const modelNameInput = (page: Page) => page.getByLabel('Model name');
 const addressInput = (page: Page) => page.getByLabel('API address');
@@ -34,7 +44,7 @@ async function openAgentWithoutCredential(page: Page) {
   await page.getByRole('link', { name: 'New project' }).click();
   await page.getByRole('radio', { name: 'dev/demo' }).check();
   await page.getByRole('button', { name: 'Continue' }).click();
-  await expect(page.getByRole('heading', { name: 'Add the Claude credential', level: 1 })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Add your agent', level: 1 })).toBeVisible();
   await page.goBack();
   await page.goBack();
   await page.getByRole('link', { name: 'demo', exact: true }).click();
@@ -44,6 +54,7 @@ async function openAgentWithoutCredential(page: Page) {
     .click();
   await page.getByRole('link', { name: 'Agent & settings' }).click();
   await expect(page.getByRole('heading', { name: 'Agent & settings', level: 1 })).toBeVisible();
+  await editClaude(page);
 }
 
 /** A client-side round trip: a reload would reseed the mock store, this re-reads the saved agent. */
@@ -52,6 +63,7 @@ async function leaveAndReturn(page: Page) {
   await expect(page.getByRole('heading', { name: 'Routing rules', level: 1 })).toBeVisible();
   await page.getByRole('link', { name: 'Agent & settings' }).click();
   await expect(page.getByRole('heading', { name: 'Agent & settings', level: 1 })).toBeVisible();
+  await editClaude(page);
 }
 
 /**
@@ -65,7 +77,8 @@ async function saveDefaultModel(
 ) {
   await pick(page);
   await page.getByRole('button', { name: 'Save agent' }).click();
-  await expect(page.getByRole('button', { name: 'Save agent' })).toBeEnabled();
+  // A saved agent closes its pane.
+  await expect(agentPane(page)).toHaveCount(0);
   await leaveAndReturn(page);
   await expectSaved(page);
 }
@@ -76,14 +89,15 @@ const expectTyped = (value: string) => async (page: Page) => {
   await expect(modelNameInput(page)).toHaveValue(value);
 };
 
-/** Opens the credential replace panel, pastes a token and tests-and-replaces (saves the typed address with it). */
+/** Opens the credential replace panel, pastes a token and saves-and-tests it (saves the typed address with it). */
 async function replaceCredential(page: Page, token: string) {
-  if (!(await page.getByLabel('New token', { exact: true }).isVisible())) {
+  const tokenBox = page.getByRole('textbox', { name: 'Subscription token', exact: true });
+  if (!(await tokenBox.isVisible())) {
     await page.getByRole('button', { name: 'Replace', exact: true }).click();
   }
-  await page.getByLabel('New token', { exact: true }).fill(token);
-  await page.getByRole('button', { name: 'Test and replace' }).click();
-  await expect(page.getByLabel('New token', { exact: true })).toHaveCount(0);
+  await tokenBox.fill(token);
+  await page.getByRole('button', { name: 'Save and test' }).click();
+  await expect(tokenBox).toHaveCount(0);
 }
 
 const live = (ids: string[]) => ({ [INVOICER_API_AGENT]: { kind: 'live' as const, ids } });
@@ -334,7 +348,9 @@ test.describe('BR-13 editing the address switches the credential to its replacin
     await addressInput(page).fill(GATEWAY);
     for (const text of REPLACING_TEXTS) await expect(page.getByText(text, { exact: true })).toBeVisible();
     await expect(
-      page.getByText("Changed from Anthropic's default. It is saved together with the new credential below."),
+      page.getByText(
+        'Changed from the provider’s default address. It is saved together with the new credential below.',
+      ),
     ).toBeVisible();
   });
 

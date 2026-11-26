@@ -53,6 +53,10 @@ export interface Setup2Props extends SetupNav {
   credentialType?: CredentialType;
   /** A credential is already saved: Continue works with an empty field. */
   credentialSaved?: boolean;
+  /** A return visit with a saved credential: shows it as set ("Set <when> by <who>") with Replace, not the empty entry. */
+  credentialInfo?: { setAt: string; setBy: string };
+  /** A return visit: the saved agent's name, shown read-only next to the provider. */
+  savedName?: string;
   secretState: 'entering' | 'empty';
   /** The models for the Default model picker (any provider without its own list in `modelLists`). */
   modelList: ModelList;
@@ -90,6 +94,8 @@ export function Setup2({
   savedProvider,
   credentialType,
   credentialSaved = false,
+  credentialInfo,
+  savedName,
   secretState,
   modelList,
   modelLists,
@@ -113,9 +119,8 @@ export function Setup2({
   const cap = kinds.find((k) => k.kind === provider);
   const firstType = (k: AgentKindView | undefined) =>
     k && !k.credentialOptional ? (k.credentialTypes[0]?.type ?? null) : null;
-  const [type, setType] = useState<CredentialType | null>(
-    credentialType ?? firstType(kinds.find((k) => k.kind === savedProvider)),
-  );
+  const savedType = credentialType ?? firstType(kinds.find((k) => k.kind === savedProvider));
+  const [type, setType] = useState<CredentialType | null>(savedType);
   // The person's pick; until they pick, the saved model (or the first listed one) shows, so a list that arrives
   // after mount is followed instead of a stale copy.
   const [picked, setPicked] = useState<string | null>(null);
@@ -126,6 +131,8 @@ export function Setup2({
   // The secret stays in a ref (never rendered) and goes out only with Continue.
   const secret = useRef('');
   const [entryKey, setEntryKey] = useState(0);
+  // A saved credential shows as set; Replace opens the entry and Cancel drops what was typed.
+  const [replacing, setReplacing] = useState(false);
   const dropSecret = () => {
     secret.current = '';
     setEntryKey((k) => k + 1);
@@ -133,6 +140,8 @@ export function Setup2({
 
   const list = (provider !== null && modelLists?.[provider]) || modelList;
   const typeInfo = cap?.credentialTypes.find((t) => t.type === type);
+  // The saved credential of the provider and type on show (a switch to another type falls back to the entry).
+  const showSaved = credentialSaved && credentialInfo !== undefined && provider === savedProvider && type === savedType;
   const addressSpec = cap?.baseUrl ?? null;
   const addressRequired = addressSpec !== null && type !== null && addressSpec.requiredFor.includes(type);
   const addressShown = addressSpec !== null && (addressSpec.requiredFor.length === 0 || addressRequired);
@@ -155,6 +164,7 @@ export function Setup2({
     setPicked(null);
     setNoneChosen(false);
     setLocal({});
+    setReplacing(false);
     dropSecret();
   };
   const pickType = (next: CredentialType) => {
@@ -185,6 +195,8 @@ export function Setup2({
       found.credential = 'Paste the token to continue.';
     }
     setLocal(found);
+    // The message sits on the entry, which a saved row hides: open it.
+    if (found.credential && showSaved) setReplacing(true);
     if (Object.keys(found).length > 0) return;
     onContinue?.({
       provider: cap.kind,
@@ -225,6 +237,11 @@ export function Setup2({
         readOnly={readOnlyProvider}
         error={noneChosen ? NONE_CHOSEN : undefined}
       />
+      {savedName !== undefined && (
+        <p className={styles.faintLine}>
+          Agent name: <b className={styles.semi}>{savedName}</b>
+        </p>
+      )}
       {cap && (
         <>
           {cap.credentialTypes.length > 1 && (
@@ -268,7 +285,14 @@ export function Setup2({
           {type !== null && (
             <SecretField
               key={`${provider ?? ''}-${type}-${entryKey}`}
-              state={secretState}
+              state={showSaved ? (replacing ? 'replacing' : 'saved') : secretState}
+              savedInfo={credentialInfo}
+              onReplace={() => setReplacing(true)}
+              onCancel={() => {
+                setReplacing(false);
+                dropSecret();
+              }}
+              credentialTypes={cap.credentialTypes}
               credentialType={type}
               valueLabel={typeInfo?.valueLabel}
               hideSubmit={!onSubmitCredential}

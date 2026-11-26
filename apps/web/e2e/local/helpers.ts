@@ -13,7 +13,9 @@ import {
 import {
   AccessDto,
   AgentDto,
+  type AgentKind,
   AssignmentDto,
+  type CreateAgentRequest,
   CreateOrgResponse,
   InstallResponse,
   InvitationDto,
@@ -24,6 +26,7 @@ import {
   PlatformRoleDto,
   type PrState,
   RoleDto,
+  RuleDto,
   RunDto,
   RunLogResponse,
   RunTranscriptResponse,
@@ -307,9 +310,8 @@ async function newOwner(page: Page): Promise<string> {
   return handle;
 }
 
-/** A new owner (org created by the platform admin, owner invitation), then the five setup steps against the fake board; ends on the project's Runs page. */
-export async function signInAndCreateProject(page: Page): Promise<{ handle: string; projectId: string }> {
-  // Sign in: a platform-created org with the handle as its slug, an owner invitation, then dev login accepts it.
+/** The wizard's repository step: sign in as a new owner, install the fake connection, pick dev/demo and press Continue. */
+async function startWizard(page: Page): Promise<string> {
   const handle = await newOwner(page);
 
   // The fake connection: the app's Connect button installs GitHub only, so the install starts over the API. Its URL is
@@ -325,11 +327,105 @@ export async function signInAndCreateProject(page: Page): Promise<{ handle: stri
   await page.getByRole('radio', { name: REPO_RADIO }).check();
   await page.getByRole('button', { name: 'Continue' }).click();
 
-  // Step 2: any string as the credential.
-  await expect(page.getByRole('heading', { name: 'Add the Claude credential', level: 1 })).toBeVisible();
-  await page.getByRole('textbox', { name: 'Token' }).fill(`sk-ant-e2e-${randomBytes(8).toString('hex')}`);
-  await page.getByRole('button', { name: 'Continue' }).click();
+  // Step 2 opens on "Add your agent" with nothing picked.
+  await expect(page.getByRole('heading', { name: 'Add your agent', level: 1 })).toBeVisible();
+  return handle;
+}
 
+/** The project id the wizard carries in its address once step 1 created the project. */
+function wizardProjectId(page: Page): string {
+  const projectId = /[?&]project=([0-9a-f-]+)/.exec(page.url())?.[1];
+  expect(projectId, page.url()).toBeTruthy();
+  return projectId ?? '';
+}
+
+/** A fake sign-in file for Codex: a JSON object, so the credential route accepts it. */
+export const fakeAuthJson = () => JSON.stringify({ tokens: { access_token: `e2e-${randomBytes(8).toString('hex')}` } });
+
+/** Given: a credential of the kind's first type for the agent, through the credential route (an OpenCode agent needs none). */
+export async function saveCredential(request: APIRequestContext, agentId: string, provider: AgentKind): Promise<void> {
+  if (provider === 'opencode') return;
+  await ok(
+    await request.put(`/api/agents/${agentId}/credential`, {
+      data:
+        provider === 'claude'
+          ? { type: 'oauth_token', value: newTokenValue() }
+          : { type: 'auth_json', value: fakeAuthJson() },
+    }),
+    200,
+    'set credential',
+  );
+}
+
+/**
+ * The wizard's agent swap through the API, as the wizard does it: create the agent, make it the default, delete the
+ * placeholder, save the credential (an OpenCode agent needs none; `withCredential: false` leaves any kind without).
+ * Returns the new agent.
+ */
+export async function swapPlaceholder(
+  request: APIRequestContext,
+  handle: string,
+  projectId: string,
+  provider: AgentKind,
+  withCredential = true,
+): Promise<AgentDto> {
+  const placeholder = AgentDto.parse(await ok(await request.get(`/api/projects/${projectId}/agent`), 200, 'agent'));
+  const agent = await createAgent(request, handle, projectId, {
+    provider,
+    name: `${provider}-${randomBytes(3).toString('hex')}`,
+  });
+  await setDefaultAgent(request, handle, agent.id);
+  expect(await deleteAgent(request, handle, placeholder.id), 'delete the placeholder').toBe(204);
+  if (withCredential) await saveCredential(request, agent.id, provider);
+  return agent;
+}
+
+/**
+ * Presses Continue on the wizard's agent step. The step saves the credential and tests it: a rejected or unreachable
+ * test (a made-up token, or no network in the pod) keeps the step with a banner and a second button, which moves on
+ * (spec BR-53); any other answer moves on at once. Ends on the workspace step.
+ */
+export async function continueAgentStep(page: Page): Promise<void> {
+  await page.getByRole('button', { name: 'Continue', exact: true }).click();
+  const workspace = page.getByRole('heading', { name: 'Prepare the workspace', level: 1 });
+  const anyway = page.getByRole('button', { name: 'Continue anyway', exact: true });
+  await expect(workspace.or(anyway)).toBeVisible({ timeout: 60_000 });
+  if (await anyway.isVisible()) await anyway.click();
+  await expect(workspace).toBeVisible();
+}
+
+/**
+ * A new owner (org created by the platform admin, owner invitation), then the five setup steps against the fake board;
+ * ends on the project's Runs page. Step 2 picks Claude Code and pastes a token; with `provider` the agent is swapped
+ * through the API instead (the step then shows that agent read-only and Continue needs no paste).
+ */
+export async function signInAndCreateProject(
+  page: Page,
+  provider?: AgentKind,
+): Promise<{ handle: string; projectId: string }> {
+  const handle = await startWizard(page);
+
+  // Step 2: any string as the credential.
+  if (provider === undefined || provider === 'claude') {
+    await page.getByRole('radio', { name: 'Claude Code', exact: true }).check();
+    await page.getByRole('textbox', { name: 'Token' }).fill(`sk-ant-e2e-${randomBytes(8).toString('hex')}`);
+  } else {
+    await swapPlaceholder(page.request, handle, wizardProjectId(page), provider);
+    await page.reload();
+    await expect(page.getByRole('heading', { name: 'Add your agent', level: 1 })).toBeVisible();
+  }
+  await continueAgentStep(page);
+  await walkSetupSteps(page);
+
+  await page.getByRole('link', { name: 'Go to runs' }).click();
+  await expect(page.getByRole('heading', { name: 'Runs', level: 1 })).toBeVisible();
+  const projectId = /\/p\/([0-9a-f-]+)\/runs$/.exec(page.url())?.[1];
+  expect(projectId, page.url()).toBeTruthy();
+  return { handle, projectId: projectId ?? '' };
+}
+
+/** From the workspace step (right after the Agent step) to the last step, "Trigger your first run". */
+export async function walkSetupSteps(page: Page): Promise<void> {
   // Step 3: prepare the workspace. The test passes in the fake pod, then the starter script is saved as version 1.
   await expect(page.getByRole('heading', { name: 'Prepare the workspace', level: 1 })).toBeVisible();
   await page.getByRole('button', { name: 'Test setup' }).click();
@@ -345,27 +441,33 @@ export async function signInAndCreateProject(page: Page): Promise<{ handle: stri
   await page.getByRole('button', { name: 'Save rules and finish' }).click();
 
   await expect(page).toHaveURL(/\/new\/ready\?project=/);
-  await page.getByRole('link', { name: 'Go to runs' }).click();
-  await expect(page.getByRole('heading', { name: 'Runs', level: 1 })).toBeVisible();
-  const projectId = /\/p\/([0-9a-f-]+)\/runs$/.exec(page.url())?.[1];
-  expect(projectId, page.url()).toBeTruthy();
-  return { handle, projectId: projectId ?? '' };
 }
 
-/** A new owner (as above), then the wizard's first step only: a project whose agent has no credential and no address. */
-export async function signInAndStartProject(page: Page): Promise<{ handle: string; projectId: string }> {
-  const handle = await newOwner(page);
-  const install = InstallResponse.parse(
-    await ok(await page.request.post('/api/connections/fake/install'), 201, 'install'),
-  );
-  await page.goto(install.url);
-  await expect(page).toHaveURL(new RegExp(`/o/${handle}/projects/new/repo\\?connection=`));
+/**
+ * The signed-in owner of org `slug` walks the wizard's repository step on the org's connection (dev/demo) and lands on
+ * the Agent step with nothing picked. Returns the project the step created.
+ */
+export async function openAgentStepOfNewProject(page: Page, slug: string, connectionId: string): Promise<string> {
+  await page.goto(`/o/${slug}/projects/new/repo?connection=${connectionId}`);
+  await expect(page.getByRole('heading', { name: 'Connect a repository', level: 1 })).toBeVisible();
   await page.getByRole('radio', { name: REPO_RADIO }).check();
   await page.getByRole('button', { name: 'Continue' }).click();
-  await expect(page.getByRole('heading', { name: 'Add the Claude credential', level: 1 })).toBeVisible();
-  const projectId = /[?&]project=([0-9a-f-]+)/.exec(page.url())?.[1];
-  expect(projectId, page.url()).toBeTruthy();
-  return { handle, projectId: projectId ?? '' };
+  await expect(page.getByRole('heading', { name: 'Add your agent', level: 1 })).toBeVisible();
+  return wizardProjectId(page);
+}
+
+/**
+ * A new owner (as above), then the wizard's first step only: a project whose agent has no credential and no address,
+ * on the "Add your agent" step with nothing picked. With `provider` the agent is swapped through the API first.
+ */
+export async function signInAndStartProject(
+  page: Page,
+  provider?: AgentKind,
+): Promise<{ handle: string; projectId: string }> {
+  const handle = await startWizard(page);
+  const projectId = wizardProjectId(page);
+  if (provider !== undefined) await swapPlaceholder(page.request, handle, projectId, provider);
+  return { handle, projectId };
 }
 
 /** A pull request on the fake board with a webhook comment; returns the run it created. The comment's author is `author`, else the signed-in handle (its linked identity). */
@@ -527,16 +629,33 @@ export async function podLogLines(runId: string): Promise<string[]> {
 
 // ---- Desk → Agent & settings: shared by the specs that drive the agent screen and its API ----
 
+export type AgentTab = 'agents' | 'github' | 'limits' | 'danger';
+
 export const deskAgentUrl = (handle: string, projectId: string) => `/o/${handle}/p/${projectId}/desk/agent`;
 export const modelSelect = (page: Page) => page.getByRole('combobox', { name: 'Default model' });
 export const addressInput = (page: Page) => page.getByRole('textbox', { name: 'API address' });
-export const newToken = (page: Page) => page.getByLabel('New token', { exact: true });
+/** The pane's credential entry: its label is the authentication's name ("Subscription token" for Claude Code). */
+export const newToken = (page: Page) => page.getByRole('textbox', { name: 'Subscription token', exact: true });
 export const newTokenValue = () => `sk-ant-e2e-${randomBytes(8).toString('hex')}`;
+/** The Edit agent pane (a side pane on the Agents tab). */
+export const agentPane = (page: Page) => page.getByRole('complementary', { name: 'Edit agent' });
 
-export async function openAgent(page: Page, handle: string, projectId: string) {
-  await page.goto(deskAgentUrl(handle, projectId));
+/** Desk → Agent & settings on one tab (the address carries `?tab=` for every tab but Agents). */
+export async function openAgent(page: Page, handle: string, projectId: string, tab: AgentTab = 'agents') {
+  await page.goto(`${deskAgentUrl(handle, projectId)}${tab === 'agents' ? '' : `?tab=${tab}`}`);
   await expect(page.getByRole('heading', { name: 'Agent & settings', level: 1 })).toBeVisible();
-  // The picker leaves its loading state once the list is there.
+  const tabName = { agents: 'Agents', github: 'GitHub connection', limits: 'Limits', danger: 'Danger zone' }[tab];
+  await expect(
+    page
+      .getByRole('tablist', { name: 'Agent and project settings' })
+      .getByRole('tab', { name: tabName, exact: true, selected: true }),
+  ).toBeVisible();
+}
+
+/** The Edit agent pane of one agent, opened by its address (`?agent=<id>`) once the model picker has its whole list. */
+export async function openAgentPane(page: Page, handle: string, projectId: string, agentId: string) {
+  await page.goto(`${deskAgentUrl(handle, projectId)}?agent=${agentId}`);
+  await expect(agentPane(page)).toBeVisible();
   await expect(modelSelect(page).locator('option')).toHaveText(['opus', 'sonnet', 'haiku', 'Other model…']);
 }
 
@@ -544,25 +663,66 @@ export async function readAgent(page: Page, projectId: string): Promise<AgentDto
   return AgentDto.parse(await ok(await page.request.get(`/api/projects/${projectId}/agent`), 200, 'agent'));
 }
 
-/** Given: the agent's saved default model (the run limits stay as they are). */
-export async function setDefaultModel(page: Page, projectId: string, model: string) {
-  const agent = await readAgent(page, projectId);
-  await ok(
-    await page.request.put(`/api/projects/${projectId}/agent`, {
-      data: { model, timeoutSeconds: agent.timeoutSeconds },
-    }),
-    200,
-    'set default model',
+/** Given: a new agent configuration through the agents API (the route the Add agent pane uses). Returns it. */
+export async function createAgent(
+  request: APIRequestContext,
+  handle: string,
+  projectId: string,
+  body: CreateAgentRequest,
+): Promise<AgentDto> {
+  return AgentDto.parse(
+    await ok(await request.post(`/api/projects/${projectId}/agents`, { data: body }), 201, `create agent (${handle})`),
   );
 }
 
-/** Given: the agent's automatic-resume limit (the model and run limits stay as they are). 0 pins the "off" behaviour. */
-export async function setAutoResumeMax(page: Page, projectId: string, value: number): Promise<void> {
+/** Given: the agent becomes the project's default. */
+export async function setDefaultAgent(request: APIRequestContext, handle: string, agentId: string): Promise<AgentDto> {
+  return AgentDto.parse(
+    await ok(await request.post(`/api/agents/${agentId}/default`), 200, `set default agent (${handle})`),
+  );
+}
+
+/** Deletes an agent and returns the HTTP status (204 when it went, 409 when a rule or a run holds it). */
+export async function deleteAgent(request: APIRequestContext, handle: string, agentId: string): Promise<number> {
+  const res = await request.delete(`/api/agents/${agentId}`);
+  expect([204, 404, 409], `delete agent (${handle}): ${res.status()} ${await res.text()}`).toContain(res.status());
+  return res.status();
+}
+
+/** Given: a skill rule that names the agent (and `model` when given), through the rules API. Returns the rule. */
+export async function ruleWithAgent(
+  request: APIRequestContext,
+  handle: string,
+  projectId: string,
+  body: { command: string; agentId?: string; model?: string | null },
+): Promise<RuleDto> {
+  const { items } = pageOf(RuleDto).parse(
+    await ok(await request.get(`/api/projects/${projectId}/rules?pageSize=100`), 200, 'rules'),
+  );
+  const skillName = items.find((r) => r.skillName !== null)?.skillName;
+  expect(skillName, `a skill rule from the setup to borrow its skill (${handle})`).toBeTruthy();
+  return RuleDto.parse(
+    await ok(
+      await request.post(`/api/projects/${projectId}/rules`, {
+        data: { kind: 'skill', labelFilter: [], target: 'issue', enabled: true, skillName, model: null, ...body },
+      }),
+      201,
+      'create rule',
+    ),
+  );
+}
+
+/** Given: the default agent's default model. */
+export async function setDefaultModel(page: Page, projectId: string, model: string) {
   const agent = await readAgent(page, projectId);
+  await ok(await page.request.patch(`/api/agents/${agent.id}`, { data: { model } }), 200, 'set default model');
+}
+
+/** Given: the project's automatic-resume limit (the Limits tab's field). 0 pins the "off" behaviour. */
+export async function setAutoResumeMax(page: Page, projectId: string, value: number): Promise<void> {
+  // The limit belongs to the project (the Limits tab saves it the same way).
   await ok(
-    await page.request.put(`/api/projects/${projectId}/agent`, {
-      data: { model: agent.model, timeoutSeconds: agent.timeoutSeconds, autoResumeMax: value },
-    }),
+    await page.request.patch(`/api/projects/${projectId}`, { data: { autoResumeMax: value } }),
     200,
     'set auto resume max',
   );
@@ -572,7 +732,7 @@ export async function setAutoResumeMax(page: Page, projectId: string, value: num
 export async function setAddressAndCredential(page: Page, agentId: string, baseUrl: string) {
   await ok(
     await page.request.put(`/api/agents/${agentId}/credential`, {
-      data: { type: 'api_key', value: newTokenValue(), baseUrl },
+      data: { type: 'oauth_token', value: newTokenValue(), baseUrl },
     }),
     200,
     'set address and credential',
@@ -580,7 +740,7 @@ export async function setAddressAndCredential(page: Page, agentId: string, baseU
 }
 
 export const isAgentPut = (r: { url(): string; request(): { method(): string } }) =>
-  new URL(r.url()).pathname.endsWith('/agent') && r.request().method() === 'PUT';
+  /\/api\/agents\/[^/]+$/.test(new URL(r.url()).pathname) && r.request().method() === 'PATCH';
 export const isCredentialPut = (r: { url(): string; request(): { method(): string } }) =>
   /\/api\/agents\/[^/]+\/credential$/.test(new URL(r.url()).pathname) && r.request().method() === 'PUT';
 

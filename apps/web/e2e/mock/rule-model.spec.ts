@@ -11,6 +11,7 @@ import {
 } from './mock';
 
 const DEFAULT = 'Default model';
+const PROJECT_DEFAULT = 'Project default (Claude)';
 const STEP_2_NOTE = 'Default model is the one picked in step 2.';
 
 const modelSelect = (page: Page) => page.getByLabel('Model', { exact: true });
@@ -37,6 +38,7 @@ async function openWizardRulesStep(page: Page) {
   await page.goto(`/o/${ORG}/projects/new/repo`);
   await page.getByRole('radio', { name: 'dev/demo' }).check();
   await page.getByRole('button', { name: 'Continue' }).click();
+  await page.getByRole('radio', { name: 'Claude Code' }).check();
   await page.getByRole('textbox', { name: 'Token' }).fill('sk-ant-oat01-e2e-not-a-real-token');
   await page.getByRole('button', { name: 'Continue' }).click();
   await page.getByRole('button', { name: 'Save and continue' }).click();
@@ -49,8 +51,9 @@ const live = (ids: string[]) => ({ [INVOICER_API_AGENT]: { kind: 'live' as const
 test.describe('BR-22 With agent lists the agent by name only', () => {
   test('TC-22.1 on a new rule the With agent option reads Claude with no model suffix', async ({ page }) => {
     await openNewRule(page);
-    await expect(options(agentSelect(page))).toHaveText(['Claude']);
-    await expect(agentSelect(page).locator('option:checked')).toHaveText('Claude');
+    // Project default first, then every agent by name (multi-agent-configs BR-32).
+    await expect(options(agentSelect(page))).toHaveText([PROJECT_DEFAULT, 'Claude']);
+    await expect(agentSelect(page).locator('option:checked')).toHaveText(PROJECT_DEFAULT);
     await expect(page.getByText('(opus)')).toHaveCount(0);
   });
 
@@ -61,13 +64,14 @@ test.describe('BR-22 With agent lists the agent by name only', () => {
       .first()
       .click();
     await expect(page.getByRole('heading', { name: 'Edit rule' })).toBeVisible();
-    await expect(options(agentSelect(page))).toHaveText(['Claude']);
+    await expect(options(agentSelect(page))).toHaveText([PROJECT_DEFAULT, 'Claude']);
     await expect(page.getByText('(opus)')).toHaveCount(0);
   });
 
   test('TC-22.3 on the wizard rule step With agent reads Claude with no suffix', async ({ page }) => {
     await openWizardRulesStep(page);
-    await expect(options(agentSelect(page))).toHaveText(['Claude']);
+    // The wizard rule follows the project default, so the locked field names it (multi-agent-configs BR-63).
+    await expect(options(agentSelect(page))).toHaveText([PROJECT_DEFAULT]);
     await expect(page.getByText('(opus)')).toHaveCount(0);
   });
 });
@@ -144,6 +148,8 @@ test.describe('BR-30 (changed by issue #294) a rule that names a model reads "wi
     await openNewRule(page);
     await page.getByRole('textbox', { name: 'Command' }).fill('code-docs');
     await page.getByRole('combobox', { name: 'Skill', exact: true }).selectOption('code-build');
+    // The Given of BR-30 is a rule that names agent Claude. Picking an agent resets Model, so it comes first.
+    await agentSelect(page).selectOption({ label: 'Claude' });
     await modelSelect(page).selectOption({ label: model });
     await page.getByRole('button', { name: 'Save rule' }).click();
     await expect(page.getByRole('button', { name: ROW })).toBeVisible();

@@ -16,7 +16,7 @@ import {
   newToken,
   newTokenValue,
   ok,
-  openAgent,
+  openAgentPane,
   podLogLines,
   readAgent,
   setAddressAndCredential,
@@ -104,9 +104,9 @@ async function expectRunDetailModel(page: Page, handle: string, projectId: strin
   expect(run.agent.model, 'the model of GET /api/runs/:runId').toBe(model);
 }
 
-/** On Desk → Agent & settings: pick `model` in "Default model", click Save agent, wait for the answer. */
+/** On Desk → Agent & settings: pick `model` in "Default model", click Save agent, wait for the answer (the agent pane). */
 async function pickDefaultModelAndSave(page: Page, handle: string, projectId: string, model: string) {
-  await openAgent(page, handle, projectId);
+  await openAgentPane(page, handle, projectId, (await readAgent(page, projectId)).id);
   await modelSelect(page).selectOption({ label: model });
   const answered = page.waitForResponse(isAgentPut);
   await page.getByRole('button', { name: 'Save agent' }).click();
@@ -115,14 +115,14 @@ async function pickDefaultModelAndSave(page: Page, handle: string, projectId: st
   expect((await readAgent(page, projectId)).model, 'the saved default model').toBe(model);
 }
 
-/** On Desk → Agent & settings: type `address` ('' clears it), paste a token, click Test and replace. */
+/** On Desk → Agent & settings: type `address` ('' clears it), paste a token, click Save and test. */
 async function changeAddress(page: Page, handle: string, projectId: string, address: string) {
-  await openAgent(page, handle, projectId);
+  await openAgentPane(page, handle, projectId, (await readAgent(page, projectId)).id);
   await addressInput(page).fill(address);
   await newToken(page).fill(newTokenValue());
   const answered = page.waitForResponse(isCredentialPut);
-  await page.getByRole('button', { name: 'Test and replace' }).click();
-  expect((await answered).status(), 'Test and replace answered').toBe(200);
+  await page.getByRole('button', { name: 'Save and test' }).click();
+  expect((await answered).status(), 'Save and test answered').toBe(200);
 }
 
 /**

@@ -46,6 +46,7 @@ import { agentModelsAnswer } from './agentModels';
 import {
   agentsOf,
   checkCredential,
+  checklistOf,
   createAgent,
   refuseUnknownProvider,
   removeAgent,
@@ -780,6 +781,17 @@ const impl: Impl = {
       createdAt: now(),
     };
     db().projects.push(row);
+    // The checklist follows the project just created ("Add an agent" is read from its default agent).
+    db().checklists[orgId] = {
+      complete: false,
+      projectId: row.id,
+      steps: [
+        { key: 'connect_code_host', done: true },
+        { key: 'create_project', done: true },
+        { key: 'add_agent', done: false },
+        { key: 'add_rule', done: false },
+      ],
+    };
     // The mock server hears at once: a webhook ping, or the first polling check.
     db().triggers[row.id] = {
       webhook: { lastEventAt: row.triggerMode === 'webhook' ? now() : null, lastEventAction: 'ping' },
@@ -1333,7 +1345,7 @@ const impl: Impl = {
     // Owners and org-wide admins hold project:create at org scope; nobody else sees the checklist.
     const allowed = seat !== undefined && (seat.roleKey === 'owner' || (seat.roleKey === 'admin' && !seat.projectIds));
     if (!allowed) throw new Problem({ status: 403, title: 'Forbidden', type: 'forbidden' });
-    return db().checklists[orgId] ?? checklistFixtures.none;
+    return checklistOf(db().checklists[orgId] ?? checklistFixtures.none);
   },
   'me.listInvitations': ({ query }) => {
     const mine = myInvitationRows().filter((i) => effectiveStatus(i) === 'pending');
