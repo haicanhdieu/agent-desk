@@ -32,6 +32,7 @@ const SYSTEM_TOOLS = [
   'rm',
   'mkdir',
   'tar',
+  'gzip', // tar -z shells out to gzip; CI's Linux tar has no built-in decompressor
   'install',
   'grep',
   'cut',
