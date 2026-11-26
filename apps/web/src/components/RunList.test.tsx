@@ -198,6 +198,28 @@ describe('TicketGroupRow', () => {
     expect(screen.getByRole('link', { name: 'Open #142 in GitHub' })).toBeInTheDocument();
   });
 
+  it('an unlimited project (runsMax 0) shows no standalone count on a single-ticket header', () => {
+    inTable(<TicketGroupRow group={{ ...group, runsMax: 0, chainNote: undefined }} colSpan={8} />);
+    expect(screen.queryByText(/ of \d+ runs/)).toBeNull();
+  });
+
+  it('an unlimited linked chain shows the chain note without count suffixes and no count on the right', () => {
+    const note = 'Issue #303 → PR #304';
+    inTable(
+      <TicketGroupRow
+        group={{
+          ...group,
+          runsMax: 0,
+          chainNote: note,
+          linked: [{ ticket: { kind: 'pr', number: 304 }, runsUsed: 1 }],
+        }}
+        colSpan={8}
+      />,
+    );
+    expect(screen.getByText(note)).toHaveAttribute('title', note);
+    expect(screen.queryByText(/ of \d+ runs/)).toBeNull();
+  });
+
   it('a single-ticket header keeps N of max runs on the right', () => {
     const { unmount } = inTable(<TicketGroupRow group={group} colSpan={8} />);
     expect(screen.getByText('2 of 10 runs')).toBeInTheDocument();

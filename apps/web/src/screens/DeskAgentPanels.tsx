@@ -308,7 +308,7 @@ export function LimitsPanel({ form, onSave, errors = {}, error, saving = false, 
               </Field>
               <Field
                 label="Runs per ticket"
-                help="Stops runaway chains. Further commands are ignored."
+                help="Stops runaway chains. Further commands are ignored. 0 or empty means unlimited."
                 error={errors.maxRunsPerTicket}
               >
                 {({ id, describedBy, invalid }) => (

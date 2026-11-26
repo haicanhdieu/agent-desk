@@ -196,6 +196,15 @@ describe('run detail route', () => {
     expect(within(banner()).queryByText('KH')).not.toBeInTheDocument();
   });
 
+  it('hides the run cap in the chain header when the project limit is unlimited (0)', async () => {
+    const project = mockDb.state.projects.find((p) => p.id === projectId);
+    if (!project) throw new Error('project missing');
+    project.maxRunsPerTicket = 0;
+    await renderRoute(`${base}/runs/62`);
+    expect(await screen.findByText('Chain on this ticket')).toBeInTheDocument();
+    expect(screen.queryByText('max 0 runs')).not.toBeInTheDocument();
+  });
+
   it('Finish posts and shows "Finishing…" on the run until the server answers', async () => {
     const release = holdAction('runs.finish');
     const { user } = await renderRoute(`${base}/runs/62`);

@@ -1,5 +1,25 @@
 import { expect, test, type Page } from '@playwright/test';
-import { API, addFakeTicket, cancelRun, commentOn, commentOnNewTicket, ok, signInAndCreateProject } from './helpers';
+import {
+  API,
+  addFakeTicket,
+  cancelRun,
+  commentOn as commentOnAs,
+  commentOnNewTicket,
+  ok,
+  signInAndCreateProject as signIn,
+} from './helpers';
+
+/** The login each test's user comments as: a comment is only run for a user linked to that login (run owner). */
+const handles = new WeakMap<Page, string>();
+
+async function signInAndCreateProject(page: Page) {
+  const created = await signIn(page);
+  handles.set(page, created.handle);
+  return created;
+}
+
+const commentOn = (page: Page, projectId: string, ticketNumber: number, body: string) =>
+  commentOnAs(page, projectId, ticketNumber, body, handles.get(page));
 
 /*
  * Local end-to-end for issue and PR runs grouped together on the Runs page against the real stack (spec
@@ -185,10 +205,10 @@ test.describe('BR-9: the run limit stays per ticket', () => {
     const third = await commentOn(page, projectId, pr, '/code-review');
 
     expect(third.outcome).toBe('ignored_max_runs');
+    // Read the Runs list first: opening the Ignored view saves that filter for this browser.
+    const groups = await openRuns(page, handle, projectId, 3);
+    expect(groups.flatMap((g) => g.runs).filter((t) => t === `PR #${pr}`)).toHaveLength(2);
     await ignoredShowsLimit(page, handle, projectId, true);
-    await page.goto(runsUrl(handle, projectId));
-    await expect(runRows(page)).toHaveCount(3);
-    expect((await readGroups(page)).flatMap((g) => g.runs).filter((t) => t === `PR #${pr}`)).toHaveLength(2);
   });
 
   test('TC-9.2: the issue still gets a run when the PR is at its limit', async ({ page }) => {
@@ -219,10 +239,28 @@ test.describe('BR-9: the run limit stays per ticket', () => {
     const third = await commentOn(page, projectId, issue, '/code-build');
 
     expect(third.outcome).toBe('ignored_max_runs');
+    // Read the Runs list first: opening the Ignored view saves that filter for this browser.
+    const groups = await openRuns(page, handle, projectId, 3);
+    expect(groups.flatMap((g) => g.runs).filter((t) => t === `#${issue}`)).toHaveLength(2);
     await ignoredShowsLimit(page, handle, projectId, true);
-    await page.goto(runsUrl(handle, projectId));
-    await expect(runRows(page)).toHaveCount(3);
-    expect((await readGroups(page)).flatMap((g) => g.runs).filter((t) => t === `#${issue}`)).toHaveLength(2);
+  });
+
+  test('a limit of 0 is unlimited: runs go past the old cap and the Runs list shows no counts', async ({ page }) => {
+    const { handle, projectId } = await signInAndCreateProject(page);
+    await setRunLimit(page, projectId, 0);
+    const { issue, issueRun, pr } = await linkedPair(page, projectId);
+    await cancelRun(page, issueRun);
+    const second = await buildOn(page, projectId, issue);
+    await cancelRun(page, second);
+
+    const third = await commentOn(page, projectId, issue, '/code-build');
+
+    expect(third.runId).toBeTruthy();
+    const groups = await openRuns(page, handle, projectId, 4);
+    await ignoredShowsLimit(page, handle, projectId, false);
+    expect(groups).toHaveLength(1);
+    expect(groups[0]?.chain).toBe(`Issue #${issue} → PR #${pr}`);
+    expect(groups[0]?.chain).not.toMatch(/\d+ of \d+ runs/);
   });
 });
 

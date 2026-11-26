@@ -409,6 +409,15 @@ describe('chainNoteOf', () => {
   });
 });
 
+describe('chainNoteOf unlimited', () => {
+  it('omits the count suffix when runsMax is 0', () => {
+    const pr = (number: number, runsUsed: number) => ({ ticket: { kind: 'pr' as const, number }, runsUsed });
+    expect(chainNoteOf({ kind: 'issue', number: 303 }, 4, [pr(304, 2), pr(305, 1)], 0)).toBe(
+      'Issue #303 → PR #304, PR #305',
+    );
+  });
+});
+
 describe('ticketRunCounts', () => {
   it('maps each ticket key to the server ticketRunCount', () => {
     const item = (number: number, ticketNumber: number, ticketRunCount: number): RunListItem => ({

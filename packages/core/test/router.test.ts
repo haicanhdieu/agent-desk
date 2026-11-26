@@ -229,6 +229,28 @@ describe('routeEvent', () => {
     expect(below.kind).toBe('run');
   });
 
+  it('a zero limit means unlimited: allows a run however many the ticket already has', async () => {
+    for (const runsForTicket of [0, 3, 10, 51, 500]) {
+      const d = await routeEvent(
+        input({
+          project: { id: 'p1', maxRunsPerTicket: 0 },
+          counts: { runsForTicket, activeSkillsOnTicket: [], activeRuleIdsOnTicket: [] },
+        }).base,
+      );
+      expect(d.kind).toBe('run');
+    }
+  });
+
+  it('a zero limit still ignores while the same skill is active', async () => {
+    const d = await routeEvent(
+      input({
+        project: { id: 'p1', maxRunsPerTicket: 0 },
+        counts: { runsForTicket: 60, activeSkillsOnTicket: ['code-review'], activeRuleIdsOnTicket: [] },
+      }).base,
+    );
+    expect(d).toMatchObject({ outcome: 'ignored_active_run' });
+  });
+
   it('ignores while the same skill is active, not other skills', async () => {
     const same = await routeEvent(
       input({ counts: { runsForTicket: 0, activeSkillsOnTicket: ['code-review'], activeRuleIdsOnTicket: [] } }).base,

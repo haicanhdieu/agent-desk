@@ -12,7 +12,7 @@ test('create a rule, then edit it', async ({ page }) => {
 
   const created = page.getByRole('button', { name: 'Edit rule /code-docs' });
   await expect(created).toBeVisible();
-  await expect(created).toContainText('run code-build with Claude');
+  await expect(created).toContainText('run code-build with the project default agent');
 
   await created.click();
   await expect(page.getByRole('textbox', { name: 'Command' })).toHaveValue('code-docs');

@@ -17,3 +17,4 @@ type Story = StoryObj<typeof meta>;
 
 export const Default: Story = { args: { maxRunsPerTicket: 10, changeHref: '#', ignoredHref: '#' } };
 export const NoLinks: Story = { args: { maxRunsPerTicket: 5 } };
+export const Unlimited: Story = { args: { maxRunsPerTicket: 0, changeHref: '#', ignoredHref: '#' } };

@@ -99,8 +99,8 @@ test('the Run List shows the routing rule command in a Routing rule column inste
 
   const rowOf = (n: number) => page.getByRole('row').filter({ has: page.getByRole('link', { name: `Run ${n}` }) });
   // Run 60 is a skill run, run 52 a custom-prompt run: both show their rule command.
-  await expect(rowOf(60).getByRole('cell', { name: '/code-build', exact: true })).toBeVisible();
-  await expect(rowOf(52).getByRole('cell', { name: '/triage', exact: true })).toBeVisible();
+  await expect(rowOf(60).getByText('/code-build', { exact: true })).toBeVisible();
+  await expect(rowOf(52).getByText('/triage', { exact: true })).toBeVisible();
 });
 
 test('a long routing rule command is truncated in the Run List and its full value is in the title', async ({

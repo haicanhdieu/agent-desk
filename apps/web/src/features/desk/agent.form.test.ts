@@ -95,6 +95,11 @@ describe('limitsRequests', () => {
     expect(hasLimitChanges(limitsRequests(base, { ...base, idleEndMinutes: 15 }))).toBe(true);
   });
 
+  it('unlimited runs per ticket (0) is read and sent unchanged', () => {
+    expect(limitsOf({ ...project, maxRunsPerTicket: 0 }).maxRunsPerTicket).toBe(0);
+    expect(limitsRequests(base, { ...base, maxRunsPerTicket: 0 })).toEqual({ maxRunsPerTicket: 0 });
+  });
+
   it('an unchanged idle end is not sent', () => {
     expect(limitsRequests(base, { ...base, idleEndMinutes: base.idleEndMinutes })).toEqual({});
   });
