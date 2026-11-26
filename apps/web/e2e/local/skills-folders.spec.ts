@@ -13,8 +13,6 @@ import { API, FAKE_STATE_DIR, REPO, ok, signInAndStartProject } from './helpers'
  * Role denial of the skill routes is covered by rbac-project-admin-desk.spec.ts and apps/api/test/skills.int.test.ts.
  */
 
-test.describe.configure({ timeout: 300_000 });
-
 test.beforeAll(async ({ request }) => {
   const ready = await request.get(`${API}/readyz`).catch(() => null);
   expect(ready?.ok(), `${API}/readyz is not ready: start the stack with \`pnpm dev\` at the repo root`).toBe(true);
