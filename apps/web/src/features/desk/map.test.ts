@@ -110,6 +110,7 @@ describe('toRule', () => {
       labels: ['user-story'],
       skill: 'code-build',
       agent: 'Claude',
+      model: null,
       enabled: true,
       stats: 'Never ran',
     });
