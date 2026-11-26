@@ -1388,14 +1388,14 @@ describe('github code host', () => {
     it('a skill folder that is a symlink is followed: the skills are listed under the real folder', async () => {
       mockInstallationToken();
       commits();
-      symlink('.claude/skills', '../.agents/skills');
-      dir('.agents/skills', ['fix', 'review']);
-      skillFile('.agents/skills', 'fix');
-      skillFile('.agents/skills', 'review');
+      symlink('.claude/skills', '../.agent/skills');
+      dir('.agent/skills', ['fix', 'review']);
+      skillFile('.agent/skills', 'fix');
+      skillFile('.agent/skills', 'review');
       const list = await host().listSkills(project);
       expect(list.map((s) => [s.name, s.path])).toEqual([
-        ['fix', '.agents/skills/fix/SKILL.md'],
-        ['review', '.agents/skills/review/SKILL.md'],
+        ['fix', '.agent/skills/fix/SKILL.md'],
+        ['review', '.agent/skills/review/SKILL.md'],
       ]);
       agent.assertNoPendingInterceptors();
     });
@@ -1403,13 +1403,13 @@ describe('github code host', () => {
     it('a symlinked skill folder does not stop the next folder from being listed', async () => {
       mockInstallationToken();
       commits();
-      symlink('.claude/skills', '../.agents/skills');
-      dir('.agents/skills', ['fix']);
-      skillFile('.agents/skills', 'fix');
+      symlink('.claude/skills', '../.agent/skills');
+      dir('.agent/skills', ['fix']);
+      skillFile('.agent/skills', 'fix');
       dir('.agents/skills', ['deploy']);
       skillFile('.agents/skills', 'deploy');
       expect((await host().listSkills(twoFolders)).map((s) => s.path)).toEqual([
-        '.agents/skills/fix/SKILL.md',
+        '.agent/skills/fix/SKILL.md',
         '.agents/skills/deploy/SKILL.md',
       ]);
     });
@@ -1418,12 +1418,12 @@ describe('github code host', () => {
       mockInstallationToken();
       commits();
       missing('.claude/skills/fix/SKILL.md');
-      symlink('.claude/skills', '../.agents/skills');
-      dir('.agents/skills', ['fix']);
-      skillFile('.agents/skills', 'fix');
+      symlink('.claude/skills', '../.agent/skills');
+      dir('.agent/skills', ['fix']);
+      skillFile('.agent/skills', 'fix');
       const s = await host().readSkill(project, 'fix');
-      expect(s.path).toBe('.agents/skills/fix/SKILL.md');
-      expect(s.sha).toBe('sha-.agents/skills');
+      expect(s.path).toBe('.agent/skills/fix/SKILL.md');
+      expect(s.sha).toBe('sha-.agent/skills');
     });
 
     it('a symlink that leaves the repository is not followed', async () => {
@@ -1532,11 +1532,11 @@ describe('github code host', () => {
       mockBranch(false);
       commits();
       missing('.claude/skills/fix/SKILL.md');
-      symlink('.claude/skills', '../.agents/skills');
-      dir('.agents/skills', ['fix']);
-      skillFile('.agents/skills', 'fix');
+      symlink('.claude/skills', '../.agent/skills');
+      dir('.agent/skills', ['fix']);
+      skillFile('.agent/skills', 'fix');
       gh()
-        .intercept({ path: `${base}/.agents/skills/fix/SKILL.md`, method: 'DELETE' })
+        .intercept({ path: `${base}/.agent/skills/fix/SKILL.md`, method: 'DELETE' })
         .reply(200, '{"commit":{"sha":"d2"}}', { headers: JSON_HEADERS });
       expect(await host().deleteSkill(project, 'fix', 'rm')).toMatchObject({ commitSha: 'd2' });
       agent.assertNoPendingInterceptors();
@@ -1558,10 +1558,10 @@ describe('github code host', () => {
     it('a new skill is created in the real folder behind a symlinked skill folder', async () => {
       mockInstallationToken();
       mockBranch(false);
-      symlink('.claude/skills', '../.agents/skills');
-      dir('.agents/skills', ['fix']);
+      symlink('.claude/skills', '../.agent/skills');
+      dir('.agent/skills', ['fix']);
       gh()
-        .intercept({ path: `${base}/.agents/skills/deploy/SKILL.md`, method: 'PUT' })
+        .intercept({ path: `${base}/.agent/skills/deploy/SKILL.md`, method: 'PUT' })
         .reply(201, '{"commit":{"sha":"c3"}}', { headers: JSON_HEADERS });
       expect(await host().writeSkill(project, 'deploy', 'v1', 'add')).toMatchObject({ commitSha: 'c3' });
       agent.assertNoPendingInterceptors();
@@ -1571,13 +1571,13 @@ describe('github code host', () => {
       mockInstallationToken();
       mockBranch(false);
       missing('.claude/skills/fix/SKILL.md');
-      symlink('.claude/skills', '../.agents/skills');
-      dir('.agents/skills', ['fix']);
-      skillFile('.agents/skills', 'fix');
+      symlink('.claude/skills', '../.agent/skills');
+      dir('.agent/skills', ['fix']);
+      skillFile('.agent/skills', 'fix');
       gh()
-        .intercept({ path: `${base}/.agents/skills/fix/SKILL.md`, method: 'PUT' })
+        .intercept({ path: `${base}/.agent/skills/fix/SKILL.md`, method: 'PUT' })
         .reply(200, '{"content":{"sha":"new"},"commit":{"sha":"e2"}}', { headers: JSON_HEADERS });
-      expect(await host().writeSkill(project, 'fix', 'v2', 'edit', 'sha-.agents/skills')).toMatchObject({
+      expect(await host().writeSkill(project, 'fix', 'v2', 'edit', 'sha-.agent/skills')).toMatchObject({
         kind: 'commit',
         commitSha: 'e2',
       });

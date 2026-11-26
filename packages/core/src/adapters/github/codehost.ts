@@ -399,20 +399,25 @@ export class GithubCodeHostAdapter implements CodeHostAdapter {
     folderIsReal = false,
   ): Promise<{ path: string; file: z.infer<typeof FileResponse> }> {
     let found = await this.fetchContents(project, skillPath(folder, name));
+    // The SKILL.md a configured skill folder resolves to, when that folder is itself a link (or is already its real
+    // folder): the folder-level link is trusted, whatever the real folder is named.
+    let viaFolder = folderIsReal ? skillPath(folder, name) : null;
     if (!found && !folderIsReal) {
       // The contents API does not look through a symlinked folder, so find the real folder and ask there.
       const real = await this.fetchContents(project, folder);
       if (real && real.path !== folder && Array.isArray(real.data)) {
         found = await this.fetchContents(project, skillPath(real.path, name));
+        viaFolder = skillPath(real.path, name);
       }
     }
     const parsed = found ? FileResponse.safeParse(found.data) : null;
-    // A link may only lead to this skill's SKILL.md inside a skill folder (the project's own, or a known one). Any other
-    // file it reaches (a workflow, CODEOWNERS, a SKILL.md of another skill or outside the skill folders) must not be read,
-    // edited or deleted as if it were this skill.
+    // A link to a whole skill folder is trusted (above). A link to a single SKILL.md may only lead to this skill's
+    // SKILL.md inside a skill folder (the project's own, or a known one). Any other file it reaches (a workflow,
+    // CODEOWNERS, a SKILL.md of another skill or outside the skill folders) must not be read, edited or deleted as if it
+    // were this skill.
     const roots = [...skillFoldersOf(project), ...KNOWN_SKILL_FOLDERS];
     const at = found?.path;
-    const inSkillFolder = at !== undefined && roots.some((r) => at === `${r}/${name}/SKILL.md`);
+    const inSkillFolder = at !== undefined && (at === viaFolder || roots.some((r) => at === skillPath(r, name)));
     if (!found || !parsed?.success || !inSkillFolder) throw new SkillNotFoundError(name);
     return { path: found.path, file: parsed.data };
   }
