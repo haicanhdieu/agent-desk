@@ -121,10 +121,20 @@ describe('toRule', () => {
     });
   });
 
-  it('warns when the skill is not in the repo', () => {
+  it('warns when the skill is not in the repo, naming no folder until the folders are known', () => {
     expect(toRule(rule('docs-update', 'docs-update'), [agent], now, ['code-build']).warning).toBe(
-      'Skill docs-update is not in .claude/skills/ on main. Comments with /docs-update are ignored until you add it or pick another skill.',
+      "Skill docs-update is not in the project's skill folders on main. Comments with /docs-update are ignored until you add it or pick another skill.",
     );
+  });
+
+  it('names the folders searched when the skill is missing', () => {
+    expect(toRule(rule('docs-update', 'docs-update'), [agent], now, ['code-build'], ['.agents/skills']).warning).toBe(
+      'Skill docs-update is not in .agents/skills/ on main. Comments with /docs-update are ignored until you add it or pick another skill.',
+    );
+    expect(
+      toRule(rule('docs-update', 'docs-update'), [agent], now, ['code-build'], ['.claude/skills', '.agents/skills'])
+        .warning,
+    ).toContain('is not in .claude/skills/ or .agents/skills/ on main.');
   });
 
   it('maps a prompt rule with its kind and prompt and no skill warning', () => {

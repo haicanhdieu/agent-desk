@@ -3,6 +3,7 @@ import type { Page, SkillChangeResponse, SkillDto, SkillSummaryDto } from '@agen
 import { FakeStore, SkillBranchExistsError, SkillChangeRequestError, type AdapterRegistry } from '@agentdesk/core';
 import { createTestApp, type TestApp } from './helpers/app';
 import { createOrg, inviteAndLogin } from './helpers/auth';
+import { makeAgent } from './helpers/agents';
 import { expectContract } from './helpers/contract';
 import { freshStateDir, installFake, makeProject, wideFakeRepos } from './helpers/fixtures';
 
@@ -164,6 +165,109 @@ describe('skills', () => {
     expect((await put('fix', { body: 'x', message: 'm' }, bob)).statusCode).toBe(404);
     expect((await t.app.inject({ method: 'GET', url: url(), headers: { cookie: bob } })).statusCode).toBe(404);
     expect((await t.app.inject({ method: 'DELETE', url: url('fix'), headers: { cookie: bob } })).statusCode).toBe(404);
+  });
+});
+
+describe('skills: folders follow the project default agent', () => {
+  const CLAUDE = '.claude/skills';
+  const GENERIC = '.agents/skills';
+  const listOf = async (projectId: string, cookie = alice) =>
+    (
+      expectContract(
+        'skills.list',
+        await t.app.inject({ method: 'GET', url: `/api/projects/${projectId}/skills`, headers: { cookie } }),
+      ) as Page<SkillSummaryDto>
+    ).items;
+  const fresh = async () => makeProject(t, alice, await installFake(t, alice));
+  const makeDefault = async (projectId: string, provider: 'codex' | 'opencode') => {
+    const agent = await makeAgent(t, alice, projectId, { provider, name: `Skills ${provider}` });
+    const res = await t.app.inject({
+      method: 'POST',
+      url: `/api/agents/${agent.id}/default`,
+      headers: { cookie: alice },
+    });
+    expect(res.statusCode).toBe(200);
+  };
+  const putIn = (projectId: string, name: string, payload: object) =>
+    t.app.inject({
+      method: 'PUT',
+      url: `/api/projects/${projectId}/skills/${name}`,
+      headers: { cookie: alice },
+      payload,
+    });
+
+  it('a Claude project lists .claude/skills only: a skill only in .agents/skills is not listed or readable', async () => {
+    const p = await fresh();
+    await store.writeSkillFile(p.repoPath, GENERIC, 'generic-only', 'x');
+    await store.writeSkillFile(p.repoPath, CLAUDE, 'fix', 'claude fix');
+    expect((await listOf(p.projectId)).map((x) => [x.name, x.path])).toEqual([['fix', '.claude/skills/fix/SKILL.md']]);
+    const get = (name: string) =>
+      t.app.inject({ method: 'GET', url: `/api/projects/${p.projectId}/skills/${name}`, headers: { cookie: alice } });
+    expect(((await get('fix')).json() as SkillDto).body).toBe('claude fix');
+    expect((await get('generic-only')).statusCode).toBe(404);
+  });
+
+  it('an OpenCode duplicate shows once with the agent folder path', async () => {
+    const p = await fresh();
+    await makeDefault(p.projectId, 'opencode');
+    await store.writeSkillFile(p.repoPath, GENERIC, 'fix', 'generic fix');
+    await store.writeSkillFile(p.repoPath, '.opencode/skills', 'fix', 'own fix');
+    expect((await listOf(p.projectId)).map((x) => [x.name, x.path])).toEqual([
+      ['fix', '.opencode/skills/fix/SKILL.md'],
+    ]);
+  });
+
+  it('edits go to the folder the skill is in; a new skill goes to the default agent folder', async () => {
+    const p = await fresh();
+    await makeDefault(p.projectId, 'opencode');
+    const OWN = '.opencode/skills';
+    const sha = await store.writeSkillFile(p.repoPath, GENERIC, 'fix', 'v1');
+    expect((await putIn(p.projectId, 'fix', { body: 'v2', message: 'edit', sha })).statusCode).toBe(200);
+    expect((await store.readSkillFile(p.repoPath, GENERIC, 'fix'))?.body).toBe('v2');
+    expect(await store.readSkillFile(p.repoPath, OWN, 'fix')).toBeNull();
+    expect((await putIn(p.projectId, 'fresh', { body: 'new', message: 'add' })).statusCode).toBe(200);
+    expect((await store.readSkillFile(p.repoPath, OWN, 'fresh'))?.body).toBe('new');
+    const del = await t.app.inject({
+      method: 'DELETE',
+      url: `/api/projects/${p.projectId}/skills/fix`,
+      headers: { cookie: alice },
+    });
+    expect(del.statusCode).toBe(200);
+    expect(await store.readSkillFile(p.repoPath, GENERIC, 'fix')).toBeNull();
+  });
+
+  it('a Codex project sees .agents/skills only, and creates there', async () => {
+    const p = await fresh();
+    await makeDefault(p.projectId, 'codex');
+    await store.writeSkillFile(p.repoPath, CLAUDE, 'claude-only', 'x');
+    await store.writeSkillFile(p.repoPath, GENERIC, 'shared', 'x');
+    expect((await listOf(p.projectId)).map((x) => x.path)).toEqual(['.agents/skills/shared/SKILL.md']);
+    expect((await putIn(p.projectId, 'made', { body: 'new', message: 'add' })).statusCode).toBe(200);
+    expect((await store.readSkillFile(p.repoPath, GENERIC, 'made'))?.body).toBe('new');
+  });
+
+  it('an OpenCode project lists .opencode/skills first and creates there', async () => {
+    const p = await fresh();
+    await makeDefault(p.projectId, 'opencode');
+    await store.writeSkillFile(p.repoPath, GENERIC, 'shared', 'x');
+    await store.writeSkillFile(p.repoPath, '.opencode/skills', 'own', 'x');
+    expect((await listOf(p.projectId)).map((x) => x.path)).toEqual([
+      '.opencode/skills/own/SKILL.md',
+      '.agents/skills/shared/SKILL.md',
+    ]);
+    expect((await putIn(p.projectId, 'made', { body: 'new', message: 'add' })).statusCode).toBe(200);
+    expect((await store.readSkillFile(p.repoPath, '.opencode/skills', 'made'))?.body).toBe('new');
+  });
+
+  it("another org's folders never show: org B sees 404 for the project and its skills stay unlisted for it", async () => {
+    const p = await fresh();
+    await store.writeSkillFile(p.repoPath, GENERIC, 'secret', 'x');
+    const res = await t.app.inject({
+      method: 'GET',
+      url: `/api/projects/${p.projectId}/skills`,
+      headers: { cookie: bob },
+    });
+    expect(res.statusCode).toBe(404);
   });
 });
 

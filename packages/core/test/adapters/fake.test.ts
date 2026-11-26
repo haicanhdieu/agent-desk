@@ -214,6 +214,70 @@ describe('fake code host', () => {
     expect((await host.readSkill(project, 'fix')).body).toBe('v2');
   });
 
+  describe('skill folders', () => {
+    const codex: AdapterProject = { ...project, skillFolders: ['.agents/skills'] };
+    const opencode: AdapterProject = { ...project, skillFolders: ['.opencode/skills', '.agents/skills'] };
+    const make = () => {
+      const store = new FakeStore(dir, clock);
+      return { store, host: new FakeCodeHostAdapter(store, clock, 'http://localhost:3000') };
+    };
+
+    it('a new skill goes to the default agent folder, and its path names that folder', async () => {
+      const { host } = make();
+      await host.writeSkill(project, 'fix', 'v1', 'add');
+      await host.writeSkill(opencode, 'two', 'v1', 'add');
+      await host.writeSkill(codex, 'three', 'v1', 'add');
+      expect((await host.readSkill(project, 'fix')).path).toBe('.claude/skills/fix/SKILL.md');
+      expect((await host.readSkill(opencode, 'two')).path).toBe('.opencode/skills/two/SKILL.md');
+      expect((await host.readSkill(codex, 'three')).path).toBe('.agents/skills/three/SKILL.md');
+    });
+
+    it('lists every folder in order; a duplicate name keeps the agent folder', async () => {
+      const { store, host } = make();
+      await store.writeSkillFile(project.repoPath, '.agents/skills', 'fix', 'generic fix');
+      await store.writeSkillFile(project.repoPath, '.agents/skills', 'deploy', 'generic deploy');
+      await store.writeSkillFile(project.repoPath, '.opencode/skills', 'fix', 'own fix');
+      await store.writeSkillFile(project.repoPath, '.opencode/skills', 'review', 'own review');
+      const list = await host.listSkills(opencode);
+      expect(list.map((s) => [s.name, s.path])).toEqual([
+        ['fix', '.opencode/skills/fix/SKILL.md'],
+        ['review', '.opencode/skills/review/SKILL.md'],
+        ['deploy', '.agents/skills/deploy/SKILL.md'],
+      ]);
+      expect((await host.readSkill(opencode, 'fix')).body).toBe('own fix');
+    });
+
+    it('a Claude project does not see .agents/skills', async () => {
+      const { store, host } = make();
+      await store.writeSkillFile(project.repoPath, '.agents/skills', 'fix', 'v1');
+      expect(await host.listSkills(project)).toEqual([]);
+      await expect(host.readSkill(project, 'fix')).rejects.toBeInstanceOf(SkillNotFoundError);
+    });
+
+    it('a Codex project does not see the Claude folder', async () => {
+      const { store, host } = make();
+      await store.writeSkillFile(project.repoPath, '.claude/skills', 'fix', 'v1');
+      expect(await host.listSkills(codex)).toEqual([]);
+      await expect(host.readSkill(codex, 'fix')).rejects.toBeInstanceOf(SkillNotFoundError);
+    });
+
+    it('edits and deletes a skill in the folder it lives in', async () => {
+      const { store, host } = make();
+      const sha = await store.writeSkillFile(project.repoPath, '.agents/skills', 'fix', 'v1');
+      await host.writeSkill(opencode, 'fix', 'v2', 'edit', sha);
+      expect(await store.readSkillFile(project.repoPath, '.opencode/skills', 'fix')).toBeNull();
+      expect((await store.readSkillFile(project.repoPath, '.agents/skills', 'fix'))?.body).toBe('v2');
+      await host.deleteSkill(opencode, 'fix', 'rm');
+      expect(await store.readSkillFile(project.repoPath, '.agents/skills', 'fix')).toBeNull();
+    });
+
+    it('creating over a skill that is already in the default agent folder conflicts', async () => {
+      const { store, host } = make();
+      await store.writeSkillFile(project.repoPath, '.claude/skills', 'fix', 'v1');
+      await expect(host.writeSkill(project, 'fix', 'v2', 'add')).rejects.toBeInstanceOf(SkillConflictError);
+    });
+  });
+
   describe('protected default branch', () => {
     const setup = async () => {
       const store = new FakeStore(dir, clock);
@@ -231,12 +295,12 @@ describe('fake code host', () => {
         url: expect.stringContaining('http://localhost:3000/'),
         id: expect.any(String),
       });
-      expect(await store.readSkillFile(project.repoPath, 'fix')).toBeNull();
+      expect(await store.readSkillFile(project.repoPath, '.claude/skills', 'fix')).toBeNull();
     });
 
     it('update keeps stale-sha protection and does not change the live body', async () => {
       const { store, host } = await setup();
-      const live = await store.writeSkillFile(project.repoPath, 'fix', 'v1');
+      const live = await store.writeSkillFile(project.repoPath, '.claude/skills', 'fix', 'v1');
       await expect(host.writeSkill(project, 'fix', 'v2', 'edit', 'stale')).rejects.toBeInstanceOf(SkillConflictError);
       const r = await host.writeSkill({ ...project, defaultBranch: 'trunk' }, 'fix', 'v2', 'edit', live);
       expect(r).toMatchObject({ kind: 'change_request', targetBranch: 'trunk' });
@@ -246,7 +310,7 @@ describe('fake code host', () => {
 
     it('delete returns a change request, keeps the skill, and still 404s a missing skill', async () => {
       const { store, host } = await setup();
-      await store.writeSkillFile(project.repoPath, 'fix', 'v1');
+      await store.writeSkillFile(project.repoPath, '.claude/skills', 'fix', 'v1');
       const r = await host.deleteSkill(project, 'fix', 'rm');
       expect(r.kind === 'change_request' && r.sourceBranch).toMatch(/^agent-desk\/skill-delete-fix-/);
       expect((await host.readSkill(project, 'fix')).body).toBe('v1');
@@ -316,9 +380,12 @@ describe('fake repo files', () => {
 describe('fake store paths', () => {
   it('rejects repoPath traversal segments', async () => {
     const store = new FakeStore(dir, clock);
-    await expect(store.writeSkillFile('../evil', 'fix', 'x')).rejects.toThrow(/invalid path segment/);
-    await expect(store.writeSkillFile('dev/../../evil', 'fix', 'x')).rejects.toThrow(/invalid path segment/);
-    await expect(store.readSkillFile('dev/..', 'fix')).rejects.toThrow(/invalid path segment/);
+    await expect(store.writeSkillFile('../evil', '.claude/skills', 'fix', 'x')).rejects.toThrow(/invalid path segment/);
+    await expect(store.writeSkillFile('dev/../../evil', '.claude/skills', 'fix', 'x')).rejects.toThrow(
+      /invalid path segment/,
+    );
+    await expect(store.readSkillFile('dev/..', '.claude/skills', 'fix')).rejects.toThrow(/invalid path segment/);
+    await expect(store.readSkillFile('dev/demo', '../skills', 'fix')).rejects.toThrow(/invalid path segment/);
   });
 });
 

@@ -9,6 +9,8 @@ import styles from './Composites.module.css';
 export interface RuleFormProps {
   value: RuleDraft;
   skills: string[];
+  /** The repo folders the skills come from, in order; the Skill help names them. Absent while they are not known: no folder is named. */
+  skillFolders?: string[];
   agents: RuleAgentOption[];
   /** The project default agent's name, for the first option "Project default (<name>)". */
   defaultAgentName?: string;
@@ -49,6 +51,7 @@ const withCurrent = (opts: string[], cur: string) => (opts.includes(cur) ? opts 
 export function RuleForm({
   value,
   skills,
+  skillFolders,
   agents,
   defaultAgentName,
   agentsState = 'ready',
@@ -147,7 +150,13 @@ export function RuleForm({
             label={promptPreview ? 'Skill' : 'Run skill'}
             help={
               <>
-                From <span className="mono">.claude/skills/</span> on main.
+                {skillFolders ? (
+                  <>
+                    From <span className="mono">{skillFolders.map((f) => `${f}/`).join(', ')}</span> on main.
+                  </>
+                ) : (
+                  "From the project's skill folders on main."
+                )}
               </>
             }
             error={errors?.skill}

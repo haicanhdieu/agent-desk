@@ -1,7 +1,7 @@
 import type { RepoDto, SkillDto, SkillSummaryDto } from '@agentdesk/contracts';
 import type { Clock } from '../../clock';
 import {
-  SKILLS_DIR,
+  skillFoldersOf,
   SkillConflictError,
   SkillNotFoundError,
   skillDescription,
@@ -76,19 +76,36 @@ export class FakeCodeHostAdapter implements CodeHostAdapter {
   }
 
   async listSkills(project: AdapterProject): Promise<SkillSummaryDto[]> {
+    const seen = new Set<string>();
     const out: SkillSummaryDto[] = [];
-    for (const name of await this.store.listSkillNames(project.repoPath)) {
-      const f = await this.store.readSkillFile(project.repoPath, name);
-      if (!f) continue;
-      out.push(this.summary(name, f));
+    for (const folder of skillFoldersOf(project)) {
+      for (const name of await this.store.listSkillNames(project.repoPath, folder)) {
+        if (seen.has(name)) continue; // the folder searched first wins
+        const f = await this.store.readSkillFile(project.repoPath, folder, name);
+        if (!f) continue;
+        seen.add(name);
+        out.push(this.summary(folder, name, f));
+      }
     }
     return out;
   }
 
   async readSkill(project: AdapterProject, name: string): Promise<SkillDto> {
-    const f = await this.store.readSkillFile(project.repoPath, name);
-    if (!f) throw new SkillNotFoundError(name);
-    return { ...this.summary(name, f), body: f.body, sha: f.sha };
+    const found = await this.find(project, name);
+    if (!found) throw new SkillNotFoundError(name);
+    return { ...this.summary(found.folder, name, found.file), body: found.file.body, sha: found.file.sha };
+  }
+
+  /** The skill in the first folder that has it. */
+  private async find(
+    project: AdapterProject,
+    name: string,
+  ): Promise<{ folder: string; file: { body: string; sha: string; mtime: string } } | null> {
+    for (const folder of skillFoldersOf(project)) {
+      const file = await this.store.readSkillFile(project.repoPath, folder, name);
+      if (file) return { folder, file };
+    }
+    return null;
   }
 
   async readRepoFile(project: AdapterProject, path: string): Promise<string | null> {
@@ -102,23 +119,27 @@ export class FakeCodeHostAdapter implements CodeHostAdapter {
     message: string,
     sha?: string,
   ): Promise<SkillChangeResult> {
-    const existing = await this.store.readSkillFile(project.repoPath, name);
     // GitHub semantics: updating needs the current sha; creating must not carry one.
     const given = sha === '' ? undefined : sha; // empty sha is treated as absent, like GitHub
+    // A new skill goes to the default agent's folder; an edit goes to the folder the skill is in.
+    const target = skillFoldersOf(project)[0] ?? '';
+    const folder = given === undefined ? target : ((await this.find(project, name))?.folder ?? target);
+    const existing = await this.store.readSkillFile(project.repoPath, folder, name);
     if (existing ? given !== existing.sha : given !== undefined) throw new SkillConflictError(name);
     if (await this.store.isBranchProtected(project.repoPath)) {
       return this.changeRequest(project, existing ? 'update' : 'create', name, message);
     }
-    const commitSha = await this.store.writeSkillFile(project.repoPath, name, body);
+    const commitSha = await this.store.writeSkillFile(project.repoPath, folder, name, body);
     return { kind: 'commit', commitSha, targetBranch: project.defaultBranch ?? 'main' };
   }
 
   async deleteSkill(project: AdapterProject, name: string, message: string): Promise<SkillChangeResult> {
+    const found = await this.find(project, name);
+    if (!found) throw new SkillNotFoundError(name);
     if (await this.store.isBranchProtected(project.repoPath)) {
-      if (!(await this.store.readSkillFile(project.repoPath, name))) throw new SkillNotFoundError(name);
       return this.changeRequest(project, 'delete', name, message);
     }
-    if (!(await this.store.deleteSkillFile(project.repoPath, name))) throw new SkillNotFoundError(name);
+    if (!(await this.store.deleteSkillFile(project.repoPath, found.folder, name))) throw new SkillNotFoundError(name);
     return {
       kind: 'commit',
       commitSha: sha1(`delete:${name}:${message}`),
@@ -150,11 +171,11 @@ export class FakeCodeHostAdapter implements CodeHostAdapter {
     };
   }
 
-  private summary(name: string, f: { body: string; sha: string; mtime: string }): SkillSummaryDto {
+  private summary(folder: string, name: string, f: { body: string; sha: string; mtime: string }): SkillSummaryDto {
     return {
       name,
       description: skillDescription(f.body),
-      path: `${SKILLS_DIR}/${name}/SKILL.md`,
+      path: `${folder}/${name}/SKILL.md`,
       lastCommit: { sha: f.sha || sha1(f.body), message: `Update ${name}`, at: f.mtime },
     };
   }

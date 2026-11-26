@@ -2,12 +2,12 @@ import type { RepoDto, SkillDto, SkillSummaryDto } from '@agentdesk/contracts';
 import { z } from 'zod';
 import type { Clock } from '../../clock';
 import {
-  SKILLS_DIR,
   SkillBranchExistsError,
   SkillChangeRequestError,
   SkillConflictError,
   SkillNotFoundError,
   skillDescription,
+  skillFoldersOf,
   type AdapterConnection,
   type AdapterProject,
   type CheckoutTicket,
@@ -77,9 +77,9 @@ function manageUrlOf(htmlUrl: string | null | undefined): string | null {
   }
 }
 
-function skillPath(name: string): string {
+function skillPath(folder: string, name: string): string {
   if (!SKILL_NAME.test(name)) throw new Error(`invalid skill name "${name}"`);
-  return `${SKILLS_DIR}/${name}/SKILL.md`;
+  return `${folder}/${name}/SKILL.md`;
 }
 
 type GithubInstallationClient = ReturnType<GithubClients['installation']>;
@@ -280,43 +280,100 @@ export class GithubCodeHostAdapter implements CodeHostAdapter {
   }
 
   async listSkills(project: AdapterProject): Promise<SkillSummaryDto[]> {
-    const { owner, repo } = splitRepoPath(project.repoPath);
-    let entries: z.infer<typeof DirEntries>;
-    try {
-      const res = await this.clients
-        .installation(project.connectionExternalId)
-        .request('GET /repos/{owner}/{repo}/contents/{+path}', { owner, repo, path: SKILLS_DIR });
-      entries = DirEntries.parse(res.data);
-    } catch (e) {
-      if (errorStatus(e) === 404) return [];
-      throw e;
-    }
+    const seen = new Set<string>();
     const out: SkillSummaryDto[] = [];
-    for (const d of entries.filter((x) => x.type === 'dir' && SKILL_NAME.test(x.name))) {
-      try {
-        const s = await this.readSkill(project, d.name);
-        const { body: _b, sha: _s, ...summary } = s;
-        out.push(summary);
-      } catch (e) {
-        if (!(e instanceof SkillNotFoundError)) throw e; // a directory without SKILL.md is not a skill
+    for (const folder of skillFoldersOf(project)) {
+      for (const name of await this.skillDirNames(project, folder)) {
+        if (seen.has(name)) continue; // the folder searched first wins
+        try {
+          const { body: _b, sha: _s, ...summary } = await this.readSkillIn(project, folder, name);
+          out.push(summary);
+          seen.add(name);
+        } catch (e) {
+          if (!(e instanceof SkillNotFoundError)) throw e; // a directory without SKILL.md is not a skill
+        }
       }
     }
     return out;
   }
 
-  async readSkill(project: AdapterProject, name: string): Promise<SkillDto> {
-    const path = skillPath(name);
+  /** Names of the sub-directories of a skill folder. A missing folder, or one that is a symlink or a file, has none. */
+  private async skillDirNames(project: AdapterProject, folder: string): Promise<string[]> {
     const { owner, repo } = splitRepoPath(project.repoPath);
-    const octokit = this.clients.installation(project.connectionExternalId);
-    let file: z.infer<typeof FileResponse>;
+    let data: unknown;
     try {
-      file = FileResponse.parse(
-        (await octokit.request('GET /repos/{owner}/{repo}/contents/{+path}', { owner, repo, path })).data,
-      );
+      data = (
+        await this.clients
+          .installation(project.connectionExternalId)
+          .request('GET /repos/{owner}/{repo}/contents/{+path}', { owner, repo, path: folder })
+      ).data;
+    } catch (e) {
+      if (errorStatus(e) === 404) return [];
+      throw e;
+    }
+    // GitHub answers a symlink (or a file) with one object instead of a list; the contents API does not follow it.
+    if (!Array.isArray(data)) return [];
+    return DirEntries.parse(data)
+      .filter((x) => x.type === 'dir' && SKILL_NAME.test(x.name))
+      .map((x) => x.name);
+  }
+
+  async readSkill(project: AdapterProject, name: string): Promise<SkillDto> {
+    for (const folder of skillFoldersOf(project)) {
+      try {
+        return await this.readSkillIn(project, folder, name);
+      } catch (e) {
+        if (!(e instanceof SkillNotFoundError)) throw e;
+      }
+    }
+    throw new SkillNotFoundError(name);
+  }
+
+  /** The folder the skill is in (the one searched first when several have it), or null when none does. */
+  private async folderOf(project: AdapterProject, name: string): Promise<string | null> {
+    for (const folder of skillFoldersOf(project)) {
+      try {
+        await this.fetchSkillFile(project, folder, name);
+        return folder;
+      } catch (e) {
+        if (!(e instanceof SkillNotFoundError)) throw e;
+      }
+    }
+    return null;
+  }
+
+  /**
+   * The SKILL.md of a skill in one folder. Read, list and edit all decide "is it in this folder" here: a missing file,
+   * and a SKILL.md that is a symlink or a folder (one object with no content; the contents API does not follow it),
+   * are both "not found".
+   */
+  private async fetchSkillFile(
+    project: AdapterProject,
+    folder: string,
+    name: string,
+  ): Promise<{ path: string; file: z.infer<typeof FileResponse> }> {
+    const path = skillPath(folder, name);
+    const { owner, repo } = splitRepoPath(project.repoPath);
+    let data: unknown;
+    try {
+      data = (
+        await this.clients
+          .installation(project.connectionExternalId)
+          .request('GET /repos/{owner}/{repo}/contents/{+path}', { owner, repo, path })
+      ).data;
     } catch (e) {
       if (errorStatus(e) === 404) throw new SkillNotFoundError(name);
       throw e;
     }
+    const parsed = FileResponse.safeParse(data);
+    if (!parsed.success) throw new SkillNotFoundError(name);
+    return { path, file: parsed.data };
+  }
+
+  private async readSkillIn(project: AdapterProject, folder: string, name: string): Promise<SkillDto> {
+    const { path, file } = await this.fetchSkillFile(project, folder, name);
+    const { owner, repo } = splitRepoPath(project.repoPath);
+    const octokit = this.clients.installation(project.connectionExternalId);
     if (file.encoding !== 'base64') throw new Error(`unexpected encoding for ${path}`);
     const body = Buffer.from(file.content.replace(/\n/g, ''), 'base64').toString('utf8');
     const commits = CommitList.parse(
@@ -370,9 +427,12 @@ export class GithubCodeHostAdapter implements CodeHostAdapter {
     message: string,
     sha?: string,
   ): Promise<SkillChangeResult> {
-    const path = skillPath(name);
+    // A new skill goes to the default agent's folder. An edit goes to the folder the skill is in (found by its sha).
+    const target = skillFoldersOf(project)[0] ?? '';
+    const folder = sha ? ((await this.folderOf(project, name)) ?? target) : target;
+    const path = skillPath(folder, name);
     const { owner, repo } = splitRepoPath(project.repoPath);
-    return this.submit(project, sha ? 'update' : 'create', name, message, (octokit, branch) =>
+    return this.submit(project, sha ? 'update' : 'create', name, path, message, (octokit, branch) =>
       octokit.request('PUT /repos/{owner}/{repo}/contents/{+path}', {
         owner,
         repo,
@@ -387,10 +447,10 @@ export class GithubCodeHostAdapter implements CodeHostAdapter {
   }
 
   async deleteSkill(project: AdapterProject, name: string, message: string): Promise<SkillChangeResult> {
-    const path = skillPath(name);
     const { owner, repo } = splitRepoPath(project.repoPath);
     const current = await this.readSkill(project, name);
-    return this.submit(project, 'delete', name, message, (octokit, branch) =>
+    const path = current.path;
+    return this.submit(project, 'delete', name, path, message, (octokit, branch) =>
       octokit.request('DELETE /repos/{owner}/{repo}/contents/{+path}', {
         owner,
         repo,
@@ -411,6 +471,7 @@ export class GithubCodeHostAdapter implements CodeHostAdapter {
     project: AdapterProject,
     action: 'create' | 'update' | 'delete',
     name: string,
+    path: string,
     message: string,
     write: (octokit: GithubInstallationClient, branch?: string) => Promise<{ data: unknown }>,
   ): Promise<SkillChangeResult> {
@@ -459,7 +520,7 @@ export class GithubCodeHostAdapter implements CodeHostAdapter {
             title: `${verb} skill: ${name}`,
             head: sourceBranch,
             base: targetBranch,
-            body: `${verb} skill \`${name}\` (\`${skillPath(name)}\`).\n\n${message}`,
+            body: `${verb} skill \`${name}\` (\`${path}\`).\n\n${message}`,
           })
         ).data,
       );

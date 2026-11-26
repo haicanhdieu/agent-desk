@@ -21,6 +21,7 @@ import { projectPaths, useDeskFrame } from '@/features/desk/frame';
 import { rulesUsing, toSkill } from '@/features/desk/map';
 import { isStaleSkill, useCommitSkill, useDeleteSkill } from '@/features/desk/mutations';
 import { deskQueries } from '@/features/desk/queries';
+import { useSkillFolders } from '@/features/desk/skillFolders';
 import { projectsQueries } from '@/features/projects/queries';
 import { DeskSkills, type SkillSubmission } from '@/screens';
 
@@ -64,6 +65,7 @@ function DeskSkillsPage() {
   const toast = useToast();
   const now = useNow();
   const frame = useDeskFrame(org, projectId, now);
+  const folders = useSkillFolders(org, projectId);
   const current = pageOfSearch(search);
   const [pageSize] = usePageSize();
   const { data: skillsPage, busy } = usePagedQuery({ page: current, pageSize }, (q) =>
@@ -187,6 +189,7 @@ function DeskSkillsPage() {
       active={detail ? toSkill(detail, rules, now) : undefined}
       pagination={pagination}
       editorKey={editorKey}
+      folders={folders}
       defaultBranch={projectDto.defaultBranch}
       committing={commit.isPending}
       deletePending={remove.isPending}

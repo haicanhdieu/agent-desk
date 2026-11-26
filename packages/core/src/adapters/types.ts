@@ -1,4 +1,12 @@
-import type { PrState, Provider, RepoDto, SkillDto, SkillSummaryDto, TicketKind } from '@agentdesk/contracts';
+import {
+  skillFolders,
+  type PrState,
+  type Provider,
+  type RepoDto,
+  type SkillDto,
+  type SkillSummaryDto,
+  type TicketKind,
+} from '@agentdesk/contracts';
 
 export type { Provider };
 
@@ -47,6 +55,16 @@ export interface AdapterProject {
   /** `externalId` of the connection that grants access to the repo. */
   connectionExternalId: string;
   defaultBranch?: string;
+  /**
+   * Repo folders that hold the project's skills, in precedence order (the default agent's folder first). New skills go
+   * to the first. Absent means the folders of Claude Code, the default agent kind.
+   */
+  skillFolders?: readonly string[];
+}
+
+/** The folders to search for a project's skills, highest precedence first. */
+export function skillFoldersOf(project: AdapterProject): readonly string[] {
+  return project.skillFolders ?? skillFolders('claude');
 }
 
 export interface AdapterConnection {
@@ -217,8 +235,6 @@ export interface AdapterRegistry {
   codeHost(provider: Provider): CodeHostAdapter;
   providers(): Provider[];
 }
-
-export const SKILLS_DIR = '.agent/skills';
 
 /** Extracts `description:` from SKILL.md front-matter ('' when absent). */
 export function skillDescription(body: string): string {

@@ -21,6 +21,7 @@ import { projectPaths, useDeskFrame, useDeskRights } from '@/features/desk/frame
 import { UNAVAILABLE_AGENT, toRule, toRuleAgentOption } from '@/features/desk/map';
 import { useDeleteRule, useToggleRule } from '@/features/desk/mutations';
 import { deskQueries } from '@/features/desk/queries';
+import { skillFoldersOf } from '@/features/desk/skillFolders';
 import { usePromptPreview } from '@/features/desk/promptPreview';
 import { useRuleForm } from '@/features/desk/rules.form';
 import { projectsQueries } from '@/features/projects/queries';
@@ -77,7 +78,10 @@ function DeskRulesPage() {
   const remove = useDeleteRule(org, projectId);
 
   const skillNames = skillsPage.items.map((s) => s.name);
-  const rules = ruleDtos.map((r) => toRule(r, agentsState === 'loading' ? undefined : agents, now, skillNames));
+  const folders = agentsState === 'ready' ? skillFoldersOf(agents) : undefined;
+  const rules = ruleDtos.map((r) =>
+    toRule(r, agentsState === 'loading' ? undefined : agents, now, skillNames, folders),
+  );
   const onPage = search.rule === undefined ? undefined : ruleDtos.find((r) => r.id === search.rule);
   // A rule linked from another page opens from the whole-set read (read only when the link needs it).
   const { data: wholeSet } = useQuery({
@@ -134,6 +138,7 @@ function DeskRulesPage() {
             agents={agents}
             agentsState={agentsState}
             skills={skillNames}
+            skillFolders={folders}
             onClose={close}
             onDelete={editing && (() => onDelete(editing.id))}
           />
@@ -152,11 +157,22 @@ interface RuleEditorProps {
   /** `locked`: the reader cannot see the agent list (or it failed): each rule keeps its agent. */
   agentsState: 'ready' | 'loading' | 'locked';
   skills: string[];
+  skillFolders: string[] | undefined;
   onClose(): void;
   onDelete?(): void;
 }
 
-function RuleEditor({ org, projectId, rule, agents, agentsState, skills, onClose, onDelete }: RuleEditorProps) {
+function RuleEditor({
+  org,
+  projectId,
+  rule,
+  agents,
+  agentsState,
+  skills,
+  skillFolders,
+  onClose,
+  onDelete,
+}: RuleEditorProps) {
   const form = useRuleForm(org, projectId, {
     initial: rule,
     defaultSkill: skills[0],
@@ -194,6 +210,7 @@ function RuleEditor({ org, projectId, rule, agents, agentsState, skills, onClose
       defaultAgentName={defaultAgent?.name}
       agentsState={agentsState === 'loading' ? 'loading' : 'ready'}
       skills={skills}
+      skillFolders={skillFolders}
       promptPreview={promptPreview}
       onChange={(d) =>
         form.change({

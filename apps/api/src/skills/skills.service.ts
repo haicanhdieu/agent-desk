@@ -1,8 +1,10 @@
 import { BadGatewayException, ConflictException, Inject, Injectable, NotFoundException } from '@nestjs/common';
-import { eq } from 'drizzle-orm';
-import { connections, projects, withOrg, type Db } from '@agentdesk/db';
+import { and, eq } from 'drizzle-orm';
+import { agents, connections, projects, withOrg, type Db } from '@agentdesk/db';
 import {
+  AgentKind,
   Provider,
+  skillFolders,
   slicePage,
   type Page,
   type PageQuery,
@@ -38,7 +40,10 @@ export class SkillsService {
     @Inject(ADAPTER_REGISTRY) private readonly registry: AdapterRegistry,
   ) {}
 
-  /** The project's code host adapter and the slice of the project it needs. 404 when the project is not in the org. */
+  /**
+   * The project's code host adapter and the slice of the project it needs. 404 when the project is not in the org.
+   * The skill folders come from the project's default agent (Claude Code's when it has none).
+   */
   async codeHostFor(org: OrgContext, projectId: string): Promise<ProjectCodeHost> {
     const row = await withOrg(this.db, org.orgId, async (tx) => {
       const rows = await tx
@@ -52,12 +57,19 @@ export class SkillsService {
         .innerJoin(connections, eq(connections.id, projects.codeConnectionId))
         .where(eq(projects.id, projectId))
         .limit(1);
-      return rows[0];
+      const row = rows[0];
+      if (!row) return undefined;
+      const [def] = await tx
+        .select({ provider: agents.provider })
+        .from(agents)
+        .where(and(eq(agents.projectId, projectId), eq(agents.isDefault, true)))
+        .limit(1);
+      return { ...row, agentKind: AgentKind.safeParse(def?.provider).data ?? 'claude' };
     });
     if (!row) throw new NotFoundException('Project not found');
     return {
       host: this.registry.codeHost(Provider.parse(row.provider)),
-      project: toAdapterProject(row, row.externalId),
+      project: { ...toAdapterProject(row, row.externalId), skillFolders: skillFolders(row.agentKind) },
     };
   }
 

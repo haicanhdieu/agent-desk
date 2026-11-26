@@ -310,6 +310,58 @@ describe('desk skills route', () => {
   });
 });
 
+describe('desk skills folders follow the default agent', () => {
+  const setDefaultProvider = (provider: 'claude' | 'codex' | 'opencode') => {
+    const row = mockDb.state.agents.find((a) => a.projectId === projectId && a.isDefault);
+    if (!row) throw new Error('default agent missing');
+    row.provider = provider;
+  };
+
+  it('a Codex project names .agents/skills/ in the list header and the empty state', async () => {
+    setDefaultProvider('codex');
+    mockDb.state.skills[projectId] = [];
+    await renderRoute(`${base}/skills`);
+    const empty = await screen.findByRole('heading', { name: /No skills yet/ });
+    expect(screen.getByText('.agents/skills/ on main')).toBeInTheDocument();
+    expect(empty.parentElement).toHaveTextContent('under .agents/skills/');
+    expect(empty.parentElement).not.toHaveTextContent('.claude/skills/');
+  });
+
+  it('an OpenCode project names its folder first, then .agents/skills/', async () => {
+    setDefaultProvider('opencode');
+    await renderRoute(`${base}/skills`);
+    expect(await screen.findByText('.opencode/skills/, .agents/skills/ on main')).toBeInTheDocument();
+  });
+
+  it('names no folder while the agent list loads, then the default agent folders', async () => {
+    setDefaultProvider('codex');
+    mockDb.state.skills[projectId] = [];
+    let release: () => void = () => {};
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    server.use(
+      http.get('*/api/projects/:projectId/agents', async () => {
+        await gate;
+        return undefined;
+      }),
+    );
+    await renderRoute(`${base}/skills`);
+    const empty = await screen.findByRole('heading', { name: /No skills yet/ });
+    expect(screen.getByText('Skill folders on main')).toBeInTheDocument();
+    expect(empty.parentElement).toHaveTextContent("under the project's skill folders");
+    expect(screen.queryByText(/claude\/skills/)).toBeNull();
+    release();
+    expect(await screen.findByText('.agents/skills/ on main')).toBeInTheDocument();
+    expect(empty.parentElement).not.toHaveTextContent('.claude/skills/');
+  });
+
+  it('a Claude project names .claude/skills/ only', async () => {
+    await renderRoute(`${base}/skills`);
+    expect(await screen.findByText('.claude/skills/ on main')).toBeInTheDocument();
+  });
+});
+
 describe('desk skills submit and review', () => {
   const edit = async (user: Awaited<ReturnType<typeof renderRoute>>['user'], text = '\nMore steps.') => {
     await user.type(await screen.findByLabelText('SKILL.md source'), text);

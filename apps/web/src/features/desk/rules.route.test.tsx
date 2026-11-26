@@ -978,6 +978,26 @@ describe('rule agent without the agent list', () => {
     expect(ruleRow(ids.rule.r2).agentId).toBe(claude.id);
   });
 
+  it('names no skill folder while the agents load, then the default agent folders', async () => {
+    const row = mockDb.state.agents.find((a) => a.projectId === projectId && a.isDefault);
+    if (!row) throw new Error('default agent missing');
+    row.provider = 'codex';
+    let release: () => void = () => undefined;
+    const gate = new Promise<void>((resolve) => (release = resolve));
+    server.use(
+      http.get('*/api/projects/:projectId/agents', async () => {
+        await gate;
+        return undefined;
+      }),
+    );
+    await renderRoute(`${rulesPage}?rule=new`);
+    const form = await screen.findByRole('complementary', { name: 'New rule' });
+    expect(form).toHaveTextContent("From the project's skill folders on main.");
+    expect(form).not.toHaveTextContent('.claude/skills/');
+    release();
+    await waitFor(() => expect(form).toHaveTextContent('From .agents/skills/ on main.'));
+  });
+
   it('while the agents load a row does not read Unavailable agent, then shows the real name', async () => {
     if (!claude) throw new Error('no agent fixture');
     let release: () => void = () => undefined;

@@ -51,6 +51,8 @@ export interface RulePaneProps {
   title: 'Edit rule' | 'New rule';
   value: RuleDraft;
   skills: string[];
+  /** The repo folders the skills come from, in order (see `RuleFormProps.skillFolders`). */
+  skillFolders?: RuleFormProps['skillFolders'];
   /** With it, the form shows the Model field and its help line names the default model. */
   modelField?: { list: ModelList; defaultModel: string; settingsHref: string };
   onChange(draft: RuleDraft): void;
@@ -76,6 +78,7 @@ export function RulePane({
   title,
   value,
   skills,
+  skillFolders,
   modelField,
   onChange,
   onClose,
@@ -119,6 +122,7 @@ export function RulePane({
       <RuleForm
         value={value}
         skills={skills}
+        {...(skillFolders && { skillFolders })}
         agents={
           agents ??
           (value.agentId
