@@ -110,7 +110,7 @@ What setup installs and writes, as the runner user:
 | `~/.serena`                          | Serena's own config and caches, created on first use                                                                                                  |
 | `~/.claude.json` (local scope)       | the `serena` MCP server entry for this checkout, with `--agent-interface tools` and `--project <repo>`                                                |
 | `<repo>/.serena`                     | Serena's project data, with the `typescript` language server set in `project.yml`; the script adds it to `.git/info/exclude` so it is never committed |
-| `<repo>/.claude/settings.local.json` | Serena's four Claude Code hooks, merged into the file (already in this repo's `.gitignore`)                                                           |
+| `<repo>/.claude/settings.local.json` | Serena's four Claude Code hooks and `env.ENABLE_TOOL_SEARCH`, merged into the file (already in this repo's `.gitignore`)                              |
 
 Things to know:
 
@@ -129,16 +129,10 @@ Things to know:
   - `activate` (`SessionStart`) prompts the agent to activate the project and read Serena's instructions.
   - `cleanup` (`SessionEnd`) removes the session's hook data.
 - Serena calls the hooks alpha.
-- Setup never edits `.claude/settings.json`. In `settings.local.json` it keeps your other settings and hooks, a rerun adds no duplicates, and a Serena hook with an old path is replaced. An empty or whitespace-only file counts as `{}`. If the file is not a JSON object, or its `hooks` section is malformed, setup stops and leaves the file untouched.
+- Tool loading: Claude Code [defers MCP tools](https://code.claude.com/docs/en/mcp) until the agent searches for them, and in a real run with Serena on, no agent made a symbol query. Setup therefore sets `env.ENABLE_TOOL_SEARCH` to `"false"`, so tools load up front. This covers **every** MCP server in the pod, not only Serena, and uses more context. A value already set in `env` in `settings.local.json` is kept.
+- Setup never edits `.claude/settings.json`. In `settings.local.json` it keeps your other settings and hooks, a rerun adds no duplicates, and a Serena hook with an old path is replaced. An empty or whitespace-only file counts as `{}`. If the file is not a JSON object, or its `hooks` or `env` section is malformed, setup stops and leaves the file untouched.
 - Remove the hooks by deleting the `serena-hooks` entries from `.claude/settings.local.json`. Turning the flag off does not remove them. Like the MCP server, they apply when Claude Code starts.
-- The script does not edit `CLAUDE.md` or `AGENTS.md`. A project that opts in can add this to its own file:
-
-```md
-## Code tools
-
-Use Serena for symbol lookup, find-references and symbol-aware edits. Use plain search for text, config and docs.
-Serena line numbers are 0-based.
-```
+- The script does not edit `CLAUDE.md` or `AGENTS.md`. A project that opts in should tell its agents when to use Serena, as the "Code tools" section of this repo's [AGENTS.md](../../AGENTS.md) does.
 
 ## 7. Troubleshooting
 

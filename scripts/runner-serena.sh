@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Opt-in Serena (semantic code tools) for the Agent Desk runner pod. Called by scripts/runner-setup.sh with
 # cwd = repo root; does nothing unless RUNNER_ENABLE_SERENA=1 (unset or 0 = off). Installs land under $HOME; in the
-# repo it writes only Serena's Claude Code hooks (.claude/settings.local.json) and the .serena/ git exclude.
+# repo it writes only Serena's Claude Code hooks and the tool-loading setting (.claude/settings.local.json) and the
+# .serena/ git exclude.
 # Idempotent: finished steps are skipped. Linux only, and only when the `claude` CLI is on PATH.
 set -euo pipefail
 
@@ -126,7 +127,7 @@ else
   echo "already configured"
 fi
 
-step "hooks (.claude/settings.local.json)"
+step "hooks and tool loading (.claude/settings.local.json)"
 # Absolute path for the same reason as above; Claude Code runs each hook command through a shell, so it is quoted.
 hooks_bin="$(uv tool dir --bin)/serena-hooks"
 if [ ! -x "$hooks_bin" ]; then
@@ -160,6 +161,8 @@ try {
 if (!isObject(settings)) fail('the top level is not an object');
 const hooks = settings.hooks === undefined ? {} : settings.hooks;
 if (!isObject(hooks)) fail('"hooks" is not an object');
+const env = settings.env === undefined ? {} : settings.env;
+if (!isObject(env)) fail('"env" is not an object');
 for (const [event] of wanted) {
   if (hooks[event] !== undefined && !Array.isArray(hooks[event])) fail(`"hooks.${event}" is not an array`);
 }
@@ -181,6 +184,9 @@ for (const [event, matcher, name] of wanted) {
   hooks[event] = groups;
 }
 settings.hooks = hooks;
+// Claude Code defers MCP tools behind ToolSearch by default, and agents then never load Serena's. 'false' loads every
+// MCP tool up front. A value already set here wins.
+settings.env = { ENABLE_TOOL_SEARCH: 'false', ...env };
 
 fs.mkdirSync(path.dirname(file), { recursive: true });
 const tmp = `${file}.${process.pid}.tmp`;

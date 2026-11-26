@@ -28,6 +28,16 @@ devbox run help
 
 No devbox or Docker (a runner pod)? Run `pnpm env:detect` first and follow its `tests=` line; the steps are in [runner-pod.md](docs/runbooks/runner-pod.md).
 
+## Code tools
+
+These apply when `mcp__serena__*` tools are available (runner pods with Serena on, [runner-pod.md](docs/runbooks/runner-pod.md) §6). Without them, ignore this section. Subagents follow it too.
+
+- **MUST** use Serena for TypeScript code: `get_symbols_overview` before reading a whole file, `find_symbol` to find or read a definition, `find_referencing_symbols` for callers, and `rename_symbol` or `replace_symbol_body` for symbol-wide edits.
+- Use plain search and file reads for text, config and docs, and when a Serena call fails or returns nothing.
+- If the tools are listed by name only, load them with `ToolSearch` first.
+- When you start a subagent that reads or edits code, tell it to follow this section.
+- Serena line numbers are 0-based.
+
 ## Rules ([docs/conventions/](docs/conventions/README.md))
 
 1. **Contracts first:** API changes start in `packages/contracts`; never duplicate those types. (architecture)
