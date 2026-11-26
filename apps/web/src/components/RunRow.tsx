@@ -32,7 +32,7 @@ export function TicketGroupRow({ group, colSpan }: { group: TicketGroup; colSpan
             </span>
           )}
           <span className={styles.grow} />
-          {!merged && (
+          {!merged && group.runsMax > 0 && (
             <span className={`${styles.faint} ${styles.num}`}>
               {group.runsUsed} of {group.runsMax} runs
             </span>

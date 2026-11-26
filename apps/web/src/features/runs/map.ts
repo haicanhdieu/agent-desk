@@ -188,7 +188,10 @@ export function groupKeyOf(run: Pick<RunSummary, 'ticket'>, linked: readonly Lin
 
 const kindLabel = (kind: TicketKind) => (kind === 'pr' ? 'PR' : 'Issue');
 
-/** "Issue #142 (1 of 10 runs) → PR #148 (1 of 10 runs), PR #150 (2 of 10 runs)" (linked already in number order). */
+/**
+ * "Issue #142 (1 of 10 runs) → PR #148 (1 of 10 runs), PR #150 (2 of 10 runs)" (linked already in number order).
+ * `runsMax` 0 is unlimited: "Issue #142 → PR #148, PR #150", no counts.
+ */
 export function chainNoteOf(
   lead: { kind: TicketKind; number: number },
   leadUsed: number,
@@ -196,7 +199,9 @@ export function chainNoteOf(
   runsMax: number,
 ): string {
   const part = (t: { kind: TicketKind; number: number }, used: number) =>
-    `${kindLabel(t.kind)} #${t.number} (${used} of ${runsMax} runs)`;
+    runsMax === 0
+      ? `${kindLabel(t.kind)} #${t.number}`
+      : `${kindLabel(t.kind)} #${t.number} (${used} of ${runsMax} runs)`;
   return `${part(lead, leadUsed)} → ${linked.map((l) => part(l.ticket, l.runsUsed)).join(', ')}`;
 }
 

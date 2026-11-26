@@ -198,6 +198,11 @@ describe('TicketGroupRow', () => {
     expect(screen.getByRole('link', { name: 'Open #142 in GitHub' })).toBeInTheDocument();
   });
 
+  it('an unlimited project (runsMax 0) shows no standalone count on a single-ticket header', () => {
+    inTable(<TicketGroupRow group={{ ...group, runsMax: 0, chainNote: undefined }} colSpan={8} />);
+    expect(screen.queryByText(/ of \d+ runs/)).toBeNull();
+  });
+
   it('a single-ticket header keeps N of max runs on the right', () => {
     const { unmount } = inTable(<TicketGroupRow group={group} colSpan={8} />);
     expect(screen.getByText('2 of 10 runs')).toBeInTheDocument();
