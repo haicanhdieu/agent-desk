@@ -154,11 +154,7 @@ export interface RuleFormOptions {
   onSaved?(rule: RuleDto): void;
 }
 
-export function useRuleForm(
-  org: string,
-  projectId: string,
-  { initial, defaultSkill = '', onSaved }: RuleFormOptions,
-) {
+export function useRuleForm(org: string, projectId: string, { initial, defaultSkill = '', onSaved }: RuleFormOptions) {
   const save = useSaveRule(org, projectId);
   // The form-level server message (a Banner); field messages live in each field's `onServer` error.
   const [formError, setFormError] = useState<string>();

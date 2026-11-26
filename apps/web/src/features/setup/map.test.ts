@@ -11,7 +11,12 @@ const agentOf = (provider: AgentKind, model: string, set = true): AgentDto => ({
   provider,
   model,
   credential: set
-    ? { set: true, type: AGENT_KIND_CAPABILITIES[provider].credentialTypes[0]?.type ?? null, updatedAt: null, setBy: null }
+    ? {
+        set: true,
+        type: AGENT_KIND_CAPABILITIES[provider].credentialTypes[0]?.type ?? null,
+        updatedAt: null,
+        setBy: null,
+      }
     : { set: false, type: null, updatedAt: null, setBy: null },
 });
 
