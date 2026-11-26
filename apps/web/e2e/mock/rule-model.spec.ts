@@ -136,7 +136,7 @@ test.describe('BR-29 an invalid typed model shows an error on the Model field an
   });
 });
 
-test.describe('BR-30 a rule that names a model still reads "run code-build with Claude"', () => {
+test.describe('BR-30 (changed by issue #294) a rule that names a model reads "with Claude(model)"', () => {
   const ROW = 'Edit rule /code-docs';
 
   /** Saves a rule through the form: command code-docs, skill code-build, and the given model (a listed name or Default). */
@@ -149,30 +149,24 @@ test.describe('BR-30 a rule that names a model still reads "run code-build with 
     await expect(page.getByRole('button', { name: ROW })).toBeVisible();
   }
 
-  test('TC-30.1 the row of a rule naming haiku reads "run code-build with Claude" and shows no model', async ({
-    page,
-  }) => {
+  test('TC-30.1 the row of a rule naming haiku reads "run code-build with Claude(haiku)"', async ({ page }) => {
     await setAgentModels(page, { [INVOICER_API_AGENT]: { kind: 'fallback', reason: 'disabled' } });
     await createRule(page, 'haiku');
     const row = page.getByRole('button', { name: ROW });
-    await expect(row).toContainText('run code-build with Claude');
-    await expect(row).not.toContainText('haiku');
+    await expect(row).toContainText('run code-build with Claude(haiku)');
   });
 
-  test("TC-30.2 the rule form's sentence is unchanged (run skill code-build with agent Claude) and shows no model", async ({
-    page,
-  }) => {
+  test("TC-30.2 the rule form's sentence reads run skill code-build with agent Claude(haiku)", async ({ page }) => {
     await setAgentModels(page, { [INVOICER_API_AGENT]: { kind: 'fallback', reason: 'disabled' } });
     await createRule(page, 'haiku');
     await page.getByRole('button', { name: ROW }).click();
     // The rule is open again: its Model field shows the saved model, so the model is known to the form.
     await expect(modelSelect(page)).toHaveValue('haiku');
-    // BR-30 source: spec Web section ("rule sentence ... unchanged") and the DeskRules board: the form keeps its slots sentence.
+    // Issue #294 changed BR-30: the form's slots sentence shows the selected model after the agent name.
     const sentence = page.getByText(/^When a comment starting with/);
     await expect(sentence).toHaveText(
-      'When a comment starting with /code-docs is posted on an issue, run skill code-build with agent Claude.',
+      'When a comment starting with /code-docs is posted on an issue, run skill code-build with agent Claude(haiku).',
     );
-    await expect(sentence).not.toContainText('haiku');
   });
 
   test('TC-30.3 the row of a rule that follows the default reads "run code-build with Claude", like TC-30.1', async ({

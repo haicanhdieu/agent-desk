@@ -436,6 +436,8 @@ Local e2e runs with live model lists turned off, so cases that need a live list 
 | BR-36 | side-effect         | When a paused run is resumed after the agent's API address or credential was changed, the resumed pod starts with the current address (its first terminal line shows the new endpoint) while keeping the run's model.                                                                                         | spec Worker (address and credential read at each pod start)                    |
 | BR-37 | calculation         | When a run was queued before this change (no model recorded), Run detail shows the agent's current default model, or "unknown" if the agent has none.                                                                                                                                                        | spec Worker details(), API runs.service                                        |
 
+Note: issue #294 supersedes BR-30. When a rule names its own model, the rule sentence shows `Agent(model)` (for example `with agent Claude(sonnet_5_5)`).
+
 ### Test cases
 
 #### BR-1: Default model dropdown lists the provider's models

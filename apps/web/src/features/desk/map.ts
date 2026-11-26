@@ -55,6 +55,7 @@ export function toRule(dto: RuleDto, agent: AgentDto, now: Date, skillNames?: st
     kind: dto.kind,
     ...(dto.prompt !== null && { prompt: dto.prompt }),
     agent: agent.name,
+    model: dto.model,
     enabled: dto.enabled,
     stats: ruleStats(dto.stats, now),
     ...(missing && {

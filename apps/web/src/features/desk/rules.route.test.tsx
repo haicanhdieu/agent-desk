@@ -647,14 +647,14 @@ describe('desk rules route', () => {
       expect(await within(form).findByText('Loading models…')).toBeInTheDocument();
     });
 
-    it('the rules list row and the sentence show no model', async () => {
+    it('the rules list row and the sentence show the model after the agent', async () => {
       ruleRow(ids.rule.r1).model = 'claude-secret-model-1';
       const { user } = await renderRoute(rulesPage, { scenario: builtin });
       const row = await screen.findByRole('button', { name: 'Edit rule /code-build' });
-      expect(row).not.toHaveTextContent('claude-secret-model-1');
+      expect(row).toHaveTextContent('Claude(claude-secret-model-1)');
       await user.click(row);
       const edit = await screen.findByRole('complementary', { name: 'Edit rule' });
-      expect(within(edit).getAllByText(/When/)[0]).not.toHaveTextContent('claude-secret-model-1');
+      expect(within(edit).getAllByText(/When/)[0]).toHaveTextContent('with agent Claude(claude-secret-model-1)');
     });
   });
 

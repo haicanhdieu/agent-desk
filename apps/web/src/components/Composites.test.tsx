@@ -62,9 +62,19 @@ describe('RuleSentence', () => {
       'When a comment starting with /code-build is posted on an issue labelled user-story, run skill code-build with agent Claude.',
     );
   });
-  it('never shows the rule model (BR-30)', () => {
-    const { container } = render(<RuleSentence rule={{ ...rule, model: 'haiku' }} variant="slots" />);
-    expect(container.textContent).not.toContain('haiku');
+  it('shows the rule model after the agent name (issue #294)', () => {
+    const { container } = render(<RuleSentence rule={{ ...rule, model: 'sonnet_5_5' }} variant="slots" />);
+    expect(container.textContent).toContain('with agent Claude(sonnet_5_5).');
+  });
+  it('plain variant shows the rule model after the agent name (issue #294)', () => {
+    const { container } = render(<RuleSentence rule={{ ...rule, model: 'sonnet_5_5' }} variant="plain" />);
+    expect(container.textContent).toContain('with Claude(sonnet_5_5)');
+  });
+  it('shows no model suffix when the rule follows the default model', () => {
+    for (const model of [undefined, null, '']) {
+      const { container } = render(<RuleSentence rule={{ ...rule, model }} variant="slots" />);
+      expect(container.textContent).toContain('with agent Claude.');
+    }
   });
   it('pr with no labels omits the label clause', () => {
     const { container } = render(<RuleSentence rule={{ ...rule, target: 'pr', labels: [] }} variant="slots" />);

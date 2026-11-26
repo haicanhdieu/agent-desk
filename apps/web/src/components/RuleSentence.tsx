@@ -16,7 +16,7 @@ export type RuleDraft = {
   kind?: RuleKind;
   /** The custom prompt of a `prompt` rule, as written (multi-line). */
   prompt?: string;
-  /** The model this rule asks for. Absent or null follows the agent's default model; '' is an unfinished Other model… and is not saveable. RuleSentence never shows it. */
+  /** The model this rule asks for. Absent or null follows the agent's default model; '' is an unfinished Other model… and is not saveable. RuleSentence shows a non-empty one after the agent name, as Agent(model). */
   model?: string | null;
 };
 
@@ -37,6 +37,7 @@ export const targetWords = (t: RuleTarget) => TARGET_WORDS[t];
 
 export function RuleSentence({ rule, variant }: { rule: RuleDraft; variant: 'slots' | 'plain' }) {
   const labels = rule.labels.join(', ');
+  const agent = rule.model ? `${rule.agent}(${rule.model})` : rule.agent;
   const cmd = <CommandChip>/{rule.command}</CommandChip>;
   if (variant === 'plain') {
     return (
@@ -56,7 +57,7 @@ export function RuleSentence({ rule, variant }: { rule: RuleDraft; variant: 'slo
         ) : (
           <span className={styles.plainSkill}>{rule.skill}</span>
         )}{' '}
-        with {rule.agent}
+        with {agent}
       </span>
     );
   }
@@ -68,7 +69,7 @@ export function RuleSentence({ rule, variant }: { rule: RuleDraft; variant: 'slo
       When a comment starting with {cmd} is posted on {slot(TARGET_WORDS[rule.target])}
       {labels && <> labelled {slot(labels)}</>},{' '}
       {rule.kind === 'prompt' ? <>run {slot('a custom prompt')}</> : <>run skill {slot(rule.skill, true)}</>} with agent{' '}
-      {slot(rule.agent)}.
+      {slot(agent)}.
     </p>
   );
 }
