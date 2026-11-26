@@ -205,10 +205,10 @@ test.describe('BR-9: the run limit stays per ticket', () => {
     const third = await commentOn(page, projectId, pr, '/code-review');
 
     expect(third.outcome).toBe('ignored_max_runs');
+    // Read the Runs list first: opening the Ignored view saves that filter for this browser.
+    const groups = await openRuns(page, handle, projectId, 3);
+    expect(groups.flatMap((g) => g.runs).filter((t) => t === `PR #${pr}`)).toHaveLength(2);
     await ignoredShowsLimit(page, handle, projectId, true);
-    await page.goto(runsUrl(handle, projectId));
-    await expect(runRows(page)).toHaveCount(3);
-    expect((await readGroups(page)).flatMap((g) => g.runs).filter((t) => t === `PR #${pr}`)).toHaveLength(2);
   });
 
   test('TC-9.2: the issue still gets a run when the PR is at its limit', async ({ page }) => {
@@ -239,10 +239,10 @@ test.describe('BR-9: the run limit stays per ticket', () => {
     const third = await commentOn(page, projectId, issue, '/code-build');
 
     expect(third.outcome).toBe('ignored_max_runs');
+    // Read the Runs list first: opening the Ignored view saves that filter for this browser.
+    const groups = await openRuns(page, handle, projectId, 3);
+    expect(groups.flatMap((g) => g.runs).filter((t) => t === `#${issue}`)).toHaveLength(2);
     await ignoredShowsLimit(page, handle, projectId, true);
-    await page.goto(runsUrl(handle, projectId));
-    await expect(runRows(page)).toHaveCount(3);
-    expect((await readGroups(page)).flatMap((g) => g.runs).filter((t) => t === `#${issue}`)).toHaveLength(2);
   });
 
   test('a limit of 0 is unlimited: runs go past the old cap and the Runs list shows no counts', async ({ page }) => {
