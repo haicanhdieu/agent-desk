@@ -1,5 +1,25 @@
 import { expect, test, type Page } from '@playwright/test';
-import { API, addFakeTicket, cancelRun, commentOn, commentOnNewTicket, ok, signInAndCreateProject } from './helpers';
+import {
+  API,
+  addFakeTicket,
+  cancelRun,
+  commentOn as commentOnAs,
+  commentOnNewTicket,
+  ok,
+  signInAndCreateProject as signIn,
+} from './helpers';
+
+/** The login each test's user comments as: a comment is only run for a user linked to that login (run owner). */
+const handles = new WeakMap<Page, string>();
+
+async function signInAndCreateProject(page: Page) {
+  const created = await signIn(page);
+  handles.set(page, created.handle);
+  return created;
+}
+
+const commentOn = (page: Page, projectId: string, ticketNumber: number, body: string) =>
+  commentOnAs(page, projectId, ticketNumber, body, handles.get(page));
 
 /*
  * Local end-to-end for issue and PR runs grouped together on the Runs page against the real stack (spec
@@ -236,8 +256,8 @@ test.describe('BR-9: the run limit stays per ticket', () => {
     const third = await commentOn(page, projectId, issue, '/code-build');
 
     expect(third.runId).toBeTruthy();
-    await ignoredShowsLimit(page, handle, projectId, false);
     const groups = await openRuns(page, handle, projectId, 4);
+    await ignoredShowsLimit(page, handle, projectId, false);
     expect(groups).toHaveLength(1);
     expect(groups[0]?.chain).toBe(`Issue #${issue} → PR #${pr}`);
     expect(groups[0]?.chain).not.toMatch(/\d+ of \d+ runs/);
