@@ -1,4 +1,4 @@
-import type { RepoDto, SkillDto, SkillSummaryDto } from '@agentdesk/contracts';
+import { skillFolders, type RepoDto, type SkillDto, type SkillSummaryDto } from '@agentdesk/contracts';
 import { z } from 'zod';
 import type { Clock } from '../../clock';
 import {
@@ -28,6 +28,10 @@ export interface GithubCodeHostOptions {
 }
 
 const SKILL_NAME = /^[a-z0-9-]+$/;
+// Every skill folder the contracts know about; a link may reach a SKILL.md only inside one of these or the project's own.
+const KNOWN_SKILL_FOLDERS: readonly string[] = [
+  ...new Set([...skillFolders('claude'), ...skillFolders('codex'), ...skillFolders('opencode')]),
+];
 const REPO_FILE_SEGMENT = /^[A-Za-z0-9._-]+$/;
 // Links followed when reading a skill folder or SKILL.md; a longer chain is treated as a loop.
 const MAX_SYMLINK_HOPS = 5;
@@ -403,9 +407,13 @@ export class GithubCodeHostAdapter implements CodeHostAdapter {
       }
     }
     const parsed = found ? FileResponse.safeParse(found.data) : null;
-    // A link may only lead to the SKILL.md of this same skill. Any other file it reaches (a workflow, CODEOWNERS, the
-    // SKILL.md of another skill) is not this skill, and must not be read, edited or deleted as if it were.
-    if (!found || !parsed?.success || !found.path.endsWith(`/${name}/SKILL.md`)) throw new SkillNotFoundError(name);
+    // A link may only lead to this skill's SKILL.md inside a skill folder (the project's own, or a known one). Any other
+    // file it reaches (a workflow, CODEOWNERS, a SKILL.md of another skill or outside the skill folders) must not be read,
+    // edited or deleted as if it were this skill.
+    const roots = [...skillFoldersOf(project), ...KNOWN_SKILL_FOLDERS];
+    const at = found?.path;
+    const inSkillFolder = at !== undefined && roots.some((r) => at === `${r}/${name}/SKILL.md`);
+    if (!found || !parsed?.success || !inSkillFolder) throw new SkillNotFoundError(name);
     return { path: found.path, file: parsed.data };
   }
 
