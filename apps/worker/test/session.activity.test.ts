@@ -6,7 +6,7 @@ import type { RunContext } from '../src/activities/run.activities';
 
 const written: Record<string, unknown>[] = [];
 const events: Record<string, unknown>[] = [];
-/** What the agent-row select returns (the keep settings); none means the defaults. */
+/** What the project-row select returns (the keep settings); none means the defaults. */
 let agentRows: { paused: number; done: number }[] = [];
 
 vi.mock('@agentdesk/db', async (importOriginal) => {

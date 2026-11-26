@@ -15,11 +15,14 @@ import {
 } from '@agentdesk/db';
 import {
   ACTIVE_RUN_STATUSES,
+  AGENT_KIND_CAPABILITIES,
+  AgentKind,
   AGENT_IDLE_END_SECONDS_DEFAULT,
   AGENT_PAUSED_KEEP_SECONDS_DEFAULT,
   AGENT_TIMEOUT_SECONDS_DEFAULT,
   FINAL_RUN_STATUSES,
   FINISHABLE_RUN_STATUSES,
+  FailureCode,
   FailureStage,
   RunStatus,
   STOPPABLE_RUN_STATUSES,
@@ -64,8 +67,12 @@ const REOPENED_ONLY_CLOSE = 'This session is reopened; the run has already succe
 
 type RunRow = typeof runs.$inferSelect;
 interface AgentInfo {
+  id: string;
   name: string;
   model: string;
+}
+/** The project-wide limits every run of the project follows. */
+interface ProjectLimits {
   timeoutSeconds: number;
   idleEndSeconds: number;
   pausedKeepSeconds: number;
@@ -78,20 +85,26 @@ export class RunsService {
     @Inject(TEMPORAL_CLIENT) private readonly temporal: Client,
   ) {}
 
-  private toDto(row: RunRow, agent: AgentInfo | undefined, usage: RunUsageDetail | null): RunDto {
-    return { ...this.toBase(row, agent), prompt: row.prompt, finalPrompt: row.finalPrompt, usage };
+  private toDto(
+    row: RunRow,
+    agent: AgentInfo | undefined,
+    limits: ProjectLimits | undefined,
+    usage: RunUsageDetail | null,
+  ): RunDto {
+    return { ...this.toBase(row, agent, limits), prompt: row.prompt, finalPrompt: row.finalPrompt, usage };
   }
 
   /** The run without its prompt texts, and with the list-only ticket count and linked tickets. */
   private toListItem(
     row: RunRow,
     agent: AgentInfo | undefined,
+    limits: ProjectLimits | undefined,
     ticketRunCount: number,
     usage: RunUsageDetail | null,
     linkedTickets: LinkedTicketDto[] = [],
   ): RunListItem {
     return {
-      ...this.toBase(row, agent),
+      ...this.toBase(row, agent, limits),
       usage: usage === null ? null : toUsageSummary(usage),
       ticketRunCount,
       linkedTickets,
@@ -101,6 +114,7 @@ export class RunsService {
   private toBase(
     row: RunRow,
     agent: AgentInfo | undefined,
+    limits: ProjectLimits | undefined,
   ): Omit<RunListItem, 'ticketRunCount' | 'linkedTickets' | 'usage'> {
     return {
       id: row.id,
@@ -110,8 +124,13 @@ export class RunsService {
       command: row.command,
       ruleKind: row.prompt !== null ? 'prompt' : 'skill',
       skillName: row.skillName,
-      // The agent row can be gone (agent_id is ON DELETE SET NULL); the DTO still needs a shape.
-      agent: { name: agent?.name ?? '(deleted agent)', model: row.model ?? agent?.model ?? 'unknown' },
+      // The live name, else the name recorded at queue time (the agent row can be gone: agent_id is ON DELETE SET NULL),
+      // else a legacy run with neither.
+      agent: {
+        id: agent?.id ?? null,
+        name: agent?.name ?? row.agentName ?? '(deleted agent)',
+        model: row.model ?? agent?.model ?? 'unknown',
+      },
       ticket: {
         ref: row.ticketRef,
         kind: TicketKind.parse(row.ticketKind),
@@ -131,11 +150,12 @@ export class RunsService {
       exitCode: row.exitCode,
       failureReason: row.failureReason,
       failureStage: row.failureStage === null ? null : FailureStage.parse(row.failureStage),
+      failureCode: row.failureCode === null ? null : FailureCode.parse(row.failureCode),
       setupScriptVersion: row.setupScriptVersion,
       costUsd: row.costUsd === null ? null : Number(row.costUsd),
-      timeoutSeconds: agent?.timeoutSeconds ?? AGENT_TIMEOUT_SECONDS_DEFAULT,
-      idleEndSeconds: agent?.idleEndSeconds ?? AGENT_IDLE_END_SECONDS_DEFAULT,
-      pausedKeepSeconds: agent?.pausedKeepSeconds ?? AGENT_PAUSED_KEEP_SECONDS_DEFAULT,
+      timeoutSeconds: limits?.timeoutSeconds ?? AGENT_TIMEOUT_SECONDS_DEFAULT,
+      idleEndSeconds: limits?.idleEndSeconds ?? AGENT_IDLE_END_SECONDS_DEFAULT,
+      pausedKeepSeconds: limits?.pausedKeepSeconds ?? AGENT_PAUSED_KEEP_SECONDS_DEFAULT,
       idleSince: row.idleSince?.toISOString() ?? null,
       waitingOn: row.waitingOn === null ? null : WaitingOn.parse(row.waitingOn),
       agentNote: row.agentNote,
@@ -156,19 +176,37 @@ export class RunsService {
         id: agents.id,
         name: agents.name,
         model: agents.model,
-        timeoutSeconds: agents.timeoutSeconds,
-        idleEndSeconds: agents.idleEndSeconds,
-        pausedKeepSeconds: agents.pausedKeepSeconds,
+        projectId: agents.projectId,
       })
       .from(agents)
-      .where(inArray(agents.id, ids));
-    for (const a of found) out.set(a.id, a);
+      .where(and(inArray(agents.id, ids), inArray(agents.projectId, [...new Set(rows.map((r) => r.projectId))])));
+    // A run only shows an agent of its own project; an agent_id into another project reads as a gone agent.
+    const pairs = new Set(rows.map((r) => `${r.agentId}|${r.projectId}`));
+    for (const { projectId, ...a } of found) if (pairs.has(`${a.id}|${projectId}`)) out.set(a.id, a);
+    return out;
+  }
+
+  private async limitsFor(tx: Tx, rows: RunRow[]): Promise<Map<string, ProjectLimits>> {
+    const out = new Map<string, ProjectLimits>();
+    const ids = [...new Set(rows.map((r) => r.projectId))];
+    if (ids.length === 0) return out;
+    const found = await tx
+      .select({
+        id: projects.id,
+        timeoutSeconds: projects.timeoutSeconds,
+        idleEndSeconds: projects.idleEndSeconds,
+        pausedKeepSeconds: projects.pausedKeepSeconds,
+      })
+      .from(projects)
+      .where(inArray(projects.id, ids));
+    for (const p of found) out.set(p.id, p);
     return out;
   }
 
   private async dto(tx: Tx, row: RunRow): Promise<RunDto> {
     const agent = row.agentId === null ? undefined : (await this.agentsFor(tx, [row])).get(row.agentId);
-    return this.toDto(row, agent, (await usageFor(tx, [row.id])).get(row.id) ?? null);
+    const limits = (await this.limitsFor(tx, [row])).get(row.projectId);
+    return this.toDto(row, agent, limits, (await usageFor(tx, [row.id])).get(row.id) ?? null);
   }
 
   /** Runs each ticket has had in the project, all statuses: one grouped query for the tickets on the page. */
@@ -187,6 +225,7 @@ export class RunsService {
 
   private async listItems(tx: Tx, projectId: string, rows: RunRow[]): Promise<RunListItem[]> {
     const ag = await this.agentsFor(tx, rows);
+    const limits = await this.limitsFor(tx, rows);
     const links = await newestLinks(
       tx,
       projectId,
@@ -205,6 +244,7 @@ export class RunsService {
       this.toListItem(
         r,
         r.agentId === null ? undefined : ag.get(r.agentId),
+        limits.get(r.projectId),
         counts.get(r.ticketRef) ?? 1,
         usage.get(r.id) ?? null,
         linked.get(r.id) ?? [],
@@ -534,13 +574,16 @@ export class RunsService {
         : (
             await withOrg(this.db, org.orgId, (tx) =>
               tx
-                .select({ credentialSecretName: agents.credentialSecretName })
+                .select({ credentialSecretName: agents.credentialSecretName, provider: agents.provider })
                 .from(agents)
                 .where(eq(agents.id, agentId))
                 .limit(1),
             )
           )[0];
-    if (!agent || agent.credentialSecretName === null)
+    // A kind whose capability row says the credential is optional (OpenCode) resumes without one.
+    const credentialOptional =
+      agent !== undefined && AGENT_KIND_CAPABILITIES[AgentKind.parse(agent.provider)].credentialOptional;
+    if (!agent || (agent.credentialSecretName === null && !credentialOptional))
       throw new ConflictException('This project has no agent credential, so the run cannot be resumed');
     try {
       await this.temporal.workflow.getHandle(runWorkflowId(run.id)).executeUpdate(UPDATE.resumeRun);

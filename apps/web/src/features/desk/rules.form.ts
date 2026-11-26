@@ -23,12 +23,13 @@ export type RuleValues = Omit<CreateSkillRuleRequest, 'kind' | 'skillName' | 'ag
   Pick<CreateSkillRuleRequest, 'skillName'> &
   Pick<CreatePromptRuleRequest, 'prompt'> & {
     kind: RuleKind;
-    agentId: string;
+    /** null follows the project's default agent. */
+    agentId: string | null;
     /** null follows the agent's default model; '' is an unfinished Other model… (not saveable). */
     model: string | null;
   };
 type ValueField = Exclude<keyof RuleValues, 'enabled' | 'kind'>;
-/** The fields RuleForm shows; `agentId` has none (the agent is locked to the project's one agent). */
+/** The fields RuleForm shows as a field with a message; `agentId` has none (its message joins the banner). */
 type ScreenValueField = Exclude<ValueField, 'agentId'>;
 
 /** The model as sent: null follows the default, else the trimmed name. */
@@ -41,7 +42,8 @@ export function toCreateRequest(v: RuleValues): CreateRuleRequest {
     labelFilter: v.labelFilter,
     target: v.target,
     enabled: v.enabled,
-    agentId: v.agentId,
+    // No agentId is Project default: the API stores null and the rule follows the default agent.
+    ...(v.agentId !== null && { agentId: v.agentId }),
     model: modelOf(v.model),
   };
   return v.kind === 'prompt'
@@ -148,17 +150,11 @@ export interface RuleFormOptions {
   initial?: RuleDto;
   /** The skill a new rule starts with. */
   defaultSkill?: string;
-  /** The project agent's id: the agent a new rule starts with. */
-  defaultAgentId: string;
   /** Called after the rule saved. */
   onSaved?(rule: RuleDto): void;
 }
 
-export function useRuleForm(
-  org: string,
-  projectId: string,
-  { initial, defaultSkill = '', defaultAgentId, onSaved }: RuleFormOptions,
-) {
+export function useRuleForm(org: string, projectId: string, { initial, defaultSkill = '', onSaved }: RuleFormOptions) {
   const save = useSaveRule(org, projectId);
   // The form-level server message (a Banner); field messages live in each field's `onServer` error.
   const [formError, setFormError] = useState<string>();
@@ -170,7 +166,7 @@ export function useRuleForm(
     skillName: initial?.skillName ?? defaultSkill,
     prompt: initial?.prompt ?? '',
     enabled: initial?.enabled ?? true,
-    agentId: initial?.agentId ?? defaultAgentId,
+    agentId: initial?.agentId ?? null,
     model: initial?.model ?? null,
   };
   // What the draft started from: an edit sends only what differs, so a row toggle made meanwhile is not reverted.

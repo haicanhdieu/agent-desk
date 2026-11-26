@@ -34,6 +34,9 @@ const POD_ENV = [
   'FAKE_TRANSCRIPT_ADAPTER',
   'AGENT_MODEL',
   'ANTHROPIC_BASE_URL',
+  'AGENT',
+  'OPENCODE_CONFIG_CONTENT',
+  'AGENTDESK_LLM_API_KEY',
   'RESUME_NOTE',
 ];
 
@@ -71,6 +74,9 @@ async function boot(env: Record<string, string> = {}, stateDir: string | null = 
     // The launch line reads these; a shell that sets them must not leak in.
     AGENT_MODEL: '',
     ANTHROPIC_BASE_URL: '',
+    AGENT: '',
+    OPENCODE_CONFIG_CONTENT: '',
+    AGENTDESK_LLM_API_KEY: '',
     RUN_AUTHOR_NAME: '',
     RUN_AUTHOR_EMAIL: '',
     RESUME_NOTE: '',
@@ -229,6 +235,53 @@ describe('fake-pod.mjs', () => {
         expect(logLines()[0]).toBe(`agentdesk: agent claude model ${model} endpoint default`);
       },
     );
+
+    describe('per agent kind', () => {
+      const inline = (baseURL: string): string =>
+        JSON.stringify({ provider: { agentdesk: { options: { baseURL }, env: ['AGENTDESK_LLM_API_KEY'] } } });
+
+      it.each([
+        ['claude', 'haiku'],
+        ['codex', 'gpt-6-sol'],
+        ['opencode', 'opencode/big-pickle'],
+      ])('prints the launch line for %s', async (kind, model) => {
+        await boot({ AGENT: kind, AGENT_MODEL: model });
+        expect(logLines()[0]).toBe(`agentdesk: agent ${kind} model ${model} endpoint default`);
+      });
+
+      it('codex ignores an Anthropic address: it has no address field', async () => {
+        await boot({ AGENT: 'codex', ANTHROPIC_BASE_URL: 'https://gw.example.com/v1' });
+        expect(logLines()[0]).toBe('agentdesk: agent codex model default endpoint default');
+      });
+
+      it('opencode with an own endpoint prints its origin and never the key', async () => {
+        await boot({
+          AGENT: 'opencode',
+          AGENT_MODEL: 'agentdesk/m1',
+          OPENCODE_CONFIG_CONTENT: inline('https://llm.example.com:8443/v1/path?x=1'),
+          AGENTDESK_LLM_API_KEY: 'sk-canary-own-endpoint-key',
+        });
+        expect(logLines()[0]).toBe('agentdesk: agent opencode model m1 endpoint https://llm.example.com:8443');
+        expect(read('log')).not.toContain('sk-canary-own-endpoint-key');
+      });
+
+      it.each([
+        ['no inline config', ''],
+        ['a config that is not JSON', 'not json'],
+        ['a config without the provider', '{"provider":{}}'],
+        ['an address with userinfo', inline('https://u:p@llm.example.com/v1')],
+      ])('opencode prints endpoint default for %s', async (_n, cfg) => {
+        await boot({ AGENT: 'opencode', OPENCODE_CONFIG_CONTENT: cfg });
+        expect(logLines()[0]).toBe('agentdesk: agent opencode model default endpoint default');
+      });
+
+      it.each(['antigravity', 'nope', '$(id)'])('an unknown AGENT value is refused: %s', async (bad) => {
+        await expect(boot({ AGENT: bad })).rejects.toMatchObject({ code: 2 });
+        expect(logLines().filter((l) => l.startsWith('agentdesk: agent '))).toEqual([]);
+        expect(read('log')).toContain('agentdesk: unsupported agent');
+        expect(read('log')).not.toContain(bad);
+      });
+    });
 
     it('prints no launch line in setup_test mode, where no agent starts', async () => {
       await boot({ RUN_MODE: 'setup_test', AGENT_MODEL: 'opus' });

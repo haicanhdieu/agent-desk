@@ -16,9 +16,10 @@ test('sign in with GitHub, set up a project in five steps and land on its runs',
   await page.getByRole('radio', { name: 'dev/demo' }).check();
   await page.getByRole('button', { name: 'Continue' }).click();
 
-  // Step 2: Claude credential.
-  await expect(page.getByRole('heading', { name: 'Add the Claude credential', level: 1 })).toBeVisible();
+  // Step 2: the agent (nothing is picked on a first visit).
+  await expect(page.getByRole('heading', { name: 'Add your agent', level: 1 })).toBeVisible();
   await expect(page.getByText('Step 2 of 5')).toBeVisible();
+  await page.getByRole('radio', { name: 'Claude Code' }).check();
   await page.getByRole('textbox', { name: 'Token' }).fill('sk-ant-oat01-e2e-not-a-real-token');
   await page.getByRole('button', { name: 'Continue' }).click();
 
@@ -62,6 +63,7 @@ test('a failing setup test warns on the Ready step and does not block going to r
   await page.goto(`/o/${ORG}/projects/new/repo`);
   await page.getByRole('radio', { name: 'dev/demo' }).check();
   await page.getByRole('button', { name: 'Continue' }).click();
+  await page.getByRole('radio', { name: 'Claude Code' }).check();
   await page.getByRole('textbox', { name: 'Token' }).fill('sk-ant-oat01-e2e-not-a-real-token');
   await page.getByRole('button', { name: 'Continue' }).click();
 
@@ -88,6 +90,7 @@ test('skipping the workspace, skills and first rule steps still finishes setup',
   await page.goto(`/o/${ORG}/projects/new/repo`);
   await page.getByRole('radio', { name: 'dev/demo' }).check();
   await page.getByRole('button', { name: 'Continue' }).click();
+  await page.getByRole('radio', { name: 'Claude Code' }).check();
   await page.getByRole('textbox', { name: 'Token' }).fill('sk-ant-oat01-e2e-not-a-real-token');
   await page.getByRole('button', { name: 'Continue' }).click();
 

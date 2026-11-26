@@ -222,6 +222,23 @@ describe('setRunStatus', () => {
     expect((await load(infra)).run?.failureStage).toBeNull();
   });
 
+  it('persists failure_code with the final status, and leaves it null otherwise', async () => {
+    const id = await seedRun();
+    await setRunStatus(db, { orgId: ORG, runId: id, status: 'starting', at: '2026-11-12T10:00:00.000Z' });
+    expect((await load(id)).run?.failureCode).toBeNull();
+    await setRunStatus(db, {
+      orgId: ORG,
+      runId: id,
+      status: 'failed',
+      failureCode: 'no_credential',
+      at: '2026-11-12T10:01:00.000Z',
+    });
+    expect((await load(id)).run?.failureCode).toBe('no_credential');
+    const other = await seedRun();
+    await setRunStatus(db, { orgId: ORG, runId: other, status: 'failed', at: '2026-11-12T10:01:00.000Z' });
+    expect((await load(other)).run?.failureCode).toBeNull();
+  });
+
   it('a transition out of a final status is a no-op that returns the current seq', async () => {
     const runId = await seedRun();
     const got: RunStatusMessage[] = [];

@@ -92,3 +92,22 @@ describe('rule model and agent', () => {
     expect(validateRule({ ...skillRule, model: 'sonnet' })).toBeUndefined();
   });
 });
+
+describe('rule agent: an agent or the project default', () => {
+  const other = '00000000-0000-4000-8000-0000000000a2';
+
+  it('create with Project default leaves agentId out, so the API stores null', () => {
+    expect(toCreateRequest({ ...skillRule, agentId: null })).not.toHaveProperty('agentId');
+    expect(validateRule({ ...skillRule, agentId: null })).toBeUndefined();
+  });
+
+  it('edit sends agentId null when the rule moves to Project default', () => {
+    expect(changedFields(skillRule, { ...skillRule, agentId: null })).toEqual({ agentId: null });
+  });
+
+  it('edit sends the agent id when a default-following rule picks an agent, and nothing when unchanged', () => {
+    const following = { ...skillRule, agentId: null };
+    expect(changedFields(following, { ...following, agentId: other })).toEqual({ agentId: other });
+    expect(changedFields(following, { ...following })).toEqual({});
+  });
+});

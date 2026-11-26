@@ -1,6 +1,7 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import { Button } from '@/ds';
 import { SidePane } from './SidePane';
+import { ruleAgentOptions } from '@/mocks';
 import { RuleForm } from './RuleForm';
 
 const meta = {
@@ -29,11 +30,12 @@ export const EditRule: Story = {
           target: 'pr',
           labels: [],
           skill: 'code-review',
-          agent: 'Claude',
+          agentId: 'agent-claude',
+          agentLabel: 'Claude',
           enabled: true,
         }}
         skills={['code-build', 'code-review']}
-        agents={['Claude']}
+        agents={ruleAgentOptions}
         agentLocked
         onChange={() => {}}
       />

@@ -1,9 +1,9 @@
-import { useState, type FormEvent } from 'react';
+import { useState, type FormEvent, type KeyboardEvent } from 'react';
 import { Button, Field, Icon, InlineStatus, PasswordInput, SegmentedControl, StatusIcon } from '@/ds';
 import styles from './SecretField.module.css';
 
 export type SecretFieldState = 'empty' | 'entering' | 'saved' | 'replacing';
-export type CredentialType = 'oauth_token' | 'api_key';
+export type CredentialType = 'oauth_token' | 'api_key' | 'auth_json';
 
 export interface SecretFieldProps {
   state: SecretFieldState;
@@ -26,11 +26,26 @@ export interface SecretFieldProps {
   onValueChange?(value: string): void;
   /** Texts for a replace panel opened by the surrounding flow (e.g. the API address changed). */
   replacing?: { title: string; note?: string; status?: string; help?: string };
+  /** The credential types this provider offers, with their names (from the capability table). Default: the Claude pair. */
+  credentialTypes?: { type: CredentialType; label: string }[];
+  /** Label of the secret input, from the provider (for example "API key"). Default: "Token" / "New token". */
+  valueLabel?: string;
+  /** Accessible name of the credential type control in the replace panel. Default: "Credential type". */
+  typeLabel?: string;
+  /** Help under the new secret in the replace panel, when the surrounding flow has no `replacing.help`. */
+  replaceHelp?: string;
+  /** The surrounding flow says the credential is not complete yet: the submit button stays disabled. */
+  submitDisabled?: boolean;
+  /** The reader may not replace the credential: the saved row shows no Replace button. */
+  hideReplace?: boolean;
+  /** The field sits inside another form: it renders no form of its own. Enter submits the value when it has its own submit button; otherwise the surrounding form takes it. */
+  nested?: boolean;
 }
 
 const typeName: Record<CredentialType, string> = {
   oauth_token: 'Claude Code OAuth token',
   api_key: 'API key',
+  auth_json: 'Auth file',
 };
 
 const typeOptions: { value: CredentialType; label: string }[] = [
@@ -49,6 +64,8 @@ function SecretEntry({
   onSubmit,
   onCancel,
   onValueChange,
+  submitDisabled,
+  nested,
 }: {
   label: string;
   help?: string;
@@ -59,14 +76,27 @@ function SecretEntry({
   onSubmit?(v: string): void;
   onCancel?(): void;
   onValueChange?(v: string): void;
+  submitDisabled?: boolean;
+  nested?: boolean;
 }) {
   const [value, setValue] = useState('');
+  const send = () => {
+    if (value && !submitDisabled) onSubmit?.(value);
+  };
   const submit = (e: FormEvent) => {
     e.preventDefault();
-    if (value) onSubmit?.(value);
+    send();
   };
+  // Inside another form, Enter runs this entry when it has its own submit button; otherwise it submits the outer form.
+  const onKeyDown = (e: KeyboardEvent<HTMLElement>) => {
+    if (e.key !== 'Enter' || (e.target instanceof HTMLElement && e.target.tagName === 'BUTTON')) return;
+    e.preventDefault();
+    if (hideSubmit) e.currentTarget.closest('form')?.requestSubmit();
+    else send();
+  };
+  const Wrapper = nested ? 'div' : 'form';
   return (
-    <form className={styles.entry} onSubmit={submit}>
+    <Wrapper className={styles.entry} {...(nested ? { onKeyDown } : { onSubmit: submit })}>
       <Field label={label} help={help} error={error}>
         {({ id, describedBy, invalid }) => (
           <PasswordInput
@@ -90,13 +120,18 @@ function SecretEntry({
             </Button>
           )}
           {!hideSubmit && (
-            <Button type="submit" variant="primary" disabled={!value}>
+            <Button
+              type={nested ? 'button' : 'submit'}
+              variant="primary"
+              disabled={!value || submitDisabled}
+              onClick={nested ? send : undefined}
+            >
               {submitLabel}
             </Button>
           )}
         </div>
       )}
-    </form>
+    </Wrapper>
   );
 }
 
@@ -115,16 +150,27 @@ export function SecretField({
   error,
   onValueChange,
   replacing: replacingTexts,
+  credentialTypes,
+  valueLabel,
+  typeLabel,
+  replaceHelp,
+  submitDisabled,
+  hideReplace,
+  nested,
 }: SecretFieldProps) {
+  const options = credentialTypes?.map((t) => ({ value: t.type, label: t.label })) ?? typeOptions;
+  const savedName = options.find((o) => o.value === credentialType)?.label ?? typeName[credentialType];
   if (state === 'empty' || state === 'entering') {
     return (
       <SecretEntry
-        label="Token"
+        label={valueLabel ?? 'Token'}
         help={entryHelp}
         error={error}
         revealLabel={revealLabel}
         hideSubmit={hideSubmit}
         submitLabel={submitLabel ?? 'Save and test'}
+        submitDisabled={submitDisabled}
+        nested={nested}
         onSubmit={onSubmit}
         onValueChange={onValueChange}
       />
@@ -138,7 +184,7 @@ export function SecretField({
       <div className={styles.saved}>
         <Icon name="key" size={18} />
         <div className={styles.info}>
-          <b>{typeName[credentialType]}</b>
+          <b>{savedName}</b>
           <span>{savedInfo ? `Set ${savedInfo.setAt} by ${savedInfo.setBy}. ` : ''}Hidden for good after saving.</span>
         </div>
         {replacing && replacingTexts?.status && <span className={styles.replacedNote}>{replacingTexts.status}</span>}
@@ -150,9 +196,11 @@ export function SecretField({
             {status.text}
           </InlineStatus>
         )}
-        <Button size="sm" aria-expanded={replacing} onClick={onReplace}>
-          Replace
-        </Button>
+        {!hideReplace && (
+          <Button size="sm" aria-expanded={replacing} onClick={onReplace}>
+            Replace
+          </Button>
+        )}
       </div>
       {replacing && (
         <div className={styles.panel}>
@@ -165,22 +213,28 @@ export function SecretField({
               <span>{replacingTexts.note}</span>
             </p>
           )}
-          <SegmentedControl
-            aria-label="Credential type"
-            value={credentialType}
-            options={typeOptions}
-            onChange={(t) => onCredentialTypeChange?.(t)}
-          />
+          {options.length > 1 && (
+            <SegmentedControl
+              aria-label={typeLabel ?? 'Credential type'}
+              value={credentialType}
+              options={options}
+              onChange={(t) => onCredentialTypeChange?.(t)}
+            />
+          )}
           <SecretEntry
-            label="New token"
+            label={valueLabel ?? 'New token'}
             error={error}
             help={
               replacingTexts?.help ??
+              replaceHelp ??
               'We test the new token with one small call before saving. The old token is overwritten; runs already in progress keep the one they started with.'
             }
             submitLabel={submitLabel ?? 'Test and replace'}
+            submitDisabled={submitDisabled}
+            nested={nested}
             onSubmit={onSubmit}
             onCancel={onCancel}
+            onValueChange={onValueChange}
           />
         </div>
       )}

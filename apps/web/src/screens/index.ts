@@ -15,7 +15,7 @@ export { DeskSkills, type DeskSkillsProps, type SkillSubmission } from './DeskSk
 export { DeskRules, RulePane, type DeskRulesProps, type RulePaneProps } from './DeskRules';
 export { DeskAudit, type DeskAuditProps } from './DeskAudit';
 export { DeskMembers, type DeskMembersProps } from './DeskMembers';
-export { DeskAgent, type AgentLimits, type DeskAgentProps, type LimitField } from './DeskAgent';
+export { DeskAgent, type AgentLimits, type DeskAgentProps, type DeskAgentTab, type LimitField } from './DeskAgent';
 export type { DeskFrameData, DeskLinks } from './DeskFrame';
 export { Overview } from './Overview';
 export {

@@ -37,6 +37,12 @@ const expected: Record<RouteKey, RouteAccess> = {
   'agents.put': project('agent:update'),
   'agents.putCredential': project('secret:update', 'agentId'),
   'agents.models': project('agent:read', 'agentId'),
+  'agents.list': project('agent:read'),
+  'agents.create': project('agent:update'),
+  'agents.update': project('agent:update', 'agentId'),
+  'agents.remove': project('agent:update', 'agentId'),
+  'agents.setDefault': project('agent:update', 'agentId'),
+  'agents.test': project('agent:update', 'agentId'),
   'skills.list': project('skill:read'),
   'skills.get': project('skill:read'),
   'skills.put': project('skill:update'),
@@ -127,8 +133,8 @@ const expected: Record<RouteKey, RouteAccess> = {
 const flat = flattenRoutes(routes);
 
 describe('routeAccess', () => {
-  it('matches the approved permission map for all 102 keys', () => {
-    expect(Object.keys(expected)).toHaveLength(102);
+  it('matches the approved permission map for all 108 keys', () => {
+    expect(Object.keys(expected)).toHaveLength(108);
     expect(routeAccess).toEqual(expected);
   });
 

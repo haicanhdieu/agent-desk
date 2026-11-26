@@ -9,10 +9,16 @@ import {
   AgentBaseUrl,
   AgentDto,
   AgentModelId,
+  AgentConnectionDto,
   AgentModelsDto,
+  AGENT_TEST_MESSAGES,
+  AgentTestStatus,
+  CreateAgentRequest,
+  UpdateAgentRequest,
   PutAgentRequest,
   PutCredentialRequest,
 } from './agents';
+import { AGENT_ACCOUNT_LABEL_MAX, AGENT_KINDS_COMING_SOON, AGENT_NAME_MAX } from '../agent-kinds';
 
 const base = { model: 'm', timeoutSeconds: 60 };
 
@@ -58,6 +64,10 @@ describe('AgentDto idle end', () => {
       idleEndSeconds: 900,
       autoResumeMax: 5,
       credential: { set: false, type: null, updatedAt: null, setBy: null },
+      accountLabel: null,
+      isDefault: true,
+      lastTest: null,
+      usage: { rules: 0, blockingRuns: 0 },
     };
     expect(AgentDto.parse(dto).idleEndSeconds).toBe(900);
   });
@@ -182,6 +192,10 @@ describe('agent model and address contracts', () => {
       idleEndSeconds: 300,
       autoResumeMax: 5,
       credential: { set: false, type: null, updatedAt: null, setBy: null },
+      accountLabel: null,
+      isDefault: true,
+      lastTest: null,
+      usage: { rules: 0, blockingRuns: 0 },
     });
     expect(r.success).toBe(true);
   });
@@ -230,8 +244,129 @@ describe('autoResumeMax', () => {
       doneKeepSeconds: 0,
       idleEndSeconds: 900,
       credential: { set: false, type: null, updatedAt: null, setBy: null },
+      accountLabel: null,
+      isDefault: true,
+      lastTest: null,
+      usage: { rules: 0, blockingRuns: 0 },
     };
     expect(AgentDto.safeParse(dto).success).toBe(false);
     expect(AgentDto.safeParse({ ...dto, autoResumeMax: 5 }).success).toBe(true);
+  });
+});
+
+const ID = '00000000-0000-4000-8000-000000000001';
+const dto = {
+  id: ID,
+  projectId: ID,
+  name: 'Claude - Work',
+  provider: 'claude',
+  model: 'sonnet',
+  baseUrl: null,
+  maxTurns: null,
+  timeoutSeconds: 86400,
+  pausedKeepSeconds: 604800,
+  doneKeepSeconds: 86400,
+  idleEndSeconds: 1800,
+  autoResumeMax: 5,
+  credential: { set: false, type: null, updatedAt: null, setBy: null },
+  accountLabel: null,
+  isDefault: true,
+  lastTest: null,
+  usage: { rules: 0, blockingRuns: 0 },
+};
+
+describe('CreateAgentRequest and UpdateAgentRequest', () => {
+  it.each([
+    ['name', AGENT_NAME_MAX],
+    ['accountLabel', AGENT_ACCOUNT_LABEL_MAX],
+  ])('%s accepts 256, refuses 257, empty and spaces, and trims', (field, max) => {
+    const make = (v: string) => CreateAgentRequest.safeParse({ provider: 'claude', name: 'n', [field]: v });
+    expect(make('a'.repeat(max)).success).toBe(true);
+    expect(make('a'.repeat(max + 1)).success).toBe(false);
+    expect(make('').success).toBe(false);
+    expect(make('   ').success).toBe(false);
+    expect(CreateAgentRequest.parse({ provider: 'claude', name: ' x ', accountLabel: ' y ' })).toMatchObject({
+      name: 'x',
+      accountLabel: 'y',
+    });
+    expect(UpdateAgentRequest.safeParse({ [field]: 'a'.repeat(max + 1) }).success).toBe(false);
+    expect(UpdateAgentRequest.safeParse({ [field]: '   ' }).success).toBe(false);
+  });
+
+  it('hostile strings are bounded by length only for name and label, and by the pattern for the model', () => {
+    for (const v of ['a; rm -rf /', '$(id)', 'x\ny', 'x\u0000y', 'a'.repeat(61), 'a'.repeat(81)]) {
+      expect(CreateAgentRequest.safeParse({ provider: 'claude', name: v }).success).toBe(true);
+      expect(CreateAgentRequest.safeParse({ provider: 'claude', name: 'n', accountLabel: v }).success).toBe(true);
+    }
+    expect(CreateAgentRequest.safeParse({ provider: 'claude', name: 'a'.repeat(10000) }).success).toBe(false);
+    for (const v of ['a; rm -rf /', '$(id)', 'x\ny', 'x\u0000y', 'a b', 'a'.repeat(201), 'a'.repeat(10000)]) {
+      expect(CreateAgentRequest.safeParse({ provider: 'claude', name: 'n', model: v }).success).toBe(false);
+      expect(UpdateAgentRequest.safeParse({ model: v }).success).toBe(false);
+    }
+  });
+
+  it('refuses every coming-soon id and an unknown provider with the issue on /provider', () => {
+    for (const id of [...AGENT_KINDS_COMING_SOON.map((k) => k.id), 'antigravity', 'nope']) {
+      const r = CreateAgentRequest.safeParse({ provider: id, name: 'n' });
+      expect(r.success).toBe(false);
+      expect(r.error?.issues.some((i) => i.path.join('/') === 'provider')).toBe(true);
+    }
+    for (const id of ['claude', 'codex', 'opencode']) {
+      expect(CreateAgentRequest.safeParse({ provider: id, name: 'n' }).success).toBe(true);
+    }
+  });
+
+  it('create allows an absent model and maxTurns; update allows null label, null maxTurns and an empty model', () => {
+    expect(CreateAgentRequest.safeParse({ provider: 'opencode', name: 'n', maxTurns: 5 }).success).toBe(true);
+    expect(UpdateAgentRequest.safeParse({ accountLabel: null, maxTurns: null, model: '' }).success).toBe(true);
+    expect(UpdateAgentRequest.safeParse({}).success).toBe(true);
+  });
+
+  it('refuses provider on update, baseUrl, credential fields and options on both', () => {
+    expect(UpdateAgentRequest.safeParse({ provider: 'codex' }).success).toBe(false);
+    for (const extra of [
+      { baseUrl: 'https://example.com' },
+      { type: 'api_key' },
+      { credentialType: 'api_key' },
+      { value: 'secret' },
+      { options: {} },
+    ]) {
+      expect(CreateAgentRequest.safeParse({ provider: 'claude', name: 'n', ...extra }).success).toBe(false);
+      expect(UpdateAgentRequest.safeParse({ name: 'n', ...extra }).success).toBe(false);
+    }
+  });
+});
+
+describe('AgentDto and AgentConnectionDto', () => {
+  it('parse a fixture and carry no value or options key', () => {
+    const d = AgentDto.parse({ ...dto, lastTest: { status: 'rejected', at: '2026-01-01T00:00:00.000Z' } });
+    expect(d.lastTest?.status).toBe('rejected');
+    expect(Object.keys(d)).not.toContain('options');
+    expect(Object.keys(d.credential)).not.toContain('value');
+    const c = AgentConnectionDto.parse({ status: 'no_credential', message: 'm', testedAt: null });
+    expect(Object.keys(c)).not.toContain('value');
+  });
+
+  it('refuses a bad test status and a missing usage', () => {
+    expect(AgentDto.safeParse({ ...dto, lastTest: { status: 'bad', at: '2026-01-01T00:00:00.000Z' } }).success).toBe(
+      false,
+    );
+    expect(AgentDto.safeParse({ ...dto, usage: undefined }).success).toBe(false);
+  });
+
+  it('has a non-empty fixed message for every connection status', () => {
+    const statuses = [...AgentTestStatus.options, 'no_credential'] as const;
+    expect(Object.keys(AGENT_TEST_MESSAGES).sort()).toEqual([...statuses].sort());
+    for (const s of statuses) expect(AGENT_TEST_MESSAGES[s].length).toBeGreaterThan(0);
+    expect(AGENT_TEST_MESSAGES.ok).toBe('Connected');
+  });
+});
+
+describe('PutCredentialRequest', () => {
+  it('still accepts auth_json with a string value and an optional baseUrl', () => {
+    expect(PutCredentialRequest.safeParse({ type: 'auth_json', value: '{}' }).success).toBe(true);
+    expect(
+      PutCredentialRequest.safeParse({ type: 'auth_json', value: '{}', baseUrl: 'https://example.com' }).success,
+    ).toBe(true);
   });
 });

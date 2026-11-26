@@ -6,6 +6,7 @@ const base: AgentAdapter = {
   credentialEnv: () => 'STUB_KEY',
   launchEnv: () => [],
   listModels: async () => [],
+  checkConnection: async () => 'ok',
 };
 
 /** Priced under catalog provider `vendor-a` with the core default model key. */

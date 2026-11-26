@@ -1,15 +1,11 @@
-import 'reflect-metadata';
-import { METHOD_METADATA, PATH_METADATA } from '@nestjs/common/constants';
 import {
   Controller,
   ForbiddenException,
   Get,
   NotFoundException,
-  RequestMethod,
   UnauthorizedException,
   type ExecutionContext,
 } from '@nestjs/common';
-import { DiscoveryService, ModulesContainer } from '@nestjs/core';
 import type { Logger } from 'pino';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { flattenRoutes, routeAccess, routes, type RouteKey } from '@agentdesk/contracts';
@@ -33,6 +29,7 @@ import { SessionGuard } from '../src/auth/session.guard';
 import { createTestApp, type TestApp } from './helpers/app';
 import { asPlatformAdmin, createOrg, inviteAndLogin, userIdOf } from './helpers/auth';
 import { freshStateDir, installFake, makeProject, wideFakeRepos } from './helpers/fixtures';
+import { registeredRoutes } from './helpers/routes';
 import { makeUsageEntry } from './helpers/usage';
 
 /**
@@ -43,54 +40,6 @@ const NOT_REGISTERED_YET: RouteKey[] = [];
 
 /** Served through a WebSocket gateway, not a Nest HTTP controller. */
 const TERMINAL_KEYS: RouteKey[] = ['runs.terminal', 'setupTests.terminal'];
-
-const METHOD_NAMES: Record<number, string> = {
-  [RequestMethod.GET]: 'GET',
-  [RequestMethod.POST]: 'POST',
-  [RequestMethod.PUT]: 'PUT',
-  [RequestMethod.DELETE]: 'DELETE',
-  [RequestMethod.PATCH]: 'PATCH',
-  [RequestMethod.OPTIONS]: 'OPTIONS',
-  [RequestMethod.HEAD]: 'HEAD',
-  [RequestMethod.ALL]: 'ALL',
-};
-
-const joinPath = (...parts: string[]): string =>
-  '/' +
-  parts
-    .flatMap((p) => p.split('/'))
-    .filter((s) => s !== '')
-    .join('/');
-
-const first = (v: unknown): string => {
-  const s = Array.isArray(v) ? v[0] : v;
-  return typeof s === 'string' ? s : '';
-};
-
-interface Registered {
-  method: string;
-  url: string;
-}
-
-function registeredRoutes(t: TestApp): Registered[] {
-  const discovery = new DiscoveryService(t.app.get(ModulesContainer));
-  const out: Registered[] = [];
-  for (const wrapper of discovery.getControllers()) {
-    const metatype = wrapper.metatype;
-    if (typeof metatype !== 'function') continue;
-    const prefix = first(Reflect.getMetadata(PATH_METADATA, metatype));
-    const proto = metatype.prototype as Record<string, unknown>;
-    for (const name of Object.getOwnPropertyNames(proto)) {
-      const handler = proto[name];
-      if (typeof handler !== 'function') continue;
-      const verb: unknown = Reflect.getMetadata(METHOD_METADATA, handler);
-      if (typeof verb !== 'number') continue;
-      const path = first(Reflect.getMetadata(PATH_METADATA, handler));
-      out.push({ method: METHOD_NAMES[verb] ?? String(verb), url: joinPath(prefix, path) });
-    }
-  }
-  return out;
-}
 
 describe('route discovery (deny by default)', () => {
   let t: TestApp;
@@ -646,6 +595,12 @@ describe('permission and project scope', () => {
         expect(res.statusCode, id).toBe(403);
       }
     });
+    it('a member gets 403 on update and set default of another org’s agent, whatever the id', async () => {
+      for (const id of [agentB, RANDOM]) {
+        expect((await send('PATCH', `/api/agents/${id}`, mem, { name: 'x' })).statusCode, id).toBe(403);
+        expect((await send('POST', `/api/agents/${id}/default`, mem)).statusCode, id).toBe(403);
+      }
+    });
     it('a member gets 403 on another org’s agent credential', async () => {
       const res = await send('PUT', `/api/agents/${agentB}/credential`, mem, { type: 'api_key', value: 'x' });
       expect(res.statusCode).toBe(403);
@@ -661,6 +616,13 @@ describe('permission and project scope', () => {
     it('A gets 404 for org B’s project and for a random rule id', async () => {
       expect((await send('GET', `/api/projects/${pb}`, adm)).statusCode).toBe(404);
       expect((await send('PATCH', `/api/rules/${RANDOM}`, adm, { enabled: false })).statusCode).toBe(404);
+    });
+    it('the owner of org A and the admin of P1 get 404 for another org’s agent on update and set default (never 403)', async () => {
+      for (const cookie of [owner, adm]) {
+        expect((await send('PATCH', `/api/agents/${agentB}`, cookie, { name: 'x' })).statusCode).toBe(404);
+        expect((await send('POST', `/api/agents/${agentB}/default`, cookie)).statusCode).toBe(404);
+        expect((await send('GET', `/api/projects/${pb}/agents`, cookie)).statusCode).toBe(404);
+      }
     });
     it('an owner gets 404 for a malformed project id', async () => {
       expect((await send('GET', '/api/projects/not-a-uuid', owner)).statusCode).toBe(404);
@@ -774,6 +736,12 @@ const DENIAL_TABLE: Record<HttpKey, Expected> = {
   'projects.pollNow': tenant(403),
   'projects.ignored': tenant(200),
   'projects.events': tenant('stream'),
+  'agents.list': tenant(403),
+  'agents.create': tenant(403),
+  'agents.update': tenant(403),
+  'agents.remove': tenant(403),
+  'agents.setDefault': tenant(403),
+  'agents.test': tenant(403),
   'agents.get': tenant(403),
   'agents.put': tenant(403),
   'agents.putCredential': tenant(403),
@@ -1146,6 +1114,8 @@ describe('denial table over every route, stream and terminal', () => {
       'platform.grantAdmin': { email: 'dt-spare@dev.local' },
       'projects.create': { connectionId: connA, repoPath: 'dev/p-denied', triggerMode: 'webhook' },
       'projects.update': { pollIntervalSeconds: 600 },
+      'agents.create': { provider: 'claude', name: 'Denied agent' },
+      'agents.update': { name: 'Denied rename' },
       'agents.put': { model: 'claude-opus-4-1', timeoutSeconds: 3600 },
       'agents.putCredential': { type: 'api_key', value: 'denial-table-secret' },
       'skills.put': { body: '---\ndescription: Denied\n---\nDenied.\n', message: 'denied' },

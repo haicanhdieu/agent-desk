@@ -1,0 +1,7 @@
+{
+  "object": "list",
+  "data": [
+    { "id": "org/model-a", "object": "model", "created": 1700000000, "owned_by": "example" },
+    { "id": "model-b", "object": "model", "created": 1700000001, "owned_by": "example" }
+  ]
+}

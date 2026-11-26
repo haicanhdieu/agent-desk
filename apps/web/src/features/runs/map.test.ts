@@ -1,6 +1,6 @@
-import type { IgnoredEventDto, LinkedTicketDto, RunDto, RunListItem } from '@agentdesk/contracts';
+import type { IgnoredEventDto, LinkedTicketDto, ProjectConnectionDto, RunDto, RunListItem } from '@agentdesk/contracts';
 import { describe, expect, it } from 'vitest';
-import type { TicketGroup } from '@/mocks/types';
+import type { ConnectionStatus, TicketGroup } from '@/mocks/types';
 import { runFixtures } from '@/mocks/dto/runs';
 import {
   chainNoteOf,
@@ -13,6 +13,7 @@ import {
   startOfLocalDay,
   ticketRunCounts,
   toIgnored,
+  toConnectionWarning,
   todaySummary,
   toRunSummary,
   withPrState,
@@ -643,5 +644,40 @@ describe('toRunSummary, usage', () => {
       title: 'No usage data',
       srSuffix: 'No usage data',
     });
+  });
+});
+
+describe('toConnectionWarning links (BR-60)', () => {
+  const agentHref = '/o/alice/p/p1/desk/agent';
+  const silent: ConnectionStatus = { mode: 'webhook', tone: 'err', text: 'No webhooks' };
+  const silentDto: ProjectConnectionDto = {
+    mode: 'webhook',
+    webhook: { lastEventAt: null, lastEventAction: null },
+    polling: null,
+  };
+  const failing: ConnectionStatus = { mode: 'polling', tone: 'err', text: 'Polling failed' };
+  const failingDto: ProjectConnectionDto = {
+    mode: 'polling',
+    webhook: null,
+    polling: { intervalSeconds: 300, lastCheckedAt: null, lastError: 'x', pausedReason: null, nextPollAt: null },
+  };
+
+  it('a silent webhook: Switch to polling and Connection details open the GitHub connection tab', () => {
+    const w = toConnectionWarning(silent, silentDto, agentHref, now);
+    expect(w?.actions.filter((a) => a.href).map((a) => [a.label, a.href])).toEqual([
+      ['Switch to polling', `${agentHref}?tab=github`],
+      ['Connection details', `${agentHref}?tab=github`],
+    ]);
+  });
+
+  it('failing polling: Connection details opens the GitHub connection tab', () => {
+    const w = toConnectionWarning(failing, failingDto, agentHref, now);
+    expect(w?.actions.filter((a) => a.href).map((a) => [a.label, a.href])).toEqual([
+      ['Connection details', `${agentHref}?tab=github`],
+    ]);
+  });
+
+  it('without the Desk page, no action links there', () => {
+    expect(toConnectionWarning(silent, silentDto, undefined, now)?.actions.some((a) => a.href)).toBe(false);
   });
 });

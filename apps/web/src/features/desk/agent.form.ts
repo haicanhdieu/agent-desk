@@ -1,14 +1,25 @@
-import type { AgentDto, CredentialType, ProjectDto, UpdateProjectRequest } from '@agentdesk/contracts';
-import { useQueryClient, type QueryClient } from '@tanstack/react-query';
+import {
+  AGENT_NAME_MAX,
+  CreateAgentRequest,
+  UpdateAgentRequest,
+  type AgentDto,
+  type CredentialType,
+  type ProjectDto,
+  type UpdateProjectRequest,
+} from '@agentdesk/contracts';
+import { ApiError } from '@agentdesk/contracts/client';
+import { useMutation, useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { useRef, useState } from 'react';
-import type { AgentSettings } from '@/mocks/types';
+import type { z } from 'zod';
+import type { AgentPaneField, AgentPaneValues } from '@/components';
+import type { AgentPaneAgent, AgentSettings } from '@/mocks/types';
 import type { AgentLimits, LimitField } from '@/screens';
 import { api } from '../api';
 import { checklistKey } from '../onboarding/checklist';
 import { projectsListKey, projectsQueries } from '../projects/queries';
 import { relativeTime } from '../relativeTime';
-import { fieldErrorsFromProblem } from './problem';
-import { deskQueries } from './queries';
+import { fieldErrorsFromProblem, GENERIC_FORM_ERROR } from './problem';
+import { agentsKey, deskQueries, rulesKey } from './queries';
 
 // Desk, Agent & settings (spec §4.3): limits and the credential. Trigger mode and delete are in mutations.ts.
 
@@ -25,43 +36,43 @@ export function toAgentSettings(agent: AgentDto, project: ProjectDto, now: Date)
       setAt: credential.set && credential.updatedAt ? relativeTime(credential.updatedAt, now) : '',
       setBy: credential.setBy ?? '',
     },
-    ...limitsOf(agent, project),
+    ...limitsOf(project),
   };
 }
 
-export function limitsOf(agent: AgentDto, project: ProjectDto): AgentLimits {
+export function limitsOf(project: ProjectDto): AgentLimits {
   return {
-    timeoutMinutes: Math.round(agent.timeoutSeconds / 60),
-    pausedKeepMinutes: Math.round(agent.pausedKeepSeconds / 60),
-    doneKeepMinutes: Math.round(agent.doneKeepSeconds / 60),
-    idleEndMinutes: Math.round(agent.idleEndSeconds / 60),
+    timeoutMinutes: Math.round(project.timeoutSeconds / 60),
+    pausedKeepMinutes: Math.round(project.pausedKeepSeconds / 60),
+    doneKeepMinutes: Math.round(project.doneKeepSeconds / 60),
+    idleEndMinutes: Math.round(project.idleEndSeconds / 60),
     maxConcurrent: project.maxConcurrentRuns,
     maxRunsPerTicket: project.maxRunsPerTicket,
-    autoResumeMax: agent.autoResumeMax,
+    autoResumeMax: project.autoResumeMax,
   };
 }
 
-export interface LimitsRequests {
-  project?: Pick<UpdateProjectRequest, 'maxConcurrentRuns' | 'maxRunsPerTicket'>;
-  timeoutSeconds?: number;
-  pausedKeepSeconds?: number;
-  doneKeepSeconds?: number;
-  idleEndSeconds?: number;
-  autoResumeMax?: number;
-}
+/** The limit fields of `UpdateProjectRequest`: every limit is project-wide and one request writes them. */
+export type LimitsRequests = Pick<
+  UpdateProjectRequest,
+  | 'maxConcurrentRuns'
+  | 'maxRunsPerTicket'
+  | 'timeoutSeconds'
+  | 'pausedKeepSeconds'
+  | 'doneKeepSeconds'
+  | 'idleEndSeconds'
+  | 'autoResumeMax'
+>;
 
 /**
  * What a limits save sends: only the fields changed since `base` (what the form opened with, or last saved), so a
- * limit changed elsewhere meanwhile is not overwritten. Minutes become seconds for the agent.
+ * limit changed elsewhere meanwhile is not overwritten. Minutes become seconds.
  */
 export function limitsRequests(base: AgentLimits, next: AgentLimits): LimitsRequests {
   const changed = (k: LimitField) => !Object.is(base[k], next[k]);
-  const project = {
+  return {
     ...(changed('maxConcurrent') && { maxConcurrentRuns: next.maxConcurrent }),
     ...(changed('maxRunsPerTicket') && { maxRunsPerTicket: next.maxRunsPerTicket }),
-  };
-  return {
-    ...(Object.keys(project).length > 0 && { project }),
     ...(changed('timeoutMinutes') && { timeoutSeconds: Math.round(next.timeoutMinutes * 60) }),
     ...(changed('pausedKeepMinutes') && { pausedKeepSeconds: Math.round(next.pausedKeepMinutes * 60) }),
     ...(changed('doneKeepMinutes') && { doneKeepSeconds: Math.round(next.doneKeepMinutes * 60) }),
@@ -70,7 +81,7 @@ export function limitsRequests(base: AgentLimits, next: AgentLimits): LimitsRequ
   };
 }
 
-/** problem+json pointers of the two limit requests → the screen's limit fields. */
+/** problem+json pointers of the limits request → the screen's limit fields. */
 export const LIMIT_POINTERS: Record<string, LimitField> = {
   '/timeoutSeconds': 'timeoutMinutes',
   '/pausedKeepSeconds': 'pausedKeepMinutes',
@@ -85,18 +96,11 @@ const LIMIT_FIELDS: ReadonlySet<string> = new Set(Object.values(LIMIT_POINTERS))
 const isLimitField = (k: string): k is LimitField => LIMIT_FIELDS.has(k);
 
 /** True when a limits save has something to send. */
-export const hasLimitChanges = (req: LimitsRequests): boolean =>
-  req.project !== undefined ||
-  req.timeoutSeconds !== undefined ||
-  req.pausedKeepSeconds !== undefined ||
-  req.doneKeepSeconds !== undefined ||
-  req.idleEndSeconds !== undefined ||
-  req.autoResumeMax !== undefined;
+export const hasLimitChanges = (req: LimitsRequests): boolean => Object.keys(req).length > 0;
 
 /**
- * Saves the limits: `projects.update` for the run limits and `agents.put` for the timeout and keep times, in parallel. `agents.put`
- * replaces the agent, so its other fields come from the agent fetched right before the write. Field messages come
- * from the problem pointers; one save at a time.
+ * Saves the project-wide limits with one `projects.update` (they apply to every agent). Field messages come from the
+ * problem pointers; one save at a time.
  */
 export function useSaveLimits(org: string, projectId: string, initial: AgentLimits, { onSaved }: { onSaved(): void }) {
   const qc = useQueryClient();
@@ -106,76 +110,28 @@ export function useSaveLimits(org: string, projectId: string, initial: AgentLimi
   const [errors, setErrors] = useState<Partial<Record<LimitField, string>>>({});
   const [formError, setFormError] = useState<string>();
 
-  const saveProject = async (body: NonNullable<LimitsRequests['project']>) => {
-    const saved = await api.projects.update({ params: { projectId }, body });
-    qc.setQueryData(projectsQueries.detail(org, projectId).queryKey, saved);
-    base.current = {
-      ...base.current,
-      maxConcurrent: saved.maxConcurrentRuns,
-      maxRunsPerTicket: saved.maxRunsPerTicket,
-    };
-  };
-  const saveAgent = async (
-    changes: Pick<
-      LimitsRequests,
-      'timeoutSeconds' | 'pausedKeepSeconds' | 'doneKeepSeconds' | 'idleEndSeconds' | 'autoResumeMax'
-    >,
-  ) => {
-    const agent = await qc.fetchQuery({ ...deskQueries.agent(org, projectId), staleTime: 0 });
-    // `agents.put` replaces the agent: the run time limit is always sent, the keep times and idle end only when
-    // changed (absent keeps the stored value).
-    const saved = await api.agents.put({
-      params: { projectId },
-      body: {
-        model: agent.model,
-        timeoutSeconds: changes.timeoutSeconds ?? agent.timeoutSeconds,
-        ...(agent.maxTurns !== null && { maxTurns: agent.maxTurns }),
-        ...(changes.pausedKeepSeconds !== undefined && { pausedKeepSeconds: changes.pausedKeepSeconds }),
-        ...(changes.doneKeepSeconds !== undefined && { doneKeepSeconds: changes.doneKeepSeconds }),
-        ...(changes.idleEndSeconds !== undefined && { idleEndSeconds: changes.idleEndSeconds }),
-        ...(changes.autoResumeMax !== undefined && { autoResumeMax: changes.autoResumeMax }),
-      },
-    });
-    qc.setQueryData(deskQueries.agent(org, projectId).queryKey, saved);
-    base.current = {
-      ...base.current,
-      timeoutMinutes: Math.round(saved.timeoutSeconds / 60),
-      pausedKeepMinutes: Math.round(saved.pausedKeepSeconds / 60),
-      doneKeepMinutes: Math.round(saved.doneKeepSeconds / 60),
-      idleEndMinutes: Math.round(saved.idleEndSeconds / 60),
-      autoResumeMax: saved.autoResumeMax,
-    };
-  };
-
   const save = async (next: AgentLimits) => {
     if (inFlight.current) return;
-    const requests = limitsRequests(base.current, next);
+    const body = limitsRequests(base.current, next);
     // Nothing changed since the last save: nothing to send and nothing to confirm.
-    if (!hasLimitChanges(requests)) return;
+    if (!hasLimitChanges(body)) return;
     inFlight.current = true;
     setSaving(true);
     setErrors({});
     setFormError(undefined);
     try {
-      const { project, ...agentChanges } = requests;
-      const agentChanged = hasLimitChanges(agentChanges);
-      const results = await Promise.allSettled([
-        project && saveProject(project),
-        agentChanged && saveAgent(agentChanges),
-      ]);
+      const saved = await api.projects.update({ params: { projectId }, body });
+      qc.setQueryData(projectsQueries.detail(org, projectId).queryKey, saved);
+      base.current = limitsOf(saved);
+      void qc.invalidateQueries({ queryKey: projectsListKey(org) });
+      onSaved();
+    } catch (e) {
+      const problem = fieldErrorsFromProblem(e, LIMIT_POINTERS);
+      // The problem's fields are keyed by the map's values, i.e. limit fields.
       const fields: Partial<Record<LimitField, string>> = {};
-      const forms: string[] = [];
-      for (const r of results) {
-        if (r.status === 'fulfilled') continue;
-        const problem = fieldErrorsFromProblem(r.reason, LIMIT_POINTERS);
-        // The problem's fields are keyed by the map's values, i.e. limit fields.
-        for (const [k, v] of Object.entries(problem.fields)) if (isLimitField(k)) fields[k] ??= v;
-        if (problem.form) forms.push(problem.form);
-      }
-      if (project) void qc.invalidateQueries({ queryKey: projectsListKey(org) });
+      for (const [k, v] of Object.entries(problem.fields)) if (isLimitField(k)) fields[k] = v;
       setErrors(fields);
-      setFormError(forms.length > 0 ? forms.join(' ') : undefined);
-      if (results.every((r) => r.status === 'fulfilled')) onSaved();
+      setFormError(problem.form);
     } finally {
       inFlight.current = false;
       setSaving(false);
@@ -184,46 +140,292 @@ export function useSaveLimits(org: string, projectId: string, initial: AgentLimi
   return { save, saving, errors, formError };
 }
 
-/** Pointer of a refused default model → the model field. */
-const MODEL_POINTERS: Record<string, string> = { '/model': 'model' };
+/** problem+json pointers of the create and update requests → the pane's fields. */
+const AGENT_POINTERS: Record<string, AgentPaneField> = {
+  '/provider': 'provider',
+  '/name': 'name',
+  '/accountLabel': 'accountLabel',
+  '/model': 'model',
+  '/maxTurns': 'maxTurns',
+};
+
+const isPaneField = (k: string): k is AgentPaneField =>
+  Object.values(AGENT_POINTERS).some((f) => f === k) || k === 'baseUrl' || k === 'value';
+
+export type SaveFieldErrors = Partial<Record<AgentPaneField, string>>;
+
+/** What each add step did: `skipped` = nothing to do, `failed` = tried and refused. */
+export type StepState = 'skipped' | 'done' | 'failed';
+
+export interface AddResult {
+  /** The agent exists and its credential (when one was typed) is saved. A failed test or default does not undo it. */
+  ok: boolean;
+  /** Set as soon as create worked, so a retry never creates twice. */
+  agentId?: string;
+  steps: Record<'create' | 'credential' | 'test' | 'setDefault', StepState>;
+  /** A refusal that belongs to no field. */
+  error?: string;
+  /** The agent was saved but could not be made the default. */
+  defaultError?: string;
+}
+
+export interface EditResult {
+  ok: boolean;
+  /** The default moved to this agent in this save. */
+  defaultChanged: boolean;
+  error?: string;
+}
+
+/** The agent was created but its credential was not saved: the pane resumes on it as "Edit agent". */
+export interface PartialAdd {
+  agentId: string;
+  reason: string;
+  requestId?: string;
+  /** What was typed apart from the secret, to seed the Edit pane. */
+  draft: { makeDefault: boolean; authType: CredentialType | null; address: string };
+}
+
+const DUPLICATE_NAME = 'An agent with this name already exists.';
+const TOO_LONG = `Use ${AGENT_NAME_MAX} characters or fewer.`;
+
+/** Zod issues of a request → the pane's field messages (the first issue of a field wins). */
+function fieldErrorsFromIssues(error: z.ZodError): SaveFieldErrors {
+  const out: SaveFieldErrors = {};
+  for (const issue of error.issues) {
+    const key = String(issue.path[0] ?? '');
+    if (!isPaneField(key) || out[key] !== undefined) continue;
+    if (key === 'name') out.name = issue.code === 'too_big' ? TOO_LONG : 'Enter a name.';
+    else if (key === 'accountLabel')
+      out.accountLabel = issue.code === 'too_big' ? TOO_LONG : 'Enter a label or clear it.';
+    else out[key] = issue.message;
+  }
+  return out;
+}
+
+function fieldsOf(e: unknown): { fields: SaveFieldErrors; form?: string } {
+  const problem = fieldErrorsFromProblem(e, AGENT_POINTERS);
+  const fields: SaveFieldErrors = {};
+  for (const [k, v] of Object.entries(problem.fields)) if (isPaneField(k)) fields[k] = v;
+  // A taken name (409 on /name) reads the same whatever the API's own sentence is.
+  if (e instanceof ApiError && e.status === 409 && fields.name !== undefined) fields.name = DUPLICATE_NAME;
+  return { fields, ...(problem.form !== undefined && { form: problem.form }) };
+}
+
+/** Refreshes what an agent write can change: both agent reads, the rules lists, the checklist and the model list. */
+async function refreshAgentData(qc: QueryClient, org: string, projectId: string, agentId?: string) {
+  await Promise.all([
+    qc.invalidateQueries({ queryKey: agentsKey(org, projectId) }),
+    qc.invalidateQueries({ queryKey: rulesKey(org, projectId) }),
+    qc.invalidateQueries({ queryKey: deskQueries.agent(org, projectId).queryKey }),
+    qc.invalidateQueries({ queryKey: checklistKey(org) }),
+    agentId === undefined
+      ? undefined
+      : qc.invalidateQueries({ queryKey: deskQueries.agentModels(org, agentId).queryKey }),
+  ]);
+}
+
+const noSteps = (): AddResult['steps'] => ({
+  create: 'skipped',
+  credential: 'skipped',
+  test: 'skipped',
+  setDefault: 'skipped',
+});
 
 /**
- * Saves the default model through `agents.put`. The other fields come from the agent fetched right before the write
- * (staleTime 0), as `useSaveLimits` does; the keep times are not sent, so they keep their stored values (BR-8).
- * Resolves `true` when saved. One save at a time.
+ * Saves the add and edit panes. `add` is one orchestrated function: create (with the chosen model, if any), the
+ * credential (only if one was typed), the connection test, then set-default (only if ticked); it returns what each
+ * step did so the pane can resume. `edit` sends one PATCH of the changed fields, then set-default if ticked.
+ * Not optimistic: nothing shows as saved before the API says so. Not a Query mutation on purpose: the typed secret is
+ * only an argument of the credential request and is kept nowhere (mutation variables live in the mutation cache).
  */
 export function useSaveAgent(org: string, projectId: string) {
   const qc = useQueryClient();
   const inFlight = useRef(false);
   const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string>();
-  const save = async (model: string): Promise<boolean> => {
+  const [progress, setProgress] = useState<string>();
+  const [fieldErrors, setFieldErrors] = useState<SaveFieldErrors>({});
+  const [partial, setPartial] = useState<PartialAdd>();
+
+  const begin = (): boolean => {
     if (inFlight.current) return false;
     inFlight.current = true;
     setSaving(true);
-    setError(undefined);
+    setFieldErrors({});
+    return true;
+  };
+  const end = () => {
+    inFlight.current = false;
+    setSaving(false);
+    setProgress(undefined);
+  };
+
+  const add = async (values: AgentPaneValues): Promise<AddResult> => {
+    const steps = noSteps();
+    if (!begin()) return { ok: false, steps };
     try {
-      const agent = await qc.fetchQuery({ ...deskQueries.agent(org, projectId), staleTime: 0 });
-      const saved = await api.agents.put({
-        params: { projectId },
-        body: {
-          model,
-          timeoutSeconds: agent.timeoutSeconds,
-          ...(agent.maxTurns !== null && { maxTurns: agent.maxTurns }),
-        },
+      setPartial(undefined);
+      const parsed = CreateAgentRequest.safeParse({
+        provider: values.provider,
+        name: values.name,
+        ...(values.accountLabel !== '' && { accountLabel: values.accountLabel }),
+        ...(values.model !== '' && { model: values.model }),
       });
-      qc.setQueryData(deskQueries.agent(org, projectId).queryKey, saved);
-      return true;
-    } catch (e) {
-      const problem = fieldErrorsFromProblem(e, MODEL_POINTERS);
-      setError(problem.fields.model ?? problem.form);
-      return false;
+      if (!parsed.success) {
+        setFieldErrors(fieldErrorsFromIssues(parsed.error));
+        steps.create = 'failed';
+        return { ok: false, steps };
+      }
+      setProgress('Saving agent…');
+      let agentId: string;
+      try {
+        agentId = (await api.agents.create({ params: { projectId }, body: parsed.data })).id;
+      } catch (e) {
+        const problem = fieldsOf(e);
+        setFieldErrors(problem.fields);
+        steps.create = 'failed';
+        return { ok: false, steps, ...(problem.form !== undefined && { error: problem.form }) };
+      }
+      steps.create = 'done';
+      const result: AddResult = { ok: true, agentId, steps };
+      if (values.credential) {
+        setProgress('Saving credential…');
+        const { type, value, baseUrl } = values.credential;
+        try {
+          await api.agents.putCredential({
+            params: { agentId },
+            // A credentials file takes no address.
+            body: { type, value, ...(baseUrl !== undefined && type !== 'auth_json' && { baseUrl }) },
+          });
+          steps.credential = 'done';
+        } catch (e) {
+          const problem = fieldErrorsFromProblem(e, CREDENTIAL_POINTERS);
+          const reason = problem.fields.credential ?? problem.fields.address ?? problem.form ?? GENERIC_FORM_ERROR;
+          steps.credential = 'failed';
+          setPartial({
+            agentId,
+            reason,
+            draft: { makeDefault: values.makeDefault, authType: type, address: baseUrl ?? '' },
+            ...(e instanceof ApiError && e.requestId !== undefined && { requestId: e.requestId }),
+          });
+          await refreshAgentData(qc, org, projectId, agentId);
+          return { ok: false, agentId, steps, error: reason };
+        }
+        setProgress('Testing connection…');
+        try {
+          await api.agents.test({ params: { agentId } });
+          steps.test = 'done';
+        } catch {
+          // A test that cannot run is not a save failure: the row shows "Not tested".
+          steps.test = 'failed';
+        }
+      }
+      if (values.makeDefault) {
+        try {
+          await api.agents.setDefault({ params: { agentId } });
+          steps.setDefault = 'done';
+        } catch (e) {
+          steps.setDefault = 'failed';
+          result.defaultError = e instanceof ApiError ? e.title : GENERIC_FORM_ERROR;
+        }
+      }
+      await refreshAgentData(qc, org, projectId, agentId);
+      return result;
     } finally {
-      inFlight.current = false;
-      setSaving(false);
+      end();
     }
   };
-  return { save, saving, error };
+
+  const edit = async (agent: AgentPaneAgent, values: AgentPaneValues): Promise<EditResult> => {
+    if (!begin()) return { ok: false, defaultChanged: false };
+    try {
+      const body = {
+        ...(values.name !== agent.name && { name: values.name }),
+        ...(values.accountLabel !== agent.accountLabel && {
+          accountLabel: values.accountLabel === '' ? null : values.accountLabel,
+        }),
+        ...(values.model !== agent.model && { model: values.model }),
+        ...(values.maxTurns !== agent.maxTurns && { maxTurns: values.maxTurns }),
+      };
+      const parsed = UpdateAgentRequest.safeParse(body);
+      if (!parsed.success) {
+        setFieldErrors(fieldErrorsFromIssues(parsed.error));
+        return { ok: false, defaultChanged: false };
+      }
+      setProgress('Saving agent…');
+      try {
+        if (Object.keys(parsed.data).length > 0) {
+          await api.agents.update({ params: { agentId: agent.id }, body: parsed.data });
+        }
+      } catch (e) {
+        const problem = fieldsOf(e);
+        setFieldErrors(problem.fields);
+        return { ok: false, defaultChanged: false, ...(problem.form !== undefined && { error: problem.form }) };
+      }
+      let defaultChanged = false;
+      let error: string | undefined;
+      if (values.makeDefault && !agent.isDefault) {
+        try {
+          await api.agents.setDefault({ params: { agentId: agent.id } });
+          defaultChanged = true;
+        } catch (e) {
+          error = e instanceof ApiError ? e.title : GENERIC_FORM_ERROR;
+        }
+      }
+      await refreshAgentData(qc, org, projectId, agent.id);
+      return { ok: error === undefined, defaultChanged, ...(error !== undefined && { error }) };
+    } finally {
+      end();
+    }
+  };
+
+  return {
+    add,
+    edit,
+    saving,
+    progress,
+    fieldErrors,
+    partial,
+    /** Drops the field messages and the partial-add banner (the pane closed or changed). */
+    reset: () => {
+      setFieldErrors({});
+      setPartial(undefined);
+    },
+    clearPartial: () => setPartial(undefined),
+  };
+}
+
+/** Deletes an agent. A 409 (a rule or an open run uses it) rejects with the ApiError: the dialog shows the reason. */
+export function useDeleteAgent(org: string, projectId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (agentId: string) => api.agents.remove({ params: { agentId } }),
+    onSuccess: async (_, agentId) => {
+      qc.removeQueries({ queryKey: deskQueries.agentModels(org, agentId).queryKey });
+      await refreshAgentData(qc, org, projectId);
+    },
+  });
+}
+
+/** Moves the project default to this agent. Not optimistic: the chip moves when the lists refetch. */
+export function useSetDefaultAgent(org: string, projectId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (agentId: string) => api.agents.setDefault({ params: { agentId } }),
+    onSuccess: () => refreshAgentData(qc, org, projectId),
+  });
+}
+
+/** Checks the saved credential. The answer carries a fixed message per status, never provider text. */
+export function useTestAgent(org: string, projectId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (agentId: string) => api.agents.test({ params: { agentId } }),
+    onSuccess: () =>
+      Promise.all([
+        qc.invalidateQueries({ queryKey: agentsKey(org, projectId) }),
+        qc.invalidateQueries({ queryKey: deskQueries.agent(org, projectId).queryKey }),
+      ]),
+  });
 }
 
 /** Shown when the agent could not be refetched after a credential attempt. */
@@ -262,14 +464,15 @@ const CREDENTIAL_POINTERS: Record<string, string> = {
  * address change leaves the new address with no credential (BR-16), and the screen must show that. The model list
  * key is not under the project prefix, so it is invalidated explicitly.
  */
-export function useReplaceCredential(org: string, projectId: string, agentId: string) {
+export function useReplaceCredential(org: string, projectId: string, agentId: string | undefined) {
   const qc = useQueryClient();
   const inFlight = useRef(false);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string>();
   const [addressError, setAddressError] = useState<string>();
   const replace = async (type: CredentialType, value: string, baseUrl?: string | null): Promise<boolean> => {
-    if (inFlight.current) return false;
+    // No agent yet (the Add pane): nothing to replace.
+    if (inFlight.current || agentId === undefined) return false;
     inFlight.current = true;
     setPending(true);
     setError(undefined);
@@ -296,5 +499,10 @@ export function useReplaceCredential(org: string, projectId: string, agentId: st
     setPending(false);
     return saved && refreshed;
   };
-  return { replace, pending, error, addressError };
+  /** Drops the last attempt's messages (the pane closed or changed). */
+  const reset = () => {
+    setError(undefined);
+    setAddressError(undefined);
+  };
+  return { replace, reset, pending, error, addressError };
 }

@@ -34,10 +34,10 @@ describe('projects route', () => {
     expect(screen.getByRole('link', { name: /New project/ })).toHaveAttribute('href', '/o/alice/projects/new/repo');
   });
 
-  it('"Switch to polling" on a silent webhook project links to its agent settings', async () => {
+  it('TC-60.3: "Switch to polling" on a silent webhook project links to the GitHub connection tab', async () => {
     await renderRoute('/o/alice/projects');
     const link = await screen.findByRole('link', { name: 'Switch to polling for docs-site' });
-    expect(link).toHaveAttribute('href', `/o/alice/p/${ids.project.docsSite}/desk/agent`);
+    expect(link).toHaveAttribute('href', `/o/alice/p/${ids.project.docsSite}/desk/agent?tab=github`);
   });
 
   it('the More menu of a project offers Runs and Settings links and an enabled Delete project', async () => {
@@ -782,11 +782,13 @@ describe('checklist is not refetched when a write does not complete a step', () 
     const before = count();
     await act(async () => {
       await expect(
-        result.current.save(project, agent, {
+        result.current.save(project, {
+          kind: agent.provider,
           model: agent.model,
           maxConcurrentRuns: 1,
           credentialType: 'oauth_token',
           credential: 'sk-ant-oat-123',
+          baseUrl: '',
         }),
       ).rejects.toBeDefined();
     });

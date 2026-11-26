@@ -484,16 +484,21 @@ async function decideInTx(
     ...(proj.defaultBranch !== null ? { defaultBranch: proj.defaultBranch } : {}),
   });
 
-  // Freeze the model on the run: the rule's own, else the agent's default as it is now.
-  let runModel = decision.rule.model;
-  if (runModel === null) {
-    const [agent] = await tx
-      .select({ model: agents.model })
-      .from(agents)
-      .where(and(eq(agents.id, decision.rule.agentId), eq(agents.projectId, projectId)))
-      .limit(1);
-    runModel = agent?.model ?? null;
-  }
+  // Freeze the agent, its name and the model on the run: the rule's agent, else the project's default as it is now.
+  // A missing default or an agent outside this project throws; the handler records an error outcome and no run, and no other agent is used.
+  const [agent] = await tx
+    .select({ id: agents.id, name: agents.name, model: agents.model })
+    .from(agents)
+    .where(
+      and(
+        eq(agents.projectId, projectId),
+        decision.rule.agentId === null ? eq(agents.isDefault, true) : eq(agents.id, decision.rule.agentId),
+      ),
+    )
+    .limit(1);
+  if (!agent)
+    throw new Error('no agent to run on: the rule agent is not in this project or the project has no default');
+  const runModel = decision.rule.model ?? agent.model;
 
   try {
     // A savepoint: a unique violation must not abort the surrounding transaction.
@@ -504,7 +509,8 @@ async function decideInTx(
           orgId,
           projectId,
           ruleId: decision.rule.id,
-          agentId: decision.rule.agentId,
+          agentId: agent.id,
+          agentName: agent.name,
           model: runModel,
           command: decision.command,
           skillName: decision.rule.skillName,

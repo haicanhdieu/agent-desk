@@ -106,6 +106,8 @@ export interface ModelPickerProps {
   value: string | null;
   onChange(value: string | null): void;
   withDefault?: boolean;
+  /** Name of the leading option with `withDefault`. Default: "Default model". */
+  defaultLabel?: string;
   /** Under the select while a listed model or Default model is picked. */
   help?: ReactNode;
   /** Under the "Other model…" input. */
@@ -114,7 +116,17 @@ export interface ModelPickerProps {
   error?: string;
 }
 
-export function ModelPicker({ label, list, value, onChange, withDefault, help, typedHelp, error }: ModelPickerProps) {
+export function ModelPicker({
+  label,
+  list,
+  value,
+  onChange,
+  withDefault,
+  defaultLabel,
+  help,
+  typedHelp,
+  error,
+}: ModelPickerProps) {
   // Everything shown derives from `value` and the list; no local state, so a parent reset is always followed.
   const current = value ?? (withDefault ? null : '');
   // While the list loads, a saved model stays selected (as a provisional option) instead of flipping to Other.
@@ -163,7 +175,7 @@ export function ModelPicker({ label, list, value, onChange, withDefault, help, t
             aria-describedby={describedBy}
             aria-invalid={other ? undefined : invalid}
           >
-            {withDefault && <option value={DEFAULT_VALUE}>{DEFAULT_MODEL_LABEL}</option>}
+            {withDefault && <option value={DEFAULT_VALUE}>{defaultLabel ?? DEFAULT_MODEL_LABEL}</option>}
             {models.map((m) => (
               <option key={m.id} value={m.id} title={m.label}>
                 {m.id}

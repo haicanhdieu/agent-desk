@@ -17,9 +17,10 @@ import {
   type Config,
   type KubeGateway,
   type SecretStore,
+  MIN_SECRET_LENGTH,
 } from '@agentdesk/core';
 import { connections, projects, setupTestEvents, setupTests, withOrg, type Db } from '@agentdesk/db';
-import { MIN_SECRET_LENGTH, guarded, oneLine, safeError, secretValues, sleep } from './activity-utils';
+import { guarded, oneLine, safeError, secretValues, sleep } from './activity-utils';
 import { loadProjectEnv } from './project-env';
 import { followPodLog, outputBudget } from './follow-core';
 import { appendSetupTestEvent, storeSetupLineEvent } from './setup-test-events';

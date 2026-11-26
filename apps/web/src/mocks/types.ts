@@ -1,3 +1,4 @@
+import type { AgentKind } from '@agentdesk/contracts';
 import type { ReactNode } from 'react';
 import type { RunStatus } from '@/ds/tokens';
 import type { TicketKind } from '@/ds/TicketRef';
@@ -372,3 +373,67 @@ export type MemberPickerState =
   | { kind: 'error'; onRetry: () => void }
   | { kind: 'loadingMore' }
   | { kind: 'loadMoreError'; onRetry: () => void };
+
+// Agent configurations (Settings → Agent & settings → Agents).
+export type AgentStatusTone = 'ok' | 'warn' | 'err' | 'off';
+export interface AgentStatusView {
+  tone: AgentStatusTone;
+  text: string;
+}
+export interface AgentRowView {
+  id: string;
+  name: string;
+  /** The provider's logo key (contracts capability table). */
+  logo: string;
+  /** The provider's name, the text of its logo (contracts capability table). */
+  providerLabel: string;
+  /** "<provider label> . <account label> . <auth type>", the parts that exist. */
+  detail: string;
+  model: string;
+  isDefault: boolean;
+  status: AgentStatusView;
+}
+export interface ProviderOptionView {
+  kind: AgentKind;
+  label: string;
+  logo: string;
+}
+export interface ComingSoonOptionView {
+  id: string;
+  label: string;
+  logo: string;
+}
+export interface ProviderPickerOptions {
+  runnable: ProviderOptionView[];
+  comingSoon: ComingSoonOptionView[];
+}
+
+/** One runnable provider as the Add and Edit pane needs it: the contracts capability row plus its kind. */
+export interface AgentKindView {
+  kind: AgentKind;
+  label: string;
+  logo: string;
+  credentialTypes: { type: CredentialType; label: string; valueLabel: string; help: string }[];
+  baseUrl: { help: string; requiredFor: CredentialType[] } | null;
+  modelHelp: string;
+  supportsMaxTurns: boolean;
+  credentialOptional: boolean;
+  modelOptional: boolean;
+  builtinModels: { id: string; label: string }[];
+}
+/** One saved agent as the Edit and View pane shows it. The credential value never appears here. */
+export interface AgentPaneAgent {
+  id: string;
+  name: string;
+  provider: AgentKind;
+  accountLabel: string;
+  model: string;
+  /** '' = the provider's own address. */
+  baseUrl: string;
+  maxTurns: number | null;
+  isDefault: boolean;
+  credential: { set: boolean; type: CredentialType | null; setAt: string; setBy: string };
+  status: AgentStatusView;
+  /** The day of the last test, for "Last test <day>."; null = never tested. */
+  testedAt: string | null;
+}

@@ -1,6 +1,7 @@
 # 0021. Run time limit up to 7 days, with the workspace token refreshed inside the running pod
 
 - Status: Accepted
+- Amended by [0041](0041-multiple-agent-configurations-per-project.md): the run time limit is a project-wide setting, no change of meaning
 - Date: 2026-11-15
 - Source: [Run time limit design](../superpowers/specs/2026-11-15-run-time-limit-design.md) §2, §3; issue #34
 

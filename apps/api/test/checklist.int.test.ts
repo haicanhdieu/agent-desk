@@ -1,4 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { eq } from 'drizzle-orm';
+import { agents, withOrg } from '@agentdesk/db';
 import type { AgentDto, OrgChecklistDto } from '@agentdesk/contracts';
 import { createTestApp, type TestApp } from './helpers/app';
 import { createOrg, inviteAndLogin } from './helpers/auth';
@@ -109,6 +111,26 @@ describe('org checklist', () => {
     const full = await read();
     expect(full.complete).toBe(true);
     expect(done(full)).toHaveLength(4);
+  });
+
+  it('add_agent: the placeholder is not done; a default with a credential is; a default OpenCode agent with none is (BR-68)', async () => {
+    const org = await freshOrg('check-agent-kinds');
+    const { projectId } = await makeProject(t, org.owner, org.connectionId);
+    const stepDone = async () => done(await read(org.owner, org.id)).includes('add_agent');
+    expect(await stepDone()).toBe(false);
+    await addAgent(org.owner, projectId);
+    expect(await stepDone()).toBe(true);
+    await withOrg(t.db, org.id, (tx) =>
+      tx
+        .update(agents)
+        .set({ credentialSecretName: null, credentialType: null, credentialUpdatedAt: null, credentialSetBy: null })
+        .where(eq(agents.projectId, projectId)),
+    );
+    expect(await stepDone()).toBe(false);
+    await withOrg(t.db, org.id, (tx) =>
+      tx.update(agents).set({ provider: 'opencode', model: '' }).where(eq(agents.projectId, projectId)),
+    );
+    expect(await stepDone()).toBe(true);
   });
 
   it('BR-16: a second project does not undo completion', async () => {

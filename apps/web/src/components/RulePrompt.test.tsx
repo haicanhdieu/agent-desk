@@ -2,7 +2,7 @@ import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { useState } from 'react';
 import { describe, expect, it, vi } from 'vitest';
-import { promptSystemLines, TRIAGE_PROMPT } from '@/mocks';
+import { promptSystemLines, ruleAgentOptions, TRIAGE_PROMPT } from '@/mocks';
 import { PromptSystemPart } from './PromptSystemPart';
 import { RuleForm, type RuleFormProps } from './RuleForm';
 import { RuleRow } from './RuleRow';
@@ -14,7 +14,8 @@ const skillDraft: RuleDraft = {
   target: 'issue',
   labels: [],
   skill: 'code-build',
-  agent: 'Claude',
+  agentId: 'agent-claude',
+  agentLabel: 'Claude',
   enabled: true,
 };
 const promptDraft: RuleDraft = { ...skillDraft, command: 'triage', skill: '', kind: 'prompt', prompt: TRIAGE_PROMPT };
@@ -22,7 +23,7 @@ const ready = { state: 'ready', systemLines: promptSystemLines } as const;
 
 function Stateful(props: Omit<RuleFormProps, 'onChange' | 'skills' | 'agents'>) {
   const [value, setValue] = useState(props.value);
-  return <RuleForm {...props} skills={['code-build']} agents={['Claude']} value={value} onChange={setValue} />;
+  return <RuleForm {...props} skills={['code-build']} agents={ruleAgentOptions} value={value} onChange={setValue} />;
 }
 
 describe('RuleForm, rule kind', () => {
@@ -39,7 +40,7 @@ describe('RuleForm, rule kind', () => {
       <RuleForm
         value={skillDraft}
         skills={['code-build']}
-        agents={['Claude']}
+        agents={ruleAgentOptions}
         onChange={onChange}
         promptPreview={ready}
       />,

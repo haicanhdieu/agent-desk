@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { autoResumeEventFixtures, autoResumeRunFixtures } from '../dto/autoResumeRuns';
 import { lifecycleEventFixtures, lifecycleRunFixtures } from '../dto/lifecycleRuns';
 import { AGENT_MODELS_SCENARIO_KEY, type AgentModelsScenario } from './agentModels';
+import { AGENT_SCENARIO_KEY, parseAgentScenario } from './agentScenarios';
 import { usageRunFixtures } from '../dto/usageRuns';
 import { sessionEventFixtures, sessionRunFixtures, sessionTranscriptFixtures } from '../dto/sessionRuns';
 import { mockDb } from './db';
@@ -66,6 +67,19 @@ function loadAgentModels(): void {
   } catch {
     // Storage blocked or corrupt: the default answers apply.
   }
+}
+
+// The mocked e2e specs pick an agent scenario here before the first load (e2e/mock/mock.ts `seedAgents`,
+// agentScenarios.ts). An unknown name is ignored.
+function loadAgents(): void {
+  let raw: string | null = null;
+  try {
+    raw = sessionStorage.getItem(AGENT_SCENARIO_KEY);
+  } catch {
+    // Storage blocked: the seed stays.
+  }
+  const name = parseAgentScenario(raw);
+  if (name !== undefined) scenarios.agents(name);
 }
 
 function loadSkillReview(): void {
@@ -189,6 +203,7 @@ export function startMockWorker(opts: { quiet?: boolean } = {}): Promise<unknown
     loadProjectSpace();
     loadAuth();
     loadAgentModels();
+    loadAgents();
     loadPrStates();
     loadGithubSync();
     loadSkillReview();

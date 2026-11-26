@@ -6,7 +6,8 @@ const rule = {
   target: 'issue' as const,
   labels: ['user-story'],
   skill: 'code-build',
-  agent: 'Claude',
+  agentId: 'agent-claude',
+  agentLabel: 'Claude',
   enabled: true,
 };
 const meta = {
@@ -31,4 +32,10 @@ export const SlotsAny: Story = { args: { rule: { ...rule, target: 'any', labels:
 export const Plain: Story = { args: { rule, variant: 'plain' } };
 export const PlainPullRequest: Story = {
   args: { rule: { ...rule, command: 'code-review', target: 'pr', labels: [], skill: 'code-review' }, variant: 'plain' },
+};
+export const SlotsProjectDefault: Story = {
+  args: { rule: { ...rule, agentId: null, agentLabel: undefined }, variant: 'slots' },
+};
+export const PlainProjectDefault: Story = {
+  args: { rule: { ...rule, agentId: null, agentLabel: undefined }, variant: 'plain' },
 };

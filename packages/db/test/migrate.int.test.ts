@@ -1,9 +1,10 @@
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { bootstrapDatabase } from '../src/bootstrap';
 import { runMigrations } from '../src/migrate';
+import { runMigrationsUpTo } from './helpers/migrations';
 import { startPg, startPgAt, TEST_PASSWORDS, type TestPg } from './helpers/pg';
 
 const APP_TABLES = [
@@ -470,6 +471,30 @@ describe('bootstrap and migrations', () => {
       ).rejects.toMatchObject({ code: '23514' });
     });
 
+    it('runs have a nullable failure_code; the app role updates it; the check rejects others', async () => {
+      const ownerDb = env.ownerUrl.replace(/\/[^/]*$/, '/agentdesk');
+      const before = await query<{ failure_code: string | null }>(
+        ownerDb,
+        `select failure_code from runs order by number`,
+      );
+      expect(before.map((r) => r.failure_code)).toEqual([null, null]);
+      await inOrg((c) =>
+        c
+          .query(`update runs set failure_code = 'no_credential' where trigger_comment_id = 'c-2'`)
+          .then(() => undefined),
+      );
+      const after = await query<{ failure_code: string | null }>(
+        ownerDb,
+        `select failure_code from runs order by number`,
+      );
+      expect(after.map((r) => r.failure_code)).toEqual([null, 'no_credential']);
+      await expect(
+        inOrg((c) =>
+          c.query(`update runs set failure_code = 'bogus' where trigger_comment_id = 'c-2'`).then(() => undefined),
+        ),
+      ).rejects.toMatchObject({ code: '23514' });
+    });
+
     it('runs accept paused and expired, still reject unknown statuses', async () => {
       for (const status of ['paused', 'expired']) {
         await inOrg((c) =>
@@ -911,7 +936,13 @@ describe('role templates and run owner backfill on an upgraded database', () => 
   async function snapshot(): Promise<Record<'member' | 'projects' | 'connections', unknown[]>> {
     return {
       member: await query(adminDbUrl, 'select * from member order by id'),
-      projects: await query(adminDbUrl, 'select * from projects order by id'),
+      // The columns that existed before 0047 (later migrations add project columns with defaults).
+      projects: await query(
+        adminDbUrl,
+        `select id, org_id, name, repo_path, default_branch, code_connection_id, board_connection_id, trigger_mode,
+                poll_interval_seconds, max_concurrent_runs, max_runs_per_ticket, setup_step, created_by, created_at
+         from projects order by id`,
+      ),
       connections: await query(adminDbUrl, 'select * from connections order by id'),
     };
   }
@@ -2203,5 +2234,442 @@ describe('migration 0046: run_usage_entries and global model price tables', () =
     await asOrg((c) => c.query('delete from runs where id = $1', [runId]));
     const rows = await asOrg((c) => c.query('select 1 from run_usage_entries'));
     expect(rows.rowCount).toBe(0);
+  });
+});
+
+describe('migrations 0047, 0048, 0049 (multiple agent configurations)', () => {
+  const T0046 = '0046_run_usage_and_model_prices';
+  const T0047 = '0047_agent_configs';
+  const T0048 = '0048_agent_configs_backfill';
+  const T0049 = '0049_agent_name_lower_key';
+  const ORG1 = randomUUID();
+  const ORG2 = randomUUID();
+  const ids = {
+    p1: randomUUID(),
+    p2: randomUUID(),
+    p3: randomUUID(),
+    a1: randomUUID(),
+    a2: randomUUID(),
+    b1: randomUUID(),
+    b2: randomUUID(),
+    rule1: randomUUID(),
+    runQueued: randomUUID(),
+    runPaused: randomUUID(),
+  };
+  let legacy: TestPg & { migrateRest: () => Promise<void> };
+
+  /** Runs `fn` in one transaction with the org set (the owner role is bound by forced RLS); always rolls back. */
+  async function inOrg<T>(orgId: string, fn: (c: pg.Client) => Promise<T>, commit = false): Promise<T> {
+    const client = new pg.Client({ connectionString: legacy.ownerUrl });
+    await client.connect();
+    try {
+      await client.query('begin');
+      await client.query("select set_config('app.org_id', $1, true)", [orgId]);
+      const out = await fn(client);
+      await client.query(commit ? 'commit' : 'rollback');
+      return out;
+    } catch (e) {
+      await client.query('rollback').catch(() => undefined);
+      throw e;
+    } finally {
+      await client.end();
+    }
+  }
+
+  async function rejects(orgId: string, sqlText: string, params: unknown[], code: string): Promise<void> {
+    await expect(inOrg(orgId, (c) => c.query(sqlText, params))).rejects.toMatchObject({ code });
+  }
+
+  async function agentRows(orgId: string): Promise<pg.QueryResultRow[]> {
+    return inOrg(orgId, async (c) => (await c.query('select * from agents order by created_at, id')).rows);
+  }
+
+  async function seedLegacy(): Promise<void> {
+    await inOrg(
+      ORG1,
+      async (c) => {
+        const conn = (
+          await c.query<{ id: string }>(
+            `insert into connections (org_id, provider, capabilities, external_id, account_name)
+             values ($1, 'fake', '{"code":true,"board":true}', 'mig-1', 'demo') returning id`,
+            [ORG1],
+          )
+        ).rows[0]?.id;
+        for (const [pid, name, repo] of [
+          [ids.p1, 'p1', 'dev/p1'],
+          [ids.p3, 'p3', 'dev/p3'],
+        ] as const) {
+          await c.query(
+            `insert into projects (id, org_id, name, repo_path, code_connection_id, board_connection_id)
+             values ($1, $2, $3, $4, $5, $5)`,
+            [pid, ORG1, name, repo, conn],
+          );
+        }
+        await c.query(
+          `insert into agents (id, org_id, project_id, name, model, base_url, credential_secret_name, credential_type,
+             credential_updated_at, credential_set_by, max_turns, timeout_seconds, paused_keep_seconds,
+             done_keep_seconds, idle_end_seconds, auto_resume_max, created_at)
+           values ($1, $2, $3, 'Claude', 'sonnet', 'https://llm.example.com', 'sec-a1', 'api_key', now(), 'u1', 7,
+             3600, 7200, 100, 600, 3, '2026-01-01T00:00:00Z')`,
+          [ids.a1, ORG1, ids.p1],
+        );
+        await c.query(
+          `insert into agents (id, org_id, project_id, name, model, created_at)
+           values ($1, $2, $3, 'Second', 'opus', '2026-02-01T00:00:00Z')`,
+          [ids.a2, ORG1, ids.p1],
+        );
+        await c.query(
+          `insert into rules (id, org_id, project_id, command, agent_id, skill_name) values ($1, $2, $3, '/fix', $4, 'fix')`,
+          [ids.rule1, ORG1, ids.p1, ids.a2],
+        );
+        await c.query(
+          `insert into runs (id, org_id, project_id, agent_id, rule_id, command, skill_name, ticket_ref, ticket_kind,
+             checkout_ref, trigger_source, status, model)
+           values ($1, $2, $3, $4, $5, '/fix', 'fix', '#1', 'issue', 'main', 'manual', 'queued', 'opus'),
+                  ($6, $2, $3, $4, $5, '/fix', 'fix', '#2', 'issue', 'main', 'manual', 'paused', 'opus')`,
+          [ids.runQueued, ORG1, ids.p1, ids.a2, ids.rule1, ids.runPaused],
+        );
+      },
+      true,
+    );
+    await inOrg(
+      ORG2,
+      async (c) => {
+        const conn = (
+          await c.query<{ id: string }>(
+            `insert into connections (org_id, provider, capabilities, external_id, account_name)
+             values ($1, 'fake', '{"code":true,"board":true}', 'mig-2', 'demo') returning id`,
+            [ORG2],
+          )
+        ).rows[0]?.id;
+        await c.query(
+          `insert into projects (id, org_id, name, repo_path, code_connection_id, board_connection_id)
+           values ($1, $2, 'p2', 'dev/p2', $3, $3)`,
+          [ids.p2, ORG2, conn],
+        );
+        await c.query(
+          `insert into agents (id, org_id, project_id, name, model, timeout_seconds, paused_keep_seconds,
+             done_keep_seconds, idle_end_seconds, auto_resume_max, created_at)
+           values ($1, $2, $3, 'claude', 'haiku', 120, 3700, 0, 900, 0, '2026-03-01T00:00:00Z'),
+                  ($4, $2, $3, 'Claude', 'haiku', 999, 4000, 5, 1000, 9, '2026-04-01T00:00:00Z')`,
+          [ids.b1, ORG2, ids.p2, ids.b2],
+        );
+      },
+      true,
+    );
+  }
+
+  beforeAll(async () => {
+    legacy = await startPgAt(T0046);
+    // The backfill walks the organization table, so the seeded orgs need a row there.
+    for (const [id, slug] of [
+      [ORG1, 'mig-org-1'],
+      [ORG2, 'mig-org-2'],
+    ] as const) {
+      await query(legacy.ownerUrl, `insert into organization (id, name, slug, created_at) values ($1, $2, $2, now())`, [
+        id,
+        slug,
+      ]);
+    }
+    await seedLegacy();
+  }, 180_000);
+
+  afterAll(async () => {
+    await legacy?.stop();
+  });
+
+  const LEGACY_COLUMNS = [
+    'id',
+    'name',
+    'model',
+    'base_url',
+    'credential_secret_name',
+    'credential_type',
+    'max_turns',
+    'timeout_seconds',
+    'paused_keep_seconds',
+    'done_keep_seconds',
+    'idle_end_seconds',
+    'auto_resume_max',
+  ];
+  let before: { org1: pg.QueryResultRow[]; org2: pg.QueryResultRow[] };
+  let countsBefore: Record<string, number>;
+
+  /** Row counts over every seeded org (the owner role is bound by forced RLS; runs and projects have a read-all definer policy, so they are counted once). */
+  async function counts(): Promise<Record<string, number>> {
+    const out: Record<string, number> = { agents: 0, rules: 0 };
+    for (const org of [ORG1, ORG2]) {
+      for (const table of Object.keys(out)) {
+        const rows = await inOrg(
+          org,
+          async (c) => (await c.query<{ n: string }>(`select count(*) n from ${table}`)).rows,
+        );
+        out[table] = (out[table] ?? 0) + Number(rows[0]?.n);
+      }
+    }
+    const runs = await query<{ n: string }>(legacy.ownerUrl, 'select count(*) n from runs');
+    const projects = await query<{ n: string }>(legacy.ownerUrl, 'select count(*) n from projects');
+    return { ...out, runs: Number(runs[0]?.n), projects: Number(projects[0]?.n) };
+  }
+
+  function pick(rows: pg.QueryResultRow[], cols: string[], skip: string[] = []): unknown[] {
+    return rows.map((r) => Object.fromEntries(cols.filter((c) => !skip.includes(c)).map((c) => [c, r[c]])));
+  }
+
+  it('0047 adds the columns, defaults and checks and leaves every legacy row untouched', async () => {
+    before = { org1: await agentRows(ORG1), org2: await agentRows(ORG2) };
+    countsBefore = await counts();
+    expect(countsBefore).toEqual({ agents: 4, rules: 1, runs: 2, projects: 3 });
+    await runMigrationsUpTo(legacy.ownerUrl, T0047);
+
+    const cols = await query<{ table_name: string; column_name: string; is_nullable: string; column_default: string }>(
+      legacy.ownerUrl,
+      `select table_name, column_name, is_nullable, column_default from information_schema.columns
+       where (table_name = 'agents' and column_name in ('account_label','is_default','last_test_status','last_test_at'))
+          or (table_name = 'projects' and column_name in ('timeout_seconds','paused_keep_seconds','done_keep_seconds','idle_end_seconds','auto_resume_max'))
+          or (table_name = 'runs' and column_name = 'agent_name')
+          or (table_name = 'rules' and column_name = 'agent_id')
+       order by table_name, column_name`,
+    );
+    const by = Object.fromEntries(cols.map((c) => [`${c.table_name}.${c.column_name}`, c]));
+    expect(by['agents.account_label']).toMatchObject({ is_nullable: 'YES' });
+    expect(by['agents.is_default']).toMatchObject({ is_nullable: 'NO', column_default: 'false' });
+    expect(by['agents.last_test_status']).toMatchObject({ is_nullable: 'YES' });
+    expect(by['agents.last_test_at']).toMatchObject({ is_nullable: 'YES' });
+    expect(by['runs.agent_name']).toMatchObject({ is_nullable: 'YES' });
+    expect(by['rules.agent_id']).toMatchObject({ is_nullable: 'YES' });
+    const defaults = {
+      timeout_seconds: '86400',
+      paused_keep_seconds: '604800',
+      done_keep_seconds: '86400',
+      idle_end_seconds: '1800',
+      auto_resume_max: '5',
+    };
+    for (const [name, def] of Object.entries(defaults)) {
+      expect(by[`projects.${name}`], name).toMatchObject({ is_nullable: 'NO', column_default: def });
+    }
+
+    expect(await counts()).toEqual(countsBefore);
+    expect(pick(await agentRows(ORG1), LEGACY_COLUMNS)).toEqual(pick(before.org1, LEGACY_COLUMNS));
+    expect(pick(await agentRows(ORG2), LEGACY_COLUMNS)).toEqual(pick(before.org2, LEGACY_COLUMNS));
+    const legacyAgents = [...(await agentRows(ORG1)), ...(await agentRows(ORG2))];
+    for (const a of legacyAgents) {
+      expect(a).toMatchObject({ account_label: null, is_default: false, last_test_status: null, last_test_at: null });
+    }
+  });
+
+  it('0047 has no data statement on runs or rules', async () => {
+    const sqlText = await readFile(new URL('../migrations/0047_agent_configs.sql', import.meta.url), 'utf8');
+    expect(sqlText).not.toMatch(/\b(update|delete\s+from|insert\s+into)\s+"?(runs|rules)"?/i);
+  });
+
+  it('0047 checks: widened credential type, last test status, account label, default index, project limits', async () => {
+    const newAgent = (extra: string, value: unknown): [string, unknown[]] => [
+      `insert into agents (org_id, project_id, name, model, ${extra}) values ($1, $2, $3, 'm', $4)`,
+      [ORG1, ids.p3, `x-${randomUUID()}`, value],
+    ];
+    // accepted
+    await inOrg(ORG1, async (c) => {
+      for (const [col, v] of [
+        ['credential_type', 'auth_json'],
+        ['credential_type', 'oauth_token'],
+        ['credential_type', 'api_key'],
+        ['last_test_status', 'ok'],
+        ['last_test_status', 'rejected'],
+        ['last_test_status', 'unreachable'],
+        ['last_test_status', 'invalid'],
+        ['last_test_status', 'unsupported'],
+        ['account_label', 'a'],
+        ['account_label', 'x'.repeat(256)],
+      ] as const) {
+        const [s, p] = newAgent(col, v);
+        await c.query(s, p);
+      }
+    });
+    // refused
+    for (const [col, v] of [
+      ['credential_type', 'password'],
+      ['last_test_status', 'maybe'],
+      ['account_label', ''],
+      ['account_label', 'x'.repeat(257)],
+    ] as const) {
+      const [s, p] = newAgent(col, v);
+      await rejects(ORG1, s, p, '23514');
+    }
+    await rejects(
+      ORG1,
+      'insert into agents (org_id, project_id, name, model) values ($1, $2, $3, $4)',
+      [ORG1, ids.p3, '', 'm'],
+      '23514',
+    );
+    await rejects(
+      ORG1,
+      'insert into agents (org_id, project_id, name, model) values ($1, $2, $3, $4)',
+      [ORG1, ids.p3, 'n'.repeat(257), 'm'],
+      '23514',
+    );
+    // one default per project
+    await rejects(
+      ORG1,
+      `insert into agents (org_id, project_id, name, model, is_default) values ($1, $2, 'd1', 'm', true), ($1, $2, 'd2', 'm', true)`,
+      [ORG1, ids.p3],
+      '23505',
+    );
+    // project limits
+    const limitCases: [string, number, number][] = [
+      ['timeout_seconds', 59, 604801],
+      ['paused_keep_seconds', 3599, 2592001],
+      ['done_keep_seconds', -1, 604801],
+      ['idle_end_seconds', 299, 604801],
+      ['auto_resume_max', -1, 11],
+    ];
+    for (const [col, low, high] of limitCases) {
+      for (const bad of [low, high]) {
+        await rejects(ORG1, `update projects set ${col} = $1 where id = $2`, [bad, ids.p3], '23514');
+      }
+    }
+    // every project check is validated
+    const unvalidated = await query<{ conname: string }>(
+      legacy.ownerUrl,
+      `select conname from pg_constraint where not convalidated and conrelid in ('projects'::regclass, 'agents'::regclass)`,
+    );
+    expect(unvalidated).toEqual([]);
+  });
+
+  it('0048 sets exactly one default per project (the oldest agent) and copies its limits to the project', async () => {
+    await runMigrationsUpTo(legacy.ownerUrl, T0048);
+    const org1 = await agentRows(ORG1);
+    expect(org1.filter((a) => a.is_default).map((a) => a.id)).toEqual([ids.a1]);
+    const org2 = await agentRows(ORG2);
+    expect(org2.filter((a) => a.is_default).map((a) => a.id)).toEqual([ids.b1]);
+    const projects = async (org: string): Promise<pg.QueryResultRow[]> =>
+      inOrg(org, async (c) => (await c.query('select * from projects where org_id = $1 order by name', [org])).rows);
+    const [p1, p3] = await projects(ORG1);
+    expect(p1).toMatchObject({
+      timeout_seconds: 3600,
+      paused_keep_seconds: 7200,
+      done_keep_seconds: 100,
+      idle_end_seconds: 600,
+      auto_resume_max: 3,
+    });
+    // no agent: nothing to copy, the column defaults stay and no default agent exists
+    expect(p3).toMatchObject({
+      timeout_seconds: 86400,
+      paused_keep_seconds: 604800,
+      done_keep_seconds: 86400,
+      idle_end_seconds: 1800,
+      auto_resume_max: 5,
+    });
+    const [p2] = await projects(ORG2);
+    expect(p2).toMatchObject({
+      timeout_seconds: 120,
+      paused_keep_seconds: 3700,
+      done_keep_seconds: 0,
+      idle_end_seconds: 900,
+      auto_resume_max: 0,
+    });
+  });
+
+  it('0048 renames the case-only duplicate with a (2) suffix and changes nothing else on agents, rules or runs', async () => {
+    const org2 = await agentRows(ORG2);
+    expect(org2.map((a) => a.name)).toEqual(['claude', 'Claude (2)']);
+    expect(pick(await agentRows(ORG1), LEGACY_COLUMNS)).toEqual(pick(before.org1, LEGACY_COLUMNS));
+    expect(pick(org2, LEGACY_COLUMNS, ['name'])).toEqual(pick(before.org2, LEGACY_COLUMNS, ['name']));
+    const [rule] = await inOrg(ORG1, async (c) => (await c.query('select * from rules')).rows);
+    expect(rule).toMatchObject({ id: ids.rule1, agent_id: ids.a2 });
+    const runs = await inOrg(ORG1, async (c) => (await c.query('select * from runs order by ticket_ref')).rows);
+    expect(runs.map((r) => [r.id, r.agent_id, r.status, r.model, r.agent_name])).toEqual([
+      [ids.runQueued, ids.a2, 'queued', 'opus', null],
+      [ids.runPaused, ids.a2, 'paused', 'opus', null],
+    ]);
+    await inOrg(ORG1, async (c) => {
+      await c.query('update rules set agent_id = null where id = $1', [ids.rule1]);
+      const r = await c.query<{ agent_id: string | null }>('select agent_id from rules where id = $1', [ids.rule1]);
+      expect(r.rows[0]?.agent_id).toBeNull();
+    });
+  });
+
+  it('0048 applied twice gives the same result, has no delete from agents, and keeps the old project untouched', async () => {
+    const sqlText = await readFile(new URL('../migrations/0048_agent_configs_backfill.sql', import.meta.url), 'utf8');
+    expect(sqlText).not.toMatch(/delete\s+from\s+"?agents"?/i);
+    const snapshot = async (): Promise<unknown> => ({
+      org1: await agentRows(ORG1),
+      org2: await agentRows(ORG2),
+      projects: await inOrg(
+        ORG1,
+        async (c) => (await c.query('select * from projects where org_id = $1 order by name', [ORG1])).rows,
+      ),
+    });
+    const first = await snapshot();
+    const owner = new pg.Client({ connectionString: legacy.ownerUrl });
+    await owner.connect();
+    try {
+      // The statements run as the table owner under forced RLS, so they must work without an org set.
+      for (const stmt of sqlText.split('--> statement-breakpoint')) await owner.query(stmt);
+      for (const stmt of sqlText.split('--> statement-breakpoint')) await owner.query(stmt);
+    } finally {
+      await owner.end();
+    }
+    expect(await snapshot()).toEqual(first);
+  });
+
+  it('0049 makes agent names unique ignoring case, keeps the old key, and keeps the old limit columns', async () => {
+    await runMigrationsUpTo(legacy.ownerUrl, T0049);
+    await rejects(
+      ORG1,
+      `insert into agents (org_id, project_id, name, model) values ($1, $2, 'CLAUDE', 'm')`,
+      [ORG1, ids.p1],
+      '23505',
+    );
+    // other projects may reuse the name
+    await inOrg(ORG1, (c) =>
+      c.query(`insert into agents (org_id, project_id, name, model) values ($1, $2, 'CLAUDE', 'm')`, [ORG1, ids.p3]),
+    );
+    const idx = await query<{ indexname: string; indexdef: string }>(
+      legacy.ownerUrl,
+      `select indexname, indexdef from pg_indexes where indexname in ('agents_project_name_lower_key','agents_project_default_key','agents_project_name_key')
+       union all select conname, '' from pg_constraint where conname = 'agents_project_name_key' order by 1`,
+    );
+    const names = idx.map((i) => i.indexname);
+    expect(names).toContain('agents_project_name_lower_key');
+    expect(names).toContain('agents_project_name_key');
+    expect(idx.find((i) => i.indexname === 'agents_project_name_lower_key')?.indexdef).toContain('lower(name)');
+    expect(idx.find((i) => i.indexname === 'agents_project_default_key')?.indexdef).toContain('WHERE is_default');
+
+    const cols = await query<{ column_name: string }>(
+      legacy.ownerUrl,
+      `select column_name from information_schema.columns where table_name = 'agents'`,
+    );
+    const names2 = cols.map((c) => c.column_name);
+    for (const old of [
+      'timeout_seconds',
+      'paused_keep_seconds',
+      'done_keep_seconds',
+      'idle_end_seconds',
+      'auto_resume_max',
+    ]) {
+      expect(names2).toContain(old);
+    }
+    expect(names2).not.toContain('options');
+    const providers = await query<{ provider: string }>(
+      legacy.ownerUrl,
+      `select provider from agents where provider in ('antigravity','opencode')`,
+    );
+    expect(providers).toEqual([]);
+  });
+});
+
+describe('applied migrations are immutable', () => {
+  it('every migration up to 0046 still has the checksum it had when it was applied', async () => {
+    const list = await readFile(new URL('./applied-migrations.sha256', import.meta.url), 'utf8');
+    const expected = list
+      .trim()
+      .split('\n')
+      .map((line) => line.split(/\s+/) as [string, string]);
+    expect(expected).toHaveLength(47);
+    for (const [sha, file] of expected) {
+      const body = await readFile(new URL(`../migrations/${file}`, import.meta.url));
+      expect([file, createHash('sha256').update(body).digest('hex')]).toEqual([file, sha]);
+    }
   });
 });

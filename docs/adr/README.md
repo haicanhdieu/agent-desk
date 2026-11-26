@@ -123,6 +123,7 @@ The choice and the concrete rules that follow from it.
 | [0038](0038-project-env-vars-and-secrets.md)                           | Project environment variables and secrets are injected into workspace pods                           | Accepted | 2026-11-23 |
 | [0039](0039-per-org-connections-and-webhook-fan-out.md)                | Per-org connection ownership and webhook fan-out to every matching project                           | Accepted | 2026-11-24 |
 | [0040](0040-usage-wire-line-price-source-and-price-snapshots.md)       | Agent-neutral usage wire line, a pluggable price-source adapter and a price snapshot per usage entry | Accepted | 2026-11-24 |
+| [0041](0041-multiple-agent-configurations-per-project.md)              | A project holds several named agent configurations, one default                                      | Accepted | 2026-11-25 |
 
 The specs these ADRs come from were marked "draft for review" when written; the
 ADRs are recorded as Accepted because implementation has started on them (the

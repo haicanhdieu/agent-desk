@@ -1,7 +1,17 @@
 import { randomBytes } from 'node:crypto';
 import { expect, test, type APIRequestContext, type Browser, type BrowserContext, type Page } from '@playwright/test';
-import { AgentDto, ProjectDto, RuleDto } from '@agentdesk/contracts';
-import { API, grant, inviteAndSignIn, ok } from './helpers';
+import { AgentDto, OrgChecklistDto, ProjectDto, RuleDto, type AgentKind } from '@agentdesk/contracts';
+import {
+  API,
+  continueAgentStep,
+  fakeAuthJson,
+  grant,
+  inviteAndSignIn,
+  newTokenValue,
+  ok,
+  openAgentStepOfNewProject,
+  walkSetupSteps,
+} from './helpers';
 import { REPO_P1, REPO_P2, installFake } from './rbac-cast';
 import { withScope, type Org, type Scope } from './onboarding-scope';
 
@@ -290,5 +300,57 @@ test('TC-16.3: no single project has all four steps, so the Get started card sti
     await openProjects(o.page, o.org);
     await expect(card(o.page)).toBeVisible(FIRST_HEADING);
     await expectFourRows(o.page);
+  });
+});
+
+// ---- Add an agent for each provider (spec BR-64): the placeholder, a credential, and OpenCode with none ----
+
+const PROVIDERS: { id: string; provider: AgentKind; radio: string }[] = [
+  { id: 'TC-64.3', provider: 'claude', radio: 'Claude Code' },
+  { id: 'TC-64.3 (Codex)', provider: 'codex', radio: 'OpenAI Codex' },
+];
+for (const { id, provider, radio } of PROVIDERS) {
+  test(`${id}: Add an agent is not done while the ${provider} agent has no credential, then done after it is saved`, async ({
+    browser,
+  }) => {
+    await withScope(async (scope) => {
+      const o = await ownerOrg(scope, browser);
+      const connectionId = await addConnection(o);
+      // The wizard's Agent step with the provider picked and no credential saved yet.
+      const projectId = await openAgentStepOfNewProject(o.page, o.org.slug, connectionId);
+      await o.page.getByRole('radio', { name: radio, exact: true }).check();
+      await openProjects(o.page, o.org);
+      await expect(card(o.page)).toBeVisible(FIRST_HEADING);
+      await expectNotDone(o.page, 'Add an agent');
+      // Save the credential in the same step, then read the checklist again.
+      await o.page.goto(`/o/${o.org.slug}/projects/new/agent?project=${projectId}`);
+      await o.page.getByRole('radio', { name: radio, exact: true }).check();
+      if (provider === 'claude') await o.page.getByRole('textbox', { name: 'Token' }).fill(newTokenValue());
+      else await o.page.getByRole('textbox', { name: 'auth.json contents' }).fill(fakeAuthJson());
+      await continueAgentStep(o.page);
+      await openProjects(o.page, o.org);
+      await expect(card(o.page)).toBeVisible(FIRST_HEADING);
+      await expectFourRows(o.page);
+      await expectDone(o.page, 'Add an agent');
+      await expectNotDone(o.page, 'Add a rule');
+    });
+  });
+}
+
+test('TC-64.2: Add an agent is done at once for an OpenCode agent with no credential', async ({ browser }) => {
+  await withScope(async (scope) => {
+    const o = await ownerOrg(scope, browser);
+    const projectId = await openAgentStepOfNewProject(o.page, o.org.slug, await addConnection(o));
+    await o.page.getByRole('radio', { name: 'OpenCode', exact: true }).check();
+    await continueAgentStep(o.page);
+    await walkSetupSteps(o.page);
+    const agent = AgentDto.parse(await ok(await o.api.get(`/api/projects/${projectId}/agent`), 200, 'agent'));
+    expect(agent.provider).toBe('opencode');
+    expect(agent.credential.set, 'no credential is saved').toBe(false);
+    // The wizard's rule step is done too, so all four rows are done and the card is gone: read the checklist itself.
+    const list = OrgChecklistDto.parse(await ok(await o.api.get(`/api/orgs/${o.org.id}/checklist`), 200, 'checklist'));
+    expect(list.steps.find((st) => st.key === 'add_agent')?.done, 'Add an agent is done').toBe(true);
+    await openProjects(o.page, o.org);
+    await expect(card(o.page)).toHaveCount(0);
   });
 });

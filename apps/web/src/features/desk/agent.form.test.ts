@@ -1,9 +1,12 @@
-import type { AgentDto, ProjectDto } from '@agentdesk/contracts';
+import { AGENT_TEST_MESSAGES, type AgentDto, type ProjectDto } from '@agentdesk/contracts';
 import { QueryClient, QueryClientProvider, useQuery } from '@tanstack/react-query';
 import { act, renderHook } from '@testing-library/react';
 import { createElement, type ReactNode } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { agentFixtures } from '@/mocks/dto/agents';
+import type { AgentPaneValues } from '@/components';
+import { agentPaneAgent } from '@/mocks/agent';
+import { agentFixtures, agentsFixture } from '@/mocks/dto/agents';
+import type { AgentPaneAgent } from '@/mocks/types';
 import { ids } from '@/mocks/dto/ids';
 import { projectFixtures } from '@/mocks/dto/projects';
 import { mockDb } from '@/mocks/msw/db';
@@ -15,10 +18,18 @@ import {
   limitsRequests,
   REFRESH_ERROR,
   toAgentSettings,
+  useDeleteAgent,
   useReplaceCredential,
+  useSaveLimits,
   useSaveAgent,
+  useSetDefaultAgent,
+  useTestAgent,
+  type AddResult,
+  type EditResult,
 } from './agent.form';
-import { deskQueries } from './queries';
+import { projectsQueries } from '../projects/queries';
+import { checklistKey } from '../onboarding/checklist';
+import { agentsKey, deskQueries, rulesKey } from './queries';
 
 const now = new Date('2026-11-12T14:14:00.000Z');
 
@@ -29,11 +40,13 @@ function fixture<T>(list: T[]): T {
 }
 const agent: AgentDto = fixture(agentFixtures);
 const project: ProjectDto = fixture(projectFixtures);
-const base = limitsOf(agent, project);
+const base = limitsOf(project);
 
 describe('limitsOf', () => {
-  it('carries the agent automatic resume limit', () => {
-    expect(limitsOf({ ...agent, autoResumeMax: 2 }, project).autoResumeMax).toBe(2);
+  it('reads every limit from the project, not the agent', () => {
+    expect(limitsOf({ ...project, autoResumeMax: 2 }).autoResumeMax).toBe(2);
+    expect(limitsOf({ ...project, timeoutSeconds: 7200 }).timeoutMinutes).toBe(120);
+    expect(limitsOf(project).timeoutMinutes).toBe(Math.round(project.timeoutSeconds / 60));
   });
 });
 
@@ -44,7 +57,7 @@ describe('toAgentSettings', () => {
       model: 'opus',
       baseUrl: '',
       credential: { type: 'oauth_token', setAt: '12 Oct', setBy: 'kim-hale' },
-      timeoutMinutes: 30,
+      timeoutMinutes: 1440,
       pausedKeepMinutes: 10080,
       doneKeepMinutes: 1440,
       idleEndMinutes: 30,
@@ -72,13 +85,13 @@ describe('limitsRequests', () => {
     expect(hasLimitChanges(limitsRequests(base, { ...base }))).toBe(false);
   });
 
-  it('the idle end comes from the agent, in minutes', () => {
-    expect(limitsOf({ ...agent, idleEndSeconds: 5400 }, project).idleEndMinutes).toBe(90);
+  it('the idle end comes from the project, in minutes', () => {
+    expect(limitsOf({ ...project, idleEndSeconds: 5400 }).idleEndMinutes).toBe(90);
   });
 
   it('a changed idle end is sent in seconds, with the other changed limits', () => {
     const req = limitsRequests(base, { ...base, maxRunsPerTicket: 20, idleEndMinutes: 15 });
-    expect(req).toEqual({ project: { maxRunsPerTicket: 20 }, idleEndSeconds: 900 });
+    expect(req).toEqual({ maxRunsPerTicket: 20, idleEndSeconds: 900 });
     expect(hasLimitChanges(limitsRequests(base, { ...base, idleEndMinutes: 15 }))).toBe(true);
   });
 
@@ -88,7 +101,7 @@ describe('limitsRequests', () => {
 
   it('a changed timeout is sent in seconds', () => {
     expect(limitsRequests(base, { ...base, timeoutMinutes: 60, maxConcurrent: 3 })).toEqual({
-      project: { maxConcurrentRuns: 3 },
+      maxConcurrentRuns: 3,
       timeoutSeconds: 3600,
     });
   });
@@ -135,10 +148,13 @@ function bodies() {
   const sent: unknown[] = [];
   const listener = ({ request }: { request: Request }) => {
     if (request.method === 'GET') return;
+    // Bodyless writes (test, set default, delete) are not recorded.
     void request
       .clone()
-      .json()
-      .then((b: unknown) => sent.push(b));
+      .text()
+      .then((t) => {
+        if (t !== '') sent.push(JSON.parse(t) as unknown);
+      });
   };
   server.events.on('request:start', listener);
   stop = () => server.events.removeListener('request:start', listener);
@@ -163,53 +179,426 @@ function recordInvalidations(qc: QueryClient) {
   return keys;
 }
 
-describe('useSaveAgent', () => {
-  it('sends the model with the timeout and max turns from the fresh agent and no keep times (BR-8)', async () => {
-    const row = mockDb.state.agents.find((a) => a.id === agentId);
-    if (!row) throw new Error('no agent');
-    row.maxTurns = 7;
-    const sent = bodies();
-    const { qc, wrapper } = withClient();
+const noValues = {
+  accountLabel: '',
+  model: '',
+  maxTurns: null,
+  makeDefault: false,
+  credential: null,
+} as const;
+
+/** The method and path of every request the hooks send, in order, GETs left out. */
+function requestLog() {
+  const sent: string[] = [];
+  const listener = ({ request }: { request: Request }) => {
+    if (request.method === 'GET') return;
+    sent.push(`${request.method} ${new URL(request.url).pathname.replace(/[0-9a-f-]{36}/g, ':id')}`);
+  };
+  server.events.on('request:start', listener);
+  stop = () => server.events.removeListener('request:start', listener);
+  return sent;
+}
+
+const projectAgents = () => mockDb.state.agents.filter((a) => a.projectId === projectId);
+const paneAgent = (name: string) => {
+  const found = agentsFixture.find((a) => a.name === name);
+  if (!found) throw new Error(`no fixture ${name}`);
+  return agentPaneAgent(found);
+};
+const editValues = (saved: AgentPaneAgent, over: Partial<AgentPaneValues> = {}): AgentPaneValues => ({
+  provider: saved.provider,
+  name: saved.name,
+  accountLabel: saved.accountLabel,
+  model: saved.model,
+  maxTurns: null,
+  makeDefault: false,
+  credential: null,
+  ...over,
+});
+
+describe('useSaveAgent add', () => {
+  it('creates with the model, saves the credential, then tests: three calls, no PATCH (BR-6)', async () => {
+    const sent = requestLog();
+    const bodiesSent = bodies();
+    const { wrapper } = withClient();
     const { result } = renderHook(() => useSaveAgent('alice', projectId), { wrapper });
-    let ok = false;
+    let outcome: AddResult | undefined;
     await act(async () => {
-      ok = await result.current.save('claude-opus-4-5-20251101');
+      outcome = await result.current.add({
+        ...noValues,
+        provider: 'claude',
+        name: 'Claude - Work',
+        accountLabel: 'Work',
+        model: 'claude-sonnet-4-5',
+        credential: { type: 'api_key', value: secret },
+      });
     });
-    expect(ok).toBe(true);
-    await vi.waitFor(() => expect(sent).toHaveLength(1));
-    expect(sent[0]).toEqual({ model: 'claude-opus-4-5-20251101', timeoutSeconds: row.timeoutSeconds, maxTurns: 7 });
-    expect(qc.getQueryData(deskQueries.agent('alice', projectId).queryKey)?.model).toBe('claude-opus-4-5-20251101');
+    expect(sent).toEqual([
+      'POST /api/projects/:id/agents',
+      'PUT /api/agents/:id/credential',
+      'POST /api/agents/:id/test',
+    ]);
+    await vi.waitFor(() => expect(bodiesSent).toHaveLength(2));
+    expect(bodiesSent[0]).toEqual({
+      provider: 'claude',
+      name: 'Claude - Work',
+      accountLabel: 'Work',
+      model: 'claude-sonnet-4-5',
+    });
+    expect(bodiesSent[1]).toEqual({ type: 'api_key', value: secret });
+    expect(outcome?.ok).toBe(true);
+    expect(outcome?.steps).toEqual({ create: 'done', credential: 'done', test: 'done', setDefault: 'skipped' });
+    expect(projectAgents().find((a) => a.name === 'Claude - Work')?.model).toBe('claude-sonnet-4-5');
   });
 
-  it('omits maxTurns when the agent has none', async () => {
-    const row = mockDb.state.agents.find((a) => a.id === agentId);
-    if (!row) throw new Error('no agent');
-    row.maxTurns = null;
-    const sent = bodies();
+  it('an OpenCode add with nothing picked sends the create only, without model or label (BR-68)', async () => {
+    const sent = requestLog();
+    const bodiesSent = bodies();
+    const { wrapper } = withClient();
+    const { result } = renderHook(() => useSaveAgent('alice', projectId), { wrapper });
+    let outcome: AddResult | undefined;
+    await act(async () => {
+      outcome = await result.current.add({ ...noValues, provider: 'opencode', name: 'OpenCode' });
+    });
+    expect(sent).toEqual(['POST /api/projects/:id/agents']);
+    await vi.waitFor(() => expect(bodiesSent).toHaveLength(1));
+    expect(bodiesSent[0]).toEqual({ provider: 'opencode', name: 'OpenCode' });
+    expect(outcome?.steps).toEqual({ create: 'done', credential: 'skipped', test: 'skipped', setDefault: 'skipped' });
+  });
+
+  it('a credentials file never sends baseUrl', async () => {
+    const bodiesSent = bodies();
     const { wrapper } = withClient();
     const { result } = renderHook(() => useSaveAgent('alice', projectId), { wrapper });
     await act(async () => {
-      await result.current.save('sonnet');
+      await result.current.add({
+        ...noValues,
+        provider: 'opencode',
+        name: 'OpenCode - File',
+        credential: { type: 'auth_json', value: '{"a":1}', baseUrl: 'https://llm.example.com/v1' },
+      });
     });
-    await vi.waitFor(() => expect(sent).toHaveLength(1));
-    expect(sent[0]).toEqual({ model: 'sonnet', timeoutSeconds: row.timeoutSeconds });
+    await vi.waitFor(() => expect(bodiesSent).toHaveLength(2));
+    expect(bodiesSent[1]).toEqual({ type: 'auth_json', value: '{"a":1}' });
   });
 
-  it('maps a /model problem to error', async () => {
-    scenarios.problem('agents.put', {
+  it('an endpoint and key are sent together', async () => {
+    const bodiesSent = bodies();
+    const { wrapper } = withClient();
+    const { result } = renderHook(() => useSaveAgent('alice', projectId), { wrapper });
+    await act(async () => {
+      await result.current.add({
+        ...noValues,
+        provider: 'opencode',
+        name: 'OpenCode - Endpoint',
+        model: 'qwen3-coder',
+        credential: { type: 'api_key', value: secret, baseUrl: 'https://llm.example.com/v1' },
+      });
+    });
+    await vi.waitFor(() => expect(bodiesSent).toHaveLength(2));
+    expect(bodiesSent[1]).toEqual({ type: 'api_key', value: secret, baseUrl: 'https://llm.example.com/v1' });
+  });
+
+  it('calls set-default after the test when it is ticked', async () => {
+    const sent = requestLog();
+    const { wrapper } = withClient();
+    const { result } = renderHook(() => useSaveAgent('alice', projectId), { wrapper });
+    await act(async () => {
+      await result.current.add({
+        ...noValues,
+        provider: 'claude',
+        name: 'Claude - Default',
+        model: 'opus',
+        makeDefault: true,
+        credential: { type: 'oauth_token', value: secret },
+      });
+    });
+    expect(sent.at(-1)).toBe('POST /api/agents/:id/default');
+    expect(
+      projectAgents()
+        .filter((a) => a.isDefault)
+        .map((a) => a.name),
+    ).toEqual(['Claude - Default']);
+  });
+
+  it('a failed test is not an error: the agent and credential stay saved (BR-21)', async () => {
+    scenarios.agents('testRejected');
+    const { wrapper } = withClient();
+    const { result } = renderHook(() => useSaveAgent('alice', projectId), { wrapper });
+    let outcome: AddResult | undefined;
+    await act(async () => {
+      outcome = await result.current.add({
+        ...noValues,
+        provider: 'claude',
+        name: 'Claude - Bad',
+        model: 'opus',
+        credential: { type: 'oauth_token', value: secret },
+      });
+    });
+    expect(outcome?.ok).toBe(true);
+    expect(outcome?.steps.test).toBe('done');
+    expect(projectAgents().find((a) => a.name === 'Claude - Bad')?.lastTest?.status).toBe('rejected');
+  });
+
+  it('create worked and the credential failed: a partial result with the new id; the secret is kept nowhere (BR-12)', async () => {
+    scenarios.problem('agents.putCredential', {
+      status: 400,
+      title: 'Validation failed',
+      type: 'validation',
+      errors: [{ pointer: '/value', detail: 'The token was rejected.' }],
+    });
+    const { qc, wrapper } = withClient();
+    const { result } = renderHook(() => useSaveAgent('alice', projectId), { wrapper });
+    let outcome: AddResult | undefined;
+    await act(async () => {
+      outcome = await result.current.add({
+        ...noValues,
+        provider: 'claude',
+        name: 'Claude - Half',
+        model: 'opus',
+        makeDefault: true,
+        credential: { type: 'oauth_token', value: secret, baseUrl: 'https://llm.example.com' },
+      });
+    });
+    const created = projectAgents().find((a) => a.name === 'Claude - Half');
+    expect(outcome?.ok).toBe(false);
+    expect(outcome?.agentId).toBe(created?.id);
+    expect(outcome?.steps).toEqual({ create: 'done', credential: 'failed', test: 'skipped', setDefault: 'skipped' });
+    expect(result.current.partial).toMatchObject({ agentId: created?.id, reason: 'The token was rejected.' });
+    expect(result.current.partial?.requestId).toMatch(/^req-/);
+    // The non-secret draft is kept for the Edit pane; the secret is not part of it.
+    expect(result.current.partial?.draft).toEqual({
+      makeDefault: true,
+      authType: 'oauth_token',
+      address: 'https://llm.example.com',
+    });
+    expect(JSON.stringify(result.current.partial)).not.toContain(secret);
+    expect(result.current.saving).toBe(false);
+    expect(
+      JSON.stringify(
+        qc
+          .getMutationCache()
+          .getAll()
+          .map((m) => m.state),
+      ),
+    ).not.toContain(secret);
+    expect(
+      JSON.stringify(
+        qc
+          .getQueryCache()
+          .getAll()
+          .map((q) => q.state.data),
+      ),
+    ).not.toContain(secret);
+  });
+
+  it('a 256-character name is accepted; 257 shows the field error and sends nothing (BR-8)', async () => {
+    const sent = requestLog();
+    const { wrapper } = withClient();
+    const { result } = renderHook(() => useSaveAgent('alice', projectId), { wrapper });
+    let outcome: AddResult | undefined;
+    await act(async () => {
+      outcome = await result.current.add({ ...noValues, provider: 'opencode', name: 'n'.repeat(257) });
+    });
+    expect(outcome?.ok).toBe(false);
+    expect(outcome?.steps.create).toBe('failed');
+    expect(result.current.fieldErrors.name).toBe('Use 256 characters or fewer.');
+    expect(sent).toEqual([]);
+    await act(async () => {
+      outcome = await result.current.add({ ...noValues, provider: 'opencode', name: 'n'.repeat(256) });
+    });
+    expect(outcome?.ok).toBe(true);
+    expect(result.current.fieldErrors).toEqual({});
+  });
+
+  it('a duplicate name maps to the name field and nothing else is sent (BR-9)', async () => {
+    const sent = requestLog();
+    const { wrapper } = withClient();
+    const { result } = renderHook(() => useSaveAgent('alice', projectId), { wrapper });
+    await act(async () => {
+      await result.current.add({
+        ...noValues,
+        provider: 'claude',
+        name: 'claude',
+        model: 'opus',
+        credential: { type: 'oauth_token', value: secret },
+      });
+    });
+    expect(result.current.fieldErrors.name).toBe('An agent with this name already exists.');
+    expect(sent).toEqual(['POST /api/projects/:id/agents']);
+    expect(result.current.partial).toBeUndefined();
+  });
+
+  it('invalidates the agent lists, the rules lists and the checklist after a create', async () => {
+    const { qc, wrapper } = withClient();
+    const keys = recordInvalidations(qc);
+    const { result } = renderHook(() => useSaveAgent('alice', projectId), { wrapper });
+    await act(async () => {
+      await result.current.add({ ...noValues, provider: 'opencode', name: 'OpenCode' });
+    });
+    expect(keys).toContainEqual(agentsKey('alice', projectId));
+    expect(keys).toContainEqual(rulesKey('alice', projectId));
+    expect(keys).toContainEqual(checklistKey('alice'));
+  });
+});
+
+describe('useSaveAgent edit', () => {
+  it('sends one PATCH with only the changed fields (BR-6)', async () => {
+    scenarios.agents('perAgentModels');
+    const sent = requestLog();
+    const bodiesSent = bodies();
+    const { wrapper } = withClient();
+    const { result } = renderHook(() => useSaveAgent('alice', projectId), { wrapper });
+    const saved = paneAgent('Claude - Personal');
+    let outcome: EditResult | undefined;
+    await act(async () => {
+      outcome = await result.current.edit(saved, editValues(saved, { model: 'claude-sonnet-4-5' }));
+    });
+    expect(sent).toEqual(['PATCH /api/agents/:id']);
+    await vi.waitFor(() => expect(bodiesSent).toHaveLength(1));
+    expect(bodiesSent[0]).toEqual({ model: 'claude-sonnet-4-5' });
+    expect(outcome).toEqual({ ok: true, defaultChanged: false });
+  });
+
+  it('nothing changed: nothing is sent', async () => {
+    scenarios.agents('perAgentModels');
+    const sent = requestLog();
+    const { wrapper } = withClient();
+    const { result } = renderHook(() => useSaveAgent('alice', projectId), { wrapper });
+    const saved = paneAgent('Claude - Work');
+    let outcome: EditResult | undefined;
+    await act(async () => {
+      outcome = await result.current.edit(saved, editValues(saved));
+    });
+    expect(sent).toEqual([]);
+    expect(outcome?.ok).toBe(true);
+  });
+
+  it('clearing the label sends null; a max turns number is sent as a number', async () => {
+    scenarios.agents('perAgentModels');
+    const bodiesSent = bodies();
+    const { wrapper } = withClient();
+    const { result } = renderHook(() => useSaveAgent('alice', projectId), { wrapper });
+    const saved = paneAgent('Claude - Work');
+    await act(async () => {
+      await result.current.edit(saved, editValues(saved, { accountLabel: '', maxTurns: 40 }));
+    });
+    await vi.waitFor(() => expect(bodiesSent).toHaveLength(1));
+    expect(bodiesSent[0]).toEqual({ accountLabel: null, maxTurns: 40 });
+  });
+
+  it('ticking the default sends set-default after the PATCH and reports it (BR-24)', async () => {
+    scenarios.agents('perAgentModels');
+    const sent = requestLog();
+    const { wrapper } = withClient();
+    const { result } = renderHook(() => useSaveAgent('alice', projectId), { wrapper });
+    const saved = paneAgent('Claude - Work');
+    let outcome: EditResult | undefined;
+    await act(async () => {
+      outcome = await result.current.edit(saved, editValues(saved, { name: 'Claude - Work 2', makeDefault: true }));
+    });
+    expect(sent).toEqual(['PATCH /api/agents/:id', 'POST /api/agents/:id/default']);
+    expect(outcome).toEqual({ ok: true, defaultChanged: true });
+  });
+
+  it('maps a duplicate name to the name field and a /model problem to the model field', async () => {
+    scenarios.agents('perAgentModels');
+    const { wrapper } = withClient();
+    const { result } = renderHook(() => useSaveAgent('alice', projectId), { wrapper });
+    const saved = paneAgent('Claude - Work');
+    await act(async () => {
+      await result.current.edit(saved, editValues(saved, { name: 'codex' }));
+    });
+    expect(result.current.fieldErrors.name).toBe('An agent with this name already exists.');
+    scenarios.problem('agents.update', {
       status: 400,
       title: 'Validation failed',
       type: 'validation',
       errors: [{ pointer: '/model', detail: 'Use 1 to 200 letters.' }],
     });
+    let outcome: EditResult | undefined;
+    await act(async () => {
+      outcome = await result.current.edit(saved, editValues(saved, { model: 'gw/model-x' }));
+    });
+    expect(outcome?.ok).toBe(false);
+    expect(result.current.fieldErrors).toEqual({ model: 'Use 1 to 200 letters.' });
+  });
+
+  it('a 257-character name is refused before any request', async () => {
+    scenarios.agents('perAgentModels');
+    const sent = requestLog();
     const { wrapper } = withClient();
     const { result } = renderHook(() => useSaveAgent('alice', projectId), { wrapper });
-    let ok = true;
+    const saved = paneAgent('Claude - Work');
     await act(async () => {
-      ok = await result.current.save('bad name');
+      await result.current.edit(saved, editValues(saved, { name: 'n'.repeat(257) }));
     });
-    expect(ok).toBe(false);
-    expect(result.current.error).toBe('Use 1 to 200 letters.');
+    expect(result.current.fieldErrors.name).toBe('Use 256 characters or fewer.');
+    expect(sent).toEqual([]);
+  });
+});
+
+describe('useDeleteAgent, useSetDefaultAgent and useTestAgent', () => {
+  it('delete removes the agent, drops its models key and refreshes the lists and the rules', async () => {
+    scenarios.agents('perAgentModels');
+    const target = projectAgents().find((a) => a.name === 'OpenCode - No sign-in');
+    if (!target) throw new Error('no target');
+    const { qc, wrapper } = withClient();
+    qc.setQueryData(deskQueries.agentModels('alice', target.id).queryKey, { source: 'live', reason: null, models: [] });
+    const keys = recordInvalidations(qc);
+    const { result } = renderHook(() => useDeleteAgent('alice', projectId), { wrapper });
+    await act(async () => {
+      await result.current.mutateAsync(target.id);
+    });
+    expect(projectAgents().some((a) => a.id === target.id)).toBe(false);
+    expect(qc.getQueryData(deskQueries.agentModels('alice', target.id).queryKey)).toBeUndefined();
+    expect(keys).toContainEqual(agentsKey('alice', projectId));
+    expect(keys).toContainEqual(rulesKey('alice', projectId));
+  });
+
+  it('a delete refused by a rule keeps the agent and rejects with the 409', async () => {
+    scenarios.agents('deleteBlocked');
+    const target = projectAgents().find((a) => a.name === 'Claude - Work');
+    if (!target) throw new Error('no target');
+    const { wrapper } = withClient();
+    const { result } = renderHook(() => useDeleteAgent('alice', projectId), { wrapper });
+    await act(async () => {
+      await expect(result.current.mutateAsync(target.id)).rejects.toMatchObject({ status: 409 });
+    });
+    expect(projectAgents().some((a) => a.id === target.id)).toBe(true);
+  });
+
+  it('set default moves the default and refreshes the lists', async () => {
+    scenarios.agents('perAgentModels');
+    const target = projectAgents().find((a) => a.name === 'Codex');
+    if (!target) throw new Error('no target');
+    const { qc, wrapper } = withClient();
+    const keys = recordInvalidations(qc);
+    const { result } = renderHook(() => useSetDefaultAgent('alice', projectId), { wrapper });
+    await act(async () => {
+      await result.current.mutateAsync(target.id);
+    });
+    expect(
+      projectAgents()
+        .filter((a) => a.isDefault)
+        .map((a) => a.name),
+    ).toEqual(['Codex']);
+    expect(keys).toContainEqual(agentsKey('alice', projectId));
+  });
+
+  it('test returns the status and the fixed message and refreshes the lists', async () => {
+    scenarios.agents('testRejected');
+    const target = projectAgents().find((a) => a.name === 'Claude - Personal');
+    if (!target) throw new Error('no target');
+    const { qc, wrapper } = withClient();
+    const keys = recordInvalidations(qc);
+    const { result } = renderHook(() => useTestAgent('alice', projectId), { wrapper });
+    let answer: { status: string; message: string } | undefined;
+    await act(async () => {
+      answer = await result.current.mutateAsync(target.id);
+    });
+    expect(answer).toMatchObject({ status: 'rejected', message: AGENT_TEST_MESSAGES.rejected });
+    expect(keys).toContainEqual(agentsKey('alice', projectId));
   });
 });
 
@@ -348,5 +737,31 @@ describe('useReplaceCredential', () => {
     });
     expect(result.current.error).toBeUndefined();
     expect(result.current.addressError).toBeUndefined();
+  });
+});
+
+describe('useSaveLimits (project-wide)', () => {
+  it('sends the changed limits in one projects.update and no agent request', async () => {
+    const sent = bodies();
+    const { qc, wrapper } = withClient();
+    const onSaved = vi.fn();
+    const { result } = renderHook(() => useSaveLimits('alice', projectId, base, { onSaved }), { wrapper });
+    await act(() => result.current.save({ ...base, timeoutMinutes: 60, maxConcurrent: 3, autoResumeMax: 2 }));
+    await vi.waitFor(() => expect(sent.length).toBe(1));
+    expect(sent).toEqual([{ timeoutSeconds: 3600, maxConcurrentRuns: 3, autoResumeMax: 2 }]);
+    expect(onSaved).toHaveBeenCalledOnce();
+    expect(qc.getQueryData(projectsQueries.detail('alice', projectId).queryKey)).toMatchObject({
+      timeoutSeconds: 3600,
+      maxConcurrentRuns: 3,
+    });
+  });
+
+  it('a refused limit puts the problem message on its field and does not call onSaved', async () => {
+    const { wrapper } = withClient();
+    const onSaved = vi.fn();
+    const { result } = renderHook(() => useSaveLimits('alice', projectId, base, { onSaved }), { wrapper });
+    await act(() => result.current.save({ ...base, timeoutMinutes: 8 * 1440 }));
+    expect(result.current.errors.timeoutMinutes).toMatch(/7 days/);
+    expect(onSaved).not.toHaveBeenCalled();
   });
 });

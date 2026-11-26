@@ -1,4 +1,9 @@
-import type { AgentDto, AgentModelsDto, AgentModelsReason } from '@agentdesk/contracts';
+import {
+  AGENT_KIND_CAPABILITIES,
+  type AgentDto,
+  type AgentModelsDto,
+  type AgentModelsReason,
+} from '@agentdesk/contracts';
 import { agentModelsFixtures } from '../dto/agentModels';
 
 /**
@@ -33,7 +38,7 @@ const fallbackOf: Record<AgentModelsReason, AgentModelsDto> = {
  * still answers no_credential while the agent has none; fallback, error and pending apply regardless. `credentialSaved` is whether a credential was saved for the agent
  * since the store was seeded (it ends `beforeCredentialSave`).
  */
-export function agentModelsAnswer(
+function scenarioAnswer(
   agent: AgentDto,
   scenario: AgentModelsScenario | undefined,
   credentialSaved: boolean,
@@ -56,4 +61,15 @@ export function agentModelsAnswer(
     case 'pending':
       return 'pending';
   }
+}
+
+/** The answer of `agents.models`. A built-in answer lists the standard names of the agent's own provider. */
+export function agentModelsAnswer(
+  agent: AgentDto,
+  scenario: AgentModelsScenario | undefined,
+  credentialSaved: boolean,
+): AgentModelsAnswer | 'error' | 'pending' {
+  const answer = scenarioAnswer(agent, scenario, credentialSaved);
+  if (typeof answer === 'string' || answer.source !== 'builtin') return answer;
+  return { ...answer, models: AGENT_KIND_CAPABILITIES[agent.provider].builtinModels };
 }

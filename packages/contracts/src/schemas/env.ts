@@ -12,7 +12,7 @@ export const ENV_MAX_TOTAL_BYTES = 262144;
  */
 export const ENV_CAP_DETAIL_PREFIX = 'This project already has the maximum of ';
 export const ENV_SIZE_DETAIL_PREFIX = 'Names and values together cannot exceed ';
-/** Shorter secrets are not redacted from run output (`MIN_SECRET_LENGTH` in the worker). */
+/** Shorter secrets are not redacted from run output (`MIN_SECRET_LENGTH` in packages/core/src/redact.ts). */
 export const SECRET_VALUE_MIN_LENGTH = 6;
 
 /** Names the platform sets for the Pod or the agent. Case-sensitive. */

@@ -11,6 +11,7 @@ import { createTestApp, type TestApp } from './helpers/app';
 import { createOrg, inviteAndLogin } from './helpers/auth';
 import { expectContract } from './helpers/contract';
 import { freshStateDir, installFake, makeProject, wideFakeRepos } from './helpers/fixtures';
+import { makeAgent } from './helpers/agents';
 
 const SECRET = 'sk-ant-secret123456';
 let t: TestApp;
@@ -729,5 +730,25 @@ describe('agents: permission (BR-17, BR-33, BR-29)', () => {
       type: 'api_key',
       value: 'sk-ant-admin-value-1',
     });
+  });
+});
+
+describe('compat GET after a second agent exists', () => {
+  it('GET /agent returns the default agent when the project has two agents, whatever their creation order (BR-50)', async () => {
+    const first = await agentOf();
+    const second = await makeAgent(t, alice, projectId, { name: 'Created later' });
+    expect(second.isDefault).toBe(false);
+    // The default is the newer row: the compat route must not return "the first agent it finds".
+    await withOrg(t.db, await orgIdOf('alice'), async (tx) => {
+      await tx.execute(sql`update agents set is_default = false where project_id = ${projectId}`);
+      await tx.execute(sql`update agents set is_default = true where id = ${second.id}`);
+    });
+    const got = expectContract('agents.get', await getAgent()) as AgentDto;
+    expect(got.id).toBe(second.id);
+    await withOrg(t.db, await orgIdOf('alice'), async (tx) => {
+      await tx.execute(sql`update agents set is_default = false where project_id = ${projectId}`);
+      await tx.execute(sql`update agents set is_default = true where id = ${first.id}`);
+    });
+    expect(((await getAgent().then((r) => r.json())) as AgentDto).id).toBe(first.id);
   });
 });

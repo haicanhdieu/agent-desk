@@ -139,8 +139,43 @@ test.describe('the Danger zone on Agent & settings', () => {
     test(`${tc}: an org ${role} sees the Danger zone with Delete project`, async ({ page }) => {
       await seedProjectSpace(page, { role });
       await page.goto(agentPage);
-      await expect(page.getByText('Danger zone')).toBeVisible();
+      await page.getByRole('tab', { name: 'Danger zone' }).click();
       await expect(deleteProject(page)).toBeVisible();
     });
   }
+});
+
+// BR-46: a member or viewer has no Agent & settings entry and gets the no-access page; an org admin sees the page.
+test.describe('BR-46: Agent & settings access', () => {
+  const agentPath = `/o/acme/p/${P1}/desk/agent`;
+  const AGENT_DATA = new RegExp(`/api/(projects/${P1}/agents|agents/)`);
+
+  for (const [tc, role] of [
+    ['TC-46.1', 'member'],
+    ['TC-46.2', 'viewer'],
+  ] as const) {
+    test(`${tc}: a ${role} has no Agent & settings entry and sees the no-access page with no agent data`, async ({
+      page,
+    }) => {
+      const seen = await open(page, role, `/o/acme/p/${P1}/runs`);
+      const sections = page.getByRole('navigation', { name: 'Project sections' });
+      await expect(sections.getByRole('link', { name: /^Runs/ })).toBeVisible();
+      await expect(sections.getByRole('link', { name: 'Project settings' })).toHaveCount(0);
+      await expect(page.getByRole('link', { name: /Agent & settings/ })).toHaveCount(0);
+
+      await page.goto(agentPath);
+      await expect(forbidden(page)).toBeVisible();
+      await expect(page.getByRole('heading', { level: 1, name: 'Agent & settings' })).toHaveCount(0);
+      expect(seen.filter((p) => AGENT_DATA.test(p))).toEqual([]);
+    });
+  }
+
+  test('TC-46.5: an org admin sees the Agent & settings entry and page', async ({ page }) => {
+    await open(page, 'orgAdmin', agentPath);
+    await expect(page.getByRole('heading', { level: 1, name: 'Agent & settings' })).toBeVisible();
+    await expect(
+      page.getByRole('navigation', { name: 'Desk' }).getByRole('link', { name: 'Agent & settings' }),
+    ).toBeVisible();
+    await expect(forbidden(page)).toHaveCount(0);
+  });
 });

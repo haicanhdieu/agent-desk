@@ -18,6 +18,8 @@ import { ProjectsService } from '../src/projects/projects.service';
 import { createTestApp, type TestApp } from './helpers/app';
 import { createOrg, inviteAndLogin, userIdOf } from './helpers/auth';
 import { expectContract } from './helpers/contract';
+import { routeEntryFor } from '../src/access/route-entry';
+import { registeredRoutes } from './helpers/routes';
 import { makeUsageEntry } from './helpers/usage';
 import { freshStateDir, installFake, makeProject, wideFakeRepos } from './helpers/fixtures';
 
@@ -164,6 +166,12 @@ describe('BR-28: a project outside the caller scope is 404', () => {
     ['projects.pollNow', 'POST', `/api/projects/${p2}/connection/poll`, undefined],
     ['projects.ignored', 'GET', `/api/projects/${p2}/ignored`, undefined],
     ['projects.events', 'GET', `/api/projects/${p2}/events`, undefined],
+    ['agents.list', 'GET', `/api/projects/${p2}/agents`, undefined],
+    ['agents.create', 'POST', `/api/projects/${p2}/agents`, { provider: 'claude', name: 'Other project agent' }],
+    ['agents.update', 'PATCH', `/api/agents/${agentP2}`, { name: 'Renamed' }],
+    ['agents.remove', 'DELETE', `/api/agents/${agentP2}`, undefined],
+    ['agents.setDefault', 'POST', `/api/agents/${agentP2}/default`, undefined],
+    ['agents.test', 'POST', `/api/agents/${agentP2}/test`, undefined],
     ['agents.get', 'GET', `/api/projects/${p2}/agent`, undefined],
     ['agents.put', 'PUT', `/api/projects/${p2}/agent`, { model: 'sonnet', timeoutSeconds: 3600 }],
     [
@@ -246,6 +254,16 @@ describe('BR-28: a project outside the caller scope is 404', () => {
         .sort(),
     ).toEqual(scoped);
     for (const key of Object.keys(excluded)) expect(routeAccess[key as RouteKey].scope, key).toBe('project');
+  });
+
+  it('has every agent route registered with a P2 scope case (none left in excluded)', () => {
+    const registered = new Set<string>();
+    for (const r of registeredRoutes(t)) {
+      const m = routeEntryFor(r.method, r.url);
+      if (m.kind === 'route') registered.add(m.key);
+    }
+    const stale = Object.keys(excluded).filter((k) => k.startsWith('agents.') && registered.has(k));
+    expect(stale, 'add the P2 scope cases for these routes and delete them from excluded').toEqual([]);
   });
 
   it('names only route keys that exist in the route table', () => {

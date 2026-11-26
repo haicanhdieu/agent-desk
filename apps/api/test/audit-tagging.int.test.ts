@@ -211,3 +211,36 @@ describe('member rows', () => {
     expect(await tags('member.removed', userId)).toEqual([[]]);
   });
 });
+
+describe('agent rows', () => {
+  it('tags create, default, test, credential and delete with the project and keeps credentials out of the payload', async () => {
+    const secret = 'agent-audit-secret-77';
+    const created = await send('POST', `/api/projects/${p1}/agents`, p1admin, { provider: 'claude', name: 'Audited' });
+    expect(created.statusCode).toBe(201);
+    const id = created.json<{ id: string }>().id;
+    expect(
+      (await send('PUT', `/api/agents/${id}/credential`, p1admin, { type: 'api_key', value: secret })).statusCode,
+    ).toBe(200);
+    expect((await send('POST', `/api/agents/${id}/test`, p1admin)).statusCode).toBe(200);
+    expect((await send('POST', `/api/agents/${id}/default`, p1admin)).statusCode).toBe(200);
+    expect((await send('POST', `/api/agents/${agentId}/default`, p1admin)).statusCode).toBe(200);
+    expect((await send('DELETE', `/api/agents/${id}`, p1admin)).statusCode).toBe(204);
+    for (const action of [
+      'POST agents.create',
+      'PUT agents.putCredential',
+      'POST agents.test',
+      'POST agents.setDefault',
+      'DELETE agents.remove',
+    ]) {
+      expect(await tags(action), action).toContainEqual([p1]);
+    }
+    const rows = await withOrg(t.db, orgId, (tx) =>
+      tx.select({ payload: auditLog.payload }).from(auditLog).where(eq(auditLog.orgId, orgId)),
+    );
+    expect(JSON.stringify(rows)).not.toContain(secret);
+    for (const r of rows) {
+      expect(r.payload).not.toHaveProperty('value');
+      expect(r.payload).not.toHaveProperty('credential');
+    }
+  });
+});

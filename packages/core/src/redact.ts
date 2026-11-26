@@ -37,11 +37,75 @@ const UNFINISHED = TOKEN_PATTERNS.map((p) => new RegExp(`${escape(p.prefix)}${p.
 /** Shortest cut piece of a pattern's literal start that counts as the start of a token (shorter ones hold no secret). */
 const MIN_CUT_PREFIX = 4;
 
-/** Replaces every given secret and well-known token pattern with `***`. */
+/** Secret values shorter than this are not used for redaction (they would blank out ordinary text). */
+export const MIN_SECRET_LENGTH = 6;
+
+/** Every string value of a parsed JSON document, at any depth and inside arrays; other types are skipped. Iterative, so a deeply nested value cannot overflow the call stack. */
+function stringLeaves(root: unknown): string[] {
+  const out: string[] = [];
+  const stack: unknown[] = [root];
+  while (stack.length > 0) {
+    const node = stack.pop();
+    if (typeof node === 'string') out.push(node);
+    else if (Array.isArray(node)) for (const n of node) stack.push(n);
+    else if (node !== null && typeof node === 'object') for (const n of Object.values(node)) stack.push(n);
+  }
+  return out;
+}
+
+/**
+ * What to mask for one secret: the value whole (a multi-line paste too), its JSON-escaped form and a copy without
+ * whitespace. For a JSON object or array (a pasted credentials file: Codex auth.json, an OpenCode export) also each
+ * string value inside it that is at least MIN_SECRET_LENGTH long. Text that does not parse is masked whole, and each of
+ * its lines on its own, so a log line that holds only a part of a pasted value is masked too. Any failure while reading
+ * the JSON falls back to masking the text whole.
+ */
+function computeMaskTargets(secret: string): string[] {
+  const out = [secret, secret.replace(/\s+/g, '')];
+  let leaves: string[] | null = null;
+  try {
+    const parsed: unknown = JSON.parse(secret);
+    if (parsed !== null && typeof parsed === 'object') leaves = stringLeaves(parsed);
+  } catch {
+    // not JSON, or too deep to read: masked whole, and line by line below
+  }
+  if (leaves !== null) {
+    for (const v of leaves) if (v.length >= MIN_SECRET_LENGTH) out.push(v);
+  } else if (secret.includes('\n')) {
+    for (const line of secret.split(/\r?\n/)) if (line.trim().length >= MIN_SECRET_LENGTH) out.push(line.trim());
+  }
+  // The same values as a JSON string body (`\n` as two characters, quotes escaped), as they appear inside logged JSON.
+  for (const v of [...out]) {
+    const escaped = JSON.stringify(v).slice(1, -1);
+    if (escaped !== v) out.push(escaped);
+  }
+  return out.filter((v) => v.length > 0 && (v === secret || v.length >= MIN_SECRET_LENGTH));
+}
+
+const MASK_CACHE_MAX = 64;
+/** Per-secret expansion, kept in memory only (never logged); `redact` runs per output line with the same list. */
+const maskCache = new Map<string, string[]>();
+
+function maskTargets(secret: string): string[] {
+  const hit = maskCache.get(secret);
+  if (hit) return hit;
+  const targets = computeMaskTargets(secret);
+  if (maskCache.size >= MASK_CACHE_MAX) maskCache.clear();
+  maskCache.set(secret, targets);
+  return targets;
+}
+
+/** How many secrets the expansion memo holds (it is bounded). */
+export function maskCacheSize(): number {
+  return maskCache.size;
+}
+
+/** Replaces every given secret (and the values inside a pasted credentials file) and well-known token pattern with `***`. */
 export function redact(text: string, secrets: string[]): string {
   let out = text;
+  const targets = [...new Set(secrets.filter((x) => x.length > 0).flatMap(maskTargets))];
   // Longest first so a secret that contains another is replaced whole.
-  for (const s of [...secrets].filter((x) => x.length > 0).sort((a, b) => b.length - a.length)) {
+  for (const s of targets.sort((a, b) => b.length - a.length)) {
     out = out.split(s).join('***');
   }
   for (const p of PATTERNS) out = out.replace(p, '***');

@@ -186,6 +186,11 @@
   color: var(--text);
   font-size: var(--fs-13);
 }
+.faintLine {
+  font-size: var(--fs-12_5);
+  color: var(--faint);
+  margin: 0;
+}
 .semi {
   font-weight: 600;
   color: var(--text);
@@ -361,19 +366,37 @@
   min-height: 0;
   display: flex;
 }
+/* Three bands: the pinned header, the scroll area (the list, then the guards card), the pinned pager. */
 .rulesCol {
   flex: 1 1 0;
   min-width: 0;
-  padding: 24px 28px;
+  display: flex;
+  flex-direction: column;
+  overflow-x: hidden;
+  /* Only when the window is too short even for the scroll area's minimum height. */
+  overflow-y: auto;
+}
+.rulesHead {
+  flex: 0 0 auto;
+  padding: 24px 28px 16px;
+}
+.rulesScroll {
+  flex: 1 1 0;
+  min-height: 120px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  padding: 0 28px 24px;
   display: flex;
   flex-direction: column;
   gap: 16px;
-  overflow-x: hidden;
-  overflow-y: auto;
 }
-/* The column scrolls instead of squeezing its blocks. */
-.rulesCol > * {
+/* The scroll area scrolls instead of squeezing its blocks. */
+.rulesScroll > * {
   flex-shrink: 0;
+}
+.rulesFoot {
+  flex: 0 0 auto;
+  padding: 0 28px 16px;
 }
 .ruleList {
   border: 1px solid var(--line);
@@ -561,7 +584,7 @@
   color: var(--muted);
 }
 
-/* The default model id in the rule form help keeps to one line, as on the DeskRules boards. */
+/* The default model id in the rule form help keeps to one line, as on the DeskRulesAgent boards. */
 .modelId {
   white-space: nowrap;
 }
@@ -831,4 +854,91 @@
 .scroll {
   position: relative; /* contains the sr-only (absolute) text of the cells, so it cannot widen the page */
   overflow-x: auto;
+}
+
+/* Agent & settings: a page that fits the window. The top bar, page header and tab strip stay put; only the open tab's
+   panel scrolls, and every scroll box is keyboard-reachable. */
+.agentSettingsMain {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow-x: hidden;
+  /* Only when the window is too short even for the open tab's minimum height. */
+  overflow-y: auto;
+}
+.agentHead {
+  flex: 0 0 auto;
+  padding: 24px 40px 0;
+}
+.agentTabs {
+  flex: 0 0 auto;
+  margin-top: 14px;
+  padding: 0 32px;
+  border-bottom: 1px solid var(--line);
+}
+.agentSettingsMain > [role='tabpanel'] {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+/* A window too short for the 120 px scroll area plus the pinned bars: the panel keeps that minimum (the scroll areas
+   count only their 120 px, see `contain: size`) and the column scrolls, so no control is cut off. */
+@media (max-height: 300px) {
+  .agentSettingsMain > [role='tabpanel'] {
+    min-height: min-content;
+  }
+}
+.agentScroll {
+  flex: 1 1 0;
+  min-height: 120px;
+  contain: size; /* its own content does not count toward the panel's minimum, only the 120 px does */
+  overflow-y: auto;
+  padding: 0 40px 24px;
+}
+.agentsRow {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  overflow: hidden;
+}
+.agentsCol {
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: 0;
+  padding: 22px 28px 16px;
+  display: flex;
+  flex-direction: column;
+}
+.agentSaveError {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.agentSaveBarWithError {
+  align-items: center;
+  padding-top: 8px;
+  padding-bottom: 8px;
+}
+.agentSaveBar {
+  flex: 0 0 auto;
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 12px 40px;
+  border-top: 1px solid var(--line);
+  background: var(--bg);
+}
+.agentLoading {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.limitsFields {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-width: 0;
 }

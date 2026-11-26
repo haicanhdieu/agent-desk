@@ -3,9 +3,7 @@ import { ApplicationFailure } from '@temporalio/common';
 import { and, desc, eq, gt, inArray, isNull, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import {
-  AGENT_AUTO_RESUME_MAX_DEFAULT,
-  AGENT_IDLE_END_SECONDS_DEFAULT,
-  AGENT_TIMEOUT_SECONDS_DEFAULT,
+  AGENT_KIND_CAPABILITIES,
   AgentKind,
   CredentialType,
   Provider,
@@ -51,6 +49,7 @@ import {
   type Config,
   type KubeGateway,
   type SecretStore,
+  MIN_SECRET_LENGTH,
 } from '@agentdesk/core';
 import {
   agents,
@@ -67,15 +66,7 @@ import {
 } from '@agentdesk/db';
 import { alias } from 'drizzle-orm/pg-core';
 import { loadProjectEnv } from './project-env';
-import {
-  ERROR_MESSAGE_MAX,
-  MIN_SECRET_LENGTH,
-  guarded,
-  oneLine,
-  safeError,
-  secretValues,
-  sleep,
-} from './activity-utils';
+import { ERROR_MESSAGE_MAX, guarded, oneLine, safeError, secretValues, sleep } from './activity-utils';
 import {
   clusterRefused,
   followPodLog,
@@ -281,6 +272,8 @@ interface RunDetails {
   model: string;
   /** The agent's kind; null when the agent was deleted after queueing. */
   agentKind: AgentKind | null;
+  /** When the agent's credential was last replaced (the version marker of a file credential); null if never. */
+  credentialUpdatedAt: Date | null;
   /** The agent's custom API address now (read fresh on a resume); null means the provider's own. */
   baseUrl: string | null;
   /** `runs.agent_id` now (null when the agent was deleted); resume reads it fresh instead of trusting a RunContext. */
@@ -290,6 +283,30 @@ interface RunDetails {
   triggeredByExternalId: string | null;
   /** The organization's status now: a suspended organization's run is not started (a resume still is). */
   orgStatus: 'active' | 'suspended';
+}
+
+/** Env names of a pasted credentials file and its version marker (the runner reads both; see images/runner/entrypoint.sh). */
+const CREDENTIAL_FILE_KEY = 'AGENT_CREDENTIAL_FILE';
+const CREDENTIAL_VERSION_KEY = 'AGENT_CREDENTIAL_VERSION';
+/** Sent when the agent has no update time: never empty, since an empty version counts as changed on every start. */
+const CREDENTIAL_VERSION_FALLBACK = 'unversioned';
+
+/**
+ * The per-run Secret keys that carry the pinned agent's credential: its adapter env name, or, for a credential the
+ * kind takes as a file, the file's exact text plus its version marker. No credential means no keys.
+ */
+function credentialSecretKeys(
+  adapter: { credentialEnv(type: CredentialType): string | null },
+  stored: { type: CredentialType; value: string } | null,
+  updatedAt: Date | null,
+): Record<string, string> {
+  if (!stored) return {};
+  const envName = adapter.credentialEnv(stored.type);
+  if (envName !== null) return { [envName]: stored.value };
+  return {
+    [CREDENTIAL_FILE_KEY]: stored.value,
+    [CREDENTIAL_VERSION_KEY]: updatedAt ? updatedAt.toISOString() : CREDENTIAL_VERSION_FALLBACK,
+  };
 }
 
 export function createRunActivities(deps: RunActivityDeps): RunActivityImpls {
@@ -329,6 +346,7 @@ export function createRunActivities(deps: RunActivityDeps): RunActivityImpls {
         agentModel: agents.model,
         agentKind: agents.provider,
         baseUrl: agents.baseUrl,
+        credentialUpdatedAt: agents.credentialUpdatedAt,
         agentId: runs.agentId,
         triggeredBy: runs.triggeredBy,
         triggeredByExternalId: runs.triggeredByExternalId,
@@ -375,6 +393,7 @@ export function createRunActivities(deps: RunActivityDeps): RunActivityImpls {
       model: r.runModel ?? r.agentModel ?? '',
       agentKind,
       baseUrl: r.baseUrl,
+      credentialUpdatedAt: r.credentialUpdatedAt,
       agentId: r.agentId,
       triggeredBy: r.triggeredBy,
       triggeredByExternalId: r.triggeredByExternalId,
@@ -394,20 +413,13 @@ export function createRunActivities(deps: RunActivityDeps): RunActivityImpls {
   };
 
   /**
-   * The stored agent credential, or null when none is set. The Secret name is derived from (org, agent), never
-   * read from the database. A store error propagates (it must not look like "no credential").
+   * The agent credential Secret as stored, whatever address it was saved for: for redaction and the launch. The name is
+   * derived from (org, agent), never read from the database. A store error propagates (it must not look like "no credential").
    */
-  async function storedCredential(
+  async function readCredentialSecret(
     ctx: RunContext,
-    agentBaseUrl: string | null,
-  ): Promise<{ type: CredentialType; value: string } | null> {
-    const secret = await readCredentialSecret(ctx);
-    // A credential saved for another address is not a credential for this agent (it is still redacted, see below).
-    return secret && credentialMatchesAddress(secret, agentBaseUrl) ? secret : null;
-  }
-
-  /** The Secret as stored, whatever address it was saved for: for redaction, and the base of `storedCredential`. */
-  async function readCredentialSecret(ctx: RunContext): Promise<ReturnType<typeof parseCredentialSecret>> {
+    opts: { strict?: boolean } = {},
+  ): Promise<ReturnType<typeof parseCredentialSecret>> {
     if (!ctx.agentId) return null;
     const name = credentialSecretName(ctx.orgId, ctx.agentId);
     let stored: Record<string, string> | null;
@@ -417,7 +429,12 @@ export function createRunActivities(deps: RunActivityDeps): RunActivityImpls {
       // A store error may quote stored content (a parse error over a corrupt value): keep only its name.
       throw ApplicationFailure.retryable('credential store read failed', err instanceof Error ? err.name : 'Error');
     }
-    return parseCredentialSecret(stored);
+    const parsed = parseCredentialSecret(stored);
+    // At the launch a Secret that is there but unreadable is never "no credential": a kind that runs without one must not start bare.
+    if (opts.strict && stored !== null && parsed === null) {
+      throw ApplicationFailure.nonRetryable('the agent credential is unreadable');
+    }
+    return parsed;
   }
 
   /** The credential values to redact (values only; the runner env names are not needed). */
@@ -432,7 +449,9 @@ export function createRunActivities(deps: RunActivityDeps): RunActivityImpls {
    */
   async function redactionList(ctx: RunContext): Promise<string[]> {
     const runSecret = await kube.readSecret(runJobName(ctx.runId));
-    return [...new Set([...secretValues(runSecret), ...(await credentialValues(ctx))])];
+    // The credential version is a timestamp, not a secret: masking it would corrupt any output that prints it.
+    const masked = Object.fromEntries(Object.entries(runSecret ?? {}).filter(([k]) => k !== CREDENTIAL_VERSION_KEY));
+    return [...new Set([...secretValues(masked), ...(await credentialValues(ctx))])];
   }
 
   // ---- loadRun
@@ -445,13 +464,12 @@ export function createRunActivities(deps: RunActivityDeps): RunActivityImpls {
           agentId: runs.agentId,
           status: runs.status,
           maxConcurrentRuns: projects.maxConcurrentRuns,
-          timeoutSeconds: agents.timeoutSeconds,
-          idleEndSeconds: agents.idleEndSeconds,
-          autoResumeMax: agents.autoResumeMax,
+          timeoutSeconds: projects.timeoutSeconds,
+          idleEndSeconds: projects.idleEndSeconds,
+          autoResumeMax: projects.autoResumeMax,
         })
         .from(runs)
         .innerJoin(projects, eq(projects.id, runs.projectId))
-        .leftJoin(agents, eq(agents.id, runs.agentId))
         .where(eq(runs.id, runId));
       return r;
     });
@@ -462,15 +480,12 @@ export function createRunActivities(deps: RunActivityDeps): RunActivityImpls {
       projectId: row.projectId,
       agentId: row.agentId,
       status: RunStatus.parse(row.status),
-      // An agent deleted after queueing: fall back to the agents.timeout_seconds default.
-      timeoutSeconds: row.timeoutSeconds ?? AGENT_TIMEOUT_SECONDS_DEFAULT,
+      timeoutSeconds: row.timeoutSeconds,
       maxConcurrentRuns: row.maxConcurrentRuns,
-      // The agent's setting. RUN_IDLE_END_SECONDS is a test seam: only a value away from its default overrides it.
+      // The project's setting. RUN_IDLE_END_SECONDS is a test seam: only a value away from its default overrides it.
       idleEndSeconds:
-        deps.config.RUN_IDLE_END_SECONDS !== IDLE_END_SECONDS
-          ? deps.config.RUN_IDLE_END_SECONDS
-          : (row.idleEndSeconds ?? AGENT_IDLE_END_SECONDS_DEFAULT),
-      autoResumeMax: row.autoResumeMax ?? AGENT_AUTO_RESUME_MAX_DEFAULT,
+        deps.config.RUN_IDLE_END_SECONDS !== IDLE_END_SECONDS ? deps.config.RUN_IDLE_END_SECONDS : row.idleEndSeconds,
+      autoResumeMax: row.autoResumeMax,
       endingDeadlineSeconds: deps.config.RUN_ENDING_DEADLINE_SECONDS,
       leaseTtlSeconds: deps.config.RUN_LEASE_TTL_SECONDS,
     };
@@ -544,16 +559,35 @@ export function createRunActivities(deps: RunActivityDeps): RunActivityImpls {
       throw ApplicationFailure.nonRetryable('the organization is suspended', 'OrgSuspended');
     }
     // A resume happens long after `ctx` was loaded: the agent and its credential are read fresh (the agent may be gone).
-    const stored = await storedCredential(resume ? { ...ctx, agentId: d.agentId } : ctx, d.baseUrl);
-    // An agent with a credential always has a kind; a run without an agent has no credential.
-    if (!stored || d.agentKind === null) {
+    const credCtx = resume ? { ...ctx, agentId: d.agentId } : ctx;
+    let saved: Awaited<ReturnType<typeof readCredentialSecret>> = null;
+    if (d.agentKind !== null) {
+      try {
+        saved = await readCredentialSecret(credCtx, { strict: true });
+      } catch (err) {
+        // On a resume an unreadable credential is "no credential": the workflow hands the run to a person.
+        if (resume && err instanceof ApplicationFailure && err.nonRetryable) {
+          throw ApplicationFailure.create({
+            type: 'NoAgentCredential',
+            nonRetryable: true,
+            message: 'the agent or its credential is missing',
+          });
+        }
+        throw err;
+      }
+    }
+    const stored = saved && credentialMatchesAddress(saved, d.baseUrl) ? saved : null;
+    // A kind that can run without a credential starts with none, but a credential that is saved and does not fit the
+    // agent's address is a stale one: that is an error, never a silent start without it.
+    const optional = d.agentKind !== null && AGENT_KIND_CAPABILITIES[d.agentKind].credentialOptional;
+    if (d.agentKind === null || (!stored && !(optional && saved === null))) {
       throw resume
         ? ApplicationFailure.create({
             type: 'NoAgentCredential',
             nonRetryable: true,
             message: 'the agent or its credential is missing',
           })
-        : ApplicationFailure.nonRetryable('the agent has no credential set');
+        : ApplicationFailure.nonRetryable('the agent has no credential set', 'NoAgentCredential');
     }
     const name = runJobName(ctx.runId);
     if (resume) {
@@ -575,9 +609,14 @@ export function createRunActivities(deps: RunActivityDeps): RunActivityImpls {
       }
     }
     const project: AdapterProject = toAdapterProject(d, d.code.externalId);
+    // An endpoint-type credential needs a model: the endpoint has no default to fall back to.
+    if (stored && d.model === '' && AGENT_KIND_CAPABILITIES[d.agentKind].baseUrl?.requiredFor.includes(stored.type)) {
+      throw ApplicationFailure.nonRetryable('choose a model for this endpoint');
+    }
     const adapter = agentAdapterFor(d.agentKind);
-    const cred = { [adapter.credentialEnv(stored.type)]: stored.value };
-    let known = secretValues(cred);
+    const cred = credentialSecretKeys(adapter, stored, d.credentialUpdatedAt);
+    // The version marker is not a secret: only the credential value (and what is inside it) is masked in errors.
+    let known = stored ? [stored.value] : [];
     let plan: TokenRefreshPlan | undefined;
     try {
       // The setup script does not run again on resume.
@@ -642,7 +681,7 @@ export function createRunActivities(deps: RunActivityDeps): RunActivityImpls {
         gitHost: new URL(codeHost.repoUrl(project)).host,
         cliTokenEnvName: codeHost.cliTokenEnvName(),
         maxTurns: d.maxTurns,
-        agentEnv: adapter.launchEnv({ model: d.model, baseUrl: d.baseUrl }),
+        agentEnv: adapter.launchEnv({ model: d.model, baseUrl: d.baseUrl, credentialType: stored?.type ?? null }),
         deadlineSeconds: opts.deadlineSeconds ?? ctx.timeoutSeconds,
         resume,
         resumeNote: resume && opts.note ? resumeNoteText(opts.note, deps.config.RUN_POD_MEMORY_LIMIT) : undefined,

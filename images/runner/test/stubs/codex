@@ -1,0 +1,22 @@
+#!/usr/bin/env node
+// Test stub for the Codex CLI: logs argv (never stdin text). `login --with-api-key` reads the key from stdin, like the
+// real CLI, and logs only whether it equals env STUB_EXPECT_KEY. STUB_CODEX_LOGIN_FAIL=1 makes it fail with a noisy
+// message that carries the key (the entrypoint must never show it).
+import { appendFileSync, readFileSync } from 'node:fs';
+
+const argv = process.argv.slice(2);
+const entry = { cmd: 'codex', argv };
+if (argv.includes('login') && argv.includes('--with-api-key')) {
+  const stdin = readFileSync(0, 'utf8');
+  entry.stdinIsExpectedKey = stdin === process.env.STUB_EXPECT_KEY;
+  appendFileSync(process.env.STUB_LOG, `${JSON.stringify(entry)}\n`);
+  if (process.env.STUB_CODEX_LOGIN_FAIL === '1') {
+    console.error(`codex stub: login failed for ${stdin}`);
+    process.exit(1);
+  }
+  console.log(`codex stub: logged in with ${stdin}`);
+  process.exit(0);
+}
+entry.hasCodexApiKeyEnv = process.env.CODEX_API_KEY !== undefined;
+appendFileSync(process.env.STUB_LOG, `${JSON.stringify(entry)}\n`);
+console.log(`codex stub: ${argv.join(' ')}`);

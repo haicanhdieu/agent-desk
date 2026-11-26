@@ -1,11 +1,19 @@
-import type { ConnectionDto, CreateRuleRequest, ProjectDto } from '@agentdesk/contracts';
+import {
+  AGENT_KIND_CAPABILITIES,
+  AGENT_KINDS_COMING_SOON,
+  AgentKind,
+  type ConnectionDto,
+  type CreateRuleRequest,
+  type ProjectDto,
+} from '@agentdesk/contracts';
 import { useQuery, useSuspenseQueries, useSuspenseQuery } from '@tanstack/react-query';
 import { createFileRoute, notFound, redirect, useLocation, useNavigate } from '@tanstack/react-router';
 import { useState } from 'react';
 import { toastFromError } from '@/app/boundaries';
 import { useNow } from '@/app/useNow';
-import type { RuleDraft } from '@/components';
-import { toModelList } from '@/components/ModelPicker';
+import { relativeTime } from '@/features/relativeTime';
+import { agentStatusText, type ProviderPickerOption, type RuleDraft } from '@/components';
+import { toModelList, type ModelList } from '@/components/ModelPicker';
 import { CommandChip, useToast } from '@/ds';
 import { useAppBar } from '@/features/chrome/appBar';
 import { pollIntervalLabel } from '@/features/projects/map';
@@ -40,14 +48,16 @@ import {
   useSaveRepoStep,
   useSaveRulesStep,
   useSaveSkillsStep,
+  type AgentTestFailure,
   type StepErrors,
 } from '@/features/setup/mutations';
 import { setupQueries } from '@/features/setup/queries';
 import { isProviderReauthRequired } from '@/features/setup/reauth';
 import { resolveStep } from '@/features/setup/resume';
-import { SetupSearch, SetupStepParam } from '@/features/setup/steps';
+import { SetupSearch, SetupStepParam, stepIndex } from '@/features/setup/steps';
 import { SKILL_TEMPLATES } from '@/features/setup/templates';
 import { connectionCopy } from '@/mocks/connection';
+import type { AgentKindView } from '@/mocks/types';
 import { Setup1, Setup2, Setup3, Setup4, SetupReady, type Setup1Draft, type Setup2Draft } from '@/screens';
 
 // Setup (spec §4.5): one route per step, each saving on Continue. Which step shows comes only from the server's
@@ -337,34 +347,94 @@ const AGENT_POINTERS = {
   '/maxConcurrentRuns': 'maxConcurrent',
 } as const;
 
+const AGENT_KIND_VIEWS: AgentKindView[] = AgentKind.options.map((kind) => ({
+  kind,
+  ...AGENT_KIND_CAPABILITIES[kind],
+}));
+
+/** The picker's cards: every runnable kind when the person may change agents, else only the project's own. */
+function agentProviders(current: string, anyKind: boolean): ProviderPickerOption[] {
+  return [
+    ...AGENT_KIND_VIEWS.map((k) => ({
+      kind: k.kind,
+      label: k.label,
+      logo: k.logo,
+      available: anyKind || k.kind === current,
+    })),
+    ...AGENT_KINDS_COMING_SOON.map((c) => ({ kind: c.id, label: c.label, logo: c.logo, available: false })),
+  ];
+}
+
+/** The standard names of each kind (BR-19): a kind other than the saved agent's never shows another kind's names. */
+const BUILTIN_MODEL_LISTS: Record<AgentKind, ModelList> = {
+  claude: builtinList('claude'),
+  codex: builtinList('codex'),
+  opencode: builtinList('opencode'),
+};
+function builtinList(kind: AgentKind): ModelList {
+  return {
+    models: AGENT_KIND_CAPABILITIES[kind].builtinModels,
+    state: { kind: 'fallback', reason: 'no_credential', host: null },
+  };
+}
+
+type AgentStepErrors = StepErrors<'credential' | 'model' | 'maxConcurrent' | 'baseUrl'>;
+
 function AgentStep({ org, projectId }: { org: string; projectId: string }) {
+  const now = useNow();
   const bar = useAppBar(org);
   const goTo = useGoToStep(org);
   const { data: project } = useSuspenseQuery(projectsQueries.detail(org, projectId));
   const { data: agent } = useSuspenseQuery(setupQueries.agent(org, projectId));
-  const { save, pending } = useSaveAgentStep(org);
-  const [errors, setErrors] = useState<StepErrors<'credential' | 'model' | 'maxConcurrent' | 'baseUrl'>>(noErrors);
+  const { save, continueAnyway, pending, progress } = useSaveAgentStep(org);
+  // The web session only shows or hides; the API refuses a person who may not change agents or secrets.
+  const mayUpdateAgents = useCan(org, 'agent:update', { projectId });
+  const maySetSecrets = useCan(org, 'secret:update', { projectId });
+  const mayChangeAgents = mayUpdateAgents && maySetSecrets;
+  const [errors, setErrors] = useState<AgentStepErrors>(noErrors);
+  const [testFailed, setTestFailed] = useState<AgentTestFailure>();
+  const [maxConcurrent, setMaxConcurrent] = useState(project.maxConcurrentRuns);
   const models = useQuery(deskQueries.agentModels(org, agent.id));
+  // BR-65: coming back once setup has moved past this step, the provider is read-only, credential or not. A retry in
+  // the same visit keeps the project at `agent` and reuses the created agent.
+  const resumed = stepIndex(project.setupStep) > stepIndex('agent');
 
   const onContinue = async (d: Setup2Draft) => {
     const max = /^\d+$/.test(d.maxConcurrent.trim()) ? Number(d.maxConcurrent.trim()) : NaN;
-    const fields: StepErrors<'credential' | 'maxConcurrent' | 'baseUrl'>['fields'] = {};
-    // The address is sent only when it changed, and only together with a token ('' clears it: provider default).
+    const fields: AgentStepErrors['fields'] = {};
+    const kind = AgentKind.safeParse(d.provider);
+    if (!kind.success) return;
+    // On the saved agent the address changes only together with a token ('' clears it: the kind's default).
     const addressChanged = d.baseUrl !== (agent.baseUrl ?? '');
-    if (d.credential === '' && !agent.credential.set) fields.credential = 'Paste the token to continue.';
-    else if (d.credential === '' && addressChanged) fields.baseUrl = 'Paste the token again to change the API address.';
+    if (
+      kind.data === agent.provider &&
+      agent.credential.set &&
+      d.credential === '' &&
+      addressChanged &&
+      AGENT_KIND_CAPABILITIES[kind.data].baseUrl !== null
+    ) {
+      fields.baseUrl = 'Paste the token again to change the API address.';
+    }
     if (!(max >= 1 && max <= 10)) fields.maxConcurrent = 'Enter a whole number from 1 to 10.';
     setErrors({ fields });
+    setTestFailed(undefined);
     if (Object.keys(fields).length > 0) return;
     try {
-      const saved = await save(project, agent, {
+      const done = await save(project, {
+        kind: kind.data,
         model: d.model,
         maxConcurrentRuns: max,
         credentialType: d.credentialType,
         credential: d.credential,
-        ...(d.credential !== '' && addressChanged && { baseUrl: d.baseUrl === '' ? null : d.baseUrl }),
+        baseUrl: d.baseUrl,
       });
-      await goTo('setup', saved);
+      if (!done) return;
+      if ('testFailed' in done) {
+        setMaxConcurrent(max);
+        setTestFailed(done.testFailed);
+        return;
+      }
+      await goTo('setup', done.project);
     } catch (e) {
       if (e instanceof CredentialRefreshError) {
         const written = e.writeError === undefined ? { fields: {} } : stepErrors(e.writeError, AGENT_POINTERS);
@@ -373,23 +443,53 @@ function AgentStep({ org, projectId }: { org: string; projectId: string }) {
     }
   };
 
+  const onContinueAnyway = async () => {
+    try {
+      await goTo('setup', await continueAnyway(project, maxConcurrent));
+    } catch (e) {
+      setErrors(stepErrors(e, AGENT_POINTERS));
+    }
+  };
+
+  // The saved agent's kind shows the provider's live list; while that list is only the standard names, and for every
+  // other kind, the names come from the capability table (BR-19), never from the placeholder agent.
+  const live = toModelList(models, agent.baseUrl);
+  const own: ModelList =
+    models.data?.source === 'builtin' ? { ...live, models: BUILTIN_MODEL_LISTS[agent.provider].models } : live;
   return (
     <Setup2
       user={bar.user}
       org={bar.org}
       projectName={project.name}
       repo={project.repoPath}
-      credentialType={agent.credential.type ?? 'oauth_token'}
+      kinds={AGENT_KIND_VIEWS}
+      providers={agentProviders(agent.provider, mayChangeAgents)}
+      savedProvider={agent.credential.set || resumed ? agent.provider : undefined}
+      credentialType={agent.credential.type ?? undefined}
+      credentialSaved={agent.credential.set}
+      credentialInfo={
+        agent.credential.set && resumed
+          ? {
+              setAt: agent.credential.updatedAt ? relativeTime(agent.credential.updatedAt, now) : '',
+              setBy: agent.credential.setBy ?? '',
+            }
+          : undefined
+      }
+      savedName={resumed ? agent.name : undefined}
       secretState="entering"
-      modelList={toModelList(models, agent.baseUrl)}
+      modelList={live}
+      modelLists={{ ...BUILTIN_MODEL_LISTS, [agent.provider]: own }}
       baseUrl={agent.baseUrl ?? ''}
       model={agent.model}
       maxConcurrent={project.maxConcurrentRuns}
       backHref={stepHref(org, 'repo', projectId)}
       onContinue={(d) => void onContinue(d)}
       saving={pending}
+      progress={progress}
       errors={errors.fields}
       formError={errors.form}
+      testFailed={testFailed && { ...testFailed, status: agentStatusText(testFailed.status) }}
+      onContinueAnyway={() => void onContinueAnyway()}
     />
   );
 }
@@ -482,7 +582,8 @@ function RulesStep({ org, projectId }: { org: string; projectId: string }) {
     target: 'issue',
     labels: ['user-story'],
     skill: skillNames.includes('code-build') ? 'code-build' : (skillNames[0] ?? 'code-build'),
-    agent: agent.name,
+    agentId: agent.id,
+    agentLabel: agent.name,
     model: null,
     enabled: true,
   };
@@ -547,6 +648,7 @@ function RulesStep({ org, projectId }: { org: string; projectId: string }) {
       projectName={project.name}
       repo={project.repoPath}
       rule={rule}
+      defaultAgentName={agent.name}
       skills={skillNames}
       modelList={toModelList(models, agent.baseUrl)}
       promptPreview={promptPreview}

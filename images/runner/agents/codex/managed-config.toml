@@ -1,0 +1,41 @@
+# Installed as /etc/codex/requirements.toml (the system layer a repo's .codex config cannot override). The hooks are
+# managed hooks, so Codex runs them without the trust step and `--dangerously-bypass-hook-trust` is not needed (that flag
+# would also run hooks a cloned repo ships). Each hook gets one JSON object on stdin (spike.json, status).
+[features]
+hooks = true
+
+[hooks]
+managed_dir = "/usr/local/lib/agentdesk/agents/codex"
+
+[[hooks.SessionStart]]
+[[hooks.SessionStart.hooks]]
+type = "command"
+command = "node /usr/local/lib/agentdesk/agents/codex/hook.mjs"
+
+[[hooks.UserPromptSubmit]]
+[[hooks.UserPromptSubmit.hooks]]
+type = "command"
+command = "node /usr/local/lib/agentdesk/agents/codex/hook.mjs"
+
+[[hooks.PreToolUse]]
+matcher = "*"
+[[hooks.PreToolUse.hooks]]
+type = "command"
+command = "node /usr/local/lib/agentdesk/agents/codex/hook.mjs"
+
+[[hooks.PermissionRequest]]
+matcher = "*"
+[[hooks.PermissionRequest.hooks]]
+type = "command"
+command = "node /usr/local/lib/agentdesk/agents/codex/hook.mjs"
+
+[[hooks.PostToolUse]]
+matcher = "*"
+[[hooks.PostToolUse.hooks]]
+type = "command"
+command = "node /usr/local/lib/agentdesk/agents/codex/hook.mjs"
+
+[[hooks.Stop]]
+[[hooks.Stop.hooks]]
+type = "command"
+command = "node /usr/local/lib/agentdesk/agents/codex/hook.mjs"

@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { AgentModelId, type AgentModelOption, type CredentialType } from '@agentdesk/contracts';
+import { AgentBaseUrl, AgentModelId, type AgentModelOption, type CredentialType } from '@agentdesk/contracts';
 import { guardedGetJson } from '../../net/guarded-http';
 import { AgentModelsError, type AgentAdapter, type AgentHttpGet } from './types';
 
@@ -36,7 +36,7 @@ function pageUrl(baseUrl: string, afterId: string | null): URL {
 }
 
 export function createClaudeAdapter(http: AgentHttpGet = defaultHttp): AgentAdapter {
-  return {
+  const adapter: AgentAdapter = {
     kind: 'claude',
     pricing: { provider: 'anthropic' },
     builtinModels: ['opus', 'sonnet', 'haiku'].map((id) => ({ id, label: id })),
@@ -52,6 +52,8 @@ export function createClaudeAdapter(http: AgentHttpGet = defaultHttp): AgentAdap
       ...(baseUrl ? [{ name: 'ANTHROPIC_BASE_URL', value: baseUrl }] : []),
     ],
     async listModels({ credential, baseUrl }) {
+      // An address the contract would refuse never gets a request (defense in depth behind the API's validation).
+      if (baseUrl !== null && !AgentBaseUrl.safeParse(baseUrl).success) throw new AgentModelsError('unreachable');
       const headers = requestHeaders(credential);
       const seen = new Set<string>();
       const models: AgentModelOption[] = [];
@@ -84,5 +86,16 @@ export function createClaudeAdapter(http: AgentHttpGet = defaultHttp): AgentAdap
       }
       return models;
     },
+    async checkConnection({ credential, baseUrl }) {
+      if (credential === null) return 'unsupported';
+      try {
+        await adapter.listModels({ credential, baseUrl });
+        return 'ok';
+      } catch (e) {
+        // Only the status word leaves; an unexpected error (for example a bad address) reads as unreachable.
+        return e instanceof AgentModelsError ? e.kind : 'unreachable';
+      }
+    },
   };
+  return adapter;
 }

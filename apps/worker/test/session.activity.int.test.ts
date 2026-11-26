@@ -46,15 +46,16 @@ async function seedProject(
 ): Promise<{ projectId: string; agentId: string }> {
   return asOwner(async (c) => {
     const proj = await c.query<{ id: string }>(
-      `insert into projects (org_id, name, repo_path, code_connection_id, board_connection_id)
-       values ($1, $2, $4, $3, $3) returning id`,
-      [ORG, `p-${Math.random()}`, connId, `dev/demo-${Math.random()}`],
+      `insert into projects (org_id, name, repo_path, code_connection_id, board_connection_id,
+         paused_keep_seconds, done_keep_seconds)
+       values ($1, $2, $4, $3, $3, $5, $6) returning id`,
+      [ORG, `p-${Math.random()}`, connId, `dev/demo-${Math.random()}`, keep.paused ?? 604800, keep.done ?? 86400],
     );
     const projectId = proj.rows[0]?.id ?? '';
     const agent = await c.query<{ id: string }>(
-      `insert into agents (org_id, project_id, name, model, paused_keep_seconds, done_keep_seconds)
-       values ($1, $2, 'claude', 'sonnet', $3, $4) returning id`,
-      [ORG, projectId, keep.paused ?? 604800, keep.done ?? 86400],
+      `insert into agents (org_id, project_id, name, model)
+       values ($1, $2, 'claude', 'sonnet') returning id`,
+      [ORG, projectId],
     );
     return { projectId, agentId: agent.rows[0]?.id ?? '' };
   });
@@ -331,18 +332,18 @@ describe('parkRun', () => {
     expect(signals).toEqual([]);
   });
 
-  it('with the agent row gone it uses 604800 and 86400', async () => {
-    const p = await seedProject();
+  it('with the agent row gone it still uses the project keep times', async () => {
+    const p = await seedProject({ paused: 7200, done: 3600 });
     const gone = { projectId: p.projectId, agentId: null };
     const idle = await seedRun(gone, 'idle');
     const done = await seedRun(gone, 'done');
     expect(
       (await acts().parkRun(await ctxFor(idle), { kind: 'needs_input', at: AT, reason: 'idle_timeout' }))
         .sessionExpiresAt,
-    ).toBe(atPlus(604800));
+    ).toBe(atPlus(7200));
     expect(
       (await acts().parkRun(await ctxFor(done), { kind: 'done', at: AT, reason: 'idle_timeout' })).sessionExpiresAt,
-    ).toBe(atPlus(86400));
+    ).toBe(atPlus(3600));
   });
 });
 

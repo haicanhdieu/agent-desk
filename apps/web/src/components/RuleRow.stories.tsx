@@ -1,7 +1,8 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import { userEvent, within } from 'storybook/test';
 import { RuleRow } from './RuleRow';
-import { TRIAGE_PROMPT } from '@/mocks';
+import { ruleAgentOptions, TRIAGE_PROMPT } from '@/mocks';
+import { ruleAgentWarning } from './RuleSentence';
 
 const rule = {
   id: 'r1',
@@ -9,7 +10,8 @@ const rule = {
   target: 'issue' as const,
   labels: ['user-story'],
   skill: 'code-build',
-  agent: 'Claude',
+  agentId: 'agent-claude',
+  agentLabel: 'Claude',
   enabled: true,
 };
 const meta = {
@@ -71,3 +73,12 @@ export const ActionsMenuOpen: Story = {
 };
 /** No Edit or Delete to offer: the More button is disabled. */
 export const NoActions: Story = { args: { onSelect: undefined, onDelete: undefined } };
+/** A rule on Project default reads "with the project default agent". */
+export const ProjectDefaultAgent: Story = { args: { rule: { ...rule, agentId: null, agentLabel: undefined } } };
+/** The rule's agent has no working credential (Claude Code or Codex with none, or a rejected credential). */
+export const AgentCredentialWarning: Story = {
+  args: {
+    rule: { ...rule, agentId: 'agent-codex', agentLabel: 'Codex - Work' },
+    warning: ruleAgentWarning(ruleAgentOptions[1]!),
+  },
+};

@@ -129,7 +129,7 @@ async function seed(
       .returning({ id: projects.id });
     const [a] = await tx
       .insert(agents)
-      .values({ orgId, projectId: p!.id, name: 'default', model: over.agentModel ?? 'sonnet' })
+      .values({ orgId, projectId: p!.id, name: 'default', model: over.agentModel ?? 'sonnet', isDefault: true })
       .returning({ id: agents.id });
     await tx.insert(rules).values({
       orgId,
@@ -412,6 +412,122 @@ async function setOrgStatus(orgId: string, status: 'active' | 'suspended'): Prom
     [orgId, status],
   );
 }
+
+describe('processTicketEvent: agent resolution (BR-26, BR-34, BR-36, BR-37, BR-42)', () => {
+  const setRuleAgent = (s: Seed, agentId: string | null) =>
+    withOrg(db, s.orgId, (tx) => tx.update(rules).set({ agentId }).where(eq(rules.projectId, s.projectId)));
+  const addAgentTo = (s: Seed, name: string, model: string) =>
+    withOrg(db, s.orgId, async (tx) => {
+      const [a] = await tx
+        .insert(agents)
+        .values({ orgId: s.orgId, projectId: s.projectId, name, model, isDefault: false })
+        .returning({ id: agents.id });
+      return a!.id;
+    });
+  const defaultAgent = (s: Seed) =>
+    withOrg(db, s.orgId, async (tx) => {
+      const [a] = await tx.select({ id: agents.id }).from(agents).where(eq(agents.projectId, s.projectId));
+      return a!.id;
+    });
+
+  it('a rule with no agent runs on the default at that moment and stores its name and model', async () => {
+    const s = await seed({ model: null, agentModel: 'opus' });
+    await setRuleAgent(s, null);
+    const defId = await defaultAgent(s);
+    const r = await processTicketEvent(harness().deps, eventFor(s), 'webhook');
+    expect(r.outcome).toBe('run_created');
+    expect((await runsOf(s))[0]).toMatchObject({ agentId: defId, agentName: 'default', model: 'opus' });
+  });
+
+  it('a rule naming agent B runs on B', async () => {
+    const s = await seed({ model: null });
+    const b = await addAgentTo(s, 'agent-b', 'haiku');
+    await setRuleAgent(s, b);
+    await processTicketEvent(harness().deps, eventFor(s), 'webhook');
+    expect((await runsOf(s))[0]).toMatchObject({ agentId: b, agentName: 'agent-b', model: 'haiku' });
+  });
+
+  it('changing the default or the rule afterwards leaves the queued run on A', async () => {
+    const s = await seed({ model: null });
+    await setRuleAgent(s, null);
+    const a = await defaultAgent(s);
+    await processTicketEvent(harness().deps, eventFor(s), 'webhook');
+    const b = await addAgentTo(s, 'agent-b', 'haiku');
+    await withOrg(db, s.orgId, async (tx) => {
+      await tx.update(agents).set({ isDefault: false }).where(eq(agents.id, a));
+      await tx.update(agents).set({ isDefault: true }).where(eq(agents.id, b));
+      await tx.update(rules).set({ agentId: b }).where(eq(rules.projectId, s.projectId));
+    });
+    expect((await runsOf(s))[0]).toMatchObject({ agentId: a, agentName: 'default' });
+  });
+
+  it("a rule's own model still wins over the agent's", async () => {
+    const s = await seed({ model: 'haiku', agentModel: 'opus' });
+    await setRuleAgent(s, null);
+    await processTicketEvent(harness().deps, eventFor(s), 'webhook');
+    expect((await runsOf(s))[0]?.model).toBe('haiku');
+  });
+
+  it('a missing default is a routing error and writes no run', async () => {
+    const s = await seed({ model: null });
+    await setRuleAgent(s, null);
+    await withOrg(db, s.orgId, (tx) =>
+      tx.update(agents).set({ isDefault: false }).where(eq(agents.projectId, s.projectId)),
+    );
+    const r = await processTicketEvent(harness().deps, eventFor(s), 'webhook');
+    expect(r.outcome).toBe('error');
+    expect(await runsOf(s)).toHaveLength(0);
+  });
+
+  it('a rule whose agent belongs to another project is never run', async () => {
+    const s = await seed({ model: null });
+    const other = await seed({ model: null });
+    const foreign = await withOrg(db, other.orgId, async (tx) => {
+      const [a] = await tx.select({ id: agents.id }).from(agents).where(eq(agents.projectId, other.projectId));
+      return a!.id;
+    });
+    await setRuleAgent(s, foreign);
+    const r = await processTicketEvent(harness().deps, eventFor(s), 'webhook');
+    expect(r.outcome).toBe('error');
+    expect(await runsOf(s)).toHaveLength(0);
+    expect(await runsOf(other)).toHaveLength(0);
+  });
+
+  it('a rule whose agent belongs to another project of the same org is never run', async () => {
+    const s = await seed({ model: null });
+    const sibling = await withOrg(db, s.orgId, async (tx) => {
+      const [conn] = await tx.select({ id: connections.id }).from(connections);
+      const [np] = await tx
+        .insert(projects)
+        .values({
+          orgId: s.orgId,
+          name: 'sibling',
+          repoPath: `acme/sibling-${randomUUID()}`,
+          codeConnectionId: conn!.id,
+          boardConnectionId: conn!.id,
+        })
+        .returning({ id: projects.id });
+      const [a] = await tx
+        .insert(agents)
+        .values({ orgId: s.orgId, projectId: np!.id, name: 'sibling-agent', model: 'haiku', isDefault: true })
+        .returning({ id: agents.id });
+      return a!.id;
+    });
+    await setRuleAgent(s, sibling);
+    const r = await processTicketEvent(harness().deps, eventFor(s), 'webhook');
+    expect(r.outcome).toBe('error');
+    expect(await runsOf(s)).toHaveLength(0);
+  });
+
+  it('a rename after queue leaves runs.agent_name unchanged', async () => {
+    const s = await seed({ model: null });
+    await processTicketEvent(harness().deps, eventFor(s), 'webhook');
+    await withOrg(db, s.orgId, (tx) =>
+      tx.update(agents).set({ name: 'renamed' }).where(eq(agents.projectId, s.projectId)),
+    );
+    expect((await runsOf(s))[0]?.agentName).toBe('default');
+  });
+});
 
 describe('processTicketEvent: one installation linked by several orgs (ADR-0039)', () => {
   it('one delivery starts a run in every org that has a project for the repo, each in its own org', async () => {

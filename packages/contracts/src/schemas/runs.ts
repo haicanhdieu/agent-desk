@@ -18,6 +18,10 @@ export type TicketDto = z.infer<typeof TicketDto>;
 export const FailureStage = z.enum(['setup', 'agent']);
 export type FailureStage = z.infer<typeof FailureStage>;
 
+/** Why a run failed, as a code a screen can act on; null when none applies. Extensible. */
+export const FailureCode = z.enum(['no_credential']);
+export type FailureCode = z.infer<typeof FailureCode>;
+
 export const RunDto = z.object({
   id: Id,
   number: z.number().int(),
@@ -28,7 +32,8 @@ export const RunDto = z.object({
   skillName: z.string().nullable(),
   prompt: z.string().nullable(),
   finalPrompt: z.string().nullable(),
-  agent: z.object({ name: z.string(), model: z.string() }),
+  /** `id` is the run's agent; null when the agent row is gone. */
+  agent: z.object({ id: Id.nullable(), name: z.string(), model: z.string() }),
   ticket: TicketDto,
   args: z.string().nullable(),
   status: RunStatus,
@@ -43,6 +48,8 @@ export const RunDto = z.object({
   failureReason: z.string().nullable(),
   /** Phase that failed; null when the run did not fail or the phase is unknown. */
   failureStage: FailureStage.nullable(),
+  /** Structured failure kind (`no_credential`: the agent had no credential at start); null when none applies. */
+  failureCode: FailureCode.nullable(),
   /** Setup script version the run used; null when the project had no script. */
   setupScriptVersion: z.number().int().nullable(),
   costUsd: z.number().nullable(),

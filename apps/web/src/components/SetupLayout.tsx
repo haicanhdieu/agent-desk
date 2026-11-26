@@ -30,6 +30,10 @@ export interface SetupLayoutProps {
     back?: string;
     skip?: string;
     onSkip?(): void;
+    /** A second button before `next` (Continue anyway). */
+    also?: { label: string; onClick(): void; disabled?: boolean };
+    /** A line under the footer. */
+    note?: ReactNode;
     next: { label: string; href?: string; onClick?(): void; disabled?: boolean; pending?: boolean };
   };
 }
@@ -98,6 +102,11 @@ export function SetupLayout({
                     </Button>
                   )
                 )}
+                {footer.also && (
+                  <Button onClick={footer.also.onClick} disabled={footer.also.disabled || footer.next.pending}>
+                    {footer.also.label}
+                  </Button>
+                )}
                 {footer.next.onClick ? (
                   <Button
                     variant="primary"
@@ -114,6 +123,7 @@ export function SetupLayout({
                 )}
               </div>
             )}
+            {footer?.note && <p className={styles.footNote}>{footer.note}</p>}
           </div>
           {aside && <aside className={styles.setupAside}>{aside}</aside>}
         </main>

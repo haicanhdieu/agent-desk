@@ -24,7 +24,7 @@ The PoC proves one loop end to end: a GitHub issue goes from "written" to "merge
 
 **Non-goals (PoC)**
 
-- Other boards (Jira, Trello, local file board) and other agents (Codex, Cursor). The design leaves an adapter seam for both; the PoC implements GitHub and Claude Code only.
+- Other boards (Jira, Trello, local file board) and agents other than Claude Code, OpenAI Codex and OpenCode (for example Cursor and Gemini CLI, shown as "Coming soon"). The design leaves an adapter seam for both; the PoC implements GitHub, Claude Code, OpenAI Codex and OpenCode only (see [ADR 0041](adr/0041-multiple-agent-configurations-per-project.md)).
 - MCP tool connections.
 - Multi-tenant SaaS concerns: billing, organizations, roles, quotas.
 - Natural-language onboarding and desk configuration.
@@ -41,7 +41,7 @@ The initial idea used "desk" for a team of agents. This spec narrows the vocabul
 | Workspace    | The code, document, and skill base an agent is launched in.                             | The GitHub repo, cloned per run                        |
 | Board        | Where tickets live and where agents report.                                             | GitHub Issues and pull requests of the same repo       |
 | Skill        | A named, user-written procedure an agent follows.                                       | `.claude/skills/<name>/SKILL.md` in the repo           |
-| Agent        | A CLI agent profile: provider, model, credentials, limits.                              | Claude Code only                                       |
+| Agent        | A named CLI agent configuration: provider, model, credential. A project has several.    | Claude Code, Codex, OpenCode                           |
 | Routing rule | "When a ticket matches X, run skill Y with agent Z."                                    | Slash command in a comment, plus optional label filter |
 | Run          | One execution of one skill by one agent for one ticket.                                 | One Kubernetes Job                                     |
 
@@ -88,7 +88,7 @@ P0 is required for the PoC demo. P1 is built only if time allows.
 | **Projects and desk** |                                                                                                                                                                                                                                                                                                               |          |
 | FR-1                  | Sign in with GitHub; a user sees only their own projects.                                                                                                                                                                                                                                                     | P0       |
 | FR-2                  | Create, list, update, delete projects. A project binds to one repo through a GitHub App installation.                                                                                                                                                                                                         | P0       |
-| FR-3                  | Store one agent credential per project as a secret; never display it after save.                                                                                                                                                                                                                              | P0       |
+| FR-3                  | Store one credential per agent configuration (a project holds several, one default) as a secret; never display it after save.                                                                                                                                                                                 | P0       |
 | FR-4                  | Set a per-project limit on concurrent runs (default 2).                                                                                                                                                                                                                                                       | P0       |
 | **Triggers**          |                                                                                                                                                                                                                                                                                                               |          |
 | FR-22                 | Each project has a trigger mode: Webhook (default) or Polling. The user picks it during setup and can change it later in project settings.                                                                                                                                                                    | P0       |
@@ -122,7 +122,7 @@ P0 is required for the PoC demo. P1 is built only if time allows.
 | Area      | In the PoC                                                                                | Deferred                                                                            |
 | --------- | ----------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
 | Board     | GitHub Issues and PRs of one repo per project                                             | Jira, Trello, local file board, GitHub Projects column moves                        |
-| Agent     | Claude Code CLI, headless                                                                 | Codex, Cursor, mixed-agent chains                                                   |
+| Agent     | Claude Code, OpenAI Codex and OpenCode CLIs, headless                                     | Cursor and other CLIs, mixed-agent chains                                           |
 | Trigger   | Slash command in a comment, label filter; delivered by webhook or by polling, per project | Label-only, assignee, ticket type, schedules; polling of events other than comments |
 | Workspace | One GitHub repo, cloned fresh per run                                                     | Multiple repos, file storage, persistent workspaces                                 |
 | Skills    | Stored in the repo, edited in web UI                                                      | Skill library shared across projects, versioning UI                                 |

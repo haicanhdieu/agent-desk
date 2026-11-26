@@ -14,6 +14,8 @@ export interface SetRunStatusInput {
   failureReason?: string;
   /** Written with the final status: `setup` (workspace setup failed), `agent` (the agent exited non-zero); else null. */
   failureStage?: 'setup' | 'agent';
+  /** Written with the final status: a structured failure kind (`no_credential`); else null. */
+  failureCode?: 'no_credential';
   /** Why a `running` run is not busy with the agent itself. Written only with `running`; else cleared. */
   waitingOn?: WaitingOn | null;
   /** Agent's note, already redacted. Written only with `idle` or `done` (collapsed to one line, capped); else cleared. */
@@ -147,6 +149,7 @@ export async function setRunStatusTx(
       ...(input.exitCode !== undefined && !reopening ? { exitCode: input.exitCode } : {}),
       ...(input.failureReason !== undefined ? { failureReason: input.failureReason } : {}),
       ...(input.failureStage !== undefined && isFinal(status) ? { failureStage: input.failureStage } : {}),
+      ...(input.failureCode !== undefined && isFinal(status) ? { failureCode: input.failureCode } : {}),
     })
     .where(eq(runs.id, runId));
   const ev = await appendRunEvent(tx, orgId, {

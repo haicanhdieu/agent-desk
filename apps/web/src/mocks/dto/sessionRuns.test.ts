@@ -2,7 +2,11 @@ import { RunDto, RunEventDto, RunTranscriptEntryDto } from '@agentdesk/contracts
 import { describe, expect, it } from 'vitest';
 import { lifecycleRunFixtures } from './lifecycleRuns';
 import { runFixtures } from './runs';
+import { autoResumeRunFixtures } from './autoResumeRuns';
+import { usageRunFixtures } from './usageRuns';
+import { agentListId } from './ids';
 import {
+  NO_CREDENTIAL_RUN,
   PAUSED_TRANSCRIPT_RUN,
   TRANSCRIPT_LONG_RUN,
   TRANSCRIPT_RICH_RUN,
@@ -21,6 +25,14 @@ const byNumber = (n: number) => {
 };
 
 describe('session fixture runs (browser mock)', () => {
+  it('a run that failed for a missing credential carries its agent id and the failure code', () => {
+    expect(byNumber(NO_CREDENTIAL_RUN)).toMatchObject({
+      status: 'failed',
+      failureCode: 'no_credential',
+      agent: { id: agentListId(1) },
+    });
+  });
+
   it('every run, event and transcript entry parses through the contract schemas', () => {
     expect(() => sessionRunFixtures.forEach((r) => RunDto.parse(r))).not.toThrow();
     expect(() =>
@@ -38,9 +50,12 @@ describe('session fixture runs (browser mock)', () => {
   it('run numbers are unique and do not collide with the other fixtures', () => {
     const numbers = sessionRunFixtures.map((r) => r.number);
     expect(new Set(numbers).size).toBe(numbers.length);
-    const taken = new Set([...runFixtures, ...lifecycleRunFixtures].map((r) => r.number));
+    const others = [...runFixtures, ...lifecycleRunFixtures, ...autoResumeRunFixtures, ...usageRunFixtures];
+    const taken = new Set(others.map((r) => r.number));
     expect(numbers.filter((n) => taken.has(n))).toEqual([]);
     expect(new Set(sessionRunFixtures.map((r) => r.id)).size).toBe(numbers.length);
+    const takenIds = new Set(others.map((r) => r.id));
+    expect(sessionRunFixtures.filter((r) => takenIds.has(r.id))).toEqual([]);
   });
 
   it('seqs are strictly increasing per run', () => {

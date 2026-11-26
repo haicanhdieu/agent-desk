@@ -7,6 +7,12 @@ import { ids } from './ids';
 const base = {
   maxConcurrentRuns: 2,
   maxRunsPerTicket: 10,
+  // The five run limits every project carries (ADR 0021, 0022).
+  timeoutSeconds: 86400,
+  pausedKeepSeconds: 604800,
+  doneKeepSeconds: 86400,
+  idleEndSeconds: 1800,
+  autoResumeMax: 5,
   setupStep: 'ready',
 } as const;
 

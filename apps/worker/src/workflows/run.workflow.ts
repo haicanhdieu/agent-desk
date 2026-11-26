@@ -168,6 +168,7 @@ interface Outcome extends RunOutcome {
   settled?: true;
   scrollbackTail?: string;
   failureStage?: 'setup' | 'agent';
+  failureCode?: 'no_credential';
 }
 
 const act = proxyActivities<RunActivities>({ startToCloseTimeout: '2 minutes', retry: RETRY });
@@ -203,6 +204,13 @@ function queuedResumeRejection(
 /** The failure reason of a failed activity: its name, then its message, cut to `FAILURE_REASON_MAX`. */
 function activityFailureReason(activityType: string, message: string): string {
   return `${activityType} failed: ${message}`.slice(0, FAILURE_REASON_MAX);
+}
+
+/** The agent had no usable credential: the activity says so with a typed failure. */
+function isNoCredential(err: unknown): boolean {
+  return (
+    err instanceof ActivityFailure && err.cause instanceof ApplicationFailure && err.cause.type === NO_AGENT_CREDENTIAL
+  );
 }
 
 function failureReason(err: unknown): string {
@@ -512,6 +520,7 @@ export async function RunWorkflow(input: RunWorkflowInput): Promise<RunOutcome> 
       exitCode?: number;
       failureReason?: string;
       failureStage?: 'setup' | 'agent';
+      failureCode?: 'no_credential';
       session?: null;
       keepAgentNote?: boolean;
       reopen?: boolean;
@@ -738,7 +747,7 @@ export async function RunWorkflow(input: RunWorkflowInput): Promise<RunOutcome> 
           return parked;
         }
         if (decision.kind === 'succeeded' && reopenKeeps && finishKeeps && ending && finishRequested) {
-          // A Finish on a fresh live Done run keeps its disk for the agent's keep time (a keep time of 0 keeps nothing).
+          // A Finish on a fresh live Done run keeps its disk for the project's keep time (a keep time of 0 keeps nothing).
           finishRequested = false;
           finishKeeps = false;
           parkKind = 'done';
@@ -1130,7 +1139,14 @@ export async function RunWorkflow(input: RunWorkflowInput): Promise<RunOutcome> 
   } catch (err) {
     if (isCancellation(err)) {
       outcome = { status: stoppedStatus(stopReason, phaseAtTimeout), podExited: false };
-    } else outcome = { status: 'failed', failureReason: failureReason(err), podExited: false };
+    } else {
+      outcome = {
+        status: 'failed',
+        failureReason: failureReason(err),
+        ...(isNoCredential(err) ? { failureCode: 'no_credential' as const } : {}),
+        podExited: false,
+      };
+    }
   }
   if (outcome === ALREADY_FINAL) {
     phase = 'done';
@@ -1185,6 +1201,7 @@ export async function RunWorkflow(input: RunWorkflowInput): Promise<RunOutcome> 
           ...(o.exitCode !== undefined ? { exitCode: o.exitCode } : {}),
           ...(o.failureReason !== undefined ? { failureReason: o.failureReason } : {}),
           ...(o.failureStage !== undefined ? { failureStage: o.failureStage } : {}),
+          ...(o.failureCode !== undefined ? { failureCode: o.failureCode } : {}),
         }),
       );
       if (c && !keepsResult) {

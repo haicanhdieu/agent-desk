@@ -1,10 +1,8 @@
 import { ApplicationFailure, CancelledFailure } from '@temporalio/common';
-import { redact } from '@agentdesk/core';
+import { MIN_SECRET_LENGTH, redact } from '@agentdesk/core';
 
 /** Shared by the run and setup-test activities (a pure move out of run.activities.impl.ts; behaviour unchanged). */
 
-/** Secret values shorter than this are not used for redaction (they would blank out ordinary text). */
-export const MIN_SECRET_LENGTH = 6;
 export const ERROR_MESSAGE_MAX = 500;
 /** Setup/plugin output is stored as one lifecycle event per this many lines, up to this many characters in all. */
 export const SETUP_CHUNK_LINES = 50;

@@ -1,5 +1,5 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
-import { INVOICER_API, ORG } from './mock';
+import { INVOICER_API, ORG, seedLists } from './mock';
 
 // The Routing rules page fits the viewport: the page itself never scrolls, and the open rule pane keeps its header and
 // footer in view while only its body scrolls.
@@ -50,4 +50,43 @@ test('the rule pane keeps its header and footer in view; only its body scrolls, 
   expect(await page.evaluate(() => window.scrollY)).toBe(0);
   expect((await box(header)).y).toBe(head0.y);
   expect((await box(save)).y).toBe(foot0.y);
+});
+
+// BR-61 / TC-61.7: at 1280x420 the Routing rules header, "New rule" and the pager stay in view while the list scrolls.
+test('TC-61.7: the Routing rules header, New rule and the pager stay in view; the list scrolls, not the page', async ({
+  page,
+}) => {
+  // More rules than one page, so the pager shows.
+  await seedLists(page, { rules: 45 });
+  await page.setViewportSize({ width: 1280, height: 420 });
+  await page.goto(RULES);
+  const header = page.getByRole('heading', { level: 1, name: 'Routing rules' });
+  const newRule = page.getByRole('button', { name: 'New rule' });
+  const pager = page.getByRole('navigation', { name: 'Pagination' });
+  await expect(newRule).toBeVisible();
+  await expect(pager).toBeVisible();
+
+  const o = await pageScroll(page);
+  expect(o.scroll).toBe(o.inner);
+  const head0 = await box(header);
+  const new0 = await box(newRule);
+  const pager0 = await box(pager);
+  expect(pager0.y + pager0.height).toBeLessThanOrEqual(o.inner);
+
+  // Scroll whatever scrolls in the main area: the header, New rule and the pager do not move.
+  const scrolled = await page.getByRole('main').evaluate((main) => {
+    const found = Array.from(main.querySelectorAll<HTMLElement>('*')).find(
+      (n) => getComputedStyle(n).overflowY === 'auto' && n.scrollHeight > n.clientHeight,
+    );
+    if (!found) return null;
+    found.scrollTo(0, 300);
+    return found.scrollTop;
+  });
+  expect(scrolled).toBeGreaterThan(0);
+  expect(await page.evaluate(() => window.scrollY)).toBe(0);
+  expect((await box(header)).y).toBe(head0.y);
+  expect((await box(newRule)).y).toBe(new0.y);
+  expect((await box(pager)).y).toBe(pager0.y);
+  await expect(newRule).toBeInViewport();
+  await expect(pager).toBeInViewport();
 });

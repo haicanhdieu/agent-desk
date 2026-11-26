@@ -16,6 +16,15 @@ describe('Overview', () => {
     expect(container.querySelectorAll('[title^="status: "]')).toHaveLength(11);
   });
 
+  it('labels the second setup link "2. Agent" and points it at the agent step board', () => {
+    render(<Overview />);
+    expect(screen.getByRole('link', { name: '2. Agent' })).toHaveAttribute(
+      'href',
+      '?path=/story/screens-setup--setup-2-default-agent',
+    );
+    expect(screen.queryByRole('link', { name: '2. Claude credential' })).toBeNull();
+  });
+
   it('shows swatch values read from tokens.css', () => {
     render(<Overview />);
     expect(screen.getByText('#15181e')).toBeInTheDocument();

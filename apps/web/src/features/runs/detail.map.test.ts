@@ -13,6 +13,7 @@ import {
   terminalArea,
   terminalConnection,
   toRunDetail,
+  type RunDetailLinks,
   withDetailPrStates,
   type TerminalArea,
 } from './detail.map';
@@ -783,16 +784,51 @@ describe('toRunDetail', () => {
       expect(d.endedAt).toBe('11:30:17');
     });
 
+    describe('TC-60.6: failed for a missing credential', () => {
+      const AGENT = '22222222-2222-4222-8222-222222222222';
+      const noCred = (over: Partial<RunDto> = {}) =>
+        ended({
+          status: 'failed',
+          exitCode: null,
+          failureReason: 'createRunSecretAndJob failed: the agent has no credential set',
+          failureCode: 'no_credential',
+          agent: { id: AGENT, name: 'Claude', model: 'opus' },
+          ...over,
+        });
+      const replace = { label: 'Replace credential', href: `${links.agent}?agent=${AGENT}`, icon: 'key' };
+
+      it('offers Replace credential, which opens that agent on the Agents tab', () => {
+        expect(detail(noCred()).endNote?.actions[0]).toEqual(replace);
+      });
+
+      it('keeps the ticket action after it', () => {
+        expect(detail(noCred()).endNote?.actions.map((a) => a.label)).toEqual([
+          'Replace credential',
+          'Open issue #139',
+        ]);
+      });
+
+      it('has no such action for another failure, a deleted agent, or a caller who cannot open the Desk', () => {
+        const labels = (r: RunDto, l: RunDetailLinks = links) =>
+          toRunDetail(r, [], project, [r], now, l).endNote?.actions.map((a) => a.label);
+        expect(labels(noCred({ failureCode: null }))).toEqual(['Open issue #139']);
+        expect(labels(noCred({ agent: { id: null, name: 'Gone', model: 'opus' } }))).toEqual(['Open issue #139']);
+        expect(labels(noCred(), { runs: links.runs })).toEqual(['Open issue #139']);
+      });
+    });
+
     it('failed: an unsafe ticket url gives no ticket action', () => {
       const r = ended({ status: 'failed', ticket: { ...base.ticket, url: 'javascript:alert(1)' } });
       expect(detail(r).endNote?.actions).toEqual([]);
     });
 
-    it('timed out: the limit, Change time limit, a full meter', () => {
+    it('TC-60.4: timed out: the limit, Change time limit, a full meter', () => {
       const r = ended({ status: 'timed_out', startedAt: local(10, 2, 4), finishedAt: local(10, 32, 4) });
       const d = detail(r);
       expect(d.endNote?.title).toBe('Timed out at the 30 min limit');
-      expect(d.endNote?.actions).toEqual([{ label: 'Change time limit', href: links.agent, icon: 'clock' }]);
+      expect(d.endNote?.actions).toEqual([
+        { label: 'Change time limit', href: `${links.agent}?tab=limits`, icon: 'clock' },
+      ]);
       expect(d.time).toEqual({ elapsed: '30:00', limit: '30 min', percent: 100 });
     });
 

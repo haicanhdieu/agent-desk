@@ -203,3 +203,59 @@ test.describe('BR-20: member or viewer has no invite controls', () => {
     await expectSettingsTabNotHeaderButton(page, 'projectAdmin');
   });
 });
+
+/*
+ * BR-64 and BR-68 on the checklist (spec 2026-11-24-multi-agent-configs-design.md): "Add an agent" follows the
+ * project's default agent. The wizard creates the project with a credential-less Claude Code agent; the checklist reads
+ * it on the Projects page. Client-side navigation only (Back through the wizard): a second goto would reseed the store.
+ */
+test.describe('BR-64, BR-68: "Add an agent" follows the default agent of a project made in the wizard', () => {
+  const CODEX_FILE = '{"tokens":{"access_token":"e2e-not-a-real-token"}}';
+  const addAgentRow = (page: Page): Locator => rowOf(page, 'Add an agent');
+
+  /** Starts the wizard in the seeded org and stops on its Agent step; `goBack` x3 later reads the Projects page. */
+  async function startWizard(page: Page): Promise<void> {
+    await page.goto('/o/alice/projects');
+    await page.getByRole('link', { name: 'New project' }).click();
+    await page.getByRole('radio', { name: 'dev/demo' }).check();
+    await page.getByRole('button', { name: 'Continue' }).click();
+    await expect(page.getByRole('heading', { name: 'Add your agent', level: 1 })).toBeVisible();
+  }
+
+  async function backToProjects(page: Page, steps: number): Promise<void> {
+    for (let i = 0; i < steps; i++) await page.goBack();
+    await expect(page.getByRole('heading', { level: 1, name: 'Projects' })).toBeVisible();
+  }
+
+  test('TC-64.3 (mock): "Add an agent" is not done while the project agent has no credential', async ({ page }) => {
+    await startWizard(page);
+    await backToProjects(page, 2);
+    await expect(card(page)).toBeVisible();
+    await expect(addAgentRow(page).getByRole('img', { name: 'Not done', exact: true })).toBeVisible();
+    await expect(addAgentRow(page).getByRole('img', { name: 'Done', exact: true })).toHaveCount(0);
+  });
+
+  test('TC-64.1 (checklist): "Add an agent" is done after a Codex wizard with its credential', async ({ page }) => {
+    await startWizard(page);
+    await page.getByRole('radio', { name: 'OpenAI Codex' }).check();
+    await page.getByRole('textbox', { name: 'auth.json contents' }).fill(CODEX_FILE);
+    await page.getByRole('button', { name: 'Continue' }).click();
+    await expect(page.getByRole('heading', { name: 'Prepare the workspace', level: 1 })).toBeVisible();
+    await backToProjects(page, 3);
+    await expect(card(page)).toBeVisible();
+    await expect(addAgentRow(page).getByRole('img', { name: 'Done', exact: true })).toBeVisible();
+    await expect(addAgentRow(page).getByRole('img', { name: 'Not done', exact: true })).toHaveCount(0);
+  });
+
+  test('TC-68.3 (checklist): "Add an agent" is done at once after an OpenCode wizard with no credential', async ({
+    page,
+  }) => {
+    await startWizard(page);
+    await page.getByRole('radio', { name: 'OpenCode' }).check();
+    await page.getByRole('button', { name: 'Continue' }).click();
+    await expect(page.getByRole('heading', { name: 'Prepare the workspace', level: 1 })).toBeVisible();
+    await backToProjects(page, 3);
+    await expect(card(page)).toBeVisible();
+    await expect(addAgentRow(page).getByRole('img', { name: 'Done', exact: true })).toBeVisible();
+  });
+});

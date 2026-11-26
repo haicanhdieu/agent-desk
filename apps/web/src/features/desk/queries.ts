@@ -8,6 +8,9 @@ const deskKey = (org: string, projectId: string) => ['org', org, 'projects', pro
 /** Prefix of every cached page of the skills list, the whole-set read included (invalidate with it). */
 export const skillsKey = (org: string, projectId: string) => [...deskKey(org, projectId), 'skills'] as const;
 
+/** Prefix of every cached page of the agents list, the whole-set read included (invalidate with it). */
+export const agentsKey = (org: string, projectId: string) => [...deskKey(org, projectId), 'agents'] as const;
+
 /** Prefix of every cached page of the rules list, the whole-set read included (invalidate with it). */
 export const rulesKey = (org: string, projectId: string) => [...deskKey(org, projectId), 'rules'] as const;
 
@@ -39,6 +42,14 @@ export const deskQueries = {
       queryFn: () => api.rules.promptPreview({ params: { projectId } }),
       staleTime: Infinity,
     }),
+  agents: (org: string, projectId: string, q: PageQuery) =>
+    queryOptions({
+      queryKey: [...agentsKey(org, projectId), q.page, q.pageSize] as const,
+      queryFn: () => api.agents.list({ params: { projectId }, query: q }),
+    }),
+  /** Page 1 at the maximum size: for the readers that need every agent (the rule agent picker). */
+  allAgents: (org: string, projectId: string) => deskQueries.agents(org, projectId, WHOLE_SET),
+  /** The project's default agent through the compat route (the setup flow and the rules page read it). */
   agent: (org: string, projectId: string) =>
     queryOptions({
       queryKey: [...deskKey(org, projectId), 'agent'] as const,

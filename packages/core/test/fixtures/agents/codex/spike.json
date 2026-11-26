@@ -1,0 +1,105 @@
+{
+  "version": "0.172.0",
+  "pin": {
+    "package": "@openai/codex",
+    "version": "0.172.0",
+    "npmIntegrity": "sha512-yHf/6wbw4Zvha2M2ylDhDrU9FgfKLYgV6xSzSjlz3gxQNsiVLkXo+fPGwBqvP0A5geLtZs9wAbq+1v7+ZVWJ0g==",
+    "npmShasum": "f05d7240f6c8063c0b5853ae1269b2aaf5f62233",
+    "note": "npm dist-tags latest on 2026-11-25; the linux-arm64 platform package is a 314 MB musl binary, so the runner image build should install it with npm ci from a lockfile"
+  },
+  "credentialEnv": {
+    "api_key": "CODEX_API_KEY",
+    "auth_json": null,
+    "note": "CODEX_API_KEY is read by `codex exec` (run log: auth.env_codex_api_key_present=true, auth_mode=ApiKey). `codex login --with-api-key` reads the key on stdin and writes {auth_mode:'apikey',OPENAI_API_KEY} to auth.json. The documented fallback env OPENAI_API_KEY is only used when piped to `codex login`. For the interactive TUI the entrypoint should write auth.json (via `codex login --with-api-key < file`) rather than rely on CODEX_API_KEY, which is documented for exec only: confirm in Task 8. auth_json has no env var: the pasted file is written to $CODEX_HOME/auth.json (0600)."
+  },
+  "home": {
+    "env": "CODEX_HOME",
+    "authFile": "auth.json",
+    "default": "~/.codex",
+    "note": "cli_auth_credentials_store must be 'file' (not keyring/auto) in the pod config so auth.json is the store"
+  },
+  "endpointEnv": null,
+  "endpointNote": "No env var. A config key exists: `openai_base_url` (config.toml or `-c openai_base_url=\"https://...\"`), verified against a local mock: requests went to <base>/v1/responses (POST, SSE; a websocket GET is tried first and falls back). The spec says Codex has no address field, so the adapter does not set it. Chat-Completions-only endpoints are unsupported by this release.",
+  "modelFlag": "-m, --model <MODEL> (also -c model=\"...\")",
+  "builtinModels": [
+    {
+      "id": "gpt-6.1-sol",
+      "label": "GPT-6.1 Sol"
+    },
+    {
+      "id": "gpt-6-sol",
+      "label": "GPT-6 Sol"
+    },
+    {
+      "id": "gpt-6-luna",
+      "label": "GPT-6 Luna"
+    },
+    {
+      "id": "gpt-5.5",
+      "label": "GPT-5.5 (API key only)"
+    }
+  ],
+  "builtinModelsNote": "From developers.openai.com/codex/models.md on 2026-11-25. gpt-5.5 retires for ChatGPT sign-in on 2026-10-14 and stays on the API; gpt-5.2/5.3-codex are deprecated for sign-in. An unknown model id is accepted by the CLI with fallback metadata (warning only), so a typed model is never rejected locally.",
+  "modelList": {
+    "url": "https://api.openai.com/v1/models",
+    "auth": "Authorization: Bearer <api key>",
+    "appliesTo": "api_key only; auth_json (ChatGPT sign-in) has no API scope, so no list: use builtinModels",
+    "answerShape": "{ object: 'list', data: [{ id, object, created, owned_by }] }, see models-ok.json"
+  },
+  "check": {
+    "url": "https://api.openai.com/v1/models",
+    "auth": "Authorization: Bearer <api key>",
+    "appliesTo": "api_key",
+    "auth_json": "unsupported",
+    "results": "200 with data array = ok; 401 with error.code invalid_api_key = rejected (real body recorded, key scrubbed, see models-401.json); anything else shaped differently = invalid (models-bad.json)"
+  },
+  "status": {
+    "mechanism": "lifecycle hooks (command handlers) read from hooks.json or [hooks] in config.toml; each hook receives one JSON object on stdin",
+    "configFile": "$CODEX_HOME/hooks.json (user), /etc/codex/hooks.json (system), or managed hooks under [hooks] in requirements.toml",
+    "events": [
+      "SessionStart",
+      "UserPromptSubmit",
+      "PreToolUse",
+      "PermissionRequest",
+      "PostToolUse",
+      "PreCompact",
+      "PostCompact",
+      "SubagentStart",
+      "SubagentStop",
+      "Stop",
+      "Interrupt",
+      "SessionEnd",
+      "PreModelRequest",
+      "PostModelRequest"
+    ],
+    "verifiedEvents": ["SessionStart", "UserPromptSubmit", "Stop", "SessionEnd"],
+    "payloadCommon": ["session_id", "transcript_path", "cwd", "hook_event_name", "model", "permission_mode"],
+    "trust": "A non-managed hook is skipped until trusted (verified: with hooks.json and no trust, no event fired). Fix for the pod: pass `--dangerously-bypass-hook-trust` (verified: all four events fired) or install the hooks as managed hooks in requirements.toml. Either is a runner image choice for Task 10.",
+    "mapping": "SessionStart->started, UserPromptSubmit->working, PermissionRequest->needs_input, Stop->idle (Stop carries last_assistant_message), SessionEnd->finished. The legacy `notify` config array exists too but only reports turn completion."
+  },
+  "transcript": {
+    "path": "$CODEX_HOME/sessions/YYYY/MM/DD/rollout-<timestamp>-<session id>.jsonl (the hook payload transcript_path gives the exact file)",
+    "format": "JSONL, one {timestamp, ordinal, type, payload} object per line. type: session_meta, event_msg (task_started, item_completed with item.type UserMessage or AgentMessage, token_count, task_complete), response_item (message with role user/assistant/developer and content[].input_text or output_text; tool calls are other response_item types), turn_context, world_state, token_usage_record. Usage: event_msg token_count.info.total_token_usage. See images/runner/test/fixtures/codex-transcript/session.jsonl (instruction payloads omitted)."
+  },
+  "resume": {
+    "command": "codex resume <session id>   (or `codex resume --last`; non-interactive: `codex exec resume <session id> [prompt]`)"
+  },
+  "parity": {
+    "start": true,
+    "watch": true,
+    "attach": true,
+    "pauseResume": true,
+    "finish": true,
+    "perAgentModel": true
+  },
+  "notes": [
+    "exec reads stdin when it is not a TTY: always close stdin (</dev/null) for exec runs; the TUI is unaffected.",
+    "Verified end to end against a local mock Responses server with a throwaway key: run, session log, hooks, 401 body from the real api.openai.com for an invalid key.",
+    "Not verified (no real subscription): the shape of a ChatGPT auth.json and its token refresh. The documented fact is that the file is copied to $CODEX_HOME/auth.json on a headless machine and Codex refreshes it during use.",
+    "Every parity value is true or true-with-a-note; the notes are caveats for Tasks 8, 10, 11 and 12, none is a missing capability, so the gate does not stop the plan."
+  ],
+  "parityNotes": {
+    "attach": "true: the TUI runs under tmux (log shows terminal.type=tmux-256color); the interactive TUI itself was not driven in this spike",
+    "pauseResume": "true: sessions persist under $CODEX_HOME on the per-run volume and `codex resume <id>` reopens them; token rotation follows the version-marker rule in the spec"
+  }
+}

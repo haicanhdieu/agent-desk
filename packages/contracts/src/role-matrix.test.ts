@@ -82,6 +82,12 @@ const MATRIX: Record<RouteKey, Row> = {
   'projects.ignored': ALL,
   'projects.events': ALL,
   // Desk configuration: admin and owner only (issue 216, option 1)
+  'agents.list': ADMINS,
+  'agents.create': ADMINS,
+  'agents.update': ADMINS,
+  'agents.remove': ADMINS,
+  'agents.setDefault': ADMINS,
+  'agents.test': ADMINS,
   'agents.get': ADMINS,
   'agents.put': ADMINS,
   'agents.putCredential': ADMINS,

@@ -120,7 +120,7 @@ function runOf(spec: RunSpec): RunDto {
     skillName: 'code-build',
     prompt: null,
     finalPrompt: null,
-    agent: { name: 'Claude', model: 'opus' },
+    agent: { id: null, name: 'Claude', model: 'opus' },
     ticket: {
       ref: String(ticketNumber),
       kind: 'issue',
@@ -140,6 +140,7 @@ function runOf(spec: RunSpec): RunDto {
     exitCode: final ? (status === 'succeeded' ? 0 : 1) : null,
     failureReason: status === 'failed' ? 'API authentication failed (401)' : null,
     failureStage: null,
+    failureCode: null,
     setupScriptVersion: null,
     costUsd: final ? 1.2 : null,
     timeoutSeconds: 1800,

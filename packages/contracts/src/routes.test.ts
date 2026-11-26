@@ -81,7 +81,7 @@ describe('contracts', () => {
       method: 'POST',
       path: '/api/projects/:projectId/connection/poll',
     });
-    expect(Object.keys(flat)).toHaveLength(102);
+    expect(Object.keys(flat)).toHaveLength(108);
     expect(flat['assignments.remove']).toMatchObject({
       method: 'DELETE',
       path: '/api/orgs/:orgId/assignments/:assignmentId',
@@ -92,6 +92,12 @@ describe('contracts', () => {
     });
     expect(flat['runs.stats']).toMatchObject({ method: 'GET', path: '/api/projects/:projectId/runs/stats' });
     expect(flat['agents.models']).toMatchObject({ method: 'GET', path: '/api/agents/:agentId/models' });
+    expect(flat['agents.list']).toMatchObject({ method: 'GET', path: '/api/projects/:projectId/agents' });
+    expect(flat['agents.create']).toMatchObject({ method: 'POST', path: '/api/projects/:projectId/agents' });
+    expect(flat['agents.update']).toMatchObject({ method: 'PATCH', path: '/api/agents/:agentId' });
+    expect(flat['agents.remove']).toMatchObject({ method: 'DELETE', path: '/api/agents/:agentId' });
+    expect(flat['agents.setDefault']).toMatchObject({ method: 'POST', path: '/api/agents/:agentId/default' });
+    expect(flat['agents.test']).toMatchObject({ method: 'POST', path: '/api/agents/:agentId/test' });
   });
   it('rejects timeoutSeconds above 7 days', () => {
     expect(PutAgentRequest.safeParse({ model: 'sonnet', timeoutSeconds: 604801 }).success).toBe(false);
@@ -258,5 +264,28 @@ describe('contract boundaries', () => {
     expect(routes.setupTests.events.query.parse({ orgId: P })).toMatchObject({ orgId: P });
     expect(routes.runs.terminal.query.parse({ orgId: P })).toMatchObject({ orgId: P });
     expect(routes.setupTests.terminal.query.parse({})).toEqual({});
+  });
+});
+
+describe('project limits', () => {
+  it('UpdateProjectRequest takes the five limits with the existing bounds', () => {
+    expect(
+      UpdateProjectRequest.safeParse({
+        timeoutSeconds: 60,
+        pausedKeepSeconds: 3600,
+        doneKeepSeconds: 0,
+        idleEndSeconds: 300,
+        autoResumeMax: 10,
+      }).success,
+    ).toBe(true);
+    for (const bad of [
+      { timeoutSeconds: 59 },
+      { pausedKeepSeconds: 3599 },
+      { doneKeepSeconds: 604801 },
+      { idleEndSeconds: 299 },
+      { autoResumeMax: 11 },
+    ]) {
+      expect(UpdateProjectRequest.safeParse(bad).success).toBe(false);
+    }
   });
 });

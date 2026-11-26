@@ -330,6 +330,34 @@
       "when": 1795553469393,
       "tag": "0046_run_usage_and_model_prices",
       "breakpoints": true
+    },
+    {
+      "idx": 47,
+      "version": "7",
+      "when": 1795594525778,
+      "tag": "0047_agent_configs",
+      "breakpoints": true
+    },
+    {
+      "idx": 48,
+      "version": "7",
+      "when": 1795594526189,
+      "tag": "0048_agent_configs_backfill",
+      "breakpoints": true
+    },
+    {
+      "idx": 49,
+      "version": "7",
+      "when": 1795594526623,
+      "tag": "0049_agent_name_lower_key",
+      "breakpoints": true
+    },
+    {
+      "idx": 50,
+      "version": "7",
+      "when": 1795622569727,
+      "tag": "0050_run_failure_code",
+      "breakpoints": true
     }
   ]
 }

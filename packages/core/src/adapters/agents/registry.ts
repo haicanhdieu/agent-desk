@@ -1,11 +1,17 @@
 import { AgentKind } from '@agentdesk/contracts';
 import { createClaudeAdapter } from './claude';
+import { createCodexAdapter } from './codex';
+import { createOpencodeAdapter } from './opencode';
 import type { AgentAdapter, AgentHttpGet } from './types';
 
 export function agentAdapterFor(kind: AgentKind, opts: { http?: AgentHttpGet } = {}): AgentAdapter {
   switch (kind) {
     case 'claude':
       return createClaudeAdapter(opts.http);
+    case 'codex':
+      return createCodexAdapter(opts.http);
+    case 'opencode':
+      return createOpencodeAdapter(opts.http);
     default: {
       const unreachable: never = kind;
       throw new Error(`unknown agent kind: ${String(unreachable)}`);

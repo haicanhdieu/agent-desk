@@ -1,4 +1,4 @@
-import type { AgentDto } from '@agentdesk/contracts';
+import { AGENT_KIND_CAPABILITIES, type AgentDto } from '@agentdesk/contracts';
 import { describe, expect, it } from 'vitest';
 import { agentModelsFixtures } from '../dto/agentModels';
 import { agentFixtures } from '../dto/agents';
@@ -16,6 +16,14 @@ describe('agentModelsAnswer', () => {
   it('defaults to the standard names when the agent has no credential', () => {
     expect(agentModelsAnswer(withoutCredential, undefined, false)).toEqual(agentModelsFixtures.noCredential);
     expect(agentModelsFixtures.noCredential.models.map((m) => m.id)).toEqual(['opus', 'sonnet', 'haiku']);
+  });
+
+  it('a built-in answer lists the standard names of the agent’s own provider', () => {
+    const opencode: AgentDto = { ...withoutCredential, provider: 'opencode' };
+    const answer = agentModelsAnswer(opencode, undefined, false);
+    if (typeof answer === 'string') throw new Error('expected an answer');
+    expect(answer.reason).toBe('no_credential');
+    expect(answer.models.map((m) => m.id)).toEqual(AGENT_KIND_CAPABILITIES.opencode.builtinModels.map((m) => m.id));
   });
 
   it('defaults to the live fixture when the agent has a credential', () => {

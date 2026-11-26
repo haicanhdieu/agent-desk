@@ -4,6 +4,7 @@
 - Amended by [0023](0023-runner-entrypoint-owns-the-end-of-a-run-pod.md) (the entrypoint owns the end of the pod)
 - Amended by issue #105: the idle end is an agent setting, `idleEndSeconds` (default 30 min, 5 min to 7 days), read by the run workflow in place of the fixed `IDLE_END_SECONDS`
 - Amended by [0032](0032-reopened-session-keeps-the-result.md) (issue #203): a reopened session of a succeeded run keeps the run succeeded
+- Amended by [0041](0041-multiple-agent-configurations-per-project.md): the pause, keep and idle-end limits are project-wide settings, no change of meaning
 - Date: 2026-11-15
 - Source: [Pause and resume design](../superpowers/specs/2026-11-15-run-pause-resume-design.md); issue #50
 - Amends: [0010](0010-one-kubernetes-job-per-run.md) (one Job per run), [0020](0020-agent-status-protocol.md) (`done` and `idle` both end as `succeeded`)

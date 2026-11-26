@@ -1,0 +1,192 @@
+{
+  "version": "2.4.1",
+  "pin": {
+    "package": "@opencode/cli",
+    "version": "2.4.1",
+    "npmIntegrity": "sha512-3TbGzJO3Y7NAR4oUvNkJtr1YREZIlc7iKKZflkHALjchMgEMGnekX26edv8icleNA60pq86bZcDN/aQ+I3pQPA==",
+    "npmShasum": "81d00a0ab0c8d976cdf515337975017de792f986",
+    "note": "npm dist-tags latest on 2026-11-25. The package is a thin launcher: platform binaries come as optional deps (@opencode/cli-linux-arm64, -musl variants). Install is 510 MB on linux-arm64; the runner image should npm ci from a lockfile."
+  },
+  "install": {
+    "package": "@opencode/cli",
+    "version": "2.4.1",
+    "sha256": "6495e0563da9966f8c2a2ff564c8561158c5751b65a1dde421b1dcfd43af3b6b",
+    "sha256Of": "node_modules/@opencode/cli-linux-arm64/bin/opencode (269 MB single binary, linux-arm64)",
+    "note": "The older opencode-ai line (npm latest 1.19.6) is not used."
+  },
+  "line": "current",
+  "credentialEnv": {
+    "api_key": "AGENTDESK_LLM_API_KEY",
+    "auth_json": null,
+    "note": "api_key (own endpoint) is the platform key the adapter sets as AGENTDESK_LLM_API_KEY; verified: provider config with env: [\"AGENTDESK_LLM_API_KEY\"] made the CLI send 'Authorization: Bearer <that value>' to the mock endpoint. auth_json has no env var: the pasted `opencode auth export` JSON is delivered as a file and loaded with `opencode auth import <file>` (or stdin)."
+  },
+  "home": {
+    "env": "XDG_DATA_HOME",
+    "default": "~/.local/share/opencode",
+    "authFile": null,
+    "note": "There is no auth.json. Credentials live in the SQLite database opencode.db (table credential) under $XDG_DATA_HOME/opencode/, together with sessions. Config is read from $XDG_CONFIG_HOME/opencode (default ~/.config/opencode), including plugins/ (auto-loaded) and service.json."
+  },
+  "endpointEnv": null,
+  "endpointNote": "No env var. The address is the custom provider's options.baseURL in the config.",
+  "modelFlag": "-m, --model <provider/model#variant> on `opencode run` only. The TUI has no --model flag: it starts on the `model` key of $XDG_CONFIG_HOME/opencode/opencode.json (see parityNotes.perAgentModel).",
+  "noLogin": {
+    "works": true,
+    "offers": "opencode/* free models (opencode models lists 11, e.g. opencode/big-pickle, opencode/deepseek-v4.1-flash-free), fetched from the network; no credential, import or --model needed",
+    "note": "Verified: with an empty home, `opencode run \"reply ok\"` started, defaulted to opencode/big-pickle (agent build) and answered. This matches the spec promise of no model required. `opencode auth list` prints 'No authenticated integrations'; `opencode auth export` prints []."
+  },
+  "authExport": {
+    "command": "opencode auth export [<integration id or name>]   (prints to stdout, secrets included; no argument exports every integration)",
+    "shape": "JSON array of { id: 'cred_<id>', integrationID, label, active: boolean, value }. value is { type: 'key', key } for API keys or { type: 'oauth', methodID, refresh, access, expires } for sign-in.",
+    "includesOauth": true,
+    "note": "The key shape was exported from a real `auth login` (throwaway key). The oauth shape was verified by importing then re-exporting an invented credential: all tokens round-trip. See auth-export.sample.json (invented, canary strings). Not verified: a real ChatGPT sign-in file."
+  },
+  "authImport": {
+    "command": "opencode auth import [<file>]   (reads stdin when omitted)",
+    "merge": "Additive by credential id. A credential whose id already exists is skipped ('Imported 0 credentials, skipped 1 already present', the stored key is NOT overwritten even if the file carries a different one). A new id is added with active=false, even when the file says active=true, and the existing active credential for that integration stays active. So an import into a fresh pod home is exact; a token refreshed later in the CLI is never overwritten by re-importing the same file.",
+    "storePath": "$XDG_DATA_HOME/opencode/opencode.db (default ~/.local/share/opencode/opencode.db), table credential",
+    "validation": "Strict schema: errors name the missing key path (e.g. at [0][\"value\"][\"methodID\"])",
+    "fallback": "Not needed: import is usable. The spec fallback (write the credential store directly) is not recorded as required; the store is SQLite, so writing it directly would be worse than importing.",
+    "note": "A rotated auth_json (new tokens) imported over an old one with the same credential ids is skipped. If rotation reuses the id, Task 11 must use new ids or `opencode auth logout` before import; this is a caveat for the version-marker rule in the spec. Only `active` credentials are used by the run, so the adapter should import into a fresh home or verify with `auth list`.",
+    "forTask11": "Rotation rule (verified twice): importing a file whose credential id already exists is skipped and keeps the old key, and importing a new id adds it with active=false while the old one stays active. To rotate, run `opencode auth logout <integration> <credentialId>` for every stored credential of that integration (the next remaining one becomes active, so logout all of them), then `opencode auth import`; or start from a fresh home on the per-run volume. Verified: after logging out the old id, importing the same file with the rotated key made it active."
+  },
+  "service": {
+    "disableCommand": "opencode service set disabled true",
+    "effect": "Writes {\"disabled\": true} to $XDG_CONFIG_HOME/opencode/service.json (verified). Commands accept --standalone (private server for that command) or --server <url>; without either they use the background service (opencode service start|stop|status). `opencode run --standalone` was verified: the CLI spawns its own `serve --stdio --port 0` child and exits with it. One pod therefore runs one private server using --standalone, or service.json disabled; both are verified to work, the TUI form (`opencode --standalone`) was not driven.",
+    "note": "Auth commands (`auth list|export|import|login`) also need --standalone (or a running service)."
+  },
+  "configDelivery": {
+    "OPENCODE_CONFIG_CONTENT": true,
+    "file": null,
+    "note": "OPENCODE_CONFIG_CONTENT (inline JSON config) is read by the pinned release; verified end to end (provider, models, env). Also present in the binary: OPENCODE_CONFIG, OPENCODE_CONFIG_DIR, OPENCODE_DISABLE_AUTOUPDATE, OPENCODE_DISABLE_MODELS_FETCH, OPENCODE_DISABLE_FREE_MODELS, OPENCODE_DISABLE_CLAUDE_CODE*."
+  },
+  "customProvider": {
+    "package": "@ai-sdk/openai-compatible",
+    "keys": {
+      "baseURL": "provider.agentdesk.options.baseURL",
+      "env": "provider.agentdesk.env (array of env var names; [\"AGENTDESK_LLM_API_KEY\"])",
+      "models": "provider.agentdesk.models: object keyed by model id, values may be {}; also provider.agentdesk.npm = package id"
+    },
+    "selection": "`--model agentdesk/org/model-a` selects model id 'org/model-a' under provider 'agentdesk' (the first slash splits, the rest stays one id); `opencode models` lists it as agentdesk/org/model-a. Verified: the request to the endpoint carried model 'org/model-a' and POST <baseURL>/chat/completions with SSE.",
+    "example": {
+      "provider": {
+        "agentdesk": {
+          "npm": "@ai-sdk/openai-compatible",
+          "name": "Agent Desk",
+          "options": {
+            "baseURL": "https://llm.example.invalid/v1"
+          },
+          "env": ["AGENTDESK_LLM_API_KEY"],
+          "models": {
+            "org/model-a": {}
+          }
+        }
+      }
+    }
+  },
+  "autoUpdate": {
+    "env": "OPENCODE_DISABLE_AUTOUPDATE=1",
+    "note": "The variable name is present in the binary and was exported in every run; no update call was observed. `opencode upgrade` exists as a command; the pod should also not run it."
+  },
+  "status": {
+    "mechanism": "a plugin: a .js module in $XDG_CONFIG_HOME/opencode/plugins/ (auto-loaded; also config plugin: [...]) with a default export { id, setup(ctx) }. ctx.event.subscribe({ types? }) returns an async iterable of events. The older `export const X = async () => ({ event })` form is rejected ('Plugin must export a default definition with an id and an effect or setup function').",
+    "events": [
+      "session.inbox.enqueued",
+      "session.execution.started",
+      "session.inbox.delivered",
+      "session.step.started",
+      "session.step.first-token",
+      "session.text.started",
+      "session.text.delta",
+      "session.text.ended",
+      "session.step.ended",
+      "session.usage.updated",
+      "session.execution.succeeded",
+      "session.execution.failed",
+      "session.execution.interrupted",
+      "location.shutdown",
+      "permission.asked",
+      "permission.replied"
+    ],
+    "verifiedEvents": [
+      "session.inbox.enqueued",
+      "session.execution.started",
+      "session.step.started",
+      "session.text.delta",
+      "session.step.ended",
+      "session.usage.updated",
+      "session.execution.succeeded",
+      "location.shutdown",
+      "session.tool.called",
+      "permission.asked",
+      "permission.replied",
+      "session.tool.success",
+      "session.tool.failed"
+    ],
+    "payload": "{ id, created, type, data: { sessionID, ... }, durable?, location? }. See images/runner/test/fixtures/opencode-hooks/events.jsonl (ids and paths scrubbed).",
+    "mapping": "plugin setup -> started, session.execution.started -> working, permission.asked -> needs_input, permission.replied -> working (reply once|always|reject), session.execution.succeeded|failed|interrupted -> idle, location.shutdown -> finished. Verified with a mock OpenAI-compatible server that answers with a tool call and OPENCODE_CONFIG_CONTENT permission {bash: ask}: on a long-lived server (`opencode serve`) the run blocked for 11 s after permission.asked (data { id, sessionID, action: 'shell', resources: ['echo hi'], source: { type: 'tool', messageID, id } }) with no other event, then permission.replied (data { sessionID, requestID, reply }) arrived when POST /api/session/<id>/permission/<requestID>/reply { decision: 'once' } answered it and the run went on to session.execution.succeeded. In a non-interactive `opencode run` (no --auto) the request is auto-rejected within 1 ms (permission.asked, permission.replied reply 'reject', session.tool.failed error.type 'permission.rejected'), so a headless run never blocks; only the TUI or a server waits for a person. session.form.* (question/form tool) was not driven; a form prompt would map to needs_input the same way, to be confirmed in Task 10.",
+    "note": "Subscribing needs an async for-await loop started from setup, not awaited. Events fixture: images/runner/test/fixtures/opencode-hooks/events.jsonl (the permission session is the second session, ses_002)."
+  },
+  "transcript": {
+    "path": "$XDG_DATA_HOME/opencode/opencode.db (SQLite: tables session_v*, session_message, session_part, event, ...). There is no JSONL file on disk.",
+    "format": "Read it through the CLI: `opencode session export <id>` prints JSON { info: { id, model, cost, tokens, outcome, time, title, location }, messages: [ user { text, files }, assistant { agent, model, content[], finish, tokens }, idle { outcome } ] }. `opencode session list [--format json]` lists sessions. The fixture images/runner/test/fixtures/opencode-transcript/session.json is a scrubbed real export (messages carry no kind field; a tool part is { type: 'tool', id, name, state: { status, input, content, metadata } }); `session list --standalone --format json` prints an array of { id, updated, created, projectId, directory }.",
+    "note": "The runner cannot tail a file like Claude or Codex; it should collect the plugin event stream into a JSONL file (the events fixture) and call `session export` at the end or on pause."
+  },
+  "resume": {
+    "command": "opencode run -s <session id> \"<message>\"   (non-interactive; -c continues the last session); TUI: opencode --session <id> or opencode --continue"
+  },
+  "builtinModels": [
+    {
+      "id": "opencode/big-pickle",
+      "label": "Big Pickle (free)"
+    },
+    {
+      "id": "opencode/deepseek-v4.1-flash-free",
+      "label": "DeepSeek V4.1 Flash (free)"
+    },
+    {
+      "id": "opencode/qwen4-max-free",
+      "label": "Qwen4 Max (free)"
+    },
+    {
+      "id": "opencode/nemotron-3.5-super-vl-free",
+      "label": "Nemotron 3.5 Super VL (free)"
+    }
+  ],
+  "builtinModelsNote": "From `opencode models` on 2026-11-25 with no login (11 free models, fetched online; list changes). Each id is provider-prefixed, so the picker value passes straight to --model. Task 8 should keep this short; modelOptional means a run with no model uses the CLI default (opencode/big-pickle).",
+  "modelList": {
+    "url": "<baseUrl>/models",
+    "auth": "Authorization: Bearer <api key>",
+    "appliesTo": "api_key (own endpoint); auth_json has no known list endpoint, use builtinModels",
+    "answerShape": "{ object: 'list', data: [{ id, object, created, owned_by }] }, see models-ok.json. The CLI itself also called GET <baseURL>/models when it started with the custom provider (seen on the mock)."
+  },
+  "check": {
+    "url": "<baseUrl>/models",
+    "auth": "Authorization: Bearer <api key>",
+    "appliesTo": "api_key",
+    "auth_json": "unsupported",
+    "results": "200 with data array = ok; 401 with error.code invalid_api_key = rejected (real api.openai.com body, key scrubbed, see models-401.json; other OpenAI-compatible servers vary, so any 401/403 = rejected); anything else shaped differently = invalid (models-bad.json)"
+  },
+  "startupCheck": {
+    "mislabelled": false,
+    "note": "A plugin-driven start emits session.execution.started within about 100 ms of the first prompt; but with no initial prompt the TUI emits no session event until the user types, so an idle TUI could look like a silent start. The 5-minute needs_input startup check must count plugin setup (started) as the first signal, as for Claude and Codex."
+  },
+  "parity": {
+    "start": true,
+    "watch": true,
+    "attach": true,
+    "pauseResume": true,
+    "finish": true,
+    "perAgentModel": true
+  },
+  "parityNotes": {
+    "perAgentModel": "true: the TUI has no --model flag (`opencode --help` lists only --standalone, --server, --auto, --continue, --session, --prompt; no --agent either), but a `model` key in $XDG_CONFIG_HOME/opencode/opencode.json (user config file) or in OPENCODE_CONFIG_CONTENT makes it start on that model. Verified on CLI 2.4.1 under tmux with scratch HOME/XDG dirs against a local mock endpoint (throwaway key): the first chat request carried the chosen model, not the default (the default with no setting was org/model-a; the chosen one was org/model-b, the second in the list), for `agentdesk/org/model-b` (own endpoint; the first slash splits, the rest is one id) and for a native provider/model (`openai/gpt-test-b`; the very first request there is the CLI's small-model title call, the next ones carry the chosen model). Also worked: seeding $XDG_STATE_HOME/opencode/model.json {recent:[{providerID,modelID}]}. The config model wins over a seeded recent entry. Did NOT work: tui.json (its model key is ignored, the default stayed). Not applicable: --agent (no such flag), session pre-creation (not needed). The footer showed 'Build · org/model-b'. Not verified: a real native provider with a real login, and a --continue resume whose stored session used another model (the session model is likely to win there).",
+    "watch": "true: events come from a plugin, not a hook command, so the runner needs the plugin file written at start (Task 10). needs_input is verified: permission.asked fires while a prompt blocks the run and permission.replied fires when it is answered.",
+    "attach": "true with a note: the TUI under tmux was not driven in this spike; `opencode run` and --standalone were verified.",
+    "pauseResume": "true: sessions persist in opencode.db on the per-run volume; `opencode run -s <id>` resumed by id (listed, exported). Credentials live in the same database, so token rotation follows the version-marker rule: a re-import of the same credential ids is skipped, see authImport.note."
+  },
+  "notes": [
+    "Verified end to end against a local mock OpenAI-compatible server with a throwaway key, plus the real opencode.ai free models (no login) and a real api.openai.com 401 body.",
+    "Not verified: a real ChatGPT/OAuth sign-in, the interactive TUI and the session.form.* question tool. Verified later in a second run: a tool call that needs permission (permission.asked / permission.replied).",
+    "Every parity value is true; the notes above are caveats for Tasks 8, 10, 11 and 13, none is a missing capability, so the gate does not stop the plan."
+  ]
+}

@@ -1,14 +1,18 @@
-import { focusManager, type QueryClient } from '@tanstack/react-query';
-import { act, screen, waitFor, within } from '@testing-library/react';
+import { focusManager, QueryClientProvider, type QueryClient } from '@tanstack/react-query';
+import { act, renderHook, screen, waitFor, within } from '@testing-library/react';
 import { http, HttpResponse } from 'msw';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { AGENT_KIND_CAPABILITIES } from '@agentdesk/contracts';
 import { ids } from '@/mocks/dto/ids';
+import { projectFixtures } from '@/mocks/dto/projects';
 import { mockDb } from '@/mocks/msw/db';
 import { jsonResponse, problemResponse, routeHandler } from '@/mocks/msw/http';
 import { server } from '@/mocks/msw/node';
 import { scenarios } from '@/mocks/msw/scenarios';
 import { renderRoute } from '@/test/renderRoute';
 import { browserLocation } from './location';
+import { useSaveAgentStep } from './mutations';
+import { createElement, type ReactNode } from 'react';
 
 const base = '/o/alice/projects/new';
 const TOKEN = 'sk-ant-oat01-very-secret-token';
@@ -39,7 +43,29 @@ const cacheText = (qc: QueryClient) =>
       .map((m) => m.state.variables),
   ]);
 
-afterEach(() => vi.restoreAllMocks());
+let stopListening: (() => void) | undefined;
+afterEach(() => {
+  vi.restoreAllMocks();
+  stopListening?.();
+  stopListening = undefined;
+});
+
+type User = Awaited<ReturnType<typeof renderRoute>>['user'];
+
+/** The Agent step starts with nothing picked; picks Claude Code (the project's agent) unless it is already shown. */
+async function openClaude(user: User) {
+  const claude = await screen.findByRole('radio', { name: 'Claude Code' });
+  if (!(claude instanceof HTMLInputElement) || !claude.checked) await user.click(claude);
+}
+const token = () => screen.getByLabelText('Subscription token', { selector: 'input[type="password"]' });
+async function tokenBox(user: User) {
+  await openClaude(user);
+  return token();
+}
+async function addressBox(user: User) {
+  await openClaude(user);
+  return screen.getByLabelText('API address');
+}
 
 const INSTALL_URL = 'https://github.com/apps/agent-desk/installations/new';
 
@@ -90,7 +116,7 @@ describe('setup flow', () => {
     expect(router.state.location.search).toEqual({ project: created.id });
 
     // Step agent: the credential is saved, then the project moves on to setup.
-    await user.type(await screen.findByLabelText('Token'), TOKEN);
+    await user.type(await tokenBox(user), TOKEN);
     await user.click(screen.getByRole('button', { name: 'Continue' }));
     await waitFor(() => expect(router.state.location.pathname).toBe(`${base}/setup`));
     expect(router.state.location.searchStr).toBe(`?project=${created.id}`);
@@ -276,7 +302,7 @@ describe('setup flow', () => {
     const id = seedAt('rules');
     const { router } = await renderRoute(`${base}/agent?project=${id}`);
     expect(router.state.location.pathname).toBe(`${base}/agent`);
-    expect(await screen.findByRole('heading', { name: 'Add the Claude credential' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Add your agent' })).toBeInTheDocument();
   });
 
   it('a later step without a project goes back to the repo step', async () => {
@@ -298,7 +324,7 @@ describe('setup flow', () => {
       errors: [{ pointer: '/value', detail: 'The token was rejected by Claude.' }],
     });
     const { router, user } = await renderRoute(`${base}/agent?project=${id}`);
-    const token = await screen.findByLabelText('Token');
+    const token = await tokenBox(user);
     await user.type(token, TOKEN);
     await user.click(screen.getByRole('button', { name: 'Continue' }));
 
@@ -824,6 +850,21 @@ describe('setup flow fixes', () => {
   });
 });
 
+/** The agents list answers 500 once the credential write has been answered: the step's refetch fails. */
+function failAgentListAfterCredentialWrite() {
+  let armed = false;
+  const arm = ({ request }: { request: Request }) => {
+    if (request.method === 'PUT' && new URL(request.url).pathname.endsWith('/credential')) armed = true;
+  };
+  server.events.on('response:mocked', arm);
+  stopListening = () => server.events.removeListener('response:mocked', arm);
+  server.use(
+    http.get('*/api/projects/*/agents', () =>
+      armed ? problemResponse({ status: 500, title: 'Internal server error', type: 'internal' }) : undefined,
+    ),
+  );
+}
+
 describe('setup agent step and step 4 model wiring', () => {
   const agentId = ids.agent.invoicerApi;
   const credentialPath = `/api/agents/${agentId}/credential`;
@@ -865,7 +906,7 @@ describe('setup agent step and step 4 model wiring', () => {
     const id = seedAt('agent');
     const { sent, stop } = captureWrites();
     const { router, user } = await renderRoute(`${base}/agent?project=${id}`);
-    const address = await screen.findByLabelText('API address');
+    const address = await addressBox(user);
     await user.type(address, 'https://gw.example.com/anthropic');
     await user.click(screen.getByRole('button', { name: 'Continue' }));
     expect(await screen.findByText('Paste the token again to change the API address.')).toBeInTheDocument();
@@ -879,8 +920,8 @@ describe('setup agent step and step 4 model wiring', () => {
     const id = seedAt('agent');
     const { sent, stop } = captureWrites();
     const { router, user } = await renderRoute(`${base}/agent?project=${id}`);
-    await user.type(await screen.findByLabelText('API address'), ' https://gw.example.com/anthropic ');
-    await user.type(screen.getByLabelText('Token'), TOKEN);
+    await user.type(await addressBox(user), ' https://gw.example.com/anthropic ');
+    await user.type(token(), TOKEN);
     await user.click(screen.getByRole('button', { name: 'Continue' }));
     await waitFor(() => expect(router.state.location.pathname).toBe(`${base}/setup`));
     stop();
@@ -896,7 +937,7 @@ describe('setup agent step and step 4 model wiring', () => {
     const id = seedAt('agent');
     const { sent, stop } = captureWrites();
     const { router, user } = await renderRoute(`${base}/agent?project=${id}`);
-    await screen.findByLabelText('API address');
+    await addressBox(user);
     await user.click(screen.getByRole('button', { name: 'Continue' }));
     await waitFor(() => expect(router.state.location.pathname).toBe(`${base}/setup`));
     stop();
@@ -907,7 +948,7 @@ describe('setup agent step and step 4 model wiring', () => {
     const id = seedAt('agent');
     const { sent, stop } = captureWrites();
     const { router, user } = await renderRoute(`${base}/agent?project=${id}`);
-    await user.type(await screen.findByLabelText('Token'), TOKEN);
+    await user.type(await tokenBox(user), TOKEN);
     await user.click(screen.getByRole('button', { name: 'Continue' }));
     await waitFor(() => expect(router.state.location.pathname).toBe(`${base}/setup`));
     stop();
@@ -919,8 +960,8 @@ describe('setup agent step and step 4 model wiring', () => {
     agentRow().baseUrl = 'https://gw.example.com';
     const { sent, stop } = captureWrites();
     const { router, user } = await renderRoute(`${base}/agent?project=${id}`);
-    await user.clear(await screen.findByLabelText('API address'));
-    await user.type(screen.getByLabelText('Token'), TOKEN);
+    await user.clear(await addressBox(user));
+    await user.type(token(), TOKEN);
     await user.click(screen.getByRole('button', { name: 'Continue' }));
     await waitFor(() => expect(router.state.location.pathname).toBe(`${base}/setup`));
     stop();
@@ -941,10 +982,10 @@ describe('setup agent step and step 4 model wiring', () => {
       errors: [{ pointer: '/baseUrl', detail: 'Use a public https address.' }],
     });
     const modelsPath = `/api/agents/${agentId}/models`;
-    const agentGetPath = `/api/projects/${id}/agent`;
+    const agentGetPath = `/api/projects/${id}/agents`;
     const { router, user } = await renderRoute(`${base}/agent?project=${id}`);
-    await user.type(await screen.findByLabelText('API address'), 'https://10.0.0.1');
-    await user.type(screen.getByLabelText('Token'), TOKEN);
+    await user.type(await addressBox(user), 'https://10.0.0.1');
+    await user.type(token(), TOKEN);
     const before = mockDb.requests('GET', modelsPath);
     const agentBefore = mockDb.requests('GET', agentGetPath);
     await user.click(screen.getByRole('button', { name: 'Continue' }));
@@ -957,8 +998,8 @@ describe('setup agent step and step 4 model wiring', () => {
   it('a failed refetch after the credential save says so and the step stays', async () => {
     const id = seedAt('agent');
     const { router, user } = await renderRoute(`${base}/agent?project=${id}`);
-    await user.type(await screen.findByLabelText('Token'), TOKEN);
-    scenarios.serverError('agents.get');
+    await user.type(await tokenBox(user), TOKEN);
+    failAgentListAfterCredentialWrite();
     await user.click(screen.getByRole('button', { name: 'Continue' }));
     expect(
       await screen.findByText('Could not refresh the agent. Reload the page to see its current state.'),
@@ -975,9 +1016,9 @@ describe('setup agent step and step 4 model wiring', () => {
       errors: [{ pointer: '/value', detail: 'The token was rejected by Claude.' }],
     });
     const { router, user } = await renderRoute(`${base}/agent?project=${id}`);
-    const token = await screen.findByLabelText('Token');
+    const token = await tokenBox(user);
     await user.type(token, TOKEN);
-    scenarios.serverError('agents.get');
+    failAgentListAfterCredentialWrite();
     await user.click(screen.getByRole('button', { name: 'Continue' }));
     await waitFor(() => expect(token).toHaveAccessibleDescription(/The token was rejected by Claude\./));
     expect(
@@ -999,15 +1040,15 @@ describe('setup agent step and step 4 model wiring', () => {
       }),
     );
     const { router, user } = await renderRoute(`${base}/agent?project=${id}`);
-    await user.type(await screen.findByLabelText('API address'), address);
-    await user.type(screen.getByLabelText('Token'), TOKEN);
+    await user.type(await addressBox(user), address);
+    await user.type(token(), TOKEN);
     await user.click(screen.getByRole('button', { name: 'Continue' }));
     // The step refetched the agent: it shows the new address and asks for the token again.
     await waitFor(() => expect(screen.queryByText(/Set .* by /)).not.toBeInTheDocument());
     expect(router.state.location.pathname).toBe(`${base}/agent`);
     expect(projectRow(id).setupStep).toBe('agent');
 
-    await user.clear(screen.getByLabelText('Token'));
+    await user.clear(token());
     await user.click(screen.getByRole('button', { name: 'Continue' }));
     expect(await screen.findByText('Paste the token to continue.')).toBeInTheDocument();
     expect(screen.getByLabelText('API address')).toHaveValue(address);
@@ -1027,7 +1068,7 @@ describe('setup agent step and step 4 model wiring', () => {
     await user.click(screen.getByRole('button', { name: 'Continue' }));
     await waitFor(() => expect(router.state.location.pathname).toBe(`${base}/setup`));
     stop();
-    expect(sent.find((s) => s.path === `/api/projects/${id}/agent`)?.body).toMatchObject({ model: 'my-gw/model-x:1' });
+    expect(sent.find((s) => s.path === `/api/agents/${agentId}`)?.body).toEqual({ model: 'my-gw/model-x:1' });
     expect(agentRow().model).toBe('my-gw/model-x:1');
   });
 
@@ -1043,6 +1084,17 @@ describe('setup agent step and step 4 model wiring', () => {
     await waitFor(() => expect(router.state.location.pathname).toBe(`${base}/ready`));
     const rule = mockDb.state.rules.find((r) => r.projectId === id && r.command === 'pick-model');
     expect(rule?.model).toBe('claude-sonnet-4-5-20250929');
+  });
+
+  it('step 4 shows the rule on the project default and saves it with no agent (BR-63, BR-64)', async () => {
+    const id = seedAt('rules');
+    const { router, user } = await renderRoute(`${base}/rules?project=${id}`);
+    expect(await screen.findByLabelText('With agent')).toHaveDisplayValue('Project default (Claude)');
+    await user.clear(screen.getByLabelText('Command'));
+    await user.type(screen.getByLabelText('Command'), 'on-default');
+    await user.click(screen.getByRole('button', { name: 'Save rules and finish' }));
+    await waitFor(() => expect(router.state.location.pathname).toBe(`${base}/ready`));
+    expect(mockDb.state.rules.find((r) => r.projectId === id && r.command === 'on-default')?.agentId).toBeNull();
   });
 
   it('step 4 with Default model saves model null', async () => {
@@ -1113,5 +1165,479 @@ describe('skills step on a long skill list', () => {
     expect(putPaths.filter((p) => p.endsWith('/skills/code-review'))).toEqual([]);
     expect(putPaths.some((p) => p.endsWith('/skills/code-build'))).toBe(true);
     expect(projectRow(id).setupStep).toBe('rules');
+  });
+});
+
+describe('wizard Agent step: pick and set up any runnable agent (BR-53, BR-63 to BR-65)', () => {
+  const P = ids.project.invoicerApi;
+  const projectAgents = () => mockDb.state.agents.filter((a) => a.projectId === P);
+  const placeholder = () => {
+    const row = mockDb.state.agents.find((a) => a.id === ids.agent.invoicerApi);
+    if (!row) throw new Error('agent not in the mock store');
+    return row;
+  };
+  /** The project as `projects.create` leaves it: one default "Claude" with no credential. */
+  function seedPlaceholder(step: 'agent' | 'setup' = 'agent') {
+    placeholder().credential = { set: false, type: null, updatedAt: null, setBy: null };
+    // A project in setup has no rules yet: none points at the placeholder.
+    mockDb.state.rules = mockDb.state.rules.filter((r) => r.projectId !== P);
+    return seedAt(step);
+  }
+
+  /** The requests the page sends (writes only unless `reads`), as "METHOD /path" with ids as :id, and the bodies. */
+  function record() {
+    const calls: { line: string; method: string; body?: unknown }[] = [];
+    const broken: string[] = [];
+    const start = ({ request }: { request: Request }) => {
+      const path = new URL(request.url).pathname.replace(/[0-9a-f]{8}-[0-9a-f-]{27}/g, ':id');
+      const entry: { line: string; method: string; body?: unknown } = {
+        line: `${request.method} ${path}`,
+        method: request.method,
+      };
+      calls.push(entry);
+      void request
+        .clone()
+        .text()
+        .then((t) => {
+          if (t !== '') entry.body = JSON.parse(t) as unknown;
+        });
+    };
+    // After every answered request the project keeps at least one agent and exactly one default.
+    const answered = ({ request }: { request: Request }) => {
+      if (request.method === 'GET') return;
+      const rows = projectAgents();
+      if (rows.length < 1 || rows.filter((a) => a.isDefault).length !== 1) {
+        broken.push(`${request.method} ${new URL(request.url).pathname}: ${rows.length} agents`);
+      }
+    };
+    server.events.on('request:start', start);
+    server.events.on('response:mocked', answered);
+    return {
+      writes: () => calls.filter((c) => c.method !== 'GET').map((c) => c.line),
+      all: () => calls.map((c) => c.line),
+      body: (line: string) => calls.find((c) => c.line === line)?.body,
+      broken,
+      stop: () => {
+        server.events.removeListener('request:start', start);
+        server.events.removeListener('response:mocked', answered);
+      },
+    };
+  }
+  const agentsPath = '/api/projects/:id/agents';
+  const swap = [`POST ${agentsPath}`, 'POST /api/agents/:id/default', 'DELETE /api/agents/:id'];
+  const finish = 'PATCH /api/projects/:id';
+  const putCredential = 'PUT /api/agents/:id/credential';
+  const test = 'POST /api/agents/:id/test';
+
+  const authBox = () => screen.getByLabelText('auth.json contents', { selector: 'input[type="password"], textarea' });
+  const pick = async (user: User, name: string) => user.click(await screen.findByRole('radio', { name }));
+  const next = async (user: User, router: { state: { location: { pathname: string } } }, to = 'setup') => {
+    await user.click(screen.getByRole('button', { name: 'Continue' }));
+    await waitFor(() => expect(router.state.location.pathname).toBe(`${base}/${to}`));
+  };
+
+  const cases = [
+    {
+      name: 'Claude Code (the placeholder)',
+      label: 'Claude Code',
+      kind: 'claude',
+      fill: async (user: User) => user.type(token(), TOKEN),
+      writes: [putCredential, test, finish],
+    },
+    {
+      name: 'Codex',
+      label: 'OpenAI Codex',
+      kind: 'codex',
+      fill: async (user: User) => user.type(authBox(), '{{}"tokens":"x"}'),
+      writes: [...swap, putCredential, test, finish],
+    },
+    {
+      name: 'OpenCode with an empty credential',
+      label: 'OpenCode',
+      kind: 'opencode',
+      fill: async () => undefined,
+      writes: [...swap, finish],
+    },
+    {
+      name: 'OpenCode with a credentials file',
+      label: 'OpenCode',
+      kind: 'opencode',
+      fill: async (user: User) => {
+        await user.click(screen.getByRole('radio', { name: 'Credentials file' }));
+        await user.click(screen.getByLabelText('Credentials file', { selector: 'input[type="password"], textarea' }));
+        await user.paste('{"a":"b"}');
+      },
+      writes: [...swap, putCredential, test, finish],
+    },
+    {
+      name: 'OpenCode with an endpoint and key',
+      label: 'OpenCode',
+      kind: 'opencode',
+      fill: async (user: User) => {
+        await user.click(screen.getByRole('radio', { name: 'API endpoint and key' }));
+        await user.type(screen.getByLabelText('API endpoint'), 'https://llm.example.com/v1');
+        await user.type(screen.getByLabelText('API key', { selector: 'input[type="password"]' }), TOKEN);
+        await user.selectOptions(screen.getByRole('combobox', { name: 'Default model' }), 'Other model…');
+        await user.type(screen.getByRole('textbox', { name: 'Model name' }), 'qwen3-coder');
+      },
+      writes: [...swap, putCredential, test, finish],
+    },
+  ];
+
+  it.each(cases)('$name: exact call order, one default at every step, no secret kept', async (c) => {
+    const id = seedPlaceholder();
+    const rec = record();
+    const { router, user, queryClient } = await renderRoute(`${base}/agent?project=${id}`);
+    await pick(user, c.label);
+    await c.fill(user);
+    await next(user, router);
+    rec.stop();
+
+    expect(rec.writes()).toEqual(c.writes);
+    expect(rec.all().filter((l) => l.endsWith('/agent'))).toEqual([]);
+    expect(rec.broken).toEqual([]);
+    const rows = projectAgents();
+    expect(rows.filter((a) => a.isDefault)).toHaveLength(1);
+    expect(rows.find((a) => a.isDefault)?.provider).toBe(c.kind);
+    // The placeholder is gone after a swap, and is the one agent for Claude Code.
+    expect(rows).toHaveLength(1);
+    expect(projectRow(id).setupStep).toBe('setup');
+    const text = cacheText(queryClient);
+    expect(text).not.toContain(TOKEN);
+    expect(text).not.toContain('tokens');
+    expect(JSON.stringify(mockDb.snapshot())).not.toContain(TOKEN);
+  });
+
+  it('a new agent is created with the capability label as its name, and no model when none was picked for OpenCode', async () => {
+    const id = seedPlaceholder();
+    const rec = record();
+    const { router, user } = await renderRoute(`${base}/agent?project=${id}`);
+    await pick(user, 'OpenCode');
+    await next(user, router);
+    rec.stop();
+    expect(rec.body(`POST ${agentsPath}`)).toEqual({ provider: 'opencode', name: 'OpenCode' });
+  });
+
+  it('every runnable kind is a card to an owner, with the standard names of the picked kind', async () => {
+    const id = seedPlaceholder();
+    const { user } = await renderRoute(`${base}/agent?project=${id}`);
+    for (const label of ['Claude Code', 'OpenAI Codex', 'OpenCode']) {
+      expect(await screen.findByRole('radio', { name: label })).toBeEnabled();
+    }
+    await pick(user, 'OpenAI Codex');
+    const options = Array.from(screen.getByRole('combobox', { name: 'Default model' }).querySelectorAll('option')).map(
+      (o) => o.textContent,
+    );
+    expect(options).toEqual(expect.arrayContaining(AGENT_KIND_CAPABILITIES.codex.builtinModels.map((m) => m.id)));
+    expect(options).not.toContain('opus');
+  });
+
+  it('a double Continue creates one agent', async () => {
+    const id = seedPlaceholder();
+    const rec = record();
+    const { router, user } = await renderRoute(`${base}/agent?project=${id}`);
+    await pick(user, 'OpenCode');
+    const button = screen.getByRole('button', { name: 'Continue' });
+    await user.dblClick(button);
+    await waitFor(() => expect(router.state.location.pathname).toBe(`${base}/setup`));
+    rec.stop();
+    expect(rec.writes().filter((l) => l === `POST ${agentsPath}`)).toHaveLength(1);
+    expect(projectAgents()).toHaveLength(1);
+  });
+
+  it('a retry after a refused credential reuses the created agent', async () => {
+    const id = seedPlaceholder();
+    const rec = record();
+    scenarios.problem('agents.putCredential', {
+      status: 400,
+      title: 'Validation failed',
+      type: 'validation',
+      errors: [{ pointer: '/value', detail: 'The file was rejected.' }],
+    });
+    const { router, user } = await renderRoute(`${base}/agent?project=${id}`);
+    await pick(user, 'OpenAI Codex');
+    const field = authBox();
+    await user.type(field, '{{}"tokens":"x"}');
+    await user.click(screen.getByRole('button', { name: 'Continue' }));
+    expect(await screen.findByText('The file was rejected.')).toBeInTheDocument();
+    expect(router.state.location.pathname).toBe(`${base}/agent`);
+    expect(projectAgents().filter((a) => a.isDefault)).toHaveLength(1);
+
+    server.resetHandlers();
+    await next(user, router);
+    rec.stop();
+    expect(rec.writes().filter((l) => l === `POST ${agentsPath}`)).toHaveLength(1);
+    expect(rec.broken).toEqual([]);
+    expect(projectAgents()).toHaveLength(1);
+    expect(projectAgents()[0]).toMatchObject({ provider: 'codex', isDefault: true });
+    expect(projectAgents()[0]?.credential.set).toBe(true);
+  });
+
+  it('swapDeleteFails: the step advances and the Claude row stays, not default, with no credential', async () => {
+    const id = seedPlaceholder();
+    mockDb.state.failPlaceholderDelete = true;
+    const rec = record();
+    const { router, user } = await renderRoute(`${base}/agent?project=${id}`);
+    await pick(user, 'OpenCode');
+    await next(user, router);
+    rec.stop();
+    expect(rec.broken).toEqual([]);
+    const left = projectAgents().find((a) => a.name === 'Claude');
+    expect(left).toMatchObject({ isDefault: false, credential: { set: false } });
+    expect(projectAgents().filter((a) => a.isDefault)).toHaveLength(1);
+    expect(projectRow(id).setupStep).toBe('setup');
+    // The Agents tab then lists the leftover as a row that needs a credential and can be deleted.
+    mockDb.state.failPlaceholderDelete = false;
+    await router.navigate({ to: `/o/alice/p/${P}/desk/agent` });
+    const row = (await screen.findByText('Needs credential')).closest('li');
+    if (!row) throw new Error('no agent row');
+    expect(within(row).getByText('Claude')).toBeInTheDocument();
+    await user.click(within(row).getByRole('button', { name: 'Actions for Claude' }));
+    expect(await screen.findByRole('button', { name: 'Delete' })).toBeEnabled();
+  });
+
+  describe('BR-63: a retry removes the Claude placeholder the first attempt left', () => {
+    const refuseCredential = () =>
+      scenarios.problem('agents.putCredential', {
+        status: 400,
+        title: 'Validation failed',
+        type: 'validation',
+        errors: [{ pointer: '/value', detail: 'The file was rejected.' }],
+      });
+    const leftover = () => projectAgents().find((a) => a.name === 'Claude');
+    /** Continue on Codex with a refused credential: the new agent is the default and the placeholder may stay. */
+    async function firstAttempt(opts: { deleteFails: boolean }) {
+      const id = seedPlaceholder();
+      mockDb.state.failPlaceholderDelete = opts.deleteFails;
+      refuseCredential();
+      const { router, user } = await renderRoute(`${base}/agent?project=${id}`);
+      await pick(user, 'OpenAI Codex');
+      await user.type(authBox(), '{{}"tokens":"x"}');
+      await user.click(screen.getByRole('button', { name: 'Continue' }));
+      expect(await screen.findByText('The file was rejected.')).toBeInTheDocument();
+      server.resetHandlers();
+      mockDb.state.failPlaceholderDelete = false;
+      return { router, user };
+    }
+    const deletes = (rec: ReturnType<typeof record>) => rec.writes().filter((l) => l === 'DELETE /api/agents/:id');
+
+    it('a failed delete and a refused credential: the retry deletes the placeholder', async () => {
+      const { router, user } = await firstAttempt({ deleteFails: true });
+      expect(leftover()).toMatchObject({ isDefault: false, credential: { set: false } });
+      const rec = record();
+      await next(user, router);
+      rec.stop();
+      expect(deletes(rec)).toHaveLength(1);
+      expect(leftover()).toBeUndefined();
+      expect(projectAgents()).toHaveLength(1);
+      expect(projectAgents()[0]).toMatchObject({ provider: 'codex', isDefault: true });
+      expect(rec.broken).toEqual([]);
+    });
+
+    it('a refused credential after a successful delete: the retry deletes nothing more', async () => {
+      const { router, user } = await firstAttempt({ deleteFails: false });
+      expect(leftover()).toBeUndefined();
+      const rec = record();
+      await next(user, router);
+      rec.stop();
+      expect(deletes(rec)).toEqual([]);
+      expect(projectAgents()).toHaveLength(1);
+    });
+
+    it('the retry keeps a leftover Claude that has a credential', async () => {
+      const { router, user } = await firstAttempt({ deleteFails: true });
+      const row = leftover();
+      if (!row) throw new Error('no leftover');
+      row.credential = { set: true, type: 'api_key', updatedAt: '2026-11-01T00:00:00.000Z', setBy: null };
+      const rec = record();
+      await next(user, router);
+      rec.stop();
+      expect(deletes(rec)).toEqual([]);
+      expect(projectAgents()).toHaveLength(2);
+    });
+
+    it('the retry keeps a leftover Claude that a rule names', async () => {
+      const { router, user } = await firstAttempt({ deleteFails: true });
+      const row = leftover();
+      if (!row) throw new Error('no leftover');
+      row.usage = { rules: 1, blockingRuns: 0 };
+      const rec = record();
+      await next(user, router);
+      rec.stop();
+      expect(deletes(rec)).toEqual([]);
+      expect(projectAgents()).toHaveLength(2);
+    });
+  });
+
+  describe('the model sent to an existing agent', () => {
+    it('OpenCode with no model clears the model of the saved OpenCode agent', async () => {
+      const id = seedPlaceholder();
+      const row = placeholder();
+      mockDb.state.agents.push({
+        ...structuredClone(row),
+        id: 'a0000000-0000-4000-8000-0000000000c1',
+        provider: 'opencode',
+        name: 'OpenCode',
+        isDefault: false,
+        model: 'some/model',
+      });
+      const rec = record();
+      const { router, user } = await renderRoute(`${base}/agent?project=${id}`);
+      await pick(user, 'OpenCode');
+      await next(user, router);
+      rec.stop();
+      expect(rec.body('PATCH /api/agents/:id')).toEqual({ model: '' });
+      expect(projectAgents().find((a) => a.provider === 'opencode')?.model).toBe('');
+    });
+
+    it.each(['claude', 'codex'] as const)('%s is never sent an empty model', async (kind) => {
+      const id = seedPlaceholder();
+      const { queryClient } = await renderRoute(`${base}/agent?project=${id}`);
+      const project = projectFixtures.find((p) => p.id === id);
+      if (!project) throw new Error('no project');
+      const target = projectAgents().find((a) => a.provider === kind) ?? {
+        ...structuredClone(placeholder()),
+        id: 'a0000000-0000-4000-8000-0000000000c2',
+        provider: kind,
+        name: kind,
+        isDefault: false,
+      };
+      if (!projectAgents().includes(target)) mockDb.state.agents.push(target);
+      const before = target.model;
+      const rec = record();
+      const wrapper = ({ children }: { children: ReactNode }) =>
+        createElement(QueryClientProvider, { client: queryClient }, children);
+      const { result } = renderHook(() => useSaveAgentStep('alice'), { wrapper });
+      await act(async () => {
+        await result.current.save(project, {
+          kind,
+          model: '',
+          maxConcurrentRuns: 1,
+          credentialType: null,
+          credential: '',
+          baseUrl: '',
+        });
+      });
+      rec.stop();
+      expect(rec.writes()).not.toContain('PATCH /api/agents/:id');
+      expect(target.model).toBe(before);
+    });
+  });
+
+  it('the placeholder is not deleted when the step is already past the Agent step', async () => {
+    // The page locks the provider there (BR-65), so the guard is exercised on the hook itself.
+    const id = seedPlaceholder('setup');
+    const { queryClient } = await renderRoute(`${base}/agent?project=${id}`);
+    const project = projectFixtures.find((p) => p.id === id);
+    if (!project) throw new Error('no project');
+    const rec = record();
+    const wrapper = ({ children }: { children: ReactNode }) =>
+      createElement(QueryClientProvider, { client: queryClient }, children);
+    const { result } = renderHook(() => useSaveAgentStep('alice'), { wrapper });
+    await act(async () => {
+      await result.current.save(
+        { ...project, setupStep: 'setup' },
+        { kind: 'opencode', model: '', maxConcurrentRuns: 1, credentialType: null, credential: '', baseUrl: '' },
+      );
+    });
+    rec.stop();
+    expect(rec.writes()).not.toContain('DELETE /api/agents/:id');
+    expect(projectAgents()).toHaveLength(2);
+    expect(projectAgents().filter((a) => a.isDefault)).toHaveLength(1);
+  });
+
+  it('the placeholder is not deleted when making the new agent the default failed', async () => {
+    const id = seedPlaceholder();
+    scenarios.serverError('agents.setDefault');
+    const rec = record();
+    const { router, user } = await renderRoute(`${base}/agent?project=${id}`);
+    await pick(user, 'OpenCode');
+    await user.click(screen.getByRole('button', { name: 'Continue' }));
+    await waitFor(() => expect(rec.writes()).toContain('POST /api/agents/:id/default'));
+    await screen.findByText(/went wrong|Internal server error/);
+    rec.stop();
+    expect(rec.writes()).not.toContain('DELETE /api/agents/:id');
+    expect(rec.broken).toEqual([]);
+    expect(router.state.location.pathname).toBe(`${base}/agent`);
+    expect(projectAgents()).toHaveLength(2);
+    expect(placeholder().isDefault).toBe(true);
+  });
+
+  it('a saved agent shows its provider read-only', async () => {
+    const id = seedAt('agent');
+    await renderRoute(`${base}/agent?project=${id}`);
+    expect(await screen.findByRole('radio', { name: 'Claude Code' })).toBeChecked();
+    expect(screen.getByRole('radio', { name: 'OpenAI Codex' })).toBeDisabled();
+  });
+
+  it('BR-65: resuming past the Agent step shows the provider read-only even with no credential saved', async () => {
+    const id = seedPlaceholder('setup');
+    await renderRoute(`${base}/agent?project=${id}`);
+    expect(await screen.findByRole('radio', { name: 'Claude Code' })).toBeChecked();
+    expect(screen.getByRole('radio', { name: 'OpenAI Codex' })).toBeDisabled();
+  });
+
+  it('BR-65: resuming past the Agent step shows the agent name and the saved credential as set', async () => {
+    const id = seedAt('setup');
+    const agent = placeholder();
+    agent.name = 'Main agent';
+    agent.credential = { set: true, type: 'oauth_token', updatedAt: new Date().toISOString(), setBy: 'kim-hale' };
+    await renderRoute(`${base}/agent?project=${id}`);
+    expect(await screen.findByText('Main agent')).toBeInTheDocument();
+    expect(screen.getByText(/Set .* by kim-hale\./)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Replace' })).toBeInTheDocument();
+    expect(screen.queryByLabelText('Subscription token', { selector: 'input[type="password"]' })).toBeNull();
+  });
+
+  it('a project still at the Agent step with no credential lets the provider be picked', async () => {
+    const id = seedPlaceholder('agent');
+    await renderRoute(`${base}/agent?project=${id}`);
+    expect(await screen.findByRole('radio', { name: 'OpenAI Codex' })).toBeEnabled();
+  });
+
+  it('a legacy project with the seeded row continues with no create, no delete and no credential write', async () => {
+    const id = seedAt('agent');
+    const rec = record();
+    const { router, user } = await renderRoute(`${base}/agent?project=${id}`);
+    await screen.findByRole('radio', { name: 'Claude Code' });
+    await next(user, router);
+    rec.stop();
+    expect(rec.writes()).toEqual([finish]);
+    expect(projectAgents()).toHaveLength(1);
+  });
+
+  it.each(['rejected', 'unreachable'] as const)(
+    'a %s test keeps the step with a banner and Continue anyway advances',
+    async (status) => {
+      const id = seedPlaceholder();
+      mockDb.state.agentTestScenario = status;
+      const { router, user } = await renderRoute(`${base}/agent?project=${id}`);
+      await user.type(await tokenBox(user), TOKEN);
+      await user.click(screen.getByRole('button', { name: 'Continue' }));
+      await user.click(await screen.findByRole('button', { name: 'Continue anyway' }));
+      await waitFor(() => expect(router.state.location.pathname).toBe(`${base}/setup`));
+      expect(projectRow(id).setupStep).toBe('setup');
+    },
+  );
+
+  it.each(['rejected', 'unreachable'] as const)('a %s test stays on the step until Continue anyway', async (status) => {
+    const id = seedPlaceholder();
+    mockDb.state.agentTestScenario = status;
+    const { router, user } = await renderRoute(`${base}/agent?project=${id}`);
+    await user.type(await tokenBox(user), TOKEN);
+    await user.click(screen.getByRole('button', { name: 'Continue' }));
+    expect(await screen.findByRole('button', { name: 'Continue anyway' })).toBeInTheDocument();
+    // The Banner names the failure with the status word of the list rows, never the raw status code.
+    expect(screen.getByText(status === 'rejected' ? 'Credential rejected' : "Can't reach address")).toBeInTheDocument();
+    expect(router.state.location.pathname).toBe(`${base}/agent`);
+    expect(projectRow(id).setupStep).toBe('agent');
+  });
+
+  it.each(['invalid', 'unsupported'] as const)('a %s test advances', async (status) => {
+    const id = seedPlaceholder();
+    mockDb.state.agentTestScenario = status;
+    const { router, user } = await renderRoute(`${base}/agent?project=${id}`);
+    await user.type(await tokenBox(user), TOKEN);
+    await next(user, router);
   });
 });

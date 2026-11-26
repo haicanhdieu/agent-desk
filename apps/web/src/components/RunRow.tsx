@@ -90,6 +90,9 @@ export function RunRow({ run, tree, href, actions }: RunRowProps) {
       </td>
       <td className={styles.rule}>
         {run.command ? <span title={run.command}>{run.command}</span> : <span className={styles.faint}>—</span>}
+        <div className={styles.agentLine} title={`${run.agent} · ${run.model}`}>
+          {run.agent} · {run.model}
+        </div>
       </td>
       <td className={styles.actor}>
         <span className={styles.actorRow}>

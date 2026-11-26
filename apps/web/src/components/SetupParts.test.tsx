@@ -6,6 +6,7 @@ import { FollowUpRule } from './FollowUpRule';
 import { SkillTemplateCard } from './SkillTemplateCard';
 import { Stepper } from './Stepper';
 import { SecretField } from './SecretField';
+import { ruleAgentOptions } from '@/mocks';
 import { RuleForm } from './RuleForm';
 
 describe('GuardsCard ids', () => {
@@ -86,9 +87,17 @@ describe('RuleForm agent', () => {
   it('"With agent" shows the agent name only', () => {
     render(
       <RuleForm
-        value={{ command: 'a', target: 'issue', labels: [], skill: 's', agent: 'Claude', enabled: true }}
+        value={{
+          command: 'a',
+          target: 'issue',
+          labels: [],
+          skill: 's',
+          agentId: 'agent-claude',
+          agentLabel: 'Claude',
+          enabled: true,
+        }}
         skills={['s']}
-        agents={['Claude']}
+        agents={ruleAgentOptions}
         agentLocked
         onChange={() => {}}
       />,

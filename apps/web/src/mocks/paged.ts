@@ -107,7 +107,8 @@ export function pagedRules(total: number): Rule[] {
       target: n % 2 === 0 ? 'pr' : 'issue',
       labels: [],
       skill: `skill-${pad(n)}`,
-      agent: 'Claude',
+      agentId: 'agent-claude',
+      agentLabel: 'Claude',
       enabled: n % 3 !== 0,
       stats: `${n} runs this week, last 14:${pad(n % 60)}`,
     };

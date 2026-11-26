@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX "agents_project_name_lower_key" ON "agents" USING btree ("project_id",lower("name"));

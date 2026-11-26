@@ -1,0 +1,41 @@
+#!/usr/bin/env node
+// Test stub for the OpenCode CLI: logs argv and whether the key/config env is present (never their values, never file
+// text). `auth import <file>` records the file's mode and whether its content equals env STUB_EXPECT_AUTH.
+// STUB_OPENCODE_IMPORT_FAIL=1 fails with a noisy message that carries the file text (the entrypoint must never show it).
+// `auth export` prints env STUB_OPENCODE_EXPORT. `session list` prints env STUB_OPENCODE_SESSIONS and `session export <id>`
+// prints the file named by env STUB_OPENCODE_EXPORT_FILE.
+import { appendFileSync, readFileSync, statSync } from 'node:fs';
+
+const argv = process.argv.slice(2);
+const entry = {
+  cmd: 'opencode',
+  argv,
+  hasKeyEnv: process.env.AGENTDESK_LLM_API_KEY !== undefined,
+  hasConfigEnv: process.env.OPENCODE_CONFIG_CONTENT !== undefined,
+  autoupdateOff: process.env.OPENCODE_DISABLE_AUTOUPDATE === '1',
+};
+const log = () => appendFileSync(process.env.STUB_LOG, `${JSON.stringify(entry)}\n`);
+
+if (argv[0] === 'auth' && argv[1] === 'import') {
+  const file = argv.at(-1);
+  const text = readFileSync(file, 'utf8');
+  entry.fileMode = statSync(file).mode & 0o777;
+  entry.fileIsExpected = text === process.env.STUB_EXPECT_AUTH;
+  log();
+  if (process.env.STUB_OPENCODE_IMPORT_FAIL === '1') {
+    console.error(`opencode stub: import failed for ${text}`);
+    process.exit(1);
+  }
+  console.log('opencode stub: imported');
+  process.exit(0);
+}
+log();
+if (argv[0] === 'auth' && argv[1] === 'export') {
+  process.stdout.write(process.env.STUB_OPENCODE_EXPORT ?? '[]');
+} else if (argv[0] === 'session' && argv[1] === 'list') {
+  process.stdout.write(process.env.STUB_OPENCODE_SESSIONS ?? '[]');
+} else if (argv[0] === 'session' && argv[1] === 'export' && process.env.STUB_OPENCODE_EXPORT_FILE) {
+  process.stdout.write(readFileSync(process.env.STUB_OPENCODE_EXPORT_FILE, 'utf8'));
+} else {
+  console.log(`opencode stub: ${argv.join(' ')}`);
+}

@@ -43,6 +43,17 @@ import {
 import { delay, http, type HttpHandler } from 'msw';
 import { authHandlers } from './auth-handlers';
 import { agentModelsAnswer } from './agentModels';
+import {
+  agentsOf,
+  checkCredential,
+  checklistOf,
+  createAgent,
+  refuseUnknownProvider,
+  removeAgent,
+  setDefaultAgent,
+  testAgent,
+  updateAgent,
+} from './agentsApi';
 import { PR_STATES_SLOW_MS, prStateItems } from './prStates';
 import type { MockRun } from '../dto/runs';
 import { assignmentFixtures, roleFixtures } from '../dto/access';
@@ -435,6 +446,14 @@ function skillOf(projectId: string, name: string): SkillDto {
   return skill;
 }
 
+/** An agent of a project the caller can see; anything else is a 404. */
+function agentInScope(agentId: string) {
+  const agent = db().agents.find((a) => a.id === agentId);
+  if (!agent) throw notFound('Agent');
+  projectRow(agent.projectId);
+  return agent;
+}
+
 function ruleOf(ruleId: string) {
   const rule = db().rules.find((r) => r.id === ruleId);
   if (!rule) throw notFound('Rule');
@@ -489,10 +508,12 @@ function runOf(runId: string): MockRun {
   return run;
 }
 
-/** As the API: a run carries its agent's idle end, so an edit on Agent & settings shows on the run screens. */
+/** As the API: a run carries its project's idle end and paused keep time, so a Limits edit shows on the run screens. */
 const withAgentIdleEnd = (run: MockRun): MockRun => {
-  const agent = db().agents.find((a) => a.projectId === run.projectId);
-  return agent ? { ...run, idleEndSeconds: agent.idleEndSeconds, pausedKeepSeconds: agent.pausedKeepSeconds } : run;
+  const project = db().projects.find((p) => p.id === run.projectId);
+  return project
+    ? { ...run, idleEndSeconds: project.idleEndSeconds, pausedKeepSeconds: project.pausedKeepSeconds }
+    : run;
 };
 
 /** How long the mock keeps a succeeded run's session after a close: the agent's default done keep time (1 day). */
@@ -751,10 +772,26 @@ const impl: Impl = {
       pollIntervalSeconds: body.pollIntervalSeconds ?? 300,
       maxConcurrentRuns: 2,
       maxRunsPerTicket: 10,
+      timeoutSeconds: 86400,
+      pausedKeepSeconds: 604800,
+      doneKeepSeconds: 86400,
+      idleEndSeconds: 1800,
+      autoResumeMax: 5,
       setupStep: 'agent',
       createdAt: now(),
     };
     db().projects.push(row);
+    // The checklist follows the project just created ("Add an agent" is read from its default agent).
+    db().checklists[orgId] = {
+      complete: false,
+      projectId: row.id,
+      steps: [
+        { key: 'connect_code_host', done: true },
+        { key: 'create_project', done: true },
+        { key: 'add_agent', done: false },
+        { key: 'add_rule', done: false },
+      ],
+    };
     // The mock server hears at once: a webhook ping, or the first polling check.
     db().triggers[row.id] = {
       webhook: { lastEventAt: row.triggerMode === 'webhook' ? now() : null, lastEventAction: 'ping' },
@@ -780,6 +817,10 @@ const impl: Impl = {
       idleEndSeconds: 1800,
       autoResumeMax: 5,
       credential: { set: false, type: null, updatedAt: null, setBy: null },
+      accountLabel: null,
+      isDefault: true,
+      lastTest: null,
+      usage: { rules: 0, blockingRuns: 0 },
     });
     return toProjectDto(row);
   },
@@ -853,6 +894,12 @@ const impl: Impl = {
   },
   'projects.ignored': ({ params, query }) => slicePage(db().ignored[projectRow(params.projectId).id] ?? [], query),
 
+  'agents.list': ({ params, query }) => slicePage(agentsOf(projectRow(params.projectId).id), query),
+  'agents.create': ({ params, body }) => createAgent(projectRow(params.projectId), body),
+  'agents.update': ({ params, body }) => updateAgent(agentInScope(params.agentId), body),
+  'agents.remove': ({ params }) => removeAgent(agentInScope(params.agentId)),
+  'agents.setDefault': ({ params }) => setDefaultAgent(agentInScope(params.agentId)),
+  'agents.test': ({ params }) => testAgent(agentInScope(params.agentId)),
   'agents.get': ({ params }) => agentOf(projectRow(params.projectId).id),
   'agents.put': ({ params, body }) => {
     const agent = agentOf(projectRow(params.projectId).id);
@@ -867,9 +914,8 @@ const impl: Impl = {
   },
   'agents.putCredential': ({ params, body }) => {
     const { user } = session();
-    const agent = db().agents.find((a) => a.id === params.agentId);
-    if (!agent) throw notFound('Agent');
-    projectRow(agent.projectId);
+    const agent = agentInScope(params.agentId);
+    checkCredential(agent, body);
     // Write-only: the value is dropped here, only the fact that one is set is kept.
     const updatedAt = now();
     agent.credential = { set: true, type: body.type, updatedAt, setBy: user.handle };
@@ -879,9 +925,7 @@ const impl: Impl = {
     return { updatedAt };
   },
   'agents.models': async ({ params }) => {
-    const agent = db().agents.find((a) => a.id === params.agentId);
-    if (!agent) throw notFound('Agent');
-    projectRow(agent.projectId);
+    const agent = agentInScope(params.agentId);
     const answer = agentModelsAnswer(
       agent,
       db().agentModelScenarios[agent.id],
@@ -1035,7 +1079,8 @@ const impl: Impl = {
     const projectId = projectRow(params.projectId).id;
     assertUniqueCommand(projectId, body.command);
     const { kind, command, labelFilter, target, enabled } = body;
-    const agentId = body.agentId ?? agentOf(projectId).id;
+    // As the API: no agent means the rule follows the project's default agent (null).
+    const agentId = body.agentId ?? null;
     const rule: RuleDto = {
       id: mockDb.nextId(),
       projectId,
@@ -1300,7 +1345,7 @@ const impl: Impl = {
     // Owners and org-wide admins hold project:create at org scope; nobody else sees the checklist.
     const allowed = seat !== undefined && (seat.roleKey === 'owner' || (seat.roleKey === 'admin' && !seat.projectIds));
     if (!allowed) throw new Problem({ status: 403, title: 'Forbidden', type: 'forbidden' });
-    return db().checklists[orgId] ?? checklistFixtures.none;
+    return checklistOf(db().checklists[orgId] ?? checklistFixtures.none);
   },
   'me.listInvitations': ({ query }) => {
     const mine = myInvitationRows().filter((i) => effectiveStatus(i) === 'pending');
@@ -1372,6 +1417,7 @@ const STATUS: Partial<Record<RouteKey, number>> = {
   'projects.create': 201,
   'projectEnv.createVar': 201,
   'projectEnv.createSecret': 201,
+  'agents.create': 201,
   'rules.create': 201,
   'projects.pollNow': 202,
   'runs.cancel': 202,
@@ -1469,10 +1515,17 @@ function contractHandler<K extends JsonKey>(key: K, run: Impl[K]): HttpHandler {
       if (isOrgPinned(key)) refuseSuspendedOrg(caller);
       if (isOrgPinned(key) && key !== 'me.access') requireRouteAccess(key, session().user);
       const url = new URL(request.url);
+      const params = parsePart(def.params, rawParams, 'path parameters');
+      const rawBody = def.body ? await readBody(request) : undefined;
+      if (key === 'agents.create' && typeof params === 'object' && params !== null && 'projectId' in params) {
+        // The project is checked first (404); then a Coming-soon or unknown provider is 422 on /provider, not a shape error.
+        projectRow(String(params.projectId));
+        refuseUnknownProvider(rawBody);
+      }
       const parts = {
-        params: parsePart(def.params, rawParams, 'path parameters'),
+        params,
         query: parsePart(def.query, queryOf(url.searchParams), 'query'),
-        body: parsePart(def.body, def.body ? await readBody(request) : undefined, 'body'),
+        body: parsePart(def.body, rawBody, 'body'),
         request,
       };
       // Each part was parsed by this route's own schema above, so it has the shape RouteCtx<K> names.

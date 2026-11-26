@@ -1,6 +1,6 @@
 import type { AgentDto, RuleDto, SkillDto } from '@agentdesk/contracts';
 import { describe, expect, it } from 'vitest';
-import { ruleStats, ruleSummary, rulesUsing, toRule, toSkill } from './map';
+import { ruleStats, ruleSummary, rulesUsing, toRule, toRuleAgentOption, toSkill } from './map';
 
 const now = new Date('2026-11-12T14:14:00.000Z');
 
@@ -86,6 +86,10 @@ const agent: AgentDto = {
   idleEndSeconds: 1800,
   autoResumeMax: 5,
   credential: { set: true, type: 'oauth_token', updatedAt: null, setBy: null },
+  accountLabel: null,
+  isDefault: true,
+  lastTest: null,
+  usage: { rules: 0, blockingRuns: 0 },
 };
 
 describe('ruleStats', () => {
@@ -102,14 +106,15 @@ describe('ruleStats', () => {
 describe('toRule', () => {
   it('maps the DTO to the screen rule with the agent name and stats', () => {
     const dto = { ...rule('code-build', 'code-build'), labelFilter: ['user-story'], target: 'issue' as const };
-    expect(toRule(dto, agent, now, ['code-build'])).toEqual({
+    expect(toRule(dto, [agent], now, ['code-build'])).toEqual({
       kind: 'skill',
       id: dto.id,
       command: 'code-build',
       target: 'issue',
       labels: ['user-story'],
       skill: 'code-build',
-      agent: 'Claude',
+      agentId: '00000000-0000-4000-8000-000000000002',
+      agentLabel: 'Claude',
       model: null,
       enabled: true,
       stats: 'Never ran',
@@ -117,24 +122,114 @@ describe('toRule', () => {
   });
 
   it('warns when the skill is not in the repo', () => {
-    expect(toRule(rule('docs-update', 'docs-update'), agent, now, ['code-build']).warning).toBe(
+    expect(toRule(rule('docs-update', 'docs-update'), [agent], now, ['code-build']).warning).toBe(
       'Skill docs-update is not in .claude/skills/ on main. Comments with /docs-update are ignored until you add it or pick another skill.',
     );
   });
 
   it('maps a prompt rule with its kind and prompt and no skill warning', () => {
     const dto: RuleDto = { ...rule('triage', 'x'), kind: 'prompt', skillName: null, prompt: 'Triage this.\nBe brief.' };
-    const mapped = toRule(dto, agent, now, ['code-build']);
+    const mapped = toRule(dto, [agent], now, ['code-build']);
     expect(mapped).toMatchObject({ kind: 'prompt', prompt: 'Triage this.\nBe brief.', skill: '' });
     expect(mapped.warning).toBeUndefined();
   });
 
   it('a skill rule maps to kind skill with no prompt', () => {
-    expect(toRule(rule('code-build', 'code-build'), agent, now)).toMatchObject({ kind: 'skill', skill: 'code-build' });
-    expect(toRule(rule('code-build', 'code-build'), agent, now).prompt).toBeUndefined();
+    expect(toRule(rule('code-build', 'code-build'), [agent], now)).toMatchObject({
+      kind: 'skill',
+      skill: 'code-build',
+    });
+    expect(toRule(rule('code-build', 'code-build'), [agent], now).prompt).toBeUndefined();
   });
 
   it('no skill list, no warning', () => {
-    expect(toRule(rule('docs-update', 'docs-update'), agent, now).warning).toBeUndefined();
+    expect(toRule(rule('docs-update', 'docs-update'), [agent], now).warning).toBeUndefined();
+  });
+});
+
+describe('toRule agent', () => {
+  const codex: AgentDto = {
+    ...agent,
+    id: '00000000-0000-4000-8000-0000000000c1',
+    name: 'Codex - Work',
+    provider: 'codex',
+    isDefault: false,
+  };
+  const noCredential: AgentDto['credential'] = { set: false, type: null, updatedAt: null, setBy: null };
+  const opencode: AgentDto = {
+    ...agent,
+    id: '00000000-0000-4000-8000-0000000000c2',
+    name: 'OpenCode - Own',
+    provider: 'opencode',
+    isDefault: false,
+    credential: noCredential,
+  };
+  const named = (a: AgentDto) => ({ ...rule('code-build', 'code-build'), agentId: a.id });
+
+  it('a rule with no agent names none and follows the project default', () => {
+    const mapped = toRule({ ...rule('code-build', 'code-build'), agentId: null }, [agent, codex], now);
+    expect(mapped.agentId).toBeNull();
+    expect(mapped.agentLabel).toBeUndefined();
+    expect(mapped.warning).toBeUndefined();
+  });
+
+  it('a rule that names an agent shows a neutral label, not its id, while the agent list is loading', () => {
+    const mapped = toRule(named(codex), undefined, now);
+    expect(mapped.agentId).toBe(codex.id);
+    expect(mapped.agentLabel).toBe('Loading agent…');
+    expect(mapped.warning).toBeUndefined();
+  });
+
+  it('a rule whose agent is not in a ready list reads Unavailable agent', () => {
+    expect(toRule(named(codex), [agent], now).agentLabel).toBe('Unavailable agent');
+  });
+
+  it('a rule shows the name of the agent it names', () => {
+    expect(toRule(named(codex), [agent, codex], now).agentLabel).toBe('Codex - Work');
+  });
+
+  it.each([
+    ['a credential that is missing on a kind that needs one', { ...codex, credential: noCredential }, true],
+    [
+      'a rejected credential',
+      { ...codex, lastTest: { status: 'rejected' as const, at: '2026-11-11T10:00:00.000Z' } },
+      true,
+    ],
+    ['an OpenCode agent with no credential', opencode, false],
+    ['a working credential', { ...codex, lastTest: { status: 'ok' as const, at: '2026-11-11T10:00:00.000Z' } }, false],
+    [
+      'an unreachable address',
+      { ...codex, lastTest: { status: 'unreachable' as const, at: '2026-11-11T10:00:00.000Z' } },
+      false,
+    ],
+  ])('warns for %s: %s', (_, a, warns) => {
+    const warning = toRule(named(a), [agent, a], now).warning;
+    if (warns) expect(warning).toBe(`${a.name} has no working credential. Runs from this rule will fail.`);
+    else expect(warning).toBeUndefined();
+  });
+
+  it('keeps the skill warning next to the agent warning', () => {
+    const a = { ...codex, credential: noCredential };
+    const dto = { ...named(a), skillName: 'docs-update' };
+    expect(toRule(dto, [a], now, ['code-build']).warning).toMatch(/Skill docs-update is not in .*Codex - Work has no/);
+  });
+
+  it('toRuleAgentOption reads the connection from the credential and the last test', () => {
+    expect(toRuleAgentOption({ ...codex, credential: noCredential })).toMatchObject({
+      id: codex.id,
+      label: 'Codex - Work',
+      provider: 'codex',
+      model: 'opus',
+      connection: 'no_credential',
+    });
+    expect(
+      toRuleAgentOption({ ...codex, lastTest: { status: 'rejected', at: '2026-11-11T10:00:00.000Z' } }).connection,
+    ).toBe('rejected');
+    expect(toRuleAgentOption(codex).connection).toBeUndefined();
+  });
+
+  it('toRuleAgentOption marks kinds that need a credential (OpenCode does not)', () => {
+    expect(toRuleAgentOption(codex).needsCredential).toBe(true);
+    expect(toRuleAgentOption({ ...codex, provider: 'opencode' }).needsCredential).toBe(false);
   });
 });

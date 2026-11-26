@@ -126,14 +126,14 @@ describe('LinkProvider', () => {
 });
 
 describe('form error props', () => {
-  const draft = { command: 'fix', target: 'issue' as const, labels: [], skill: 's', agent: 'a', enabled: true };
+  const draft = { command: 'fix', target: 'issue' as const, labels: [], skill: 's', agentId: null, enabled: true };
 
   it('RuleForm marks the command input invalid and describes it with the message', () => {
     render(
       <RuleForm
         value={draft}
         skills={['s']}
-        agents={['a']}
+        agents={[]}
         onChange={() => {}}
         errors={{ command: 'Command already used' }}
       />,
@@ -145,7 +145,7 @@ describe('form error props', () => {
 
   it('RuleForm leaves other fields valid', () => {
     render(
-      <RuleForm value={draft} skills={['s']} agents={['a']} onChange={() => {}} errors={{ skill: 'Skill is gone' }} />,
+      <RuleForm value={draft} skills={['s']} agents={[]} onChange={() => {}} errors={{ skill: 'Skill is gone' }} />,
     );
     expect(screen.getByLabelText('Command')).not.toHaveAttribute('aria-invalid');
     expect(screen.getByLabelText('Run skill')).toHaveAttribute('aria-invalid', 'true');
