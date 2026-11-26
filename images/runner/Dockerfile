@@ -2,7 +2,7 @@
 #   podman build -t agentdesk-runner:dev images/runner
 FROM node:22-slim
 
-ARG CLAUDE_CODE_VERSION=2.1.323
+ARG CLAUDE_CODE_VERSION=2.1.332
 # Codex and OpenCode CLIs: exact versions from the spikes (packages/core/test/fixtures/agents/*/spike.json), never
 # latest, a tag or a range. The OpenCode sha256 is of its linux-arm64 platform binary (the install note in spike.json);
 # the build fails when the installed binary differs. Nothing else is installed for other agents.

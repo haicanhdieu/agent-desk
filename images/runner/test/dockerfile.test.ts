@@ -49,6 +49,14 @@ describe('runner Dockerfile agent CLIs (BR-52)', () => {
   const read = async () => readFile(dockerfile, 'utf8');
   const joined = async () => (await read()).replace(/\\\n/g, ' ');
 
+  it('pins @anthropic-ai/claude-code to the current release', async () => {
+    const text = await read();
+    // Runs must get the release npm's `latest` tag points at, not an older one (#309).
+    // Bump this together with the ARG when updating the pin.
+    expect(text).toMatch(/^ARG CLAUDE_CODE_VERSION=2\.1\.332$/m);
+    expect(text).toContain('"@anthropic-ai/claude-code@${CLAUDE_CODE_VERSION}"');
+  });
+
   it('pins @openai/codex to an exact version', async () => {
     const text = await read();
     expect(text).toMatch(/^ARG CODEX_VERSION=\d+\.\d+\.\d+$/m);
