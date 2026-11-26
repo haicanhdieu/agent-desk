@@ -344,19 +344,26 @@ export function LimitsPanel({ form, onSave, errors = {}, error, saving = false, 
               </Field>
             </div>
           </fieldset>
-          {error && <Banner tone="err" icon={<Icon name="warning" size={16} />} title={error} live="assertive" />}
         </SettingsSection>
       </PanelScroll>
-      {!readOnly && (
-        <div className={styles.agentSaveBar}>
-          <Button
-            variant="primary"
-            disabled={saving}
-            aria-busy={saving || undefined}
-            onClick={() => onSave?.(form.toLimits())}
-          >
-            Save limits
-          </Button>
+      {/* The bar is pinned under the scrolling panel; a refused save shows its banner in it, next to the button. */}
+      {(error || !readOnly) && (
+        <div className={error ? `${styles.agentSaveBar} ${styles.agentSaveBarWithError}` : styles.agentSaveBar}>
+          {error && (
+            <div className={styles.agentSaveError}>
+              <Banner tone="err" icon={<Icon name="warning" size={16} />} title={error} live="assertive" />
+            </div>
+          )}
+          {!readOnly && (
+            <Button
+              variant="primary"
+              disabled={saving}
+              aria-busy={saving || undefined}
+              onClick={() => onSave?.(form.toLimits())}
+            >
+              Save limits
+            </Button>
+          )}
         </div>
       )}
     </>

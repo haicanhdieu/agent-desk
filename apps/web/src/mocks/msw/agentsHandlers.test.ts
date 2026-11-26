@@ -225,18 +225,16 @@ describe('agents.remove', () => {
     const work = await byName('Claude - Work');
     const e = await removal(work.id);
     expect(e.status).toBe(409);
-    expect(e.detail).toBe('1 rule(s) use this agent: review. Pick another agent for them first.');
+    expect(e.detail).toBe('1 rule names it: /fix. Point it at another agent first, then delete.');
     expect((await list()).some((a) => a.id === work.id)).toBe(true);
   });
 
-  it('refuses an agent with a run that blocks it, in the API words (no run number)', async () => {
+  it('refuses an agent with a run that blocks it, in the API words, with the run number', async () => {
     scenarios.agents('deleteBlocked');
     const codex = await byName('Codex');
     const e = await removal(codex.id);
     expect(e.status).toBe(409);
-    expect(e.detail).toBe(
-      'A run that is queued, running, paused or has a kept session still uses this agent. Let it finish or close it first.',
-    );
+    expect(e.detail).toBe('Run 900 is paused and can be resumed. Finish it first, then delete.');
   });
 
   it('swapDeleteFails: the placeholder delete answers 500 and the agent stays', async () => {

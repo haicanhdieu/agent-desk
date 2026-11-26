@@ -16,7 +16,7 @@ const field = (page: import('@playwright/test').Page) => page.getByLabel('Automa
 const GAVE_UP_TEXT = /Tried to resume automatically/;
 
 test('Automatic resumes after a crash shows 5 by default with its help text', async ({ page }) => {
-  await page.goto(`/o/${ORG}/p/${INVOICER_API}/desk/agent`);
+  await page.goto(`/o/${ORG}/p/${INVOICER_API}/desk/agent?tab=limits`);
   await expect(field(page)).toHaveValue('5');
   await expect(page.getByText(/resumes by itself after its pod is killed or the agent crashes/)).toBeVisible();
   await expect(
@@ -25,7 +25,7 @@ test('Automatic resumes after a crash shows 5 by default with its help text', as
 });
 
 test('a saved change to 2 is shown again after leaving the page', async ({ page }) => {
-  await page.goto(`/o/${ORG}/p/${INVOICER_API}/desk/agent`);
+  await page.goto(`/o/${ORG}/p/${INVOICER_API}/desk/agent?tab=limits`);
   await field(page).fill('2');
   await page.getByRole('button', { name: 'Save limits' }).click();
   await expect(page.getByText('Limits saved')).toBeVisible();
@@ -33,13 +33,14 @@ test('a saved change to 2 is shown again after leaving the page', async ({ page 
   // Leave by link (a reload would reseed the mock store) and come back: the saved value is read from the agent.
   await page.getByRole('link', { name: 'Routing rules' }).click();
   await page.getByRole('link', { name: 'Agent & settings' }).click();
+  await page.getByRole('tab', { name: 'Limits' }).click();
   await expect(field(page)).toHaveValue('2');
 });
 
 test('12 is refused with "Automatic resumes must be between 0 and 10", the field marked invalid, and nothing saved', async ({
   page,
 }) => {
-  await page.goto(`/o/${ORG}/p/${INVOICER_API}/desk/agent`);
+  await page.goto(`/o/${ORG}/p/${INVOICER_API}/desk/agent?tab=limits`);
   await field(page).fill('12');
   await page.getByRole('button', { name: 'Save limits' }).click();
   await expect(page.getByText('Automatic resumes must be between 0 and 10')).toBeVisible();
@@ -49,6 +50,7 @@ test('12 is refused with "Automatic resumes must be between 0 and 10", the field
   // Nothing was saved: leave by link (a reload would reseed the mock store) and come back, the agent still has 5.
   await page.getByRole('link', { name: 'Routing rules' }).click();
   await page.getByRole('link', { name: 'Agent & settings' }).click();
+  await page.getByRole('tab', { name: 'Limits' }).click();
   await expect(field(page)).toHaveValue('5');
 });
 

@@ -2,7 +2,7 @@ import { expect, test } from '@playwright/test';
 import { INVOICER_API, ORG } from './mock';
 
 test('switch the trigger from webhook to polling every 5 min', async ({ page }) => {
-  await page.goto(`/o/${ORG}/p/${INVOICER_API}/desk/agent`);
+  await page.goto(`/o/${ORG}/p/${INVOICER_API}/desk/agent?tab=github`);
   const connection = page.getByRole('region', { name: 'GitHub connection' });
   await expect(connection.getByRole('radio', { name: 'Webhook' })).toBeChecked();
 

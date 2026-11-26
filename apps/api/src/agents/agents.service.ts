@@ -60,6 +60,14 @@ const NAME_TAKEN = (): ConflictProblemException =>
     { pointer: '/name', detail: 'An agent with this name already exists in this project' },
   ]);
 
+/** The refusal for the lowest-numbered run that still needs the agent (a succeeded run here keeps a session). */
+function blockingRunText(number: number, status: string): string {
+  if (status === 'succeeded')
+    return `Run ${number} has a kept session that can be reopened. Close it first, then delete.`;
+  if (status === 'paused') return `Run ${number} is paused and can be resumed. Finish it first, then delete.`;
+  return `Run ${number} is ${status}. Finish it first, then delete.`;
+}
+
 /** Maps the violated name constraint of a failed write to the 409 on /name; any other error is rethrown. */
 function nameConflict(err: unknown): never {
   const constraint = uniqueViolationConstraint(err);
@@ -322,21 +330,19 @@ export class AgentsService {
             .select({ n: count() })
             .from(rules)
             .where(and(eq(rules.projectId, row.projectId), eq(rules.agentId, agentId)));
-          const shown = named.slice(0, RULE_LIST_MAX).map((r) => r.command);
+          const shown = named.slice(0, RULE_LIST_MAX).map((r) => `/${r.command}`);
           const more = (total?.n ?? named.length) - shown.length;
           throw new ConflictException(
-            `${total?.n ?? named.length} rule(s) use this agent: ${shown.join(', ')}${more > 0 ? ` and ${more} more` : ''}. Pick another agent for them first.`,
+            `${total?.n ?? named.length} ${(total?.n ?? named.length) === 1 ? 'rule names' : 'rules name'} it: ${shown.join(', ')}${more > 0 ? ` and ${more} more` : ''}. Point it at another agent first, then delete.`,
           );
         }
         const [busy] = await tx
-          .select({ n: count() })
+          .select({ number: runs.number, status: runs.status })
           .from(runs)
-          .where(and(eq(runs.projectId, row.projectId), eq(runs.agentId, agentId), blockingRunsCondition()));
-        if ((busy?.n ?? 0) > 0) {
-          throw new ConflictException(
-            'A run that is queued, running, paused or has a kept session still uses this agent. Let it finish or close it first.',
-          );
-        }
+          .where(and(eq(runs.projectId, row.projectId), eq(runs.agentId, agentId), blockingRunsCondition()))
+          .orderBy(asc(runs.number))
+          .limit(1);
+        if (busy) throw new ConflictException(blockingRunText(busy.number, busy.status));
         await tx.delete(agents).where(eq(agents.id, agentId));
       });
     } catch (err) {

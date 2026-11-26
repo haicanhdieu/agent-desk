@@ -6,6 +6,9 @@ import { ProviderMark } from './ProviderMark';
 import { useRowMenu } from './useRowMenu';
 import styles from './AgentRow.module.css';
 
+/** The row menu's height in px (three actions): a row near the bottom of the window opens it upward. */
+const MENU_HEIGHT = 120;
+
 export interface AgentRowProps {
   agent: AgentRowView;
   onEdit: (agent: AgentRowView) => void;
@@ -34,7 +37,7 @@ export function AgentRow({
   testing,
   onlyAgent,
 }: AgentRowProps) {
-  const { menuAt, open, moreRef, toggleMenu, closeMenu } = useRowMenu();
+  const { menuAt, open, moreRef, toggleMenu, closeMenu } = useRowMenu(MENU_HEIGHT);
   const pick = (action: (a: AgentRowView) => void) => () => {
     closeMenu();
     action(agent);
@@ -87,7 +90,14 @@ export function AgentRow({
                 open={open}
                 label={label}
                 onClose={closeMenu}
-                style={{ position: 'fixed', top: menuAt?.top, right: menuAt?.right, padding: 6, gap: 2 }}
+                style={{
+                  position: 'fixed',
+                  top: menuAt?.top,
+                  bottom: menuAt?.bottom,
+                  right: menuAt?.right,
+                  padding: 6,
+                  gap: 2,
+                }}
               >
                 <Button
                   variant="ghost"

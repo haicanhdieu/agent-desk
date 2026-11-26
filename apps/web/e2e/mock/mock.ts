@@ -1,5 +1,6 @@
 import type { Locator, Page } from '@playwright/test';
 import { AGENT_MODELS_SCENARIO_KEY, type AgentModelsScenario } from '../../src/mocks/msw/agentModels';
+import { AGENT_SCENARIO_KEY, type AgentScenario } from '../../src/mocks/msw/agentScenarios';
 import { SKILL_REVIEW_KEY } from '../../src/mocks/msw/skillReview';
 import { GITHUB_SYNC_SCENARIO_KEY, type GithubSyncScenario } from '../../src/mocks/msw/githubSync';
 import { PR_STATES_SCENARIO_KEY, type PrStatesScenario } from '../../src/mocks/msw/prStates';
@@ -89,6 +90,8 @@ export const SCROLLBACK_ENDED_RUN = 95;
 export const NOTHING_ENDED_RUN = 96;
 export const NOTHING_PAUSED_RUN = 97;
 export const PAUSED_TRANSCRIPT_RUN = 98;
+/** Failed at start because its agent had no credential: the end note offers Replace credential (dto/sessionRuns.ts). */
+export const NO_CREDENTIAL_RUN = 121;
 /** An idle run (Needs you) that has a live terminal. */
 export const IDLE_RUN = 62;
 /** The runs with recorded token usage and cost, by case: id to run number (src/mocks/dto/usageRuns.ts, browser mock only). */
@@ -117,6 +120,71 @@ export async function setAgentModels(page: Page, byAgent: Record<string, AgentMo
     },
     [AGENT_MODELS_SCENARIO_KEY, JSON.stringify(byAgent)] as const,
   );
+}
+
+/**
+ * Puts invoicer-api's agents in a named state for this test (src/mocks/msw/agentScenarios.ts: `manyAgents`,
+ * `agentsEmpty`, `listError`, ...). Call before the first `page.goto`: browser.ts reads the key once when the mock
+ * worker starts.
+ */
+export async function seedAgents(page: Page, scenario: AgentScenario): Promise<void> {
+  await page.addInitScript(
+    ([key, value]) => {
+      sessionStorage.setItem(key, value);
+    },
+    [AGENT_SCENARIO_KEY, scenario] as const,
+  );
+}
+
+/** What `answerRequest` does with the matching requests of one test. */
+export interface RequestAnswer {
+  method: 'GET' | 'POST' | 'PATCH' | 'DELETE';
+  /** Matched against the request path (a RegExp source). */
+  path: string;
+  /** Matching requests answered this way (the rest pass through to the mock API). */
+  times: number;
+  /** `hold`: the request waits until `window.__releaseHeldRequest()` is called, then goes on to the mock API. */
+  hold?: boolean;
+  /** Otherwise: the problem the request is answered with, as the API sends it. */
+  problem?: { status: number; title: string; detail?: string };
+}
+
+/**
+ * Holds or fails matching requests of this test at the page's `fetch`, before the mock API sees them (the service
+ * worker answers requests Playwright's `page.route` never sees). Call before the first `page.goto`.
+ */
+export async function answerRequest(page: Page, answer: RequestAnswer): Promise<void> {
+  await page.addInitScript((a) => {
+    const original = window.fetch.bind(window);
+    let used = 0;
+    let release: () => void = () => undefined;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    Object.assign(window, { __releaseHeldRequest: release });
+    const pattern = new RegExp(a.path);
+    window.fetch = async (input, init) => {
+      const req = input instanceof Request ? input : undefined;
+      const method = (init?.method ?? req?.method ?? 'GET').toUpperCase();
+      const url = new URL(req ? req.url : String(input), window.location.href);
+      if (method !== a.method || !pattern.test(url.pathname) || used >= a.times) return original(input, init);
+      used += 1;
+      if (a.hold) {
+        await gate;
+        return original(input, init);
+      }
+      const p = a.problem ?? { status: 500, title: 'Internal server error' };
+      return new Response(
+        JSON.stringify({
+          type: 'about:blank',
+          title: p.title,
+          status: p.status,
+          ...(p.detail !== undefined && { detail: p.detail }),
+        }),
+        { status: p.status, headers: { 'content-type': 'application/problem+json' } },
+      );
+    };
+  }, answer);
 }
 
 /**

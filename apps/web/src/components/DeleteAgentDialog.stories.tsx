@@ -28,7 +28,7 @@ export const BlockedByOpenRun: Story = {
     state: 'blocked',
     reason: {
       title: 'This agent has open runs',
-      text: 'A run that is queued, running, paused or has a kept session still uses this agent. Let it finish or close it first.',
+      text: 'Run 12 is paused and can be resumed. Finish it first, then delete.',
     },
   },
 };

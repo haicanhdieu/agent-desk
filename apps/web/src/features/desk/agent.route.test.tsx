@@ -850,8 +850,7 @@ describe('desk agent route: agents', () => {
     expect(writes(sent)).toEqual(['DELETE /api/agents/:id']);
   });
 
-  const RUN_REFUSAL =
-    'A run that is queued, running, paused or has a kept session still uses this agent. Let it finish or close it first.';
+  const RUN_REFUSAL = 'Run 900 is paused and can be resumed. Finish it first, then delete.';
   const closeOnly = () =>
     expect(
       within(screen.getByRole('dialog'))
@@ -867,7 +866,7 @@ describe('desk agent route: agents', () => {
     await user.click(await screen.findByRole('button', { name: 'Delete agent' }));
     expect(await screen.findByText('A routing rule uses this agent')).toBeInTheDocument();
     expect(
-      screen.getByText(/1 rule names it: review\. Point it at another agent first, then delete\./),
+      screen.getByText(/1 rule names it: \/fix\. Point it at another agent first, then delete\./),
     ).toBeInTheDocument();
     closeOnly();
     await user.click(screen.getByRole('button', { name: 'Close' }));

@@ -53,8 +53,8 @@ type Refusal =
 
 type DeleteView = { id: string; name: string } & ({ kind: 'confirm' | 'deleting' } | Refusal);
 
-const RULES = /^(\d+) rule(?:s|\(s\))? (?:names? it|uses? this agent): (.+?)\. (?:Point|Pick) /;
-const RUNS = /^A run that is /;
+const RULES = /^(\d+) rules? names? it: (.+?)\. Point /;
+const RUNS = /^Run \d+ (?:is|has) /;
 
 /**
  * A refused delete → the dialog's reason. Every 409 is a Close-only refusal that shows the API's own sentence; the

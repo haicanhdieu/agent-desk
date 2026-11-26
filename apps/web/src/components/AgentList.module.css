@@ -26,14 +26,34 @@
   margin: 0;
   color: var(--muted);
 }
+/* A short window gives the rows the room: the head and its two help lines stay, with tighter gaps. */
+@media (max-height: 480px) {
+  .list {
+    gap: 8px;
+  }
+  .headText {
+    gap: 0;
+  }
+  .text {
+    font-size: var(--fs-12_5);
+    line-height: 1.3;
+  }
+}
 /* The one scroll area of the Agents tab: the heading above and the Pagination below stay put. */
 .scroll {
   flex: 1 1 auto;
-  min-height: 120px;
+  min-height: 40px; /* a short window still shows the pinned pager; the rows get what is left */
+  contain: size; /* only the minimum counts toward the panel's minimum height, not the rows */
   overflow-y: auto;
   display: flex;
   flex-direction: column;
   gap: 16px;
+}
+/* Below 300 px the scroll area keeps 120 px and the column scrolls (see `.agentSettingsMain`). */
+@media (max-height: 300px) {
+  .scroll {
+    min-height: 120px;
+  }
 }
 .rows {
   margin: 0;

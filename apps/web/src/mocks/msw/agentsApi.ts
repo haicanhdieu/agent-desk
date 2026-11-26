@@ -1,5 +1,6 @@
 import {
   AGENT_KIND_CAPABILITIES,
+  FINAL_RUN_STATUSES,
   AGENT_TEST_MESSAGES,
   type AgentConnectionDto,
   type AgentDto,
@@ -102,14 +103,22 @@ function deleteRefusal(agent: AgentDto): string | undefined {
   const ruleCount = Math.max(rules.length, agent.usage.rules);
   if (ruleCount > 0) {
     const shown = rules
-      .map((r) => r.command)
+      .map((r) => `/${r.command}`)
       .sort()
       .slice(0, 5);
     const more = ruleCount - shown.length;
-    return `${ruleCount} rule(s) use this agent${shown.length > 0 ? `: ${shown.join(', ')}` : ''}${more > 0 ? ` and ${more} more` : ''}. Pick another agent for them first.`;
+    return `${ruleCount} ${ruleCount === 1 ? 'rule names' : 'rules name'} it: ${shown.join(', ')}${more > 0 ? ` and ${more} more` : ''}. Point it at another agent first, then delete.`;
   }
   if (agent.usage.blockingRuns > 0) {
-    return 'A run that is queued, running, paused or has a kept session still uses this agent. Let it finish or close it first.';
+    const run = mockDb.state.runs
+      .filter((r) => r.agent.id === agent.id && !(FINAL_RUN_STATUSES as readonly string[]).includes(r.status))
+      .sort((a, b) => a.number - b.number)[0];
+    if (run) {
+      return run.status === 'paused'
+        ? `Run ${run.number} is paused and can be resumed. Finish it first, then delete.`
+        : `Run ${run.number} is ${run.status}. Finish it first, then delete.`;
+    }
+    return 'A run still uses this agent. Finish it first, then delete.';
   }
   return undefined;
 }

@@ -507,10 +507,12 @@ function runOf(runId: string): MockRun {
   return run;
 }
 
-/** As the API: a run carries its agent's idle end, so an edit on Agent & settings shows on the run screens. */
+/** As the API: a run carries its project's idle end and paused keep time, so a Limits edit shows on the run screens. */
 const withAgentIdleEnd = (run: MockRun): MockRun => {
-  const agent = db().agents.find((a) => a.projectId === run.projectId);
-  return agent ? { ...run, idleEndSeconds: agent.idleEndSeconds, pausedKeepSeconds: agent.pausedKeepSeconds } : run;
+  const project = db().projects.find((p) => p.id === run.projectId);
+  return project
+    ? { ...run, idleEndSeconds: project.idleEndSeconds, pausedKeepSeconds: project.pausedKeepSeconds }
+    : run;
 };
 
 /** How long the mock keeps a succeeded run's session after a close: the agent's default done keep time (1 day). */

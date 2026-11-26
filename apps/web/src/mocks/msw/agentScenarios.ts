@@ -9,18 +9,29 @@ import { problemResponse, routeHandler } from './http';
 // Agent configuration scenarios (Agents tab of invoicer-api). Each one puts the project's agents in a known state and,
 // where it bends an answer, sets store state or returns handler overrides, like the onboarding and platform scenarios.
 
-export type AgentScenario =
-  | 'agentsEmpty'
-  | 'manyAgents'
-  | 'listError'
-  | 'deleteBlocked'
-  | 'testRejected'
-  | 'testUnreachable'
-  | 'testInvalid'
-  | 'testUnsupported'
-  | 'opencodeEndpointModels'
-  | 'swapDeleteFails'
-  | 'perAgentModels';
+const AGENT_SCENARIOS = [
+  'agentsEmpty',
+  'manyAgents',
+  'listError',
+  'deleteBlocked',
+  'testRejected',
+  'testUnreachable',
+  'testInvalid',
+  'testUnsupported',
+  'opencodeEndpointModels',
+  'swapDeleteFails',
+  'perAgentModels',
+] as const;
+
+export type AgentScenario = (typeof AGENT_SCENARIOS)[number];
+
+/** sessionStorage key the mocked e2e specs seed (e2e/mock/mock.ts `seedAgents`); browser.ts reads it once at start. */
+export const AGENT_SCENARIO_KEY = 'agentdesk.mock.agentScenario';
+
+/** The stored scenario name, or undefined when it is missing or unknown. */
+export function parseAgentScenario(raw: string | null): AgentScenario | undefined {
+  return AGENT_SCENARIOS.find((name) => name === raw);
+}
 
 const P = ids.project.invoicerApi;
 const TEST_SCENARIOS: Partial<Record<AgentScenario, AgentTestStatus>> = {
@@ -66,10 +77,20 @@ export function applyAgentScenario(name: AgentScenario): void {
       const workId = idOf('Claude - Work');
       const template = ruleFixtures[0];
       if (template) {
-        mockDb.state.rules.push({ ...template, id: mockDb.nextId(), command: 'review', agentId: workId });
+        mockDb.state.rules.push({ ...template, id: mockDb.nextId(), command: 'fix', agentId: workId });
       }
       const codex = mockDb.state.agents.find((a) => a.id === idOf('Codex'));
-      if (codex) codex.usage = { rules: 0, blockingRuns: 1 };
+      const runTemplate = mockDb.state.runs[0];
+      if (codex && runTemplate) {
+        codex.usage = { rules: 0, blockingRuns: 1 };
+        mockDb.state.runs.push({
+          ...structuredClone(runTemplate),
+          id: mockDb.nextId(),
+          number: 900,
+          status: 'paused',
+          agent: { id: codex.id, name: codex.name, model: codex.model },
+        });
+      }
       return;
     }
     case 'swapDeleteFails':

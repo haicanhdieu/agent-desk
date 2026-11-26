@@ -162,28 +162,64 @@ describe('delete (BR-27 to BR-31, BR-66)', () => {
     const res = await remove(a.id, w.owner);
     expect(res.statusCode).toBe(409);
     const text = detailOf(res);
-    expect(text).toContain('cmd1');
-    expect(text).toContain('cmd5');
-    expect(text).not.toContain('cmd6');
-    expect(text).toContain('7');
+    expect(text).toBe(
+      '7 rules name it: /cmd1, /cmd2, /cmd3, /cmd4, /cmd5 and 2 more. Point it at another agent first, then delete.',
+    );
     expect(await agentRow(w.orgId, a.id)).toHaveLength(1);
     const left = await rowsOf(w.orgId, sql`select count(*)::int as n from rules where agent_id = ${a.id}`);
     expect(left[0]?.n).toBe(7);
   });
 
+  it('names the one rule in the singular (BR-29)', async () => {
+    const w = await world();
+    const a = await makeAgent(t, w.owner, w.projectId, { name: 'Named once' });
+    await insertRule(w, a.id, 'fix');
+    const res = await remove(a.id, w.owner);
+    expect(res.statusCode).toBe(409);
+    expect(detailOf(res)).toBe('1 rule names it: /fix. Point it at another agent first, then delete.');
+  });
+
   it.each([
-    ['queued', sql`null`],
-    ['running', sql`null`],
-    ['idle', sql`null`],
-    ['paused', sql`null`],
-    ['succeeded', sql`now() + interval '1 hour'`],
-  ])('refuses an agent with a %s run (BR-30)', async (status, expires) => {
+    ['queued', sql`null`, 'is queued. Finish it first, then delete.'],
+    ['running', sql`null`, 'is running. Finish it first, then delete.'],
+    ['idle', sql`null`, 'is idle. Finish it first, then delete.'],
+    ['paused', sql`null`, 'is paused and can be resumed. Finish it first, then delete.'],
+    [
+      'succeeded',
+      sql`now() + interval '1 hour'`,
+      'has a kept session that can be reopened. Close it first, then delete.',
+    ],
+  ])('refuses an agent with a %s run (BR-30)', async (status, expires, tail) => {
     const w = await world();
     const a = await makeAgent(t, w.owner, w.projectId, { name: 'Busy' });
     await insertRun(w, a.id, status, expires);
     const res = await remove(a.id, w.owner);
     expect(res.statusCode).toBe(409);
-    expect(detailOf(res).length).toBeGreaterThan(0);
+    const [run] = await rowsOf(w.orgId, sql`select number from runs where agent_id = ${a.id}`);
+    expect(detailOf(res)).toBe(`Run ${String(run?.number)} ${tail}`);
+    expect(await agentRow(w.orgId, a.id)).toHaveLength(1);
+  });
+
+  it('names the lowest-numbered blocking run when several block (BR-30)', async () => {
+    const w = await world();
+    const a = await makeAgent(t, w.owner, w.projectId, { name: 'Busy' });
+    // Many finished runs of another agent keep the planner on an index whose order is
+    // not the run number.
+    const other = await makeAgent(t, w.owner, w.projectId, { name: 'Other' });
+    await rowsOf(
+      w.orgId,
+      sql`insert into runs (org_id, project_id, agent_id, agent_name, command, skill_name, ticket_ref, ticket_kind, checkout_ref, trigger_source, status) select ${w.orgId}, ${w.projectId}, ${other.id}, 'Done', 'fix', 'fix', 'f-' || g, 'issue', 'refs/heads/main', 'webhook', 'succeeded' from generate_series(1, 400) g`,
+    );
+    await insertRun(w, a.id, 'running', sql`null`);
+    await insertRun(w, a.id, 'idle', sql`null`);
+    // The second run gets a finish time, so the planner's index on (project, finished_at) lists it before the first
+    // (nulls last): only ORDER BY number answers with the first run.
+    const [first] = await rowsOf(w.orgId, sql`select min(number) as n from runs where agent_id = ${a.id}`);
+    await rowsOf(w.orgId, sql`update runs set finished_at = now() where agent_id = ${a.id} and number > ${first?.n}`);
+    await rowsOf(w.orgId, sql`analyze runs`);
+    const res = await remove(a.id, w.owner);
+    expect(res.statusCode).toBe(409);
+    expect(detailOf(res)).toBe(`Run ${String(first?.n)} is running. Finish it first, then delete.`);
     expect(await agentRow(w.orgId, a.id)).toHaveLength(1);
   });
 
