@@ -403,7 +403,9 @@ export class GithubCodeHostAdapter implements CodeHostAdapter {
       }
     }
     const parsed = found ? FileResponse.safeParse(found.data) : null;
-    if (!found || !parsed?.success) throw new SkillNotFoundError(name);
+    // A link may only lead to the SKILL.md of this same skill. Any other file it reaches (a workflow, CODEOWNERS, the
+    // SKILL.md of another skill) is not this skill, and must not be read, edited or deleted as if it were.
+    if (!found || !parsed?.success || !found.path.endsWith(`/${name}/SKILL.md`)) throw new SkillNotFoundError(name);
     return { path: found.path, file: parsed.data };
   }
 
@@ -462,6 +464,12 @@ export class GithubCodeHostAdapter implements CodeHostAdapter {
     return Buffer.from(file.data.content.replace(/\n/g, ''), 'base64').toString('utf8');
   }
 
+  /** The folder to create a skill in: the real folder when `folder` is a symlink, as a write through a link would fail. */
+  private async realFolder(project: AdapterProject, folder: string): Promise<string> {
+    const found = await this.fetchContents(project, folder);
+    return found && Array.isArray(found.data) ? found.path : folder;
+  }
+
   async writeSkill(
     project: AdapterProject,
     name: string,
@@ -471,7 +479,8 @@ export class GithubCodeHostAdapter implements CodeHostAdapter {
   ): Promise<SkillChangeResult> {
     // A new skill goes to the default agent's folder. An edit goes to the folder the skill is in (found by its sha).
     const target = skillFoldersOf(project)[0] ?? '';
-    const path = (sha ? await this.pathOf(project, name) : null) ?? skillPath(target, name);
+    const path =
+      (sha ? await this.pathOf(project, name) : null) ?? skillPath(await this.realFolder(project, target), name);
     const { owner, repo } = splitRepoPath(project.repoPath);
     return this.submit(project, sha ? 'update' : 'create', name, path, message, (octokit, branch) =>
       octokit.request('PUT /repos/{owner}/{repo}/contents/{+path}', {
