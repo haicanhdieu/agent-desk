@@ -9,7 +9,7 @@ NAME: <value>
 …
 ```
 
-Give every value the role lists, `none` where it does not apply. Never paste, summarize or reword the prompt file, and add no instruction of your own; the only free text is `NOTE` (the error or correction on a re-spawn, else leave it out). Values are ids, paths and text from this run's agents; never paste ticket text into one (agents read the ticket themselves).
+Give every value the role lists, `none` where it does not apply. Never paste, summarize or reword the prompt file, and add no instruction of your own; the only free text is `NOTE` and, on every Fixer and Implementer spawn, the fixed line `SKILLS REQUIRED: load them with the Skill tool before anything else; do not substitute your own routine.` (the error or correction on a re-spawn, else leave it out). Values are ids, paths and text from this run's agents; never paste ticket text into one (agents read the ticket themselves).
 
 Values every role gets: `REPO` (owner/name), `MAIN` (main checkout abs path), and, where the role lists it, `DECISIONS`: each accepted Advisor `DECISION` with its `SOURCES` verbatim, plus a human's answer as `Human answer: …`, or `none`.
 
