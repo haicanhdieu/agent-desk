@@ -8,6 +8,9 @@
 #   test     (default) + Postgres binaries and the Temporal CLI / test server, so `pnpm test` and the e2e
 #            stack (scripts/runner-stack.sh) run offline with no container engine.
 #   full     + Playwright Chromium (headless shell) and the system libraries it needs, for the web e2e suites.
+#
+# RUNNER_ENABLE_SERENA=1 also installs Serena (semantic code tools) for Claude Code, for any profile
+# (scripts/runner-serena.sh). Unset or 0 = off.
 # Everything lands under $HOME (RUNNER_TOOLS_DIR, default ~/.local/opt/runner-tools). Every download is pinned and
 # sha256-checked before it is unpacked; a mismatch stops the script. Debian packages come through apt, which checks
 # them against the signed archive index. Afterwards: `source scripts/runner-env.sh`.
@@ -18,6 +21,14 @@ case "$profile" in
   minimal | test | full) ;;
   *)
     echo "runner-setup: RUNNER_SETUP_PROFILE must be minimal, test or full" >&2
+    exit 64
+    ;;
+esac
+
+case "${RUNNER_ENABLE_SERENA:-0}" in
+  0 | 1) ;;
+  *)
+    echo "runner-setup: RUNNER_ENABLE_SERENA must be unset, 0 or 1" >&2
     exit 64
     ;;
 esac
@@ -74,6 +85,11 @@ step "3/4 Env file"
 
 step "4/4 Install dependencies"
 pnpm install --frozen-lockfile
+
+if [ "${RUNNER_ENABLE_SERENA:-0}" = 1 ]; then
+  step "Serena (opt-in)"
+  bash scripts/runner-serena.sh
+fi
 
 if [ "$profile" = minimal ]; then
   step "Ready (minimal). Next: pnpm typecheck && pnpm test:unit"

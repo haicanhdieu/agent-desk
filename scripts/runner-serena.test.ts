@@ -232,3 +232,19 @@ describe('runner-serena.sh', () => {
     ).toHaveLength(1);
   });
 });
+
+describe('runner-setup.sh', () => {
+  it('rejects an invalid RUNNER_ENABLE_SERENA with exit 64 before installing anything', () => {
+    const setup = resolve(__dirname, 'runner-setup.sh');
+    const r = spawnSync(BASH, [setup], {
+      cwd: repo,
+      encoding: 'utf8',
+      env: { PATH: `${bin}:${sys}`, HOME: dir, LOG: log, RUNNER_ENABLE_SERENA: 'bogus' },
+    });
+    expect(r.status).toBe(64);
+    expect(r.stderr).toContain('RUNNER_ENABLE_SERENA must be unset, 0 or 1');
+    expect(r.stdout).toBe('');
+    expect(calls()).toEqual([]);
+    expect(existsSync(join(dir, '.local', 'bin', 'corepack'))).toBe(false);
+  });
+});

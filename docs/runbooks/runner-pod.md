@@ -91,7 +91,43 @@ Measured on 2026-11-16 in the runner image (arm64, `--user 10001 --cap-drop ALL 
 
 The table was measured under a 4 GiB cap, before the caps below. The default run pod is now 2 GiB (`RUN_POD_MEMORY_LIMIT`, 2026-11-19): a run was OOM-killed at 2 GiB by the root `pnpm typecheck`, whose two parallel `tsc` processes (~700 MB each) plus the agent filled the pod. A 2 GiB pod does not fit two heavy steps at once: run `pnpm test` with the stack down, and keep the caps below. It has not been re-measured at 2 GiB. `source scripts/runner-env.sh` also caps what one command fans out to, because vitest, turbo and Playwright size their pools from the host's CPU count, not the pod's limit: `VITEST_MAX_WORKERS=2`, `E2E_WORKERS=1` and `CHECK_CONCURRENCY=1` and `NODE_OPTIONS=--max-old-space-size=1024` (a value you already set wins). The root `pnpm test`, `typecheck`, `lint` and `test:unit` pass `--concurrency=${CHECK_CONCURRENCY:-2}` to turbo, so the cap is 1 in a run pod and 2 elsewhere. A pod that goes over its limit is killed by the kernel (exit 137); the run then resumes by itself up to the agent's "Automatic resumes after a crash" (default 5), and shows as paused after that. Under full parallel load (`turbo run test` on 4 CPUs) a few timing-sensitive tests (web route tests with the 5 s default timeout, the worker's "multi-MB scrollback in linear time") can time out; they pass when rerun alone (`pnpm --filter <pkg> test <file>`).
 
-## 6. Troubleshooting
+## 6. Optional: Serena (semantic code tools)
+
+Serena gives Claude Code symbol-aware tools (find a symbol, find its references, edit by symbol) on top of language servers. It is off by default. Turn it on for a pod by setting one variable when you run setup; it works with every profile, including `minimal`:
+
+```sh
+RUNNER_ENABLE_SERENA=1 RUNNER_SETUP_PROFILE=minimal bash scripts/runner-setup.sh
+```
+
+Valid values are unset, `0` and `1`; anything else stops setup with exit 64. The work is done by `scripts/runner-serena.sh`, which only runs on Linux and only when the `claude` CLI is on `PATH` (otherwise it prints a message and skips).
+
+What gets installed, all under `$HOME` as the runner user:
+
+| Where                          | What                                                                                                   |
+| ------------------------------ | ------------------------------------------------------------------------------------------------------ |
+| `~/.local/bin`                 | `uv` 0.9.28 (sha256-checked release) and the `serena` command                                          |
+| `~/.local/share/uv`            | the Serena tool environment (`serena-agent` 2.1.0, with a uv-provided Python 3.12)                     |
+| `~/.serena`                    | Serena's own config and caches, created on first use                                                   |
+| `~/.claude.json` (local scope) | the `serena` MCP server entry for this checkout, with `--agent-interface tools` and `--project <repo>` |
+| `<repo>/.serena`               | Serena's project data; the script adds it to `.git/info/exclude` so it is never committed              |
+
+Things to know:
+
+- Serena line numbers are 0-based. Claude Code's own file tools are 1-based.
+- The first use of a language downloads that language's server, so the pod needs network access then. Nothing is prefetched at setup.
+- Check it: `uv tool list` shows `serena-agent v2.1.0`, and `claude mcp get serena` shows the `Args:` line with `--project <repo>`.
+- Lifecycle: everything lives on the pod's volume, so it survives a resume. A recreated volume starts empty: rerun setup with the flag. Rerunning does nothing when it is already at the pinned version and registered for this checkout.
+- Upgrade: bump `SERENA_VERSION` (and `UV_VERSION` plus both sha256 values if uv moves) in `scripts/runner-serena.sh`, then rerun setup. A changed pin reinstalls.
+- The script does not edit `CLAUDE.md` or `AGENTS.md`. A project that opts in can add this to its own file:
+
+```md
+## Code tools
+
+Use Serena for symbol lookup, find-references and symbol-aware edits. Use plain search for text, config and docs.
+Serena line numbers are 0-based.
+```
+
+## 7. Troubleshooting
 
 | Symptom                                                                      | Fix                                                                                                                                 |
 | ---------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
@@ -102,3 +138,6 @@ The table was measured under a 4 GiB cap, before the caps below. The default run
 | `runner-stack: postgres did not start`                                       | Read `.agentdesk/runner-stack/logs/postgres.log`; a stale server from another checkout may hold :54329.                             |
 | Terminal closes with `4409` in e2e                                           | The fake run pod was not recognised; check `logs/api.log` and `logs/worker.log`.                                                    |
 | Chromium: `SkFontMgr ... Not implemented` and the page closes                | `FONTCONFIG_FILE` is not set: `source scripts/runner-env.sh` (full profile).                                                        |
+| `runner-serena: skipping, the claude CLI is not on PATH`                     | Serena was not set up. Install or expose `claude`, then rerun setup with `RUNNER_ENABLE_SERENA=1`.                                  |
+| `runner-serena: claude mcp add failed`                                       | Serena is installed but not registered. Run the `claude mcp add --scope local serena -- serena start-mcp-server ...` line by hand.  |
+| Serena tool fails on first use of a language                                 | The language server download needs network access; allow egress and retry.                                                          |
