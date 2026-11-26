@@ -7,7 +7,7 @@ The **Advisor** rules on a question that would otherwise wait for a human, from 
 - **Phase 1, Triage `BLOCKED`:** any single question, including a missing task list or plan (it escalates those itself; it never writes one).
 - **Phase 3, builder `blocked`:** the task contradicts the code, a spec or another task; a choice of test or behavior; two ways that both meet the rules; a "product decision" a spec, ADR or convention may settle.
 - **Phase 3, Fixer can't reproduce:** what to try next (another repro route, logs, a different entry point), or whether the report is not a bug.
-- **Phase 4, Self-reviewer; multi-unit, Reviewer:** a finding you can't rule real or not after reading the code, or whose fix needs a choice no rule settles.
+- **Phase 4, self-review:** only an `E2E RULE:` finding (a rule that looks wrong or contradicts another). Never a finding you can't rule on, and never a red gate: treat the finding as real or decline it with evidence, and fix the gate. Self-review has exactly 2 rounds and gets no Advisor round.
 - **Phase 5, PR agent stopped:** a judgment call (e.g. a diff well over about 800 lines) or a failed preflight (it says what to fix, never to skip).
 - **Stop condition:** any place this skill says stop or block (below).
 

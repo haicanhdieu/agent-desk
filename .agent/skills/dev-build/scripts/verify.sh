@@ -13,7 +13,7 @@ wt=${1:?worktree}; base=${2:?base}; coverage=${3:-}
 cd "$wt" || exit 2
 
 # One verify at a time per machine. A run pod has 2 GiB and each lint, typecheck or test command is a node process of
-# 0.5-1 GiB, so the verifies of several units (phases/multi-unit.md runs up to 3 at once) must take turns. A mkdir lock works
+# 0.5-1 GiB, so the verifies of several units (phases/units.md runs up to 3 at once) must take turns. A mkdir lock works
 # in bash 3 on macOS and in the pod; a holder that is gone (killed, crashed) or never wrote its pid is taken over.
 lock=${VERIFY_LOCK_DIR:-${TMPDIR:-/tmp}/agentdesk-verify.lock}
 until mkdir "$lock" 2>/dev/null; do

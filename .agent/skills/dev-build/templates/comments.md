@@ -27,15 +27,15 @@ One form, one question ([AGENTS.md › Talking to humans](../../../../AGENTS.md#
 
 <Only if a branch exists:>
 Work so far is pushed on `<branch>`.
-<Multi-unit only:> Units: <U<id> merged <sha> | U<id> started | U<id> not started, joined by "; ">
-Stopped at: <build, task <k> of <total> | build (bug fix) | verify, round <r> | opening the PR | multi-unit: a value from the table in phases/multi-unit.md, Blocking and resume>
+<Several units only:> Units: <U<id> merged <sha> | U<id> started | U<id> not started, joined by "; ">
+Stopped at: <build, task <k> of <total> | build (bug fix) | verify, gates | verify, self-review round <r> | opening the PR | several units: a value from the list in phases/units.md, Blocking and resume>
 
 Reply here with your pick, move the card back to **Ready**, and run `/dev-build <n>` again<If a branch exists: "; it continues from that branch">.
 ```
 
 For a feature with no task list, the question is always: "Can you add a task list (`- [ ]` steps with what changes and how we know it's done), or link a plan in `docs/superpowers/plans/`?" (Solutions: "I add the list here", "I link a plan", "Skip: close the ticket".)
 
-Triage reads `Work so far is pushed on …` and `Stopped at: …` (plus `Units: …` in multi-unit mode, where the branch is the integration branch) to resume, so write them exactly. Omit them when no branch exists.
+Triage reads `Work so far is pushed on …` and `Stopped at: …` (plus `Units: …` with several units, where the branch is the integration branch) to resume, so write them exactly. Omit them when no branch exists.
 
 ## Advisor decision
 
@@ -61,7 +61,7 @@ One per accepted Advisor decision, before re-dispatching the asker, so a human c
 
 ## Units plan
 
-Multi-unit only, instead of **Started**. Triage copies the table back on a resume: keep its columns exactly.
+Several units only, instead of **Started**. Triage copies the table back on a resume: keep its columns exactly.
 
 ```markdown
 **dev-build:** working on this as a **feature** in <N> parts on branch `<integration>` (from latest `main`). Each part is checked on its own before it joins that branch; you get one PR to `main` at the end.
@@ -73,7 +73,7 @@ Multi-unit only, instead of **Started**. Triage copies the table back on a resum
 
 ## Unit merged
 
-Multi-unit only, after each unit merges into the integration branch.
+Several units only, after each unit merges into the integration branch.
 
 ```markdown
 **dev-build:** part U<id> (<k> of <N>) is done and checked: merged into `<integration>` as <sha>. <m> part(s) to go.
@@ -81,7 +81,7 @@ Multi-unit only, after each unit merges into the integration branch.
 
 ## Resumed (units)
 
-Multi-unit only, instead of **Resumed**.
+Several units only, instead of **Resumed**.
 
 ```markdown
 **dev-build:** resumed on branch `<integration>` after your answer. Parts done: <k> of <N>. Continuing from: <the "Stopped at" line>.
@@ -98,6 +98,6 @@ Multi-unit only, instead of **Resumed**.
 ```markdown
 **dev-build:** PR ready for review: #<pr>. <one-line summary of the change>.
 <For a bug: "Root cause: <one line>.">
-<Multi-unit only: "It brings together <N> parts that were each checked on their own: <sha>, <sha>, ….">
+<Several units only: "It brings together <N> parts that were each self-reviewed on their own: <sha>, <sha>, ….">
 This issue stays open until QA passes.
 ```
