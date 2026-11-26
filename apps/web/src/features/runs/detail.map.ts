@@ -1,5 +1,6 @@
 import {
   hasKeptSession,
+  type LinkedTicketDto,
   type PauseReason,
   type PrState,
   type ProjectDto,
@@ -20,6 +21,7 @@ import {
   idleEndsAt,
   idleSlotNote,
   isFinal,
+  linkedTicketOf,
   safeHref,
   toRunSummary,
   withPrState,
@@ -610,7 +612,8 @@ function sessionOf(run: RunCore, events: RunEventDto[], now: Date): RunDetailDat
 
 /**
  * The run detail screen's data. `ticketRuns` are the runs on the same ticket (the chain, oldest first); `events` the
- * stored run log. Times are local; the top bar's elapsed is "m:ss" (start, or queue time, to now or to the end).
+ * stored run log; `linkedTickets` are this run's linked tickets from the run list (the Pull request section shows the
+ * highest-numbered linked PR). Times are local; the top bar's elapsed is "m:ss" (start, or queue time, to now or to the end).
  */
 export function toRunDetail(
   run: CachedRunDetail,
@@ -619,6 +622,7 @@ export function toRunDetail(
   ticketRuns: RunCore[],
   now: Date,
   links: RunDetailLinks,
+  linkedTickets: readonly LinkedTicketDto[] = [],
 ): RunDetailData {
   const final = isFinal(run.status);
   const startIso = workStart(run, events);
@@ -636,6 +640,9 @@ export function toRunDetail(
   const note = endNote(run, ticketRuns, links, now, events);
   const session = sessionOf(run, events, now);
   const resumed = resumedNote(run, events);
+  const linkedPr = linkedTickets
+    .filter((t) => t.kind === 'pr')
+    .reduce<LinkedTicketDto | undefined>((top, t) => (top === undefined || t.number > top.number ? t : top), undefined);
   return {
     run: toRunSummary(run, now),
     usage: toRunUsage(run.usage),
@@ -660,6 +667,7 @@ export function toRunDetail(
       },
     }),
     chain: chain(run, ticketRuns, links.runs, now),
+    ...(linkedPr && { pullRequest: { ticket: linkedTicketOf(linkedPr) } }),
     ...(lifecycle.length > 0 && { lifecycle }),
     ...((run.status === 'queued' || run.status === 'starting') && { startup: startup(run, events) }),
     ...(run.status === 'idle' &&

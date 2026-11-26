@@ -156,7 +156,7 @@ export type RunDetailData = {
   startedAt: string;
   endedAt?: string;
   chain: ChainStep[];
-  pullRequest?: { ticket: Ticket; diffstat: string };
+  pullRequest?: { ticket: Ticket; diffstat?: string };
   lifecycle?: { at: string; text: string }[];
   startup?: { label: string; detail?: string; at?: string; state: 'done' | 'active' | 'pending' }[];
   idle?: { since: string; endsAt: string; slotNote: string };

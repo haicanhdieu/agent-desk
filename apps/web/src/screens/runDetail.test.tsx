@@ -398,11 +398,14 @@ describe('RunDetail per state', () => {
     expect(screen.getByText('Cloning harbor-labs/invoicer-api at main')).toBeInTheDocument();
     expect(screen.getByText(/If the pod is still pending after 2 minutes/)).toBeInTheDocument();
     expect(screen.queryByRole('log')).not.toBeInTheDocument();
-    expect(screen.getByText(/None yet\. A link appears here/)).toBeInTheDocument();
+    expect(screen.queryByText('Pull request')).not.toBeInTheDocument();
+    expect(screen.queryByText(/None yet\. A link appears here/)).not.toBeInTheDocument();
   });
 
-  it('running: live terminal, time meter, lifecycle, empty pull request', () => {
+  it('running: live terminal, time meter, lifecycle, and no Pull request section', () => {
     show('RunRunning');
+    expect(screen.queryByText('Pull request')).not.toBeInTheDocument();
+    expect(screen.queryByText(/None yet\. A link appears here/)).not.toBeInTheDocument();
     expect(screen.getByRole('log', { name: 'Claude Code terminal' })).toBeInTheDocument();
     expect(screen.getByText('Live, attached as kim-hale')).toBeInTheDocument();
     expect(screen.getByRole('progressbar', { name: '26% of run time limit used' })).toBeInTheDocument();
@@ -430,6 +433,20 @@ describe('RunDetail per state', () => {
     expect(screen.queryByText('coming in MVP')).not.toBeInTheDocument();
     expect(screen.getByText('+214 −12')).toBeInTheDocument();
     expect(container.querySelector('[class*="cursor"]')).toBeNull();
+  });
+
+  it('succeeded with a linked PR: the Pull request section shows its title and link', () => {
+    show('RunSucceeded');
+    const section = screen.getByText('Pull request').closest('section') ?? document.body;
+    expect(within(section).getByText(/Export invoices as CSV/)).toBeInTheDocument();
+  });
+
+  it('succeeded without a linked PR: no Pull request section and no empty note', () => {
+    const noPr = { ...runDetails.RunSucceeded };
+    delete noPr.pullRequest;
+    render(<RunDetail data={noPr} lines={linesFor('RunSucceeded')} />);
+    expect(screen.queryByText('Pull request')).not.toBeInTheDocument();
+    expect(screen.queryByText(/None yet/)).not.toBeInTheDocument();
   });
 
   it('failed: err banner with actions and no Retry, top-anchored terminal', () => {

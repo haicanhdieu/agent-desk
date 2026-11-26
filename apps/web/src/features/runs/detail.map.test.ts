@@ -1,4 +1,4 @@
-import type { PauseReason, RunDto, RunEventDto, RunStatus } from '@agentdesk/contracts';
+import type { LinkedTicketDto, PauseReason, RunDto, RunEventDto, RunStatus } from '@agentdesk/contracts';
 import { describe, expect, it } from 'vitest';
 import type { RunDetailKey } from '@/mocks/types';
 import { projectFixtures } from '@/mocks/dto/projects';
@@ -1102,6 +1102,48 @@ describe('withDetailPrStates', () => {
   it('an issue run stays unchanged', () => {
     const out = withDetailPrStates(data({ kind: 'issue', number: 142 }), states);
     expect(out.run.ticket.prState).toBeUndefined();
+  });
+});
+
+describe('toRunDetail, linked pull request', () => {
+  const linked = (kind: 'issue' | 'pr', number: number, over: Partial<LinkedTicketDto> = {}): LinkedTicketDto => ({
+    ref: `${kind}:${number}`,
+    kind,
+    number,
+    title: `${kind} ${number} title`,
+    url: `https://github.com/acme/app/${kind === 'pr' ? 'pull' : 'issues'}/${number}`,
+    labels: [],
+    ticketRunCount: 1,
+    ...over,
+  });
+  const withLinked = (tickets: LinkedTicketDto[], status: RunStatus = 'succeeded') => {
+    const r = run({ status });
+    return toRunDetail(r, [], project, [r], now, links, tickets);
+  };
+
+  it('has no pullRequest when the ticket links no PR', () => {
+    expect(withLinked([]).pullRequest).toBeUndefined();
+    expect(withLinked([linked('issue', 142)]).pullRequest).toBeUndefined();
+  });
+
+  it('carries the linked PR: number, title and link', () => {
+    const out = withLinked([linked('issue', 142), linked('pr', 148, { title: 'Export invoices as CSV' })]);
+    expect(out.pullRequest?.ticket).toMatchObject({
+      kind: 'pr',
+      number: 148,
+      title: 'Export invoices as CSV',
+      href: 'https://github.com/acme/app/pull/148',
+    });
+  });
+
+  it('with several linked PRs it takes the highest-numbered one', () => {
+    const out = withLinked([linked('pr', 150), linked('pr', 148)]);
+    expect(out.pullRequest?.ticket.number).toBe(150);
+  });
+
+  it('gives no link for a PR url that is not http(s)', () => {
+    const out = withLinked([linked('pr', 148, { url: 'javascript:alert(1)' })]);
+    expect(out.pullRequest?.ticket.href).toBe('');
   });
 });
 

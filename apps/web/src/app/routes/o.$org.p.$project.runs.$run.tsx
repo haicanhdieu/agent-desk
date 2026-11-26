@@ -75,7 +75,9 @@ function RunDetailRoute() {
     runsQueries.list(org, projectId, { filter: 'all', ticket: dto.ticket.ref, ...WHOLE_SET }),
   );
   // The PR's live state: a separate, non-blocking request in the component (never the loader); neutral until it lands.
-  const prStates = usePrStates(org, projectId, prRefsOf([dto.ticket]));
+  // The ticket's linked tickets come with this run's entry in the list; their PRs are asked for too.
+  const linkedTickets = ticketRuns.items.find((r) => r.id === dto.id)?.linkedTickets ?? [];
+  const prStates = usePrStates(org, projectId, prRefsOf([dto.ticket, ...linkedTickets]));
   // Live status and log while the run is not final (spec §5.1).
   const stream = useRunEvents(org, projectId, number, dto.id, !final);
   // Turned final while open: the run and its log (the final scrollback) reload.
@@ -126,11 +128,19 @@ function RunDetailRoute() {
   const mayUpdate = access !== undefined && can(access, 'run:update', runTarget);
   const mayCancel = access !== undefined && can(access, 'run:cancel', runTarget);
   const mapped = withDetailPrStates(
-    toRunDetail(dto, events, page.dto, ticketRuns.items, now, {
-      runs: paths.runs,
-      ...(page.desk.agent && { agent: paths.agent }),
-      ...(page.desk.setup && { setup: paths.setup }),
-    }),
+    toRunDetail(
+      dto,
+      events,
+      page.dto,
+      ticketRuns.items,
+      now,
+      {
+        runs: paths.runs,
+        ...(page.desk.agent && { agent: paths.agent }),
+        ...(page.desk.setup && { setup: paths.setup }),
+      },
+      linkedTickets,
+    ),
     prStates,
   );
   // No pod (final, or paused): the terminal bar says so and the saved Transcript, or else the stored scrollback, shows.
