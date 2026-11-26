@@ -34,16 +34,16 @@ The PoC proves one loop end to end: a GitHub issue goes from "written" to "merge
 
 The initial idea used "desk" for a team of agents. This spec narrows the vocabulary to seven terms; "Desk" becomes the configuration area of a project.
 
-| Concept      | Definition                                                                              | PoC implementation                                                            |
-| ------------ | --------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
-| Project      | Top-level container owned by a user. Holds one workspace, one board, agents, and rules. | One project = one GitHub repo                                                 |
-| Desk         | The admin area of a project where the user configures everything below.                 | Web UI pages                                                                  |
-| Workspace    | The code, document, and skill base an agent is launched in.                             | The GitHub repo, cloned per run                                               |
-| Board        | Where tickets live and where agents report.                                             | GitHub Issues and pull requests of the same repo                              |
+| Concept      | Definition                                                                              | PoC implementation                                                                                |
+| ------------ | --------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| Project      | Top-level container owned by a user. Holds one workspace, one board, agents, and rules. | One project = one GitHub repo                                                                     |
+| Desk         | The admin area of a project where the user configures everything below.                 | Web UI pages                                                                                      |
+| Workspace    | The code, document, and skill base an agent is launched in.                             | The GitHub repo, cloned per run                                                                   |
+| Board        | Where tickets live and where agents report.                                             | GitHub Issues and pull requests of the same repo                                                  |
 | Skill        | A named, user-written procedure an agent follows.                                       | `<name>/SKILL.md` in the default agent's skill folder (Codex and OpenCode also `.agents/skills/`) |
-| Agent        | A named CLI agent configuration: provider, model, credential. A project has several.    | Claude Code, Codex, OpenCode                                                  |
-| Routing rule | "When a ticket matches X, run skill Y with agent Z."                                    | Slash command in a comment, plus optional label filter                        |
-| Run          | One execution of one skill by one agent for one ticket.                                 | One Kubernetes Job                                                            |
+| Agent        | A named CLI agent configuration: provider, model, credential. A project has several.    | Claude Code, Codex, OpenCode                                                                      |
+| Routing rule | "When a ticket matches X, run skill Y with agent Z."                                    | Slash command in a comment, plus optional label filter                                            |
+| Run          | One execution of one skill by one agent for one ticket.                                 | One Kubernetes Job                                                                                |
 
 Two rules follow from this model:
 
@@ -96,7 +96,7 @@ P0 is required for the PoC demo. P1 is built only if time allows.
 | FR-24                 | Polled comments go through the same rules, authorization, and guards as webhook comments. A comment starts at most one run, even if it is seen by both webhook and polling (for example right after a mode switch).                                                                                           | P0       |
 | FR-25                 | The project shows its connection status: "Polling every 5 min" or "Last event: X (webhook)" when healthy, "No webhooks for 2 days" with a "Switch to polling" action when webhooks go silent, and "Polling failed: reason" (for example token revoked, or rate limited with a retry time) when polling fails. | P0       |
 | **Skills**            |                                                                                                                                                                                                                                                                                                               |          |
-| FR-5                  | List skills found in the repo under the project's default agent folder (`.claude/skills/` for Claude Code only; Codex and OpenCode also `.agents/skills/`); the agent folder wins on a duplicate name.                                                                                                                                | P0       |
+| FR-5                  | List skills found in the repo under the project's default agent folder (`.claude/skills/` for Claude Code only; Codex and OpenCode also `.agents/skills/`); the agent folder wins on a duplicate name.                                                                                                        | P0       |
 | FR-6                  | Create, edit, delete a skill in a web Markdown editor; each save is a commit to the default branch.                                                                                                                                                                                                           | P0       |
 | FR-7                  | Starter templates for `code-build` and `code-review`.                                                                                                                                                                                                                                                         | P1       |
 | **Routing rules**     |                                                                                                                                                                                                                                                                                                               |          |
