@@ -185,6 +185,7 @@ export interface PartialAdd {
   draft: { makeDefault: boolean; authType: CredentialType | null; address: string };
 }
 
+const DUPLICATE_NAME = 'An agent with this name already exists.';
 const TOO_LONG = `Use ${AGENT_NAME_MAX} characters or fewer.`;
 
 /** Zod issues of a request → the pane's field messages (the first issue of a field wins). */
@@ -205,6 +206,8 @@ function fieldsOf(e: unknown): { fields: SaveFieldErrors; form?: string } {
   const problem = fieldErrorsFromProblem(e, AGENT_POINTERS);
   const fields: SaveFieldErrors = {};
   for (const [k, v] of Object.entries(problem.fields)) if (isPaneField(k)) fields[k] = v;
+  // A taken name (409 on /name) reads the same whatever the API's own sentence is.
+  if (e instanceof ApiError && e.status === 409 && fields.name !== undefined) fields.name = DUPLICATE_NAME;
   return { fields, ...(problem.form !== undefined && { form: problem.form }) };
 }
 

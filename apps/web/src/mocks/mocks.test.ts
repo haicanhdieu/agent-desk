@@ -533,6 +533,9 @@ describe('agent configuration fixtures', () => {
     expect(claude && agentStatusView(claude).text).toBe('Needs credential');
     expect(open && agentStatusView(open).text).toBe('No credential');
     expect(open && agentStatusView(open).tone).not.toBe('warn');
+    // Once tested, an agent that runs with no login reads that it has nothing to check (never "Needs credential").
+    const tested = open && { ...open, lastTest: { status: 'unsupported' as const, at: '2026-11-12T09:30:00.000Z' } };
+    expect(tested && agentStatusView(tested).text).toBe('Not checkable');
   });
 
   it('words every agent status per BR-20', () => {

@@ -315,7 +315,7 @@ test.describe('BR-60: links land on the right tab', () => {
     await expect(page).toHaveURL(new RegExp(`[?&]agent=${runAgent.id}(&|$)`));
     const pane = page.getByRole('complementary', { name: 'Edit agent' });
     await expect(pane).toBeVisible();
-    await expect(pane.getByRole('textbox', { name: 'Name' })).toHaveValue(runAgent.name);
+    await expect(pane.getByRole('textbox', { name: 'Name', exact: true })).toHaveValue(runAgent.name);
   });
 
   test('TC-60.7: the navigation link, the project Settings link and the checklist item open Agents', async ({

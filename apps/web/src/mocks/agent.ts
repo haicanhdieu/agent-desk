@@ -45,6 +45,8 @@ const AUTH_LABEL_OPENCODE_NONE = 'No sign-in';
 export function agentStatusView(a: AgentDto): AgentStatusView {
   const cap = AGENT_KIND_CAPABILITIES[a.provider];
   if (!a.credential.set) {
+    // A provider that runs with no login has nothing to check: once tested, the row says so.
+    if (cap.credentialOptional && a.lastTest?.status === 'unsupported') return { tone: 'off', text: 'Not checkable' };
     return cap.credentialOptional ? { tone: 'off', text: 'No credential' } : { tone: 'warn', text: 'Needs credential' };
   }
   switch (a.lastTest?.status) {

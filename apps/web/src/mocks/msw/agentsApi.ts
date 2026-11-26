@@ -153,7 +153,7 @@ export function removeAgent(agent: AgentDto): null {
   return null;
 }
 
-/** The connection check: no credential, OpenCode (no check for it unless it is a key and an endpoint), or the scenario's answer. */
+/** The connection check: no credential, a credentials file (nothing to check), or the scenario's answer. */
 export function testAgent(agent: AgentDto): AgentConnectionDto {
   const answer = (status: AgentConnectionDto['status']): AgentConnectionDto => ({
     status,
@@ -161,10 +161,18 @@ export function testAgent(agent: AgentDto): AgentConnectionDto {
     testedAt: status === 'no_credential' ? null : now(),
   });
   if (!agent.credential.set) {
-    // OpenCode may run with no sign-in at all: nothing to check. Other kinds need a credential.
-    return answer(agent.provider === 'opencode' ? 'unsupported' : 'no_credential');
+    // OpenCode may run with no sign-in at all: nothing to check, and the row keeps that answer. Other kinds need one.
+    const result = answer(AGENT_KIND_CAPABILITIES[agent.provider].credentialOptional ? 'unsupported' : 'no_credential');
+    if (result.status === 'unsupported' && result.testedAt !== null) {
+      agent.lastTest = { status: result.status, at: result.testedAt };
+    }
+    return result;
   }
-  const unsupported = agent.provider === 'opencode' && agent.credential.type === 'auth_json';
+  // A credentials file (Codex or OpenCode) has no way to be checked. A test scenario still bends a Codex file's answer
+  // (the wizard specs pair one with a rejected answer); an OpenCode file always reads as not checkable.
+  const unsupported =
+    agent.credential.type === 'auth_json' &&
+    (agent.provider === 'opencode' || mockDb.state.agentTestScenario === undefined);
   const status = unsupported ? 'unsupported' : (mockDb.state.agentTestScenario ?? 'ok');
   const result = answer(status);
   if (result.status !== 'no_credential' && result.testedAt !== null) {

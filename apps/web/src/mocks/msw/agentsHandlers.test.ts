@@ -254,11 +254,16 @@ describe('agents.test', () => {
 
   it('answers ok for an agent with a credential and records the test on the row', async () => {
     scenarios.agents('perAgentModels');
-    const codex = await byName('Codex');
-    const answer = await run(codex.id);
+    const claude = await byName('Claude - Work');
+    const answer = await run(claude.id);
     expect(answer).toMatchObject({ status: 'ok', message: 'Connected' });
     expect(answer.testedAt).not.toBeNull();
-    expect((await byName('Codex')).lastTest?.status).toBe('ok');
+    expect((await byName('Claude - Work')).lastTest?.status).toBe('ok');
+  });
+
+  it('answers unsupported for a Codex credentials file: there is nothing to check', async () => {
+    scenarios.agents('perAgentModels');
+    expect((await run((await byName('Codex')).id)).status).toBe('unsupported');
   });
 
   it('answers no_credential for an agent with none', async () => {
@@ -271,6 +276,8 @@ describe('agents.test', () => {
   it('answers unsupported for OpenCode with no credential or with a credentials file, ok with an endpoint and key', async () => {
     scenarios.agents('perAgentModels');
     expect((await run((await byName('OpenCode - No sign-in')).id)).status).toBe('unsupported');
+    // The row keeps that answer.
+    expect((await byName('OpenCode - No sign-in')).lastTest?.status).toBe('unsupported');
     expect((await run((await byName('OpenCode - Credentials file')).id)).status).toBe('unsupported');
     expect((await run((await byName('OpenCode - Own endpoint')).id)).status).toBe('ok');
   });
@@ -282,10 +289,10 @@ describe('agents.test', () => {
     ['testUnsupported', 'unsupported'],
   ] as const)('%s answers %s with the contract message and stores it', async (scenario, status) => {
     scenarios.agents(scenario);
-    const codex = await byName('Codex');
-    const answer = await run(codex.id);
+    const claude = await byName('Claude - Personal');
+    const answer = await run(claude.id);
     expect(answer.status).toBe(status);
-    expect((await byName('Codex')).lastTest?.status).toBe(status);
+    expect((await byName('Claude - Personal')).lastTest?.status).toBe(status);
   });
 });
 

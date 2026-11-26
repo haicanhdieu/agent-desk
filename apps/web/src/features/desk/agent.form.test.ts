@@ -424,7 +424,7 @@ describe('useSaveAgent add', () => {
         credential: { type: 'oauth_token', value: secret },
       });
     });
-    expect(result.current.fieldErrors.name).toBe('Another agent in this project has this name.');
+    expect(result.current.fieldErrors.name).toBe('An agent with this name already exists.');
     expect(sent).toEqual(['POST /api/projects/:id/agents']);
     expect(result.current.partial).toBeUndefined();
   });
@@ -509,7 +509,7 @@ describe('useSaveAgent edit', () => {
     await act(async () => {
       await result.current.edit(saved, editValues(saved, { name: 'codex' }));
     });
-    expect(result.current.fieldErrors.name).toBe('Another agent in this project has this name.');
+    expect(result.current.fieldErrors.name).toBe('An agent with this name already exists.');
     scenarios.problem('agents.update', {
       status: 400,
       title: 'Validation failed',
@@ -588,7 +588,7 @@ describe('useDeleteAgent, useSetDefaultAgent and useTestAgent', () => {
 
   it('test returns the status and the fixed message and refreshes the lists', async () => {
     scenarios.agents('testRejected');
-    const target = projectAgents().find((a) => a.name === 'Codex');
+    const target = projectAgents().find((a) => a.name === 'Claude - Personal');
     if (!target) throw new Error('no target');
     const { qc, wrapper } = withClient();
     const keys = recordInvalidations(qc);

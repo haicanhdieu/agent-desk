@@ -166,7 +166,8 @@ export function AgentPane({
   const effectiveModel = (shownModel ?? '').trim();
 
   // Both halves of an endpoint and key go together; each one alone is a message, and nothing is sent.
-  const keyMissing = addressRequired && typedAddress !== '' && secret === '';
+  // A saved credential with an unchanged address is not "missing": the key is only asked for again when it is replaced.
+  const keyMissing = addressRequired && typedAddress !== '' && secret === '' && secretState !== 'saved';
   const endpointMissing = addressRequired && secret !== '' && typedAddress === '';
   const addressOnly = !addressRequired && !saved && typedAddress !== '' && secret === '';
   const liveSecretError = keyMissing

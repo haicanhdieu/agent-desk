@@ -1025,7 +1025,7 @@ describe('desk agent route: agents', () => {
     await user.click(screen.getByRole('checkbox', { name: 'Use as the project default' }));
     await user.click(screen.getByRole('button', { name: 'Save agent' }));
 
-    expect(await screen.findByText('Another agent in this project has this name.')).toBeInTheDocument();
+    expect(await screen.findByText('An agent with this name already exists.')).toBeInTheDocument();
     expect(screen.getByRole('radio', { name: 'API key' })).toBeChecked();
     expect(screen.getByLabelText('API address')).toHaveValue('https://llm.example.com');
     expect(screen.getByLabelText('Model name')).toHaveValue('my-model');
@@ -1054,7 +1054,7 @@ describe('desk agent route: agents', () => {
     await user.type(screen.getByLabelText('Name'), 'codex');
     await user.type(screen.getByLabelText('Account label'), 'Mine');
     await user.click(screen.getByRole('button', { name: 'Save agent' }));
-    expect(await screen.findByText('Another agent in this project has this name.')).toBeInTheDocument();
+    expect(await screen.findByText('An agent with this name already exists.')).toBeInTheDocument();
     expect(screen.getByLabelText('Name')).toHaveAttribute('aria-invalid', 'true');
     expect(screen.getByLabelText('Account label')).toHaveValue('Mine');
   });

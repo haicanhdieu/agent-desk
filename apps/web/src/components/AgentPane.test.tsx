@@ -448,6 +448,14 @@ describe('AgentPane edit', () => {
     );
   });
 
+  it('BR-17: an OpenCode endpoint agent with its credential saved can be edited (name, model) without the key again', async () => {
+    const { onSubmit } = setup({ mode: 'edit', agent: agent('OpenCode - Own endpoint') });
+    await userEvent.clear(screen.getByLabelText('Name'));
+    await type('Name', 'OpenCode - Renamed');
+    await userEvent.click(screen.getByRole('button', { name: 'Save agent' }));
+    expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({ name: 'OpenCode - Renamed', credential: null }));
+  });
+
   it('BR-68: an OpenCode agent with no credential shows No credential and the entering fields', () => {
     setup({ mode: 'edit', agent: agent('OpenCode - No sign-in') });
     expect(screen.getByText('No credential')).toBeInTheDocument();
