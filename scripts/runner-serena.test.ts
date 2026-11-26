@@ -351,6 +351,7 @@ describe('runner-serena.sh', () => {
     const settings = (): unknown => JSON.parse(readFileSync(localFile, 'utf8'));
     const cmd = (n: string): string => `'${join(dir, '.local', 'bin', 'serena-hooks')}' ${n} --client=claude-code`;
     const entry = (command: string) => ({ type: 'command', command });
+    const toolEnv = { ENABLE_TOOL_SEARCH: 'false' };
     const group = (matcher: string, n: string) => ({ matcher, hooks: [entry(cmd(n))] });
     const expected = () => ({
       PreToolUse: [group('', 'remind'), group('mcp__serena__*', 'auto-approve')],
@@ -370,8 +371,8 @@ describe('runner-serena.sh', () => {
     it('writes the four Serena hooks to settings.local.json', () => {
       const r = run();
       expect([r.status, r.err]).toEqual([0, '']);
-      expect(r.out).toContain('==> runner-serena: hooks (.claude/settings.local.json)');
-      expect(settings()).toEqual({ hooks: expected() });
+      expect(r.out).toContain('==> runner-serena: hooks and tool loading (.claude/settings.local.json)');
+      expect(settings()).toEqual({ hooks: expected(), env: toolEnv });
       expect(readFileSync(localFile, 'utf8')).toBe(`${JSON.stringify(settings(), null, 2)}\n`);
     });
 
@@ -390,6 +391,7 @@ describe('runner-serena.sh', () => {
       expect(run().status).toBe(0);
       expect(settings()).toEqual({
         model: 'x',
+        env: toolEnv,
         hooks: { ...expected(), Stop: stop, PreToolUse: [mine, ...expected().PreToolUse] },
       });
     });
@@ -406,10 +408,22 @@ describe('runner-serena.sh', () => {
     it('treats an empty settings.local.json as {}', () => {
       writeClaudeFile(localFile, '  \n');
       expect(run().status).toBe(0);
-      expect(settings()).toEqual({ hooks: expected() });
+      expect(settings()).toEqual({ hooks: expected(), env: toolEnv });
     });
 
-    it.each(['{oops', '[]', '{"hooks":[]}', '{"hooks":{"PreToolUse":{}}}'])(
+    it('turns off tool search so the Serena tools load up front, keeping other env values', () => {
+      writeClaudeFile(localFile, JSON.stringify({ env: { MINE: '1' } }));
+      expect(run().status).toBe(0);
+      expect(settings()).toMatchObject({ env: { MINE: '1', ...toolEnv } });
+    });
+
+    it('keeps an ENABLE_TOOL_SEARCH value someone set by hand', () => {
+      writeClaudeFile(localFile, JSON.stringify({ env: { ENABLE_TOOL_SEARCH: 'auto' } }));
+      expect(run().status).toBe(0);
+      expect(settings()).toMatchObject({ env: { ENABLE_TOOL_SEARCH: 'auto' } });
+    });
+
+    it.each(['{oops', '[]', '{"hooks":[]}', '{"hooks":{"PreToolUse":{}}}', '{"env":[]}'])(
       'fails and leaves the file untouched: %s',
       (text) => {
         writeClaudeFile(localFile, text);
