@@ -77,6 +77,33 @@ describe('run detail route', () => {
     ).toHaveAttribute('href', `${base}/runs`);
   });
 
+  describe('Pull request section', () => {
+    const section = () => {
+      const s = screen.getByText('Pull request').closest('section');
+      if (!s) throw new Error('no Pull request section');
+      return s;
+    };
+
+    it('an ended run whose ticket has a linked PR shows that PR with its title and link', async () => {
+      await renderRoute(`${base}/runs/60`);
+      await screen.findByRole('complementary', { name: 'Run context' });
+      const pr = await waitFor(section);
+      expect(within(pr).getByText('PR #148')).toBeInTheDocument();
+      expect(within(pr).getByText(/^Export invoices as CSV/)).toBeInTheDocument();
+      expect(within(pr).getByRole('link', { name: /Open in GitHub/ })).toHaveAttribute(
+        'href',
+        'https://github.com/harbor-labs/invoicer-api/pull/148',
+      );
+    });
+
+    it('a ticket with no linked PR shows no Pull request section', async () => {
+      await renderRoute(`${base}/runs/61`);
+      await screen.findByRole('complementary', { name: 'Run context' });
+      expect(screen.queryByText('Pull request')).not.toBeInTheDocument();
+      expect(screen.queryByText(/None yet/)).not.toBeInTheDocument();
+    });
+  });
+
   describe('the run bar (BR-46, BR-47)', () => {
     const orgButton = () => within(banner()).getByRole('button', { name: /^Switch scope/ });
 

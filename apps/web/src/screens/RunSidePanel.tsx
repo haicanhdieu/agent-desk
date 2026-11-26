@@ -54,13 +54,6 @@ export function RunSidePanel({ data, collapsed, onExpand, links, maxRunsPerTicke
       <TicketSummary ticket={pr.ticket} diffstat={pr.diffstat} />
     </Section>
   ) : null;
-  const prNone = (
-    <Section title="Pull request">
-      <Note tone="faint" size={13}>
-        None yet. A link appears here when the agent opens one.
-      </Note>
-    </Section>
-  );
 
   const kv = [
     {
@@ -179,7 +172,6 @@ export function RunSidePanel({ data, collapsed, onExpand, links, maxRunsPerTicke
       <Section title="Chain on this ticket" aside={<span className="faint num">max {maxRunsPerTicket} runs</span>}>
         <ChainTimeline steps={data.chain} />
       </Section>
-      {active && prNone}
       {run.status === 'running' && data.lifecycle && (
         <Section title="Lifecycle">
           <EventLog events={data.lifecycle} />

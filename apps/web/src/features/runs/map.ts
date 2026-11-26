@@ -160,6 +160,17 @@ export function ticketRunCounts(items: RunListItem[]): Map<string, number> {
   return used;
 }
 
+/** A linked ticket as the screens show a ticket; labels and link are cleaned like a run's own ticket. */
+export function linkedTicketOf(entry: LinkedTicketDto): Ticket {
+  return {
+    kind: entry.kind,
+    number: entry.number,
+    title: entry.title,
+    labels: entry.labels.map((l) => ({ name: l.name, color: labelColor(l.color) })),
+    href: safeHref(entry.url),
+  };
+}
+
 /** Each listed run's linked tickets, by run number. */
 export function linkedTicketsByRun(items: RunListItem[]): Map<number, LinkedTicketDto[]> {
   return new Map(items.map((r) => [r.number, r.linkedTickets]));
@@ -212,15 +223,7 @@ export function groupByTicket(
     const entries = sorted.flatMap((r) => linked?.get(r.id) ?? []);
     const leadRun = sorted.find((r) => ticketKey(r.ticket) === key);
     const leadEntry = entries.find((e) => ticketKey(e) === key);
-    const ticket: Ticket | undefined =
-      leadRun?.ticket ??
-      (leadEntry && {
-        kind: leadEntry.kind,
-        number: leadEntry.number,
-        title: leadEntry.title,
-        labels: leadEntry.labels.map((l) => ({ name: l.name, color: labelColor(l.color) })),
-        href: safeHref(leadEntry.url),
-      });
+    const ticket: Ticket | undefined = leadRun?.ticket ?? (leadEntry && linkedTicketOf(leadEntry));
     // A group is keyed by its lead: a run's own ticket or the lead entry its snapshot carries.
     if (!ticket) throw new Error(`group ${key} has no lead ticket`);
     const leadRows = sorted.filter((r) => ticketKey(r.ticket) === key).length;
