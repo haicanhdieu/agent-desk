@@ -24,3 +24,10 @@ agent_endpoint() {
     } catch {}
   ' 2> /dev/null || true
 }
+
+# The model for the launch line: with the inline provider config the adapter prefixes the model with the provider id
+# (agentdesk/<model>) for the CLI; the line shows the model the person chose.
+agent_launch_model() {
+  local model="${AGENT_MODEL-}"
+  if [ -n "${OPENCODE_CONFIG_CONTENT-}" ]; then printf '%s' "${model#agentdesk/}"; else printf '%s' "$model"; fi
+}

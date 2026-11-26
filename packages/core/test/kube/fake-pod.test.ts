@@ -261,9 +261,7 @@ describe('fake-pod.mjs', () => {
           OPENCODE_CONFIG_CONTENT: inline('https://llm.example.com:8443/v1/path?x=1'),
           AGENTDESK_LLM_API_KEY: 'sk-canary-own-endpoint-key',
         });
-        expect(logLines()[0]).toBe(
-          'agentdesk: agent opencode model agentdesk/m1 endpoint https://llm.example.com:8443',
-        );
+        expect(logLines()[0]).toBe('agentdesk: agent opencode model m1 endpoint https://llm.example.com:8443');
         expect(read('log')).not.toContain('sk-canary-own-endpoint-key');
       });
 

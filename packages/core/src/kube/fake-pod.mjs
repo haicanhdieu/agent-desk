@@ -151,7 +151,13 @@ if (!Object.hasOwn(ENDPOINT_OF, agentKind)) {
   process.exit(2);
 }
 const launchLine = () => {
-  const model = process.env.AGENT_MODEL || 'default';
+  // Like the runner's agent_launch_model for OpenCode: the inline provider's agentdesk/ prefix is not shown.
+  const raw = process.env.AGENT_MODEL ?? '';
+  const shown =
+    agentKind === 'opencode' && (process.env.OPENCODE_CONFIG_CONTENT ?? '') !== ''
+      ? raw.replace(/^agentdesk\//, '')
+      : raw;
+  const model = shown || 'default';
   const endpoint = launchEndpoint(ENDPOINT_OF[agentKind]());
   log(
     `agentdesk: agent ${agentKind} model ${model.replace(LAUNCH_SAFE, '?')} endpoint ${endpoint.replace(LAUNCH_SAFE, '?')}`,

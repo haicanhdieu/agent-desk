@@ -45,6 +45,10 @@ esac
 # exact shape (userinfo, odd scheme, empty host) prints as default, so no credential reaches the log.
 if [ "${RUN_MODE:-}" != setup_test ]; then
   launch_model="${AGENT_MODEL:-default}"
+  # A kind's commands.sh may define agent_launch_model (prints the model as the person chose it, without a prefix the
+  # runner adds for its own use).
+  if declare -F agent_launch_model > /dev/null; then launch_model="$(agent_launch_model)"; fi
+  [ -n "$launch_model" ] || launch_model=default
   launch_endpoint=default
   # A kind's commands.sh may define agent_endpoint (prints the address); otherwise AGENT_ENDPOINT_URL names it.
   endpoint_url="${AGENT_ENDPOINT_URL:-}"

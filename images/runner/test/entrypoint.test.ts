@@ -1067,6 +1067,32 @@ describe('entrypoint kind-driven agent files (BR-52, BR-68)', () => {
     expect(lines).toEqual(['agentdesk: agent codex model gpt-x endpoint https://llm.example.com:8443']);
   });
 
+  it('opencode with an own endpoint prints the model without the inline provider prefix, and the key never (TC-52.4)', async () => {
+    const real = readFileSync(join(root, 'agents', 'opencode', 'commands.sh'), 'utf8');
+    const lib = kindLib({
+      opencode: {
+        'commands.sh': `${real}\nAGENT_START_CMD='exec stub-agent'\nAGENT_RESUME_CMD='exec stub-agent --resume'\n`,
+      },
+    });
+    const config = JSON.stringify({
+      provider: { agentdesk: { options: { baseURL: 'https://llm.example.com/v1' }, env: ['AGENTDESK_LLM_API_KEY'] } },
+    });
+    const r = await runEntrypoint(
+      {
+        AGENT: 'opencode',
+        AGENT_MODEL: 'agentdesk/gpt-4.1',
+        OPENCODE_CONFIG_CONTENT: config,
+        AGENTDESK_LLM_API_KEY: 'sk-canary-launch-line',
+        AGENTDESK_LIB_DIR: lib,
+      },
+      {},
+    );
+    expect(r.stdout.filter((l) => l.startsWith('agentdesk: agent '))).toEqual([
+      'agentdesk: agent opencode model gpt-4.1 endpoint https://llm.example.com',
+    ]);
+    expect(r.stdout.join('\n')).not.toContain('sk-canary-launch-line');
+  });
+
   it('agent_endpoint output that is not a plain origin (userinfo) prints as default', async () => {
     const lib = kindLib({
       codex: { 'commands.sh': stubCommands('agent_endpoint() { printf "%s" "https://user:pw@llm.example.com"; }\n') },

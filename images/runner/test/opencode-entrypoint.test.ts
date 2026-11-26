@@ -244,9 +244,22 @@ describe('opencode entrypoint', () => {
       const r = await runEntrypoint(env(newHome()), {});
       expect(r.exitCode).toBe(0);
       expect(r.stdout[0]).toBe(
-        'agentdesk: agent opencode model agentdesk/??touch?PWNED? endpoint https://llm.example.invalid:8443',
+        'agentdesk: agent opencode model ??touch?PWNED? endpoint https://llm.example.invalid:8443',
       );
       expect(imports(r)).toEqual([]);
+    });
+
+    it('with no model prints model default and still starts the agent (unset AGENT_MODEL)', async () => {
+      const { AGENT_MODEL: _unset, ...rest } = env(newHome());
+      const r = await runEntrypoint(rest, {});
+      expect(r.exitCode).toBe(0);
+      expect(r.stdout[0]).toBe('agentdesk: agent opencode model default endpoint https://llm.example.invalid:8443');
+    });
+
+    it('strips the agentdesk/ prefix from a plain model in the launch line', async () => {
+      const r = await runEntrypoint({ ...env(newHome()), AGENT_MODEL: 'agentdesk/x' }, {});
+      expect(r.exitCode).toBe(0);
+      expect(r.stdout[0]).toBe('agentdesk: agent opencode model x endpoint https://llm.example.invalid:8443');
     });
 
     it('hands the key and the inline config to the CLI; hostile values reach no shell; the key is in no line', async () => {
