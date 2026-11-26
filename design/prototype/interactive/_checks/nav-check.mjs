@@ -296,7 +296,7 @@ for (const persona of ['mira-chen', 'theo-brandt']) {
   const p = await fresh();
   await login(p, 'kim-hale');
   const names = await p.evaluate(() => Object.keys(AD.B));
-  const NONE = new Set(['Main', 'SignIn', 'SignInNoInvitation', 'Pagination', 'RunTranscriptStates']);
+  const NONE = new Set(['Main', 'SignIn', 'SignInNoInvitation', 'SignInPhone', 'SignInProofOfConcept', 'Pagination', 'RunTranscriptStates']);
   const bad = [];
   for (const n of names) {
     const r = await p.evaluate((n) => AD.boardRoute(n), n);
