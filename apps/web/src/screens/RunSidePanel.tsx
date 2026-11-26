@@ -169,7 +169,10 @@ export function RunSidePanel({ data, collapsed, onExpand, links, maxRunsPerTicke
           initialModelsOpen={!data.usageModelsCollapsed}
         />
       )}
-      <Section title="Chain on this ticket" aside={<span className="faint num">max {maxRunsPerTicket} runs</span>}>
+      <Section
+        title="Chain on this ticket"
+        aside={maxRunsPerTicket > 0 ? <span className="faint num">max {maxRunsPerTicket} runs</span> : undefined}
+      >
         <ChainTimeline steps={data.chain} />
       </Section>
       {run.status === 'running' && data.lifecycle && (
