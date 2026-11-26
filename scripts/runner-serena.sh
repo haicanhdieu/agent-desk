@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Opt-in Serena (semantic code tools) for the Agent Desk runner pod. Called by scripts/runner-setup.sh with
-# cwd = repo root; does nothing unless RUNNER_ENABLE_SERENA=1 (unset or 0 = off). Everything lands under $HOME.
+# cwd = repo root; does nothing unless RUNNER_ENABLE_SERENA=1 (unset or 0 = off). Installs land under $HOME; in the
+# repo it writes only Serena's Claude Code hooks (.claude/settings.local.json) and the .serena/ git exclude.
 # Idempotent: finished steps are skipped. Linux only, and only when the `claude` CLI is on PATH.
 set -euo pipefail
 
@@ -106,6 +107,68 @@ if [ "$registered" = 0 ]; then
     exit 1
   fi
 fi
+
+step "hooks (.claude/settings.local.json)"
+# Absolute path for the same reason as above; Claude Code runs each hook command through a shell, so it is quoted.
+hooks_bin="$(uv tool dir --bin)/serena-hooks"
+if [ ! -x "$hooks_bin" ]; then
+  echo "runner-serena: serena-hooks not found at $hooks_bin" >&2
+  echo "runner-serena: A plain rerun does not repair it. Reinstall with \`uv tool install --reinstall --python $UV_PYTHON serena-agent==$SERENA_VERSION\`, or bump the pin" >&2
+  exit 1
+fi
+node - "$PWD/.claude/settings.local.json" "$hooks_bin" <<'JS'
+const fs = require('node:fs');
+const path = require('node:path');
+const [file, bin] = process.argv.slice(2);
+const wanted = [
+  ['PreToolUse', '', 'remind'],
+  ['PreToolUse', 'mcp__serena__*', 'auto-approve'],
+  ['SessionStart', '', 'activate'],
+  ['SessionEnd', '', 'cleanup'],
+];
+const isObject = (v) => typeof v === 'object' && v !== null && !Array.isArray(v);
+const fail = (reason) => {
+  console.error(`runner-serena: .claude/settings.local.json is not valid, left unchanged: ${reason}`);
+  process.exit(1);
+};
+
+const text = fs.existsSync(file) ? fs.readFileSync(file, 'utf8') : '';
+let settings = {};
+try {
+  if (text.trim() !== '') settings = JSON.parse(text);
+} catch (e) {
+  fail(e.message);
+}
+if (!isObject(settings)) fail('the top level is not an object');
+const hooks = settings.hooks === undefined ? {} : settings.hooks;
+if (!isObject(hooks)) fail('"hooks" is not an object');
+for (const [event] of wanted) {
+  if (hooks[event] !== undefined && !Array.isArray(hooks[event])) fail(`"hooks.${event}" is not an array`);
+}
+
+const quoted = `'${bin.replaceAll("'", `'\\''`)}'`;
+for (const [event, matcher, name] of wanted) {
+  // An earlier entry for this hook, at this or an older path.
+  const ours = (h) =>
+    typeof h?.command === 'string' &&
+    h.command.includes('serena-hooks') &&
+    h.command.endsWith(` ${name} --client=claude-code`);
+  const groups = (hooks[event] ?? []).flatMap((group) => {
+    if (!Array.isArray(group?.hooks)) return [group];
+    const kept = group.hooks.filter((h) => !ours(h));
+    if (kept.length === group.hooks.length) return [group];
+    return kept.length === 0 ? [] : [{ ...group, hooks: kept }];
+  });
+  groups.push({ matcher, hooks: [{ type: 'command', command: `${quoted} ${name} --client=claude-code` }] });
+  hooks[event] = groups;
+}
+settings.hooks = hooks;
+
+fs.mkdirSync(path.dirname(file), { recursive: true });
+const tmp = `${file}.${process.pid}.tmp`;
+fs.writeFileSync(tmp, `${JSON.stringify(settings, null, 2)}\n`);
+fs.renameSync(tmp, file);
+JS
 
 step "keep .serena/ out of git"
 if exclude="$(git rev-parse --git-path info/exclude 2>/dev/null)"; then
