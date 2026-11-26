@@ -514,6 +514,7 @@ test.describe('BR-31, BR-54: a run keeps the agent name', () => {
     await page.goto(`/o/${handle}/p/${projectId}/runs`);
     await expect(page.getByRole('heading', { name: 'Runs', level: 1 })).toBeVisible();
     await expect(page.getByRole('link', { name: `Run ${listed?.number}`, exact: true })).toBeVisible();
+    await expect(page.getByText('Claude - Work · haiku', { exact: true })).toBeVisible();
     await expectRunDetailAgent(page, handle, projectId, runId, 'Claude - Work', 'haiku');
   });
 
@@ -525,6 +526,8 @@ test.describe('BR-31, BR-54: a run keeps the agent name', () => {
     expect(listed?.agent.name).toBe('Claude - Home');
     await page.goto(`/o/${handle}/p/${projectId}/runs`);
     await expect(page.getByRole('link', { name: `Run ${listed?.number}`, exact: true })).toBeVisible();
+    await expect(page.getByText('Claude - Home · haiku', { exact: true })).toBeVisible();
+    await expect(page.getByText('Claude - Work')).toHaveCount(0);
     await expectRunDetailAgent(page, handle, projectId, runId, 'Claude - Home');
     await expect(page.locator('dd', { hasText: 'Claude - Work' })).toHaveCount(0);
   });

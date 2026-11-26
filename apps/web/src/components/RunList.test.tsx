@@ -90,6 +90,13 @@ describe('RunRow', () => {
   });
 });
 
+describe('RunRow agent', () => {
+  it('shows the agent name and model the run was queued with', () => {
+    inTable(<RunRow run={{ ...run, agent: 'Claude - Work', model: 'opus-4' }} tree="none" href="/r" />);
+    expect(screen.getByText('Claude - Work · opus-4')).toBeInTheDocument();
+  });
+});
+
 describe('RunRow routing rule', () => {
   it('shows the run command in the rule cell', () => {
     inTable(<RunRow run={run} tree="last" href="/r" />);
