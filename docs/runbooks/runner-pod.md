@@ -101,26 +101,36 @@ RUNNER_ENABLE_SERENA=1 RUNNER_SETUP_PROFILE=minimal bash scripts/runner-setup.sh
 
 Valid values are unset, `0` and `1`; anything else stops setup with exit 64. The work is done by `scripts/runner-serena.sh`, which only runs on Linux and only when the `claude` CLI is on `PATH` (otherwise it prints a message and skips).
 
-What gets installed, all under `$HOME` as the runner user:
+What setup installs and writes, as the runner user:
 
-| Where                          | What                                                                                                   |
-| ------------------------------ | ------------------------------------------------------------------------------------------------------ |
-| `~/.local/bin`                 | `uv` 0.9.28 (sha256-checked release) and the `serena` command (registered by absolute path)            |
-| `~/.local/share/uv`            | the Serena tool environment (`serena-agent` 2.1.0, with a uv-provided Python 3.12)                     |
-| `~/.serena`                    | Serena's own config and caches, created on first use                                                   |
-| `~/.claude.json` (local scope) | the `serena` MCP server entry for this checkout, with `--agent-interface tools` and `--project <repo>` |
-| `<repo>/.serena`               | Serena's project data; the script adds it to `.git/info/exclude` so it is never committed              |
+| Where                                | What                                                                                                                                                  |
+| ------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `~/.local/bin`                       | `uv` 0.9.28 (sha256-checked release) and the `serena` command (registered by absolute path)                                                           |
+| `~/.local/share/uv`                  | the Serena tool environment (`serena-agent` 2.1.0, with a uv-provided Python 3.12)                                                                    |
+| `~/.serena`                          | Serena's own config and caches, created on first use                                                                                                  |
+| `~/.claude.json` (local scope)       | the `serena` MCP server entry for this checkout, with `--agent-interface tools` and `--project <repo>`                                                |
+| `<repo>/.serena`                     | Serena's project data, with the `typescript` language server set in `project.yml`; the script adds it to `.git/info/exclude` so it is never committed |
+| `<repo>/.claude/settings.local.json` | Serena's four Claude Code hooks, merged into the file (already in this repo's `.gitignore`)                                                           |
 
 Things to know:
 
 - Serena line numbers are 0-based. Claude Code's own file tools are 1-based.
-- The first use of a language downloads that language's server, so the pod needs network access then. Nothing is prefetched at setup.
-- Check it: `uv tool list` shows `serena-agent v2.1.0`, and `claude mcp get serena` shows `Command:` (the absolute path of `serena`, because the agent's `PATH` has no `~/.local/bin`) and the `Args:` line with `--project <repo>`.
+- The first use of a language downloads that language's server, so the pod needs network access then. Nothing is prefetched at setup. The first symbol query on a fresh pod is slow (about 1 to 2 minutes in a measured run) while the server starts and indexes.
+- Without a language server in `.serena/project.yml` (`language_servers: []`) every symbol query returns `[]` and the agent falls back to grep. Setup sets `typescript`; it fills in an empty list but keeps one set by hand.
+- Check it: `uv tool list` shows `serena-agent v2.1.0`, and `claude mcp get serena` shows `Command:` (the absolute path of `serena`, because the agent's `PATH` has no `~/.local/bin`) and the `Args:` line with `--project <repo>`. For the hooks, `grep -c serena-hooks .claude/settings.local.json` prints 4 (if you added no other lines that mention `serena-hooks`).
 - When it takes effect: Claude Code reads its MCP servers when it starts. On a fresh pod it works when setup runs as the project's `SETUP_SCRIPT` (before Claude starts). If you run setup in a live session, Serena appears after the next resume or restart.
 - Time: setup is capped by `SETUP_TIMEOUT_SECONDS` (default 600). The uv and Python download alone measured 66 to 112 seconds, so keep headroom with the other profile steps. A rerun is cheap but not free: `claude mcp get` health-checks the server, which starts it once per rerun.
 - Failure is fail-closed: if Serena setup fails (download, sha256 mismatch, `claude mcp add`), `runner-setup.sh` stops with that error under `set -e`, so a pod that opted in never looks ready without Serena. Fix the cause and rerun, or unset the flag.
-- Lifecycle: everything lives on the pod's volume, so it survives a resume. A recreated volume starts empty: rerun setup with the flag. Rerunning does nothing when it is already at the pinned version and registered for this checkout.
+- Lifecycle: everything lives on the pod's volume, so it survives a resume. A recreated volume starts empty: rerun setup with the flag. Rerunning does not reinstall or re-register when Serena is already at the pinned version and registered for this checkout, but every run still rewrites `.claude/settings.local.json` (re-formatted as 2-space JSON).
 - Upgrade: bump `SERENA_VERSION` (and `UV_VERSION` plus both sha256 values if uv moves) in `scripts/runner-serena.sh`, then rerun setup. A changed pin reinstalls.
+- Hooks: setup adds the four hooks from [Serena's Claude Code setup](https://oraios.github.io/serena/02-usage/030_clients.html), to get the agent to use Serena. Each calls `serena-hooks` by its quoted absolute path:
+  - `remind` (`PreToolUse`, every tool) nudges the agent to use Serena after repeated searches or code reads, shell ones included. It denies one tool call, then waits at least 2 minutes before it can deny again.
+  - `auto-approve` (`PreToolUse`, `mcp__serena__*`) approves Serena's tools in `acceptEdits` or `auto` mode. Runs use `bypassPermissions`, so it has no effect there.
+  - `activate` (`SessionStart`) prompts the agent to activate the project and read Serena's instructions.
+  - `cleanup` (`SessionEnd`) removes the session's hook data.
+- Serena calls the hooks alpha.
+- Setup never edits `.claude/settings.json`. In `settings.local.json` it keeps your other settings and hooks, a rerun adds no duplicates, and a Serena hook with an old path is replaced. An empty or whitespace-only file counts as `{}`. If the file is not a JSON object, or its `hooks` section is malformed, setup stops and leaves the file untouched.
+- Remove the hooks by deleting the `serena-hooks` entries from `.claude/settings.local.json`. Turning the flag off does not remove them. Like the MCP server, they apply when Claude Code starts.
 - The script does not edit `CLAUDE.md` or `AGENTS.md`. A project that opts in can add this to its own file:
 
 ```md

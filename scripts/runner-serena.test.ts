@@ -44,17 +44,26 @@ const SYSTEM_TOOLS = [
   'shasum',
   'chmod',
   'bash',
+  'node',
+  'mv',
 ];
 const which = (tool: string): string =>
   spawnSync('bash', ['-c', `command -v ${tool}`], { encoding: 'utf8' }).stdout.trim();
 const BASH = which('bash');
+
+// The fake serena: logs its calls, and `project create <path> --language <l>` writes <path>/.serena/project.yml.
+const FAKE_SERENA = [
+  '#!/bin/sh',
+  'echo "serena $*" >> "$LOG"',
+  'if [ "$1 $2" = "project create" ]; then mkdir -p "$3/.serena"; echo "language_servers: [$5]" > "$3/.serena/project.yml"; fi',
+].join('\n');
 
 function stub(name: string, body: string, where = bin): void {
   writeFileSync(join(where, name), `#!/bin/sh\n${body}\n`);
   chmodSync(join(where, name), 0o755);
 }
 
-// A uv release tarball holding a fake uv (reports the pin; `tool install` drops a fake serena) and uvx.
+// A uv release tarball holding a fake uv (reports the pin; `tool install` drops a fake serena and serena-hooks) and uvx.
 function buildUvTarball(): string {
   const name = 'uv-x86_64-unknown-linux-gnu';
   const root = join(dir, 'tarball');
@@ -64,7 +73,7 @@ function buildUvTarball(): string {
     'echo "uv $*" >> "$LOG"',
     'case "$1" in',
     '  --version) echo "uv 0.9.28 (abc1234 2026-01-29)" ;;',
-    '  tool) if [ "$2" = dir ]; then echo "$HOME/.local/bin"; exit 0; fi; if [ "$2" = list ]; then [ -f "$HOME/.local/bin/serena" ] && echo "serena-agent v2.1.0"; exit 0; fi; printf "#!/bin/sh\\necho Serena 2.1.0\\n" > "$HOME/.local/bin/serena"; chmod +x "$HOME/.local/bin/serena" ;;',
+    '  tool) if [ "$2" = dir ]; then echo "$HOME/.local/bin"; exit 0; fi; if [ "$2" = list ]; then [ -f "$HOME/.local/bin/serena" ] && echo "serena-agent v2.1.0"; exit 0; fi; cp "$FAKE_SERENA_FILE" "$HOME/.local/bin/serena"; chmod +x "$HOME/.local/bin/serena"; cp "$HOME/.local/bin/serena" "$HOME/.local/bin/serena-hooks" ;;',
     'esac',
   ].join('\n');
   writeFileSync(join(root, name, 'uv'), `${uv}\n`);
@@ -87,6 +96,7 @@ beforeEach(() => {
   serenaBin = join(dir, '.local', 'bin', 'serena');
   for (const d of [repo, bin, sys, state, join(dir, '.local', 'bin')]) mkdirSync(d, { recursive: true });
   writeFileSync(log, '');
+  writeFileSync(join(dir, 'fake-serena'), `${FAKE_SERENA}\n`);
   for (const tool of SYSTEM_TOOLS) if (which(tool) !== '') symlinkSync(which(tool), join(sys, tool));
   spawnSync('git', ['init', '-q', repo]);
   stub('uname', 'if [ "$1" = -m ]; then echo x86_64; else echo Linux; fi');
@@ -128,6 +138,7 @@ function run(env: Record<string, string | undefined> = { RUNNER_ENABLE_SERENA: '
     LOG: log,
     STATE: state,
     SERVE: join(dir, 'uv.tar.gz'),
+    FAKE_SERENA_FILE: join(dir, 'fake-serena'),
     FAKE_SHA: pinnedSha(),
   };
   for (const [k, v] of Object.entries(env)) {
@@ -156,6 +167,7 @@ describe('runner-serena.sh', () => {
     expect(r.out + r.err).toBe('');
     expect(calls()).toEqual([]);
     expect(existsSync(join(dir, '.local', 'bin', 'uv'))).toBe(false);
+    expect(existsSync(join(repo, '.claude'))).toBe(false);
   });
 
   it('rejects an invalid RUNNER_ENABLE_SERENA with exit 64', () => {
@@ -226,6 +238,8 @@ describe('runner-serena.sh', () => {
       ].join('\n'),
       join(dir, '.local', 'bin'),
     );
+    stub('serena-hooks', 'exit 0', join(dir, '.local', 'bin'));
+    stub('serena', FAKE_SERENA.split('\n').slice(1).join('\n'), join(dir, '.local', 'bin'));
   }
 
   it('downloads uv again when the installed uv is not the pin', () => {
@@ -274,6 +288,45 @@ describe('runner-serena.sh', () => {
     expect(calls()).toEqual([]);
   });
 
+  describe('language server', () => {
+    const projectYml = (): string => join(repo, '.serena', 'project.yml');
+    const createCall = (): string => `serena project create ${repo} --language typescript`;
+
+    it('creates the Serena project with the typescript language server', () => {
+      const r = run();
+      expect([r.status, r.err]).toEqual([0, '']);
+      expect(calls()).toContain(createCall());
+      expect(readFileSync(projectYml(), 'utf8')).toBe('language_servers: [typescript]\n');
+    });
+
+    it('does not create it again when a language server is set', () => {
+      run();
+      writeFileSync(log, '');
+      const r = run();
+      expect(r.status).toBe(0);
+      expect(r.out).toContain('already configured');
+      expect(count('serena ')).toBe(0);
+    });
+
+    it('fills in an empty language_servers list that Serena wrote on its own', () => {
+      mkdirSync(join(repo, '.serena'), { recursive: true });
+      writeFileSync(projectYml(), 'project_name: "repo"\nlanguage_servers: []\nencoding: "utf-8"\n');
+      const r = run();
+      expect(r.status).toBe(0);
+      expect(count('serena project create')).toBe(0);
+      expect(readFileSync(projectYml(), 'utf8')).toBe(
+        'project_name: "repo"\nlanguage_servers: [typescript]\nencoding: "utf-8"\n',
+      );
+    });
+
+    it('keeps a language list someone set by hand', () => {
+      mkdirSync(join(repo, '.serena'), { recursive: true });
+      writeFileSync(projectYml(), 'language_servers: [python]\n');
+      run();
+      expect(readFileSync(projectYml(), 'utf8')).toBe('language_servers: [python]\n');
+    });
+  });
+
   it('adds .serena/ to info/exclude once', () => {
     run();
     run();
@@ -282,6 +335,111 @@ describe('runner-serena.sh', () => {
         .split('\n')
         .filter((l) => l === '.serena/'),
     ).toHaveLength(1);
+  });
+
+  describe('Claude Code hooks', () => {
+    let localFile: string;
+
+    beforeEach(() => {
+      localFile = join(repo, '.claude', 'settings.local.json');
+    });
+
+    const writeClaudeFile = (path: string, text: string): void => {
+      mkdirSync(join(repo, '.claude'), { recursive: true });
+      writeFileSync(path, text);
+    };
+    const settings = (): unknown => JSON.parse(readFileSync(localFile, 'utf8'));
+    const cmd = (n: string): string => `'${join(dir, '.local', 'bin', 'serena-hooks')}' ${n} --client=claude-code`;
+    const entry = (command: string) => ({ type: 'command', command });
+    const group = (matcher: string, n: string) => ({ matcher, hooks: [entry(cmd(n))] });
+    const expected = () => ({
+      PreToolUse: [group('', 'remind'), group('mcp__serena__*', 'auto-approve')],
+      SessionStart: [group('', 'activate')],
+      SessionEnd: [group('', 'cleanup')],
+    });
+    // Every hook command in the file, whatever event or group holds it.
+    const commands = (): string[] => {
+      const found: string[] = [];
+      JSON.parse(readFileSync(localFile, 'utf8'), (key, value: unknown) => {
+        if (key === 'command') found.push(String(value));
+        return value;
+      });
+      return found;
+    };
+
+    it('writes the four Serena hooks to settings.local.json', () => {
+      const r = run();
+      expect([r.status, r.err]).toEqual([0, '']);
+      expect(r.out).toContain('==> runner-serena: hooks (.claude/settings.local.json)');
+      expect(settings()).toEqual({ hooks: expected() });
+      expect(readFileSync(localFile, 'utf8')).toBe(`${JSON.stringify(settings(), null, 2)}\n`);
+    });
+
+    it('never touches settings.json', () => {
+      const shared = join(repo, '.claude', 'settings.json');
+      writeClaudeFile(shared, '{"enabledPlugins":{}}');
+      expect(run().status).toBe(0);
+      expect(readFileSync(shared, 'utf8')).toBe('{"enabledPlugins":{}}');
+    });
+
+    it('keeps other settings and hooks, without duplicates on rerun', () => {
+      const stop = [{ matcher: '', hooks: [entry('stop-it')] }];
+      const mine = { matcher: '', hooks: [entry('mine')] };
+      writeClaudeFile(localFile, JSON.stringify({ model: 'x', hooks: { Stop: stop, PreToolUse: [mine] } }));
+      expect(run().status).toBe(0);
+      expect(run().status).toBe(0);
+      expect(settings()).toEqual({
+        model: 'x',
+        hooks: { ...expected(), Stop: stop, PreToolUse: [mine, ...expected().PreToolUse] },
+      });
+    });
+
+    it('replaces a hook that points to an old path, keeping its neighbour', () => {
+      const old = { matcher: '', hooks: [entry('/old/serena-hooks remind --client=claude-code'), entry('mine')] };
+      writeClaudeFile(localFile, JSON.stringify({ hooks: { PreToolUse: [old] } }));
+      expect(run().status).toBe(0);
+      expect(commands().filter((c) => c.includes('/old/'))).toEqual([]);
+      expect(commands()).toContain('mine');
+      expect(commands().filter((c) => c.includes(' remind --client=claude-code'))).toEqual([cmd('remind')]);
+    });
+
+    it('treats an empty settings.local.json as {}', () => {
+      writeClaudeFile(localFile, '  \n');
+      expect(run().status).toBe(0);
+      expect(settings()).toEqual({ hooks: expected() });
+    });
+
+    it.each(['{oops', '[]', '{"hooks":[]}', '{"hooks":{"PreToolUse":{}}}'])(
+      'fails and leaves the file untouched: %s',
+      (text) => {
+        writeClaudeFile(localFile, text);
+        const r = run();
+        expect(r.status).not.toBe(0);
+        expect(r.err).toContain('runner-serena:');
+        expect(r.err).toContain('settings.local.json');
+        expect(readFileSync(localFile, 'utf8')).toBe(text);
+      },
+    );
+
+    it('quotes a hooks path that contains a space', () => {
+      const home = join(dir, 'a home');
+      mkdirSync(join(home, '.local', 'bin'), { recursive: true });
+      expect(run({ RUNNER_ENABLE_SERENA: '1', HOME: home }).status).toBe(0);
+      const remind = commands().find((c) => c.includes(' remind '));
+      expect(remind?.startsWith(`'${join(home, '.local', 'bin', 'serena-hooks')}' `)).toBe(true);
+    });
+
+    it('fails when serena-hooks is missing', () => {
+      preinstalled('0.9.28', '2.1.0');
+      rmSync(join(dir, '.local', 'bin', 'serena-hooks'));
+      const r = run();
+      expect(r.status).not.toBe(0);
+      expect(r.err).toContain('serena-hooks');
+      expect(r.err).toContain('uv tool install --reinstall --python 3.12 serena-agent==2.1.0');
+      expect(r.err).toContain('bump the pin');
+      expect(r.err).toContain('A plain rerun does not repair it');
+      expect(existsSync(localFile)).toBe(false);
+    });
   });
 });
 
