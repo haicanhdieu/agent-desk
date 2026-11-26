@@ -99,7 +99,8 @@ export async function routeEvent(input: RouteInput): Promise<RouteDecision> {
     if (missing.length > 0) return ignored('ignored_labels', `missing labels: ${missing.join(', ')}`);
   }
 
-  if (counts.runsForTicket >= project.maxRunsPerTicket) {
+  // 0 means unlimited: the cap applies only to a positive limit.
+  if (project.maxRunsPerTicket > 0 && counts.runsForTicket >= project.maxRunsPerTicket) {
     return ignored('ignored_max_runs', `ticket has ${counts.runsForTicket} of ${project.maxRunsPerTicket} runs`);
   }
   if (rule.prompt !== null) {
