@@ -45,6 +45,7 @@ A project keeps many named agent configurations, exactly one of them the default
 - Limits no longer differ per agent.
 - The old run-limit columns stay on `agents` until the follow-up.
 - Each new provider needs an adapter, a runner path and a pinned CLI in the runner image.
+- The Codex and OpenCode CLIs keep their own login store under `$HOME` on the run volume, so the agent credential sits there until the claim is deleted ([ADR 0022](0022-pause-and-resume-runs-on-a-per-run-volume.md)). Accepted, the known gap of [ADR 0012](0012-credentials-in-kubernetes-secrets.md).
 
 ## Links
 
