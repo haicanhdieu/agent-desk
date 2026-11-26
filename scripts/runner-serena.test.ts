@@ -60,8 +60,8 @@ function buildUvTarball(): string {
     '#!/bin/sh',
     'echo "uv $*" >> "$LOG"',
     'case "$1" in',
-    '  --version) echo "uv 0.9.28" ;;',
-    '  tool) printf "#!/bin/sh\\necho serena 2.1.0\\n" > "$HOME/.local/bin/serena"; chmod +x "$HOME/.local/bin/serena" ;;',
+    '  --version) echo "uv 0.9.28 (abc1234 2026-01-29)" ;;',
+    '  tool) if [ "$2" = list ]; then [ -f "$HOME/.local/bin/serena" ] && echo "serena-agent v2.1.0"; exit 0; fi; printf "#!/bin/sh\\necho Serena 2.1.0\\n" > "$HOME/.local/bin/serena"; chmod +x "$HOME/.local/bin/serena" ;;',
     'esac',
   ].join('\n');
   writeFileSync(join(root, name, 'uv'), `${uv}\n`);
@@ -176,7 +176,9 @@ describe('runner-serena.sh', () => {
     writeFileSync(log, '');
     const r = run();
     expect(r.status).toBe(0);
-    expect(calls().filter((l) => !l.startsWith('claude mcp get') && l !== 'uv --version')).toEqual([]);
+    expect(
+      calls().filter((l) => !l.startsWith('claude mcp get') && l !== 'uv --version' && l !== 'uv tool list'),
+    ).toEqual([]);
   });
 
   it('does not register twice when already registered for this path', () => {
