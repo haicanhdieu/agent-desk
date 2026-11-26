@@ -110,7 +110,7 @@ What setup installs and writes, as the runner user:
 | `~/.serena`                          | Serena's own config and caches, created on first use                                                                                                  |
 | `~/.claude.json` (local scope)       | the `serena` MCP server entry for this checkout, with `--agent-interface tools` and `--project <repo>`                                                |
 | `<repo>/.serena`                     | Serena's project data, with the `typescript` language server set in `project.yml`; the script adds it to `.git/info/exclude` so it is never committed |
-| `<repo>/.claude/settings.local.json` | Serena's four Claude Code hooks and `env.ENABLE_TOOL_SEARCH`, merged into the file (already in this repo's `.gitignore`)                                                           |
+| `<repo>/.claude/settings.local.json` | Serena's four Claude Code hooks and `env.ENABLE_TOOL_SEARCH`, merged into the file (already in this repo's `.gitignore`)                              |
 
 Things to know:
 
