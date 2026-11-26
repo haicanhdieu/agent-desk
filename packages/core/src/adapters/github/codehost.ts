@@ -29,6 +29,8 @@ export interface GithubCodeHostOptions {
 
 const SKILL_NAME = /^[a-z0-9-]+$/;
 const REPO_FILE_SEGMENT = /^[A-Za-z0-9._-]+$/;
+// Links followed when reading a skill folder or SKILL.md; a longer chain is treated as a loop.
+const MAX_SYMLINK_HOPS = 5;
 // A login and user id become env values in the run pod, so only what GitHub itself issues may get through.
 const GITHUB_LOGIN = /^[A-Za-z0-9][A-Za-z0-9-]*(\[bot\])?$/;
 const GITHUB_USER_ID = /^[0-9]+$/;
@@ -38,6 +40,7 @@ const ReposResponse = z.object({
   repositories: z.array(z.object({ full_name: z.string(), private: z.boolean(), default_branch: z.string() })),
 });
 const DirEntries = z.array(z.object({ name: z.string(), type: z.string() }));
+const SymlinkResponse = z.object({ type: z.literal('symlink'), target: z.string() });
 const FileResponse = z.object({ sha: z.string(), content: z.string(), encoding: z.string() });
 const CommitList = z.array(
   z.object({
@@ -80,6 +83,26 @@ function manageUrlOf(htmlUrl: string | null | undefined): string | null {
 function skillPath(folder: string, name: string): string {
   if (!SKILL_NAME.test(name)) throw new Error(`invalid skill name "${name}"`);
   return `${folder}/${name}/SKILL.md`;
+}
+
+/**
+ * Where a symlink at `linkPath` points, as a repo path. The target is relative to the folder holding the link. An
+ * absolute target, one that climbs out of the repo, or one with a segment we would not request ourselves gives null.
+ */
+function symlinkTarget(linkPath: string, target: string): string | null {
+  if (target.startsWith('/')) return null;
+  const parts = linkPath.split('/').slice(0, -1);
+  for (const seg of target.split('/')) {
+    if (seg === '' || seg === '.') continue;
+    if (seg === '..') {
+      if (parts.pop() === undefined) return null;
+    } else if (REPO_FILE_SEGMENT.test(seg)) {
+      parts.push(seg);
+    } else {
+      return null;
+    }
+  }
+  return parts.length > 0 ? parts.join('/') : null;
 }
 
 type GithubInstallationClient = ReturnType<GithubClients['installation']>;
@@ -283,10 +306,11 @@ export class GithubCodeHostAdapter implements CodeHostAdapter {
     const seen = new Set<string>();
     const out: SkillSummaryDto[] = [];
     for (const folder of skillFoldersOf(project)) {
-      for (const name of await this.skillDirNames(project, folder)) {
+      const found = await this.skillDirNames(project, folder);
+      for (const name of found.names) {
         if (seen.has(name)) continue; // the folder searched first wins
         try {
-          const { body: _b, sha: _s, ...summary } = await this.readSkillIn(project, folder, name);
+          const { body: _b, sha: _s, ...summary } = await this.readSkillIn(project, found.folder, name, true);
           out.push(summary);
           seen.add(name);
         } catch (e) {
@@ -297,25 +321,43 @@ export class GithubCodeHostAdapter implements CodeHostAdapter {
     return out;
   }
 
-  /** Names of the sub-directories of a skill folder. A missing folder, or one that is a symlink or a file, has none. */
-  private async skillDirNames(project: AdapterProject, folder: string): Promise<string[]> {
+  /**
+   * A path in the contents API, following a symlink at the path itself (the API does not follow it and answers with one
+   * object naming the target). Returns where the content really is, or null when it is missing, the link leaves the
+   * repo, or the chain is too long.
+   */
+  private async fetchContents(project: AdapterProject, path: string): Promise<{ path: string; data: unknown } | null> {
     const { owner, repo } = splitRepoPath(project.repoPath);
-    let data: unknown;
-    try {
-      data = (
-        await this.clients
-          .installation(project.connectionExternalId)
-          .request('GET /repos/{owner}/{repo}/contents/{+path}', { owner, repo, path: folder })
-      ).data;
-    } catch (e) {
-      if (errorStatus(e) === 404) return [];
-      throw e;
+    const octokit = this.clients.installation(project.connectionExternalId);
+    let at = path;
+    for (let hop = 0; hop <= MAX_SYMLINK_HOPS; hop++) {
+      let data: unknown;
+      try {
+        data = (await octokit.request('GET /repos/{owner}/{repo}/contents/{+path}', { owner, repo, path: at })).data;
+      } catch (e) {
+        if (errorStatus(e) === 404) return null;
+        throw e;
+      }
+      const link = SymlinkResponse.safeParse(data);
+      if (!link.success) return { path: at, data };
+      const next = symlinkTarget(at, link.data.target);
+      if (next === null) return null;
+      at = next;
     }
-    // GitHub answers a symlink (or a file) with one object instead of a list; the contents API does not follow it.
-    if (!Array.isArray(data)) return [];
-    return DirEntries.parse(data)
-      .filter((x) => x.type === 'dir' && SKILL_NAME.test(x.name))
-      .map((x) => x.name);
+    return null;
+  }
+
+  /** The real folder of a skill folder that is (or sits behind) a symlink, and the names of its skill sub-directories. */
+  private async skillDirNames(project: AdapterProject, folder: string): Promise<{ folder: string; names: string[] }> {
+    const found = await this.fetchContents(project, folder);
+    // A missing folder, or one that is a file, has no skills.
+    if (!found || !Array.isArray(found.data)) return { folder, names: [] };
+    return {
+      folder: found.path,
+      names: DirEntries.parse(found.data)
+        .filter((x) => x.type === 'dir' && SKILL_NAME.test(x.name))
+        .map((x) => x.name),
+    };
   }
 
   async readSkill(project: AdapterProject, name: string): Promise<SkillDto> {
@@ -329,12 +371,11 @@ export class GithubCodeHostAdapter implements CodeHostAdapter {
     throw new SkillNotFoundError(name);
   }
 
-  /** The folder the skill is in (the one searched first when several have it), or null when none does. */
-  private async folderOf(project: AdapterProject, name: string): Promise<string | null> {
+  /** The SKILL.md path of the skill (in the folder searched first when several have it), or null when none does. */
+  private async pathOf(project: AdapterProject, name: string): Promise<string | null> {
     for (const folder of skillFoldersOf(project)) {
       try {
-        await this.fetchSkillFile(project, folder, name);
-        return folder;
+        return (await this.fetchSkillFile(project, folder, name)).path;
       } catch (e) {
         if (!(e instanceof SkillNotFoundError)) throw e;
       }
@@ -343,35 +384,36 @@ export class GithubCodeHostAdapter implements CodeHostAdapter {
   }
 
   /**
-   * The SKILL.md of a skill in one folder. Read, list and edit all decide "is it in this folder" here: a missing file,
-   * and a SKILL.md that is a symlink or a folder (one object with no content; the contents API does not follow it),
-   * are both "not found".
+   * The SKILL.md of a skill in one folder. Read, list and edit all decide "is it in this folder" here: a missing file
+   * is "not found", and a symlink, either the SKILL.md or the folder holding it, is followed. `path` is where the file
+   * really is, so a later edit or delete hits the file and not the link.
    */
   private async fetchSkillFile(
     project: AdapterProject,
     folder: string,
     name: string,
+    folderIsReal = false,
   ): Promise<{ path: string; file: z.infer<typeof FileResponse> }> {
-    const path = skillPath(folder, name);
-    const { owner, repo } = splitRepoPath(project.repoPath);
-    let data: unknown;
-    try {
-      data = (
-        await this.clients
-          .installation(project.connectionExternalId)
-          .request('GET /repos/{owner}/{repo}/contents/{+path}', { owner, repo, path })
-      ).data;
-    } catch (e) {
-      if (errorStatus(e) === 404) throw new SkillNotFoundError(name);
-      throw e;
+    let found = await this.fetchContents(project, skillPath(folder, name));
+    if (!found && !folderIsReal) {
+      // The contents API does not look through a symlinked folder, so find the real folder and ask there.
+      const real = await this.fetchContents(project, folder);
+      if (real && real.path !== folder && Array.isArray(real.data)) {
+        found = await this.fetchContents(project, skillPath(real.path, name));
+      }
     }
-    const parsed = FileResponse.safeParse(data);
-    if (!parsed.success) throw new SkillNotFoundError(name);
-    return { path, file: parsed.data };
+    const parsed = found ? FileResponse.safeParse(found.data) : null;
+    if (!found || !parsed?.success) throw new SkillNotFoundError(name);
+    return { path: found.path, file: parsed.data };
   }
 
-  private async readSkillIn(project: AdapterProject, folder: string, name: string): Promise<SkillDto> {
-    const { path, file } = await this.fetchSkillFile(project, folder, name);
+  private async readSkillIn(
+    project: AdapterProject,
+    folder: string,
+    name: string,
+    folderIsReal = false,
+  ): Promise<SkillDto> {
+    const { path, file } = await this.fetchSkillFile(project, folder, name, folderIsReal);
     const { owner, repo } = splitRepoPath(project.repoPath);
     const octokit = this.clients.installation(project.connectionExternalId);
     if (file.encoding !== 'base64') throw new Error(`unexpected encoding for ${path}`);
@@ -429,8 +471,7 @@ export class GithubCodeHostAdapter implements CodeHostAdapter {
   ): Promise<SkillChangeResult> {
     // A new skill goes to the default agent's folder. An edit goes to the folder the skill is in (found by its sha).
     const target = skillFoldersOf(project)[0] ?? '';
-    const folder = sha ? ((await this.folderOf(project, name)) ?? target) : target;
-    const path = skillPath(folder, name);
+    const path = (sha ? await this.pathOf(project, name) : null) ?? skillPath(target, name);
     const { owner, repo } = splitRepoPath(project.repoPath);
     return this.submit(project, sha ? 'update' : 'create', name, path, message, (octokit, branch) =>
       octokit.request('PUT /repos/{owner}/{repo}/contents/{+path}', {

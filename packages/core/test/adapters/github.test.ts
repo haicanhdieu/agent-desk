@@ -1359,21 +1359,90 @@ describe('github code host', () => {
       expect(await host().listSkills(twoFolders)).toEqual([]);
     });
 
-    it('a folder that is a symlink (an object, not a list) is skipped instead of failing', async () => {
+    const symlink = (path: string, target: string) =>
+      gh()
+        .intercept({ path: `${base}/${path}`, method: 'GET' })
+        .reply(200, JSON.stringify({ type: 'symlink', name: path.split('/').pop(), path, target, sha: 'link' }), {
+          headers: JSON_HEADERS,
+        });
+
+    it('a skill folder that is a symlink is followed: the skills are listed under the real folder', async () => {
       mockInstallationToken();
       commits();
+      symlink('.claude/skills', '../.agent/skills');
+      dir('.agent/skills', ['fix', 'review']);
+      skillFile('.agent/skills', 'fix');
+      skillFile('.agent/skills', 'review');
+      const list = await host().listSkills(project);
+      expect(list.map((s) => [s.name, s.path])).toEqual([
+        ['fix', '.agent/skills/fix/SKILL.md'],
+        ['review', '.agent/skills/review/SKILL.md'],
+      ]);
+      agent.assertNoPendingInterceptors();
+    });
+
+    it('a symlinked skill folder does not stop the next folder from being listed', async () => {
+      mockInstallationToken();
+      commits();
+      symlink('.claude/skills', '../.agent/skills');
+      dir('.agent/skills', ['fix']);
+      skillFile('.agent/skills', 'fix');
+      dir('.agents/skills', ['deploy']);
+      skillFile('.agents/skills', 'deploy');
+      expect((await host().listSkills(twoFolders)).map((s) => s.path)).toEqual([
+        '.agent/skills/fix/SKILL.md',
+        '.agents/skills/deploy/SKILL.md',
+      ]);
+    });
+
+    it('reads a skill through a symlinked skill folder', async () => {
+      mockInstallationToken();
+      commits();
+      missing('.claude/skills/fix/SKILL.md');
+      symlink('.claude/skills', '../.agent/skills');
+      dir('.agent/skills', ['fix']);
+      skillFile('.agent/skills', 'fix');
+      const s = await host().readSkill(project, 'fix');
+      expect(s.path).toBe('.agent/skills/fix/SKILL.md');
+      expect(s.sha).toBe('sha-.agent/skills');
+    });
+
+    it('a symlink that leaves the repository is not followed', async () => {
+      mockInstallationToken();
+      symlink('.claude/skills', '../../etc');
+      expect(await host().listSkills(project)).toEqual([]);
+      agent.assertNoPendingInterceptors();
+    });
+
+    it('a symlink chain that never ends stops after a few hops', async () => {
+      mockInstallationToken();
+      for (const [from, to] of [
+        ['.claude/skills', 'a'],
+        ['.claude/a', 'b'],
+        ['.claude/b', 'c'],
+        ['.claude/c', 'd'],
+        ['.claude/d', 'e'],
+        ['.claude/e', 'f'],
+      ] as const) {
+        symlink(from, to);
+      }
+      expect(await host().listSkills(project)).toEqual([]);
+    });
+
+    it('an edit of a skill in a symlinked folder writes to the real path', async () => {
+      mockInstallationToken();
+      mockBranch(false);
+      missing('.claude/skills/fix/SKILL.md');
+      symlink('.claude/skills', '../.agent/skills');
+      dir('.agent/skills', ['fix']);
+      skillFile('.agent/skills', 'fix');
       gh()
-        .intercept({ path: `${base}/.claude/skills`, method: 'GET' })
-        .reply(
-          200,
-          JSON.stringify({ type: 'symlink', name: 'skills', path: '.claude/skills', target: '../.agent/skills' }),
-          {
-            headers: JSON_HEADERS,
-          },
-        );
-      dir('.agents/skills', ['fix']);
-      skillFile('.agents/skills', 'fix');
-      expect((await host().listSkills(twoFolders)).map((s) => s.path)).toEqual(['.agents/skills/fix/SKILL.md']);
+        .intercept({ path: `${base}/.agent/skills/fix/SKILL.md`, method: 'PUT' })
+        .reply(200, '{"content":{"sha":"new"},"commit":{"sha":"e2"}}', { headers: JSON_HEADERS });
+      expect(await host().writeSkill(project, 'fix', 'v2', 'edit', 'sha-.agent/skills')).toMatchObject({
+        kind: 'commit',
+        commitSha: 'e2',
+      });
     });
 
     it('a directory without SKILL.md is not a skill, and does not hide the same name in the next folder', async () => {
@@ -1386,26 +1455,34 @@ describe('github code host', () => {
       expect((await host().listSkills(twoFolders)).map((s) => s.path)).toEqual(['.agents/skills/fix/SKILL.md']);
     });
 
-    it('a SKILL.md that is itself a symlink is not a skill: skipped in the list, not found on read', async () => {
+    it('a SKILL.md that is itself a symlink is followed to the file it points at', async () => {
+      mockInstallationToken();
+      commits();
+      dir('.claude/skills', ['fix']);
+      symlink('.claude/skills/fix/SKILL.md', '../../../.agent/skills/fix/SKILL.md');
+      skillFile('.agent/skills', 'fix');
+      const list = await host().listSkills(project);
+      expect(list.map((s) => [s.name, s.path])).toEqual([['fix', '.agent/skills/fix/SKILL.md']]);
+      agent.assertNoPendingInterceptors();
+    });
+
+    it('a SKILL.md symlink that points nowhere is not a skill: skipped in the list, not found on read', async () => {
       mockInstallationToken();
       commits();
       dir('.claude/skills', ['fix']);
       dir('.agents/skills', ['fix']);
-      gh()
-        .intercept({ path: `${base}/.claude/skills/fix/SKILL.md`, method: 'GET' })
-        .reply(
-          200,
-          JSON.stringify({ type: 'symlink', name: 'SKILL.md', path: '.claude/skills/fix/SKILL.md', target: 'x.md' }),
-          { headers: JSON_HEADERS },
-        );
+      symlink('.claude/skills/fix/SKILL.md', 'x.md');
+      missing('.claude/skills/fix/x.md');
+      missing('.claude/skills'); // the folder itself is a plain folder, so there is nowhere else to look
       skillFile('.agents/skills', 'fix');
       expect((await host().listSkills(twoFolders)).map((s) => s.path)).toEqual(['.agents/skills/fix/SKILL.md']);
 
       mockInstallationToken();
-      gh()
-        .intercept({ path: `${base}/.claude/skills/fix/SKILL.md`, method: 'GET' })
-        .reply(200, JSON.stringify({ type: 'symlink', name: 'SKILL.md', target: 'x.md' }), { headers: JSON_HEADERS });
+      symlink('.claude/skills/fix/SKILL.md', 'x.md');
+      missing('.claude/skills/fix/x.md');
+      dir('.claude/skills', ['fix']);
       missing('.agents/skills/fix/SKILL.md');
+      missing('.agents/skills');
       await expect(host().readSkill(twoFolders, 'fix')).rejects.toBeInstanceOf(SkillNotFoundError);
     });
 
@@ -1416,7 +1493,7 @@ describe('github code host', () => {
         .intercept({ path: `${base}/.claude/skills/fix/SKILL.md`, method: 'GET' })
         .reply(
           200,
-          JSON.stringify({ type: 'symlink', name: 'SKILL.md', target: '../../.agents/skills/fix/SKILL.md' }),
+          JSON.stringify({ type: 'symlink', name: 'SKILL.md', target: '../../../.agents/skills/fix/SKILL.md' }),
           { headers: JSON_HEADERS },
         );
       skillFile('.agents/skills', 'fix');
@@ -1437,6 +1514,7 @@ describe('github code host', () => {
       mockInstallationToken();
       commits();
       missing('.claude/skills/fix/SKILL.md');
+      missing('.claude/skills');
       skillFile('.agents/skills', 'fix');
       const s = await host().readSkill(twoFolders, 'fix');
       expect(s.path).toBe('.agents/skills/fix/SKILL.md');
@@ -1446,7 +1524,9 @@ describe('github code host', () => {
     it('a skill in no folder is not found', async () => {
       mockInstallationToken();
       missing('.claude/skills/fix/SKILL.md');
+      missing('.claude/skills');
       missing('.agents/skills/fix/SKILL.md');
+      missing('.agents/skills');
       await expect(host().readSkill(twoFolders, 'fix')).rejects.toBeInstanceOf(SkillNotFoundError);
     });
 
@@ -1466,6 +1546,7 @@ describe('github code host', () => {
       mockInstallationToken();
       mockBranch(false);
       missing('.claude/skills/fix/SKILL.md');
+      missing('.claude/skills');
       skillFile('.agents/skills', 'fix');
       gh()
         .intercept({
@@ -1482,6 +1563,7 @@ describe('github code host', () => {
       mockBranch(false);
       commits();
       missing('.claude/skills/fix/SKILL.md');
+      missing('.claude/skills');
       skillFile('.agents/skills', 'fix');
       gh()
         .intercept({ path: `${base}/.agents/skills/fix/SKILL.md`, method: 'DELETE' })
