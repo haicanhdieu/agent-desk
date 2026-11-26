@@ -25,6 +25,7 @@ let bin: string;
 let sys: string;
 let log: string;
 let state: string;
+let serenaBin: string;
 
 const SYSTEM_TOOLS = [
   'mktemp',
@@ -41,6 +42,7 @@ const SYSTEM_TOOLS = [
   'cp',
   'shasum',
   'chmod',
+  'bash',
 ];
 const which = (tool: string): string =>
   spawnSync('bash', ['-c', `command -v ${tool}`], { encoding: 'utf8' }).stdout.trim();
@@ -61,7 +63,7 @@ function buildUvTarball(): string {
     'echo "uv $*" >> "$LOG"',
     'case "$1" in',
     '  --version) echo "uv 0.9.28 (abc1234 2026-01-29)" ;;',
-    '  tool) if [ "$2" = list ]; then [ -f "$HOME/.local/bin/serena" ] && echo "serena-agent v2.1.0"; exit 0; fi; printf "#!/bin/sh\\necho Serena 2.1.0\\n" > "$HOME/.local/bin/serena"; chmod +x "$HOME/.local/bin/serena" ;;',
+    '  tool) if [ "$2" = dir ]; then echo "$HOME/.local/bin"; exit 0; fi; if [ "$2" = list ]; then [ -f "$HOME/.local/bin/serena" ] && echo "serena-agent v2.1.0"; exit 0; fi; printf "#!/bin/sh\\necho Serena 2.1.0\\n" > "$HOME/.local/bin/serena"; chmod +x "$HOME/.local/bin/serena" ;;',
     'esac',
   ].join('\n');
   writeFileSync(join(root, name, 'uv'), `${uv}\n`);
@@ -81,6 +83,7 @@ beforeEach(() => {
   sys = join(dir, 'sys');
   state = join(dir, 'state');
   log = join(dir, 'calls.log');
+  serenaBin = join(dir, '.local', 'bin', 'serena');
   for (const d of [repo, bin, sys, state, join(dir, '.local', 'bin')]) mkdirSync(d, { recursive: true });
   writeFileSync(log, '');
   for (const tool of SYSTEM_TOOLS) if (which(tool) !== '') symlinkSync(which(tool), join(sys, tool));
@@ -101,8 +104,8 @@ beforeEach(() => {
       'echo "claude $*" >> "$LOG"',
       'reg="$STATE/registered"',
       'case "$2" in',
-      '  get) [ -f "$reg" ] || exit 1; printf "serena:\\n  Scope: Local config\\n  Args: %s\\n" "$(cat "$reg")" ;;',
-      '  add) shift 7; echo "$*" > "$reg" ;;',
+      '  get) [ -f "$reg" ] || exit 1; read -r cmd args < "$reg"; printf "serena:\\n  Scope: Local config\\n  Command: %s\\n  Args: %s\\n" "$cmd" "$args" ;;',
+      '  add) shift 6; echo "$*" > "$reg" ;;',
       '  remove) rm -f "$reg" ;;',
       'esac',
     ].join('\n'),
@@ -168,7 +171,7 @@ describe('runner-serena.sh', () => {
     expect(count('curl')).toBe(1);
     expect(calls().find((l) => l.startsWith('curl'))).toContain('--proto =https --tlsv1.2');
     expect(calls()).toContain('uv tool install --python 3.12 serena-agent==2.1.0');
-    expect(calls()).toContain(`claude mcp add --scope local serena -- serena ${ARGS} ${repo}`);
+    expect(calls()).toContain(`claude mcp add --scope local serena -- ${serenaBin} ${ARGS} ${repo}`);
   });
 
   it('is a no-op on the second run', () => {
@@ -177,23 +180,71 @@ describe('runner-serena.sh', () => {
     const r = run();
     expect(r.status).toBe(0);
     expect(
-      calls().filter((l) => !l.startsWith('claude mcp get') && l !== 'uv --version' && l !== 'uv tool list'),
+      calls().filter(
+        (l) =>
+          !l.startsWith('claude mcp get') && l !== 'uv --version' && l !== 'uv tool list' && l !== 'uv tool dir --bin',
+      ),
     ).toEqual([]);
   });
 
   it('does not register twice when already registered for this path', () => {
-    writeFileSync(join(state, 'registered'), `${ARGS} ${repo}\n`);
+    writeFileSync(join(state, 'registered'), `${serenaBin} ${ARGS} ${repo}\n`);
     run();
     expect(count('claude mcp add')).toBe(0);
     expect(count('claude mcp remove')).toBe(0);
   });
 
   it('removes and re-adds when registered for a different path', () => {
-    writeFileSync(join(state, 'registered'), `${ARGS} /somewhere/else\n`);
+    writeFileSync(join(state, 'registered'), `${serenaBin} ${ARGS} /somewhere/else\n`);
     run();
     expect(calls()).toContain('claude mcp remove --scope local serena');
     expect(count('claude mcp add')).toBe(1);
-    expect(readFileSync(join(state, 'registered'), 'utf8').trim()).toBe(`${ARGS} ${repo}`);
+    expect(readFileSync(join(state, 'registered'), 'utf8').trim()).toBe(`${serenaBin} ${ARGS} ${repo}`);
+  });
+
+  it('replaces a stale registration that uses the bare serena command', () => {
+    writeFileSync(join(state, 'registered'), `serena ${ARGS} ${repo}\n`);
+    run();
+    expect(calls()).toContain('claude mcp remove --scope local serena');
+    expect(count('claude mcp add')).toBe(1);
+    expect(readFileSync(join(state, 'registered'), 'utf8').trim()).toBe(`${serenaBin} ${ARGS} ${repo}`);
+  });
+
+  // A uv already in ~/.local/bin reporting the given versions (null = no serena-agent installed).
+  function preinstalled(uvVersion: string, serenaVersion: string | null): void {
+    stub(
+      'uv',
+      [
+        'echo "uv $*" >> "$LOG"',
+        'case "$1" in',
+        `  --version) echo "uv ${uvVersion} (abc1234 2026-01-29)" ;;`,
+        `  tool) if [ "$2" = dir ]; then echo "$HOME/.local/bin"; elif [ "$2" = list ]; then ${
+          serenaVersion === null ? ':' : `echo "serena-agent v${serenaVersion}"`
+        }; fi ;;`,
+        'esac',
+      ].join('\n'),
+      join(dir, '.local', 'bin'),
+    );
+  }
+
+  it('downloads uv again when the installed uv is not the pin', () => {
+    preinstalled('0.9.27', '2.1.0');
+    const r = run();
+    expect(r.status).toBe(0);
+    expect(count('curl')).toBe(1);
+  });
+
+  it('keeps an installed uv that is at the pin', () => {
+    preinstalled('0.9.28', '2.1.0');
+    run();
+    expect(count('curl')).toBe(0);
+    expect(count('uv tool install')).toBe(0);
+  });
+
+  it('reinstalls serena-agent when the installed version is not the pin', () => {
+    preinstalled('0.9.28', '2.0.0');
+    run();
+    expect(calls()).toContain('uv tool install --python 3.12 serena-agent==2.1.0');
   });
 
   it('refuses a uv download whose sha256 does not match the pin', () => {
@@ -246,5 +297,51 @@ describe('runner-setup.sh', () => {
     expect(r.stdout).toBe('');
     expect(calls()).toEqual([]);
     expect(existsSync(join(dir, '.local', 'bin', 'corepack'))).toBe(false);
+  });
+});
+
+describe('runner-setup.sh wiring', () => {
+  const setup = resolve(__dirname, 'runner-setup.sh');
+  let proj: string;
+
+  beforeEach(() => {
+    proj = join(dir, 'proj');
+    mkdirSync(join(proj, 'scripts'), { recursive: true });
+    writeFileSync(join(proj, 'package.json'), '{"packageManager":"pnpm@10.0.0"}');
+    writeFileSync(join(proj, '.env.example'), '');
+    stub('node', 'case "$1" in -p) echo 10.0.0 ;; esac');
+    stub('corepack', 'exit 0');
+    stub('pnpm', 'echo "pnpm $*" >> "$LOG"');
+    writeFileSync(join(proj, 'scripts', 'runner-serena.sh'), '#!/bin/sh\necho "serena-script" >> "$LOG"\n');
+  });
+
+  const setupCalls = (): string[] => calls().filter((l) => l === 'serena-script' || l.startsWith('pnpm install'));
+
+  function runSetup(env: Record<string, string>): { status: number | null; out: string } {
+    const r = spawnSync(BASH, [setup], {
+      cwd: proj,
+      encoding: 'utf8',
+      env: { PATH: `${bin}:${sys}`, HOME: dir, LOG: log, RUNNER_SETUP_PROFILE: 'minimal', ...env },
+    });
+    return { status: r.status, out: r.stdout + r.stderr };
+  }
+
+  it('runs runner-serena.sh after the dependencies and before the minimal early exit', () => {
+    const r = runSetup({ RUNNER_ENABLE_SERENA: '1' });
+    expect(r.status).toBe(0);
+    expect(setupCalls()).toEqual(['pnpm install --frozen-lockfile', 'serena-script']);
+    expect(r.out.indexOf('Serena (opt-in)')).toBeLessThan(r.out.indexOf('Ready (minimal)'));
+  });
+
+  it.each(['0', ''])('does not run runner-serena.sh when the flag is %j', (value) => {
+    const r = runSetup(value === '' ? {} : { RUNNER_ENABLE_SERENA: value });
+    expect(r.status).toBe(0);
+    expect(setupCalls()).toEqual(['pnpm install --frozen-lockfile']);
+  });
+
+  it('rejects an invalid flag before installing anything', () => {
+    const r = runSetup({ RUNNER_ENABLE_SERENA: 'bogus' });
+    expect(r.status).toBe(64);
+    expect(calls()).toEqual([]);
   });
 });

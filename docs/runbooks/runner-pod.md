@@ -105,7 +105,7 @@ What gets installed, all under `$HOME` as the runner user:
 
 | Where                          | What                                                                                                   |
 | ------------------------------ | ------------------------------------------------------------------------------------------------------ |
-| `~/.local/bin`                 | `uv` 0.9.28 (sha256-checked release) and the `serena` command                                          |
+| `~/.local/bin`                 | `uv` 0.9.28 (sha256-checked release) and the `serena` command (registered by absolute path)            |
 | `~/.local/share/uv`            | the Serena tool environment (`serena-agent` 2.1.0, with a uv-provided Python 3.12)                     |
 | `~/.serena`                    | Serena's own config and caches, created on first use                                                   |
 | `~/.claude.json` (local scope) | the `serena` MCP server entry for this checkout, with `--agent-interface tools` and `--project <repo>` |
@@ -115,7 +115,10 @@ Things to know:
 
 - Serena line numbers are 0-based. Claude Code's own file tools are 1-based.
 - The first use of a language downloads that language's server, so the pod needs network access then. Nothing is prefetched at setup.
-- Check it: `uv tool list` shows `serena-agent v2.1.0`, and `claude mcp get serena` shows the `Args:` line with `--project <repo>`.
+- Check it: `uv tool list` shows `serena-agent v2.1.0`, and `claude mcp get serena` shows `Command:` (the absolute path of `serena`, because the agent's `PATH` has no `~/.local/bin`) and the `Args:` line with `--project <repo>`.
+- When it takes effect: Claude Code reads its MCP servers when it starts. On a fresh pod it works when setup runs as the project's `SETUP_SCRIPT` (before Claude starts). If you run setup in a live session, Serena appears after the next resume or restart.
+- Time: setup is capped by `SETUP_TIMEOUT_SECONDS` (default 600). The uv and Python download alone measured 66 to 112 seconds, so keep headroom with the other profile steps. A rerun is cheap but not free: `claude mcp get` health-checks the server, which starts it once per rerun.
+- Failure is fail-closed: if Serena setup fails (download, sha256 mismatch, `claude mcp add`), `runner-setup.sh` stops with that error under `set -e`, so a pod that opted in never looks ready without Serena. Fix the cause and rerun, or unset the flag.
 - Lifecycle: everything lives on the pod's volume, so it survives a resume. A recreated volume starts empty: rerun setup with the flag. Rerunning does nothing when it is already at the pinned version and registered for this checkout.
 - Upgrade: bump `SERENA_VERSION` (and `UV_VERSION` plus both sha256 values if uv moves) in `scripts/runner-serena.sh`, then rerun setup. A changed pin reinstalls.
 - The script does not edit `CLAUDE.md` or `AGENTS.md`. A project that opts in can add this to its own file:
@@ -129,15 +132,15 @@ Serena line numbers are 0-based.
 
 ## 7. Troubleshooting
 
-| Symptom                                                                      | Fix                                                                                                                                 |
-| ---------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
-| `runner-setup: sha256 mismatch`                                              | Don't bypass it. Someone changed the file upstream, or a pin is stale: report it.                                                   |
-| `the Chromium pin is for 1.65.0`                                             | apps/web's Playwright moved; update the `CHROMIUM_*` pins in `scripts/runner-setup.sh` (version, revision, sha256 for both arches). |
-| Integration test tries Docker (`Could not find a working container runtime`) | `source scripts/runner-env.sh` (sets `TEST_PG_MODE=local`) or rerun setup with `test`.                                              |
-| Worker test: `failed to download ephemeral server executable`                | Same: the env is not loaded, or the profile was `minimal`.                                                                          |
-| `runner-stack: postgres did not start`                                       | Read `.agentdesk/runner-stack/logs/postgres.log`; a stale server from another checkout may hold :54329.                             |
-| Terminal closes with `4409` in e2e                                           | The fake run pod was not recognised; check `logs/api.log` and `logs/worker.log`.                                                    |
-| Chromium: `SkFontMgr ... Not implemented` and the page closes                | `FONTCONFIG_FILE` is not set: `source scripts/runner-env.sh` (full profile).                                                        |
-| `runner-serena: skipping, the claude CLI is not on PATH`                     | Serena was not set up. Install or expose `claude`, then rerun setup with `RUNNER_ENABLE_SERENA=1`.                                  |
-| `runner-serena: claude mcp add failed`                                       | Serena is installed but not registered. Run the `claude mcp add --scope local serena -- serena start-mcp-server ...` line by hand.  |
-| Serena tool fails on first use of a language                                 | The language server download needs network access; allow egress and retry.                                                          |
+| Symptom                                                                      | Fix                                                                                                                                                                                                                  |
+| ---------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `runner-setup: sha256 mismatch`                                              | Don't bypass it. Someone changed the file upstream, or a pin is stale: report it.                                                                                                                                    |
+| `the Chromium pin is for 1.65.0`                                             | apps/web's Playwright moved; update the `CHROMIUM_*` pins in `scripts/runner-setup.sh` (version, revision, sha256 for both arches).                                                                                  |
+| Integration test tries Docker (`Could not find a working container runtime`) | `source scripts/runner-env.sh` (sets `TEST_PG_MODE=local`) or rerun setup with `test`.                                                                                                                               |
+| Worker test: `failed to download ephemeral server executable`                | Same: the env is not loaded, or the profile was `minimal`.                                                                                                                                                           |
+| `runner-stack: postgres did not start`                                       | Read `.agentdesk/runner-stack/logs/postgres.log`; a stale server from another checkout may hold :54329.                                                                                                              |
+| Terminal closes with `4409` in e2e                                           | The fake run pod was not recognised; check `logs/api.log` and `logs/worker.log`.                                                                                                                                     |
+| Chromium: `SkFontMgr ... Not implemented` and the page closes                | `FONTCONFIG_FILE` is not set: `source scripts/runner-env.sh` (full profile).                                                                                                                                         |
+| `runner-serena: skipping, the claude CLI is not on PATH`                     | Serena was not set up. Install or expose `claude`, then rerun setup with `RUNNER_ENABLE_SERENA=1`.                                                                                                                   |
+| `runner-serena: claude mcp add failed`                                       | Serena is installed but not registered, and setup stopped with this error. Run the `claude mcp add --scope local serena -- ~/.local/bin/serena start-mcp-server ...` line by hand, or fix the cause and rerun setup. |
+| Serena tool fails on first use of a language                                 | The language server download needs network access; allow egress and retry.                                                                                                                                           |

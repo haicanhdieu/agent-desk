@@ -77,28 +77,31 @@ fi
 
 step "serena-agent $SERENA_VERSION"
 # `uv tool list` prints "serena-agent v2.1.0" (exact line match; `serena --version` prints "Serena 2.1.0").
-if uv tool list 2>/dev/null | grep -qxF "serena-agent v$SERENA_VERSION"; then
+tools="$(uv tool list 2>/dev/null || true)"
+if printf '%s\n' "$tools" | grep -qxF "serena-agent v$SERENA_VERSION"; then
   echo "already installed"
 else
   uv tool install --python "$UV_PYTHON" "serena-agent==$SERENA_VERSION"
 fi
 
-step "register with Claude Code (project $PWD)"
-# `claude mcp get` prints "  Args: <args>"; registered for this checkout when that line ends with --project "$PWD".
+# The agent's PATH has no ~/.local/bin in the run pod, so register the absolute path of the serena executable.
+serena_bin="$(uv tool dir --bin)/serena"
+step "register with Claude Code ($serena_bin, project $PWD)"
+# `claude mcp get` prints "  Command: <exe>" and "  Args: <args>"; both must match, so a stale entry (bare `serena`,
+# another checkout) is replaced.
+registered=0
 if got="$(claude mcp get serena 2>/dev/null)"; then
-  if printf '%s\n' "$got" | grep -qxF "  Args: start-mcp-server --context claude-code --agent-interface tools --project $PWD"; then
+  if printf '%s\n' "$got" | grep -qxF "  Command: $serena_bin" &&
+    printf '%s\n' "$got" | grep -qxF "  Args: start-mcp-server --context claude-code --agent-interface tools --project $PWD"; then
     echo "already registered"
     registered=1
   else
     # May fail (entry lives in another scope, or is already gone); add below reports any real problem.
     claude mcp remove --scope local serena || echo "runner-serena: could not remove the old registration; adding anyway" >&2
-    registered=0
   fi
-else
-  registered=0
 fi
 if [ "$registered" = 0 ]; then
-  if ! claude mcp add --scope local serena -- serena start-mcp-server --context claude-code --agent-interface tools --project "$PWD"; then
+  if ! claude mcp add --scope local serena -- "$serena_bin" start-mcp-server --context claude-code --agent-interface tools --project "$PWD"; then
     echo "runner-serena: claude mcp add failed; Serena is installed but not registered (run it by hand)" >&2
     exit 1
   fi
