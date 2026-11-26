@@ -7,8 +7,7 @@ import { API, FAKE_STATE_DIR, REPO, ok, signInAndStartProject } from './helpers'
 
 /*
  * Local end-to-end for the Skills page folders (issue 299). The Skills page lists the skill folders of the project's
- * default agent, then `.agents/skills/`; a duplicate name keeps the agent folder; a new skill goes to the agent's
- * folder. The fake board's skill files live under `<FAKE_STATE_DIR>/skills/<repo>/<folder>/<name>.md`, in the one repo
+ * default agent loads (Claude: `.claude/skills/` only); a new skill goes to the agent's folder. The fake board's skill files live under `<FAKE_STATE_DIR>/skills/<repo>/<folder>/<name>.md`, in the one repo
  * (dev/demo) that every org on the machine shares, so each test uses random names and removes its files at the end.
  * Role denial of the skill routes is covered by rbac-project-admin-desk.spec.ts and apps/api/test/skills.int.test.ts.
  */
@@ -35,29 +34,27 @@ async function listed(page: Page, projectId: string): Promise<SkillSummaryDto[]>
 
 const names = (items: SkillSummaryDto[], prefix: string) => items.filter((s) => s.name.startsWith(prefix));
 
-test('TC-299.1: a Claude project lists .claude/skills then .agents/skills; a duplicate shows once with the agent folder', async ({
+test('TC-299.1: a Claude project lists only .claude/skills; a skill only in .agents/skills is not listed', async ({
   page,
 }) => {
   const prefix = `f${hex()}-`;
-  const both = `${prefix}both`;
+  const own = `${prefix}own`;
   const generic = `${prefix}generic`;
   const files: [string, string][] = [
-    ['.claude/skills', both],
-    ['.agents/skills', both],
+    ['.claude/skills', own],
     ['.agents/skills', generic],
   ];
   try {
     for (const [folder, name] of files) await seed(folder, name, `---\ndescription: in ${folder}\n---\n`);
     const { handle, projectId } = await signInAndStartProject(page);
     expect(names(await listed(page, projectId), prefix).map((s) => [s.name, s.path])).toEqual([
-      [both, `.claude/skills/${both}/SKILL.md`],
-      [generic, `.agents/skills/${generic}/SKILL.md`],
+      [own, `.claude/skills/${own}/SKILL.md`],
     ]);
     await page.goto(`/o/${handle}/p/${projectId}/desk/skills`);
-    await expect(page.getByText('.claude/skills/, .agents/skills/ on main')).toBeVisible();
+    await expect(page.getByText('.claude/skills/ on main')).toBeVisible();
     const list = page.getByRole('navigation', { name: 'Skills' });
-    await expect(list.getByRole('link', { name: new RegExp(both) })).toHaveCount(1);
-    await expect(list.getByRole('link', { name: new RegExp(generic) })).toHaveCount(1);
+    await expect(list.getByRole('link', { name: new RegExp(own) })).toHaveCount(1);
+    await expect(list.getByRole('link', { name: new RegExp(generic) })).toHaveCount(0);
   } finally {
     for (const [folder, name] of files) await rm(skillFile(folder, name), { force: true });
   }

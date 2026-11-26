@@ -356,9 +356,9 @@ describe('desk skills folders follow the default agent', () => {
     expect(empty.parentElement).not.toHaveTextContent('.claude/skills/');
   });
 
-  it('a Claude project names .claude/skills/ then .agents/skills/', async () => {
+  it('a Claude project names .claude/skills/ only', async () => {
     await renderRoute(`${base}/skills`);
-    expect(await screen.findByText('.claude/skills/, .agents/skills/ on main')).toBeInTheDocument();
+    expect(await screen.findByText('.claude/skills/ on main')).toBeInTheDocument();
   });
 });
 

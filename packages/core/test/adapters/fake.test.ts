@@ -236,15 +236,22 @@ describe('fake code host', () => {
       const { store, host } = make();
       await store.writeSkillFile(project.repoPath, '.agents/skills', 'fix', 'generic fix');
       await store.writeSkillFile(project.repoPath, '.agents/skills', 'deploy', 'generic deploy');
-      await store.writeSkillFile(project.repoPath, '.claude/skills', 'fix', 'claude fix');
-      await store.writeSkillFile(project.repoPath, '.claude/skills', 'review', 'claude review');
-      const list = await host.listSkills(project);
+      await store.writeSkillFile(project.repoPath, '.opencode/skills', 'fix', 'own fix');
+      await store.writeSkillFile(project.repoPath, '.opencode/skills', 'review', 'own review');
+      const list = await host.listSkills(opencode);
       expect(list.map((s) => [s.name, s.path])).toEqual([
-        ['fix', '.claude/skills/fix/SKILL.md'],
-        ['review', '.claude/skills/review/SKILL.md'],
+        ['fix', '.opencode/skills/fix/SKILL.md'],
+        ['review', '.opencode/skills/review/SKILL.md'],
         ['deploy', '.agents/skills/deploy/SKILL.md'],
       ]);
-      expect((await host.readSkill(project, 'fix')).body).toBe('claude fix');
+      expect((await host.readSkill(opencode, 'fix')).body).toBe('own fix');
+    });
+
+    it('a Claude project does not see .agents/skills', async () => {
+      const { store, host } = make();
+      await store.writeSkillFile(project.repoPath, '.agents/skills', 'fix', 'v1');
+      expect(await host.listSkills(project)).toEqual([]);
+      await expect(host.readSkill(project, 'fix')).rejects.toBeInstanceOf(SkillNotFoundError);
     });
 
     it('a Codex project does not see the Claude folder', async () => {
@@ -257,10 +264,10 @@ describe('fake code host', () => {
     it('edits and deletes a skill in the folder it lives in', async () => {
       const { store, host } = make();
       const sha = await store.writeSkillFile(project.repoPath, '.agents/skills', 'fix', 'v1');
-      await host.writeSkill(project, 'fix', 'v2', 'edit', sha);
-      expect(await store.readSkillFile(project.repoPath, '.claude/skills', 'fix')).toBeNull();
+      await host.writeSkill(opencode, 'fix', 'v2', 'edit', sha);
+      expect(await store.readSkillFile(project.repoPath, '.opencode/skills', 'fix')).toBeNull();
       expect((await store.readSkillFile(project.repoPath, '.agents/skills', 'fix'))?.body).toBe('v2');
-      await host.deleteSkill(project, 'fix', 'rm');
+      await host.deleteSkill(opencode, 'fix', 'rm');
       expect(await store.readSkillFile(project.repoPath, '.agents/skills', 'fix')).toBeNull();
     });
 

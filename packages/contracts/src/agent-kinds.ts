@@ -103,7 +103,7 @@ export const AGENT_KIND_CAPABILITIES: Record<AgentKind, AgentKindCapability> = {
   },
 };
 
-/** The folder every agent shares; searched after the agent's own folder. */
+/** The folder Codex and OpenCode share; searched after OpenCode's own folder. Claude Code does not read it. */
 export const SKILL_FOLDER_GENERIC = '.agents/skills';
 
 /** The project folder each agent's CLI keeps its own skills in. */
@@ -114,10 +114,12 @@ const AGENT_SKILL_FOLDER: Record<AgentKind, string> = {
 };
 
 /**
- * The repo folders the Skills page searches for an agent kind, in precedence order: the agent's own folder, then
- * `.agents/skills`. When a skill name is in both, the first folder wins.
+ * The repo folders the Skills page searches for an agent kind, in precedence order: only folders that agent's CLI
+ * really loads. Claude Code reads `.claude/skills` only; the others also read `.agents/skills`. When a skill name is
+ * in both, the first folder wins.
  */
 export function skillFolders(kind: AgentKind): string[] {
+  if (kind === 'claude') return [AGENT_SKILL_FOLDER.claude];
   return [...new Set([AGENT_SKILL_FOLDER[kind], SKILL_FOLDER_GENERIC])];
 }
 
