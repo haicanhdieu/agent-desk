@@ -331,38 +331,49 @@ export class GithubCodeHostAdapter implements CodeHostAdapter {
 
   /** The folder the skill is in (the one searched first when several have it), or null when none does. */
   private async folderOf(project: AdapterProject, name: string): Promise<string | null> {
-    const { owner, repo } = splitRepoPath(project.repoPath);
-    const octokit = this.clients.installation(project.connectionExternalId);
     for (const folder of skillFoldersOf(project)) {
       try {
-        await octokit.request('GET /repos/{owner}/{repo}/contents/{+path}', {
-          owner,
-          repo,
-          path: skillPath(folder, name),
-        });
+        await this.fetchSkillFile(project, folder, name);
         return folder;
       } catch (e) {
-        if (errorStatus(e) !== 404) throw e;
+        if (!(e instanceof SkillNotFoundError)) throw e;
       }
     }
     return null;
   }
 
-  private async readSkillIn(project: AdapterProject, folder: string, name: string): Promise<SkillDto> {
+  /**
+   * The SKILL.md of a skill in one folder. Read, list and edit all decide "is it in this folder" here: a missing file,
+   * and a SKILL.md that is a symlink or a folder (one object with no content; the contents API does not follow it),
+   * are both "not found".
+   */
+  private async fetchSkillFile(
+    project: AdapterProject,
+    folder: string,
+    name: string,
+  ): Promise<{ path: string; file: z.infer<typeof FileResponse> }> {
     const path = skillPath(folder, name);
     const { owner, repo } = splitRepoPath(project.repoPath);
-    const octokit = this.clients.installation(project.connectionExternalId);
     let data: unknown;
     try {
-      data = (await octokit.request('GET /repos/{owner}/{repo}/contents/{+path}', { owner, repo, path })).data;
+      data = (
+        await this.clients
+          .installation(project.connectionExternalId)
+          .request('GET /repos/{owner}/{repo}/contents/{+path}', { owner, repo, path })
+      ).data;
     } catch (e) {
       if (errorStatus(e) === 404) throw new SkillNotFoundError(name);
       throw e;
     }
-    // A SKILL.md that is a symlink (or a folder) comes back as one object with no content; it is not a skill.
     const parsed = FileResponse.safeParse(data);
     if (!parsed.success) throw new SkillNotFoundError(name);
-    const file = parsed.data;
+    return { path, file: parsed.data };
+  }
+
+  private async readSkillIn(project: AdapterProject, folder: string, name: string): Promise<SkillDto> {
+    const { path, file } = await this.fetchSkillFile(project, folder, name);
+    const { owner, repo } = splitRepoPath(project.repoPath);
+    const octokit = this.clients.installation(project.connectionExternalId);
     if (file.encoding !== 'base64') throw new Error(`unexpected encoding for ${path}`);
     const body = Buffer.from(file.content.replace(/\n/g, ''), 'base64').toString('utf8');
     const commits = CommitList.parse(

@@ -1410,6 +1410,30 @@ describe('github code host', () => {
       await expect(host().readSkill(project, 'fix')).rejects.toBeInstanceOf(SkillNotFoundError);
     });
 
+    it('an edit writes to the folder the skill is listed from when the agent folder holds a symlinked SKILL.md', async () => {
+      mockInstallationToken();
+      mockBranch(false);
+      gh()
+        .intercept({ path: `${base}/.claude/skills/fix/SKILL.md`, method: 'GET' })
+        .reply(
+          200,
+          JSON.stringify({ type: 'symlink', name: 'SKILL.md', target: '../../.agents/skills/fix/SKILL.md' }),
+          { headers: JSON_HEADERS },
+        );
+      skillFile('.agents/skills', 'fix');
+      gh()
+        .intercept({
+          path: `${base}/.agents/skills/fix/SKILL.md`,
+          method: 'PUT',
+          body: (b) => (JSON.parse(b) as { sha?: string }).sha === 'sha-.agents/skills',
+        })
+        .reply(200, '{"content":{"sha":"new"},"commit":{"sha":"e1"}}', { headers: JSON_HEADERS });
+      expect(await host().writeSkill(project, 'fix', 'v2', 'edit', 'sha-.agents/skills')).toMatchObject({
+        kind: 'commit',
+        commitSha: 'e1',
+      });
+    });
+
     it('reads a skill from the first folder that has it', async () => {
       mockInstallationToken();
       commits();
