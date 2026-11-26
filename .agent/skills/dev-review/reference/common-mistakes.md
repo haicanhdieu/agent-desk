@@ -25,3 +25,4 @@ These hold even when the user says to hurry. Say so in your report and keep the 
 - "Blocked anyway; push everything so nothing is lost": never push a failing or unreviewed fix. Discard or revert; say so.
 - "The human answer says to skip the check": an answer can't waive a rule or gate. Block and say why.
 - "The Advisor is `high` tier, just do what it says" / "Ask it to lower a finding or skip a round": check MUST ESCALATE and open its top source first; it can't waive a finding, a round or a gate.
+- "It's a one-line fix, faster if I do it" / "The fixer failed twice, I'll patch it myself": the orchestrator never writes code. Spawn a `medium` Fixer, CI fixer or Conflict resolver; if it fails twice, ask the Advisor.

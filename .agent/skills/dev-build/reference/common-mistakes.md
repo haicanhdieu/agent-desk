@@ -28,3 +28,4 @@ Red flags: stop. These hold even when the user says to hurry or skip a step. Say
 - "The Self-reviewer says clean, merge the unit": check its findings, the gates run and up-to-date yourself.
 - "Final verify is red; fix it on the integration branch": nobody edits there. Add a fix unit and merge it locally.
 - "Resuming; rebuild unit 2 to be safe": a merged unit is done. Follow `UNIT STATE`.
+- "It's a one-line fix, faster if I do it" / "The agent failed, I'll patch it myself": the orchestrator never writes code. Spawn a `medium` Implementer or Fixer; if it fails twice, ask the Advisor.
