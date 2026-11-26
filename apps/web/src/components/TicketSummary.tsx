@@ -7,7 +7,7 @@ export function TicketSummary({ ticket, diffstat }: { ticket: Ticket; diffstat?:
     <div className={styles.tsBody}>
       <div className={styles.tsTop}>
         <TicketRef kind={ticket.kind} number={ticket.number} prState={ticket.prState} />
-        <a className={styles.tsLink} href={ticket.href}>
+        <a className={styles.tsLink} href={ticket.href} target="_blank" rel="noopener noreferrer">
           Open in GitHub
           <Icon name="external" size={12} />
         </a>

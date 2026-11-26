@@ -6,6 +6,7 @@ import { INVOICER_API, ORG } from './mock';
 const runUrl = (n: number) => `/o/${ORG}/p/${INVOICER_API}/runs/${n}`;
 const RUNNING_RUN = 61;
 const ENDED_RUN_WITH_LINKED_PR = 60;
+const ISSUE_RUN = 65;
 
 test('a running run shows no Pull request section and no empty note', async ({ page }) => {
   await page.goto(runUrl(RUNNING_RUN));
@@ -30,4 +31,38 @@ test('an ended run shows its ticket linked PR, with title and link, also after a
       'https://github.com/harbor-labs/invoicer-api/pull/148',
     );
   }
+});
+
+test('the pull request Open in GitHub link opens a new tab and leaves the run detail page open', async ({ page }) => {
+  const url = runUrl(ENDED_RUN_WITH_LINKED_PR);
+  await page.goto(url);
+  const side = page.getByRole('complementary', { name: 'Run context' });
+  const section = side.locator('section').filter({ has: page.getByText('Pull request', { exact: true }) });
+  const link = section.getByRole('link', { name: /Open in GitHub/ });
+  await expect(link).toHaveAttribute('href', 'https://github.com/harbor-labs/invoicer-api/pull/148');
+  await expect(link).toHaveAttribute('target', '_blank');
+  await expect(link).toHaveAttribute('rel', 'noopener noreferrer');
+
+  const popup = page.waitForEvent('popup');
+  await link.click();
+  await popup;
+  expect(new URL(page.url()).pathname).toBe(url);
+  await expect(link).toBeVisible();
+});
+
+test('the issue Open in GitHub link opens a new tab and leaves the run detail page open', async ({ page }) => {
+  const url = runUrl(ISSUE_RUN);
+  await page.goto(url);
+  const side = page.getByRole('complementary', { name: 'Run context' });
+  const section = side.locator('section').filter({ has: page.getByText('Ticket', { exact: true }) });
+  const link = section.getByRole('link', { name: /Open in GitHub/ });
+  await expect(link).toHaveAttribute('href', 'https://github.com/harbor-labs/invoicer-api/issues/153');
+  await expect(link).toHaveAttribute('target', '_blank');
+  await expect(link).toHaveAttribute('rel', 'noopener noreferrer');
+
+  const popup = page.waitForEvent('popup');
+  await link.click();
+  await popup;
+  expect(new URL(page.url()).pathname).toBe(url);
+  await expect(link).toBeVisible();
 });
