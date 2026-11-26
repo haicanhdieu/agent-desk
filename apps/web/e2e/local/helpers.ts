@@ -694,7 +694,7 @@ export async function ruleWithAgent(
   request: APIRequestContext,
   handle: string,
   projectId: string,
-  body: { command: string; agentId?: string; model?: string | null },
+  body: { command: string; agentId?: string; model?: string | null; target?: RuleDto['target'] },
 ): Promise<RuleDto> {
   const { items } = pageOf(RuleDto).parse(
     await ok(await request.get(`/api/projects/${projectId}/rules?pageSize=100`), 200, 'rules'),
