@@ -165,6 +165,12 @@ describe('TicketSummary', () => {
     expect(screen.getByText('api')).toBeInTheDocument();
     expect(screen.getByText('Open')).toBeInTheDocument();
   });
+  it('opens the ticket in a new tab without exposing the run page to it', () => {
+    render(<TicketSummary ticket={ticket} />);
+    const link = screen.getByRole('link', { name: 'Open in GitHub' });
+    expect(link).toHaveAttribute('target', '_blank');
+    expect(link).toHaveAttribute('rel', 'noopener noreferrer');
+  });
   it('shows a diffstat and tolerates no labels/state', () => {
     render(<TicketSummary ticket={{ ...ticket, kind: 'pr', labels: [], state: undefined }} diffstat="+214 −12" />);
     expect(screen.getByText('+214 −12')).toBeInTheDocument();
