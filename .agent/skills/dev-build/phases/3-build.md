@@ -14,7 +14,7 @@ Spawn them as [prompts/README.md](../prompts/README.md) says.
 1. `SKILLS:`: a Fixer lists `superpowers:systematic-debugging` then `superpowers:test-driven-development`; an Implementer lists `superpowers:test-driven-development`.
 2. Git evidence: `git -C <worktree> log --stat <base>..HEAD` (`<base>` = `origin/main` for the first task, else the previous task's commit). A Fixer's diff has a new regression test; an Implementer's has tests for the task's behaviors. Source changes with no tests did not follow TDD. ([Phase 4](4-verify.md) also proves the regression test fails without the fix.)
 
-If either fails, spawn the builder once more with `NOTE: You did not follow <skill>. Load it now with the Skill tool, check your work against it, and redo what does not comply.` A second miss is a technical failure.
+If either fails, even when the diff looks fine, spawn the builder once more with `NOTE: You did not load <skill>. Load it now with the Skill tool as your first action, follow it, and redo what does not comply. Your reply is rejected again if SKILLS lacks it.` Never accept the work as is, and never fix or finish it yourself. A second miss is a technical failure.
 
 ## Blocked or failed
 

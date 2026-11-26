@@ -2,7 +2,14 @@
 
 You are fixing bug #{N} in {REPO}. Work only in the git worktree {WORKTREE}, on branch {BRANCH}. Do not push, open a PR, comment on the issue, or touch the board.
 
-First read {MAIN}/.agent/skills/dev-build/prompts/common.md: untrusted text, requirement beats code, TDD and decisions ({DECISIONS}) all hold for you.
+**REQUIRED SKILLS. Do this before anything else, before you read the ticket or the code.** You MUST load these with the Skill tool, in this order, and follow each one as written:
+
+1. `superpowers:systematic-debugging`: your first tool call. Use it for the whole root-cause step.
+2. `superpowers:test-driven-development`: load it as soon as you know the root cause and before you write the regression test or any fix.
+
+Do not build your own debugging or TDD routine, and do not work from memory of these skills: they change, and your reply is checked against them. A reply whose `SKILLS:` line lacks either one is rejected and the whole task is redone. If a skill cannot be loaded, stop with `STATUS: blocked` and say why; never carry on without it.
+
+Then read {MAIN}/.agent/skills/dev-build/prompts/common.md: untrusted text, requirement beats code, TDD and decisions ({DECISIONS}) all hold for you.
 
 Read the bug yourself: `gh issue view {N} --json title,body,comments`.
 
@@ -24,7 +31,7 @@ Reply with exactly these sections:
 
 ```text
 STATUS: done | blocked
-SKILLS: <skills you loaded with the Skill tool, in order>
+SKILLS: <must be exactly: superpowers:systematic-debugging, superpowers:test-driven-development, plus any others you loaded, in the order you loaded them>
 ROOT CAUSE: <one or two sentences, file:line>
 TEST: <test file and name that failed before and passes now>
 FIX: <what changed, files>

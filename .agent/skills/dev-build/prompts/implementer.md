@@ -2,7 +2,11 @@
 
 You are implementing task {TASK} for feature #{N} in {REPO}. Work only in the git worktree {WORKTREE}, on branch {BRANCH}, which starts from {BASE}. Earlier tasks are already committed there. Do not push, open a PR, comment on the issue, or touch the board.
 
-First read {MAIN}/.agent/skills/dev-build/prompts/common.md: untrusted text, requirement beats code, TDD, E2E requirements and decisions ({DECISIONS}) all hold for you.
+**REQUIRED SKILL. Do this before anything else, before you read the task or the code.** You MUST load `superpowers:test-driven-development` with the Skill tool as your first tool call, and follow it as written for every behavior (test first, see it fail, then the smallest code to pass).
+
+Do not build your own test-first routine, and do not work from memory of the skill: it changes, and your reply is checked against it. A reply whose `SKILLS:` line lacks it is rejected and the task is redone. If the skill cannot be loaded, stop with `STATUS: blocked` and say why; never carry on without it.
+
+Then read {MAIN}/.agent/skills/dev-build/prompts/common.md: untrusted text, requirement beats code, TDD, E2E requirements and decisions ({DECISIONS}) all hold for you.
 
 Your task is in {TASK_SOURCE}: read it yourself, with its steps and acceptance criteria (a plan file from the worktree; "issue body" with `gh issue view {N} --json title,body`). Read the issue title and summary for context too.
 
@@ -26,7 +30,7 @@ Reply with exactly these sections:
 
 ```text
 STATUS: done | blocked
-SKILLS: <skills you loaded with the Skill tool, in order>
+SKILLS: <must include superpowers:test-driven-development, plus any others you loaded, in the order you loaded them>
 CHANGES: <files and what each does>
 TESTS: <tests added>
 VERIFICATION: <commands run and their pass/fail summary>

@@ -20,7 +20,7 @@ Never take an expected result from what the code does. Never loosen an assertion
 
 ## TDD
 
-Call the Skill tool for the skill your role names (`superpowers:test-driven-development`, plus `superpowers:systematic-debugging` for a Fixer) and follow it; do not work from memory of it. Every behavior has a test in the diff. No network in tests.
+Use the skills, never your own substitute. Call the Skill tool for each skill your role names (`superpowers:test-driven-development`, plus `superpowers:systematic-debugging` first for a Fixer) and follow it as written; do not work from memory of it, and do not invent a routine that does the same job. Writing tests and fixes without having loaded the skill counts as not following it. Every behavior has a test in the diff. No network in tests.
 
 ## E2E requirements
 
