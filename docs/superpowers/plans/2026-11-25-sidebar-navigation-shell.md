@@ -873,13 +873,13 @@ Fill mode (spec "Page fit inside the shell"): the root is the given height and d
 - Consumes: Task 18's pattern. A platform org page has the org name as h1 and the tab name as h2.
 - Produces: platform and platform-org `SubNav` fixtures in `platform.stories.tsx`.
 
-- [ ] **Step 0: Multi-agent gate.** Run both checks in "Multi-agent gate". If either fails, stop: write no code and report which check failed.
-- [ ] **Step 1: Write failing tests** in `platform.test.tsx` per the pattern, plus: `PlatformOrgDetail` loading and error views have one `main`.
-- [ ] **Step 2: Run** VITEST `src/screens/platform.test.tsx`. Expected: FAIL.
-- [ ] **Step 3: Implement** the owned branches (`CreateOrg` platform variant included).
-- [ ] **Step 4: Stories** on `ShellFrame`; register `PlatformOrgsSideMenu`, `PlatformAdminsForbiddenNoMenu`, `PlatformOrgMembersSideMenuError`, `PlatformOrgMembersSideMenuLoading`, `PlatformOrgOverviewSideMenuNotFound`, `PlatformOrgOverviewSideMenuSuspended`, `PlatformOrgProjectsSideMenu`, `CreateOrgSideMenu` (REG; expected count 412).
-- [ ] **Step 5: Run** tests, coverage and smoke tests, PARITY for the touched boards. Expected: PASS.
-- [ ] **Step 6: Commit** `feat(web): platform screens and stories in the new shell`.
+- [x] **Step 0: Multi-agent gate.** Run both checks in "Multi-agent gate". If either fails, stop: write no code and report which check failed.
+- [x] **Step 1: Write failing tests** in `platform.test.tsx` per the pattern, plus: `PlatformOrgDetail` loading and error views have one `main`.
+- [x] **Step 2: Run** VITEST `src/screens/platform.test.tsx`. Expected: FAIL.
+- [x] **Step 3: Implement** the owned branches (`CreateOrg` platform variant included).
+- [x] **Step 4: Stories** on `ShellFrame`; register `PlatformOrgsSideMenu`, `PlatformAdminsForbiddenNoMenu`, `PlatformOrgMembersSideMenuError`, `PlatformOrgMembersSideMenuLoading`, `PlatformOrgOverviewSideMenuNotFound`, `PlatformOrgOverviewSideMenuSuspended`, `PlatformOrgProjectsSideMenu`, `CreateOrgSideMenu` (REG; expected count 412).
+- [x] **Step 5: Run** tests, coverage and smoke tests, PARITY for the touched boards. Expected: PASS.
+- [x] **Step 6: Commit** `feat(web): platform screens and stories in the new shell`.
 
 ### Task 20: Runs screens in the shell (after the multi-agent gate)
 
@@ -897,13 +897,13 @@ Fill mode (spec "Page fit inside the shell"): the root is the given height and d
 
 - Produces: `projectMenuFixtures` in `shellMenus.ts` (full, member, loading, error, repoWarning, repoError, repoNoBranch).
 
-- [ ] **Step 0: Multi-agent gate.** Run both checks in "Multi-agent gate". If either fails, stop: write no code and report which check failed.
-- [ ] **Step 1: Write failing tests:** owned Runs has h1 "Runs", header meta with slots and today's counts, search "Search runs" and "Grouped by ticket" in the header actions, the filter chips below the header, no repository button.
-- [ ] **Step 2: Run** VITEST `src/screens/runs.test.tsx`. Expected: FAIL.
-- [ ] **Step 3: Implement** the owned branch of `RunsPage`.
-- [ ] **Step 4: Stories;** register `RunsSideMenu`, `RunsSideMenuError`, `RunsSideMenuLoading`, `RunsSideMenuMember`, `RunsSideMenuRepoError`, `RunsSideMenuRepoNoBranch`, `RunsSideMenuRepoWarning`, `RunsSideProjectSwitcher`, `RunsSideProjectSwitcherEmpty`, `RunsSideProjectSwitcherError`, `RunsSideProjectSwitcherLoading`, `RunsSideProjectSwitcherNoCreate`, `RunsNotFoundSideMenu` (REG; expected count 425).
-- [ ] **Step 5: Run** tests, coverage and smoke, PARITY. Expected: PASS.
-- [ ] **Step 6: Commit** `feat(web): runs screens and stories in the new shell`.
+- [x] **Step 0: Multi-agent gate.** Run both checks in "Multi-agent gate". If either fails, stop: write no code and report which check failed.
+- [x] **Step 1: Write failing tests:** owned Runs has h1 "Runs", header meta with slots and today's counts, search "Search runs" and "Grouped by ticket" in the header actions, the filter chips below the header, no repository button.
+- [x] **Step 2: Run** VITEST `src/screens/runs.test.tsx`. Expected: FAIL.
+- [x] **Step 3: Implement** the owned branch of `RunsPage`.
+- [x] **Step 4: Stories;** register `RunsSideMenu`, `RunsSideMenuError`, `RunsSideMenuLoading`, `RunsSideMenuMember`, `RunsSideMenuRepoError`, `RunsSideMenuRepoNoBranch`, `RunsSideMenuRepoWarning`, `RunsSideProjectSwitcher`, `RunsSideProjectSwitcherEmpty`, `RunsSideProjectSwitcherError`, `RunsSideProjectSwitcherLoading`, `RunsSideProjectSwitcherNoCreate`, `RunsNotFoundSideMenu` (REG; expected count 425).
+- [x] **Step 5: Run** tests, coverage and smoke, PARITY. Expected: PASS.
+- [x] **Step 6: Commit** `feat(web): runs screens and stories in the new shell`.
 
 ### Task 21: Project frame, Skills, Workspace setup, Members and Audit log screens in the shell (after the multi-agent gate)
 

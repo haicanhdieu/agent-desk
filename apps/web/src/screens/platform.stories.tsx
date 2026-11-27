@@ -52,6 +52,8 @@ import { PlatformOrgMembers as PlatformOrgMembersScreen, type PlatformOrgMembers
 import { PlatformOrgProjects as PlatformOrgProjectsScreen, type ListView } from './PlatformOrgProjects';
 import { PlatformOrgs as PlatformOrgsScreen, type PlatformOrgsProps } from './PlatformOrgs';
 import { PlatformFrame } from './platformFrame';
+import { PlatformShellFrame } from './platformShellFrame';
+import { CreateOrg as CreateOrgScreen } from './CreateOrg';
 import { viewport } from './viewports';
 
 const noop = () => undefined;
@@ -61,11 +63,15 @@ const meta = {
   parameters: { layout: 'fullscreen' },
   globals: viewport(1440, 900),
   decorators: [
-    (S) => (
-      <AppShell height={900} topBar={null}>
+    // A story with `parameters.shell` brings its own ShellFrame; the others sit in the old bare frame.
+    (S, { parameters }) =>
+      parameters.shell ? (
         <S />
-      </AppShell>
-    ),
+      ) : (
+        <AppShell height={900} topBar={null}>
+          <S />
+        </AppShell>
+      ),
   ],
 } satisfies Meta;
 export default meta;
@@ -714,3 +720,112 @@ export const PlatformOrgInvitationsCopyFailed: Story = {
   name: 'Organization detail, Invitations: copy link blocked by the browser',
   render: () => invitations({ linkDialog, copyFailed: true }),
 };
+
+// The same screens inside the shell: the "Platform menu" (top level, or the one-org menu that replaces it) beside a
+// page that draws only its own header and body.
+const shellStory = (story: Story): Story => ({ ...story, parameters: { ...story.parameters, shell: true } });
+const orgsCrumb = { label: 'Organizations', href: '/platform/orgs' };
+const harborCrumbs = (...rest: { label: string; href?: string }[]) => [
+  orgsCrumb,
+  { label: 'Harbor Labs', href: '/platform/orgs/org-harbor' },
+  ...rest,
+];
+const shellHeader = { ...tabHeader, name: 'Harbor Labs', slug: 'harbor-labs' };
+const shellOrgPage = (
+  org: 'active' | 'suspended' | 'loading' | 'error',
+  tab: 'overview' | 'projects' | 'members' | 'invitations',
+  view: PlatformOrgDetailProps['view'],
+  crumbs: { label: string; href?: string }[],
+  children?: ReactNode,
+) => (
+  <PlatformShellFrame menu={{ org, tab }} crumbs={crumbs}>
+    <PlatformOrgDetailScreen view={view}>{children}</PlatformOrgDetailScreen>
+  </PlatformShellFrame>
+);
+const shellReady: PlatformOrgDetailProps['view'] = {
+  kind: 'ready',
+  header: shellHeader,
+  overview: activeOrgOverview,
+};
+
+export const PlatformOrgsSideMenu: Story = shellStory({
+  name: 'Platform organizations, platform menu',
+  render: () => (
+    <PlatformShellFrame menu={{ page: 'orgs' }} crumbs={[orgsCrumb]}>
+      <PlatformOrgsScreen
+        view={{ kind: 'ready', rows: platformOrgRows, pagination: orgsPagination }}
+        filters={noFilters}
+        onSearch={noop}
+        onStatus={noop}
+        onClearFilters={noop}
+        createHref="/platform/orgs/new"
+      />
+    </PlatformShellFrame>
+  ),
+});
+export const PlatformAdminsForbiddenNoMenu: Story = shellStory({
+  name: 'Platform admins, no access: no menu',
+  render: () => (
+    <PlatformShellFrame menu={{ page: 'admins' }} sideMenu={false} crumbs={[{ label: 'Platform admins' }]}>
+      <PlatformAdminsScreen view={{ kind: 'forbidden' }} onAdd={noop} onRevoke={noop} />
+    </PlatformShellFrame>
+  ),
+});
+export const PlatformOrgMembersSideMenuError: Story = shellStory({
+  name: 'Platform organization Members, failed to load: menu reads Organization',
+  render: () =>
+    shellOrgPage(
+      'error',
+      'members',
+      { kind: 'error', title: 'Internal server error', onRetry: noop },
+      harborCrumbs({ label: 'Members' }),
+    ),
+});
+export const PlatformOrgMembersSideMenuLoading: Story = shellStory({
+  name: 'Platform organization Members, loading: placeholder menu',
+  render: () => shellOrgPage('loading', 'members', { kind: 'loading' }, harborCrumbs({ label: 'Members' })),
+});
+export const PlatformOrgOverviewSideMenuNotFound: Story = shellStory({
+  name: 'Platform organization not found: platform menu with Organizations',
+  render: () => (
+    <PlatformShellFrame menu={{ page: 'orgs' }} crumbs={[orgsCrumb, { label: 'Not found' }]} state="notFound">
+      <PlatformOrgDetailScreen view={{ kind: 'notFound', backHref: '/platform/orgs' }} />
+    </PlatformShellFrame>
+  ),
+});
+export const PlatformOrgOverviewSideMenuSuspended: Story = shellStory({
+  name: 'Platform organization Overview, suspended',
+  render: () =>
+    shellOrgPage(
+      'suspended',
+      'overview',
+      { kind: 'ready', header: { ...shellHeader, status: 'suspended' }, overview: suspendedOrgOverview },
+      harborCrumbs({ label: 'Overview' }),
+    ),
+});
+export const PlatformOrgProjectsSideMenu: Story = shellStory({
+  name: 'Platform organization Projects, platform menu',
+  render: () =>
+    shellOrgPage(
+      'active',
+      'projects',
+      shellReady,
+      harborCrumbs({ label: 'Projects' }),
+      <PlatformOrgProjectsScreen view={readyProjects} />,
+    ),
+});
+export const CreateOrgSideMenu: Story = shellStory({
+  name: 'Create organization, platform menu',
+  render: () => (
+    <PlatformShellFrame menu={{ page: 'orgs' }} crumbs={[orgsCrumb, { label: 'Create organization' }]}>
+      <CreateOrgScreen
+        state={{ kind: 'form', values: { name: '', slug: '', email: '' }, errors: {}, saving: false }}
+        onChange={noop}
+        onSubmit={noop}
+        onRetry={noop}
+        onCopy={noop}
+        onDone={noop}
+      />
+    </PlatformShellFrame>
+  ),
+});

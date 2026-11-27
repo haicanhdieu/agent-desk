@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { RouteLoadError, RouteSkeleton, type OrgSwitchProps } from '@/components';
@@ -21,8 +22,11 @@ import {
 } from '@/mocks';
 import type { TicketGroup } from '@/mocks/types';
 import { filterGroups, Runs, type RunsFilter } from './Runs';
+import { RunsPage } from './RunsPage';
 import { RunsProblems } from './RunsProblems';
 import { NeedsYou } from './NeedsYou';
+import { ProjectShellFrame } from './projectShellFrame';
+import { expectShellOwnedPage, headerActions } from '@/test/shellAssert';
 
 const counts: Record<RunsFilter, number> = { needs_you: 1, active: 2, queued: 1, ended: 6, all: 9, ignored: 3 };
 const project = projects[0];
@@ -582,5 +586,94 @@ describe('Runs under the app bar (BR-43)', () => {
     render(<NeedsYou project={project} projects={projects} topBar={{ user, org }} />);
     expect(screen.getAllByRole('navigation', { name: 'Organization sections' })).toHaveLength(1);
     expect(screen.getByRole('navigation', { name: 'Runs and Settings tabs, example' })).toBeInTheDocument();
+  });
+});
+
+describe('Runs in the shell', () => {
+  const menu = 'Project menu';
+  const inShell = (ui: ReactNode) =>
+    render(
+      <ProjectShellFrame page="runs" crumbs={[{ label: 'Runs' }]}>
+        {ui}
+      </ProjectShellFrame>,
+    );
+  const search = { value: '', applied: '', onChange: vi.fn() };
+
+  it('draws one main with the h1 Runs and the slots and today counts as header meta', () => {
+    inShell(<Runs {...base} filter="all" search={search} />);
+    const main = expectShellOwnedPage('Runs', { menu });
+    const header = screen.getByRole('heading', { level: 1 }).closest('header')!;
+    expect(within(header).getByText('2 of 2')).toBeInTheDocument();
+    expect(within(header).getByText('Today: 9 runs, 1 failed')).toBeInTheDocument();
+    expect(within(main).getByRole('table')).toBeInTheDocument();
+  });
+
+  it('puts "Search runs" and "Grouped by ticket" in the header actions', () => {
+    inShell(<Runs {...base} filter="all" search={search} />);
+    const actions = headerActions(screen.getByRole('main'));
+    expect(within(actions).getByRole('searchbox', { name: 'Search runs' })).toBeInTheDocument();
+    expect(within(actions).getByRole('button', { name: 'Grouped by ticket' })).toBeInTheDocument();
+  });
+
+  it('draws the filter chips below the header, not inside it', () => {
+    inShell(<Runs {...base} filter="all" search={search} />);
+    const header = screen.getByRole('heading', { level: 1 }).closest('header')!;
+    const chips = screen.getByRole('group', { name: 'Filter by status' });
+    expect(header.contains(chips)).toBe(false);
+    expect(header.compareDocumentPosition(chips) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(within(chips).getByRole('button', { name: /^All/ })).toBeInTheDocument();
+  });
+
+  it('has no repository button in the bar or the page; the repository link is in the menu block', () => {
+    inShell(<Runs {...base} filter="all" search={search} />);
+    const bar = screen.getAllByRole('banner').find((b) => !b.closest('main'))!;
+    expect(within(bar).queryByRole('link', { name: /repository/i })).toBeNull();
+    expect(within(screen.getByRole('main')).queryByRole('link', { name: /repository/i })).toBeNull();
+    const nav = screen.getByRole('navigation', { name: menu });
+    expect(within(nav).getByRole('link', { name: 'Open repository' })).toHaveAttribute('target', '_blank');
+  });
+
+  it('draws no bar, menu or navigation of its own', () => {
+    inShell(<Runs {...base} filter="all" search={search} />);
+    expect(screen.getAllByRole('banner').filter((b) => !b.closest('main'))).toHaveLength(1);
+    expect(screen.queryByRole('navigation', { name: 'Project sections' })).toBeNull();
+  });
+
+  it('the setup warnings of the Ignored view sit in the page header', () => {
+    inShell(
+      <RunsProblems
+        {...base}
+        warnings={[
+          {
+            tone: 'err',
+            icon: 'warning',
+            title: 'Polling failed',
+            body: 'Rate limited.',
+            actions: [{ label: 'Check again' }],
+          },
+        ]}
+        ignored={ignored}
+      />,
+    );
+    const main = expectShellOwnedPage('Runs', { menu });
+    const header = within(main).getByRole('heading', { level: 1 }).closest('header')!;
+    expect(within(header).getByText('Polling failed')).toBeInTheDocument();
+    expect(within(main).getByRole('heading', { level: 2, name: 'Ignored commands' })).toBeInTheDocument();
+  });
+
+  it('a loading or failed list keeps one main and the header', () => {
+    const { unmount } = inShell(
+      <RunsPage {...base} filter="all">
+        <RouteSkeleton />
+      </RunsPage>,
+    );
+    expectShellOwnedPage('Runs', { menu });
+    unmount();
+    inShell(
+      <RunsPage {...base} filter="all">
+        <RouteLoadError title="Internal server error" onRetry={vi.fn()} />
+      </RunsPage>,
+    );
+    expectShellOwnedPage('Runs', { menu });
   });
 });

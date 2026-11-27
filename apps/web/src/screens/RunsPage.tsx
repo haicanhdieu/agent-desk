@@ -3,10 +3,12 @@ import { Button, Icon, SearchInput, StatusIcon } from '@/ds';
 import {
   FilterChip,
   FilterChips,
+  PageHeader,
   TopBar,
   type OrgSwitchProps,
   type ProjectSwitchMenu,
   type TopBarProps,
+  useShellOwnsChrome,
 } from '@/components';
 import type { Actor, Project } from '@/mocks/types';
 import styles from './Screens.module.css';
@@ -76,6 +78,76 @@ export function RunsPage({
   banners,
   children,
 }: RunsPageProps) {
+  const owned = useShellOwnsChrome();
+  const meta = (
+    <span className={`muted ${styles.runsMeta}`}>
+      <span className={styles.runsSlots}>
+        <Icon name="play" size={12} />
+        <span>
+          Slots{' '}
+          <b className={styles.slotNum}>
+            {slots.used} of {slots.total}
+          </b>{' '}
+          in use
+        </span>
+      </span>
+      <span>{today}</span>
+    </span>
+  );
+  const tools = (
+    <>
+      {search && (
+        <SearchInput
+          placeholder="Ticket number or title"
+          aria-label="Search runs"
+          value={search.value}
+          onChange={(e) => search.onChange(e.target.value)}
+          onClear={() => search.onChange('')}
+        />
+      )}
+      <Button icon="rule" aria-pressed={grouped} onClick={() => onGroupedChange?.(!grouped)}>
+        Grouped by ticket
+      </Button>
+    </>
+  );
+  const chipRow = (
+    <div className={styles.chipRow}>
+      <FilterChips aria-label="Filter by status">
+        {chips.map((c) => (
+          <FilterChip
+            key={c.filter}
+            label={c.label}
+            count={counts[c.filter]}
+            icon={c.filter === 'needs_you' ? <StatusIcon status="idle" size={12} /> : undefined}
+            on={filter === c.filter}
+            onClick={() => onFilter?.(c.filter)}
+            href={filterHref?.(c.filter)}
+          />
+        ))}
+      </FilterChips>
+      <FilterChip
+        label="Ignored"
+        count={counts.ignored}
+        icon={<Icon name="ignored" size={13} />}
+        on={filter === 'ignored'}
+        onClick={() => onFilter?.('ignored')}
+        href={filterHref?.('ignored')}
+      />
+    </div>
+  );
+
+  // In the shell the bar and the menu are the shell's: the page draws its header (title, facts, search and grouping,
+  // the setup warnings), the chips and the list. There is no repository button; the repository is in the menu.
+  if (owned) {
+    return (
+      <main className={styles.shellMain}>
+        <PageHeader title="Runs" meta={meta} actions={tools} banner={banners} />
+        {chipRow}
+        {children}
+      </main>
+    );
+  }
+
   return (
     <>
       <TopBar
@@ -94,58 +166,11 @@ export function RunsPage({
         <div className={styles.runsHead}>
           <div className={styles.runsTitle}>
             <h1>Runs</h1>
-            <span className={`muted ${styles.runsMeta}`}>
-              <span className={styles.runsSlots}>
-                <Icon name="play" size={12} />
-                <span>
-                  Slots{' '}
-                  <b className={styles.slotNum}>
-                    {slots.used} of {slots.total}
-                  </b>{' '}
-                  in use
-                </span>
-              </span>
-              <span>{today}</span>
-            </span>
+            {meta}
           </div>
-          <div className={styles.runsTools}>
-            {search && (
-              <SearchInput
-                placeholder="Ticket number or title"
-                aria-label="Search runs"
-                value={search.value}
-                onChange={(e) => search.onChange(e.target.value)}
-                onClear={() => search.onChange('')}
-              />
-            )}
-            <Button icon="rule" aria-pressed={grouped} onClick={() => onGroupedChange?.(!grouped)}>
-              Grouped by ticket
-            </Button>
-          </div>
+          <div className={styles.runsTools}>{tools}</div>
         </div>
-        <div className={styles.chipRow}>
-          <FilterChips aria-label="Filter by status">
-            {chips.map((c) => (
-              <FilterChip
-                key={c.filter}
-                label={c.label}
-                count={counts[c.filter]}
-                icon={c.filter === 'needs_you' ? <StatusIcon status="idle" size={12} /> : undefined}
-                on={filter === c.filter}
-                onClick={() => onFilter?.(c.filter)}
-                href={filterHref?.(c.filter)}
-              />
-            ))}
-          </FilterChips>
-          <FilterChip
-            label="Ignored"
-            count={counts.ignored}
-            icon={<Icon name="ignored" size={13} />}
-            on={filter === 'ignored'}
-            onClick={() => onFilter?.('ignored')}
-            href={filterHref?.('ignored')}
-          />
-        </div>
+        {chipRow}
         {children}
       </main>
     </>

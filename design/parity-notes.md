@@ -675,3 +675,19 @@ Boards registered (16, canvas order 388 to 404): ProjectsSideMenu, ProjectsMembe
 - Row actions: the Projects board draws "Agent & settings" as a text button in each row; the app puts it in the row's menu. Same as before this change.
 - Members and the other tables: the stories use the shared fixtures, so names and rows differ from the board's sample data.
 - Agent call: `ProjectsSideSwitcherOneOrgHeld` reaches its state in a `play` step (the list loads, then arrives with one org while the switcher is open), as the person's own click is needed.
+
+## Sidebar navigation shell: platform screens in the shell (Task 19)
+
+Boards registered (8, canvas order 404 to 412): PlatformOrgsSideMenu, PlatformAdminsForbiddenNoMenu, PlatformOrgMembersSideMenuError, PlatformOrgMembersSideMenuLoading, PlatformOrgOverviewSideMenuNotFound, PlatformOrgOverviewSideMenuSuspended, PlatformOrgProjectsSideMenu, CreateOrgSideMenu. They sit in a new canvas row at y 94000. PARITY (Storybook build and the side-by-side render) was not run in this session: the build needs more memory than the 4 GiB cap allows next to the other checks, so these 8 pairs are unchecked.
+
+- Agent call: the platform menu fixtures and the `PlatformShellFrame` that wraps them live in `mocks/shellMenus.tsx` and `screens/platformShellFrame.tsx` (as the org menu does), not in `platform.stories.tsx`, because the screen tests use them too.
+- Agent call: `CreateOrgSideMenu` is registered under `Screens/Platform`, beside the other platform boards.
+
+## Sidebar navigation shell: Runs screens in the shell (Task 20)
+
+Boards registered (13, canvas order 412 to 425): RunsSideMenu, RunsSideMenuError, RunsSideMenuLoading, RunsSideMenuMember, RunsSideMenuRepoError, RunsSideMenuRepoNoBranch, RunsSideMenuRepoWarning, RunsSideProjectSwitcher, RunsSideProjectSwitcherEmpty, RunsSideProjectSwitcherError, RunsSideProjectSwitcherLoading, RunsSideProjectSwitcherNoCreate, RunsNotFoundSideMenu. They sit in new canvas rows at y 95280 and 96560 (8 per row). PARITY (Storybook build and the side-by-side render) was not run in this session (4 GiB memory cap), so these 13 pairs are unchecked.
+
+- Agent call: the project menu and project switcher fixtures are in `mocks/shellMenus.tsx`, and `screens/projectShellFrame.tsx` wraps them for stories and tests (the org menu has the same split); the task text named `shellMenus.ts`, but the U16 file is `.tsx` because it holds links.
+- Agent call: `Runs.tsx` and `RunsProblems.tsx` need no change, both draw through `RunsPage`, which carries the owned branch.
+- Agent call: `RunsNotFoundSideMenu` renders the not-found notice (the text of `app/boundaries.tsx` `NotFound`) inside `OrgShellFrame`, since `app/` is not presentational.
+- The repository link comes from the menu block, which uses `repoUrl` as given; `repoUrlOf` (`features/runs/map.ts`) still hard-codes github.com, flagged and not fixed.

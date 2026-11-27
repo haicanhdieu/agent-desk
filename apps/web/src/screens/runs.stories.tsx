@@ -1,5 +1,14 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
-import { AppShell, RouteLoadError, RouteSkeleton, type OrgSwitchProps, type PaginationProps } from '@/components';
+import type { ReactNode } from 'react';
+import { userEvent, waitFor, within } from 'storybook/test';
+import {
+  AppShell,
+  EmptyState,
+  RouteLoadError,
+  RouteSkeleton,
+  type OrgSwitchProps,
+  type PaginationProps,
+} from '@/components';
 import {
   connectionWarnings,
   ignored,
@@ -9,6 +18,7 @@ import {
   pagedIgnored,
   pagedNeedsYou,
   pagedRuns,
+  projectSwitchFixtures,
   prStateRuns,
   projects,
   runDetails,
@@ -23,7 +33,11 @@ import type { TicketGroup } from '@/mocks/types';
 import { NeedsYou as NeedsYouScreen } from './NeedsYou';
 import { Runs as RunsScreen } from './Runs';
 import { RunsProblems as RunsProblemsScreen, type RunsProblemsWarning } from './RunsProblems';
-import type { RunsFilter } from './RunsPage';
+import { RunsPage, type RunsFilter } from './RunsPage';
+import { OrgShellFrame } from './orgShellFrame';
+import { ProjectShellFrame, type ProjectShellFrameProps } from './projectShellFrame';
+import { Button } from '@/ds';
+import styles from './Screens.module.css';
 import { viewport } from './viewports';
 
 // Artboards come from canvas.json: Runs 1440x1000, RunsProblems 1440x960, NeedsYou 1440x740.
@@ -587,5 +601,132 @@ export const RunsPageLoadingUsage: Story = {
       needsYouRun={usageNeedsYouRun}
       pagination={pagination(4, 63, true)}
     />
+  ),
+};
+
+// The same page inside the shell: the project menu with its repository block beside a page that draws only its header,
+// the chips and the list.
+const runsCrumbs = [{ label: 'Runs' }];
+const idleRun = {
+  run: runs.find((r) => r.id === 62)!,
+  askedAgo: '3 minutes ago',
+  slotNote:
+    'It holds one of your 2 slots, so Run 63 is waiting. It ends on its own after 30 minutes with nobody attached.',
+  href: '/runs/62',
+};
+const shellRuns = (frame: Partial<ProjectShellFrameProps> = {}, body?: ReactNode) => (
+  <ProjectShellFrame page="runs" crumbs={runsCrumbs} {...frame}>
+    {body ?? (
+      <RunsScreen
+        search={search}
+        {...common}
+        filter="all"
+        counts={counts}
+        groups={ticketGroups}
+        needsYouRun={idleRun}
+        onFinishIdle={() => undefined}
+      />
+    )}
+  </ProjectShellFrame>
+);
+const shellPage = (children: ReactNode) => (
+  <RunsPage {...common} filter="all" counts={counts} search={search}>
+    {children}
+  </RunsPage>
+);
+const openSwitcher: Story['play'] = async ({ canvasElement }) => {
+  await userEvent.click(within(canvasElement).getByRole('button', { name: /^Switch project/ }));
+  await waitFor(() => within(canvasElement).getByRole('dialog', { name: 'Switch project' }));
+};
+
+export const RunsSideMenu: Story = {
+  name: 'Runs, full project menu',
+  globals: viewport(1440, 900),
+  render: () => shellRuns(),
+};
+export const RunsSideMenuMember: Story = {
+  name: 'Runs, project menu for a member or viewer',
+  globals: viewport(1440, 900),
+  render: () => shellRuns({ menu: 'member' }),
+};
+export const RunsSideMenuLoading: Story = {
+  name: 'Runs, project menu loading',
+  globals: viewport(1440, 900),
+  render: () => shellRuns({ menu: 'loading' }, shellPage(<RouteSkeleton />)),
+};
+export const RunsSideMenuError: Story = {
+  name: 'Runs, project menu and list failed to load',
+  globals: viewport(1440, 900),
+  render: () =>
+    shellRuns(
+      { menu: 'error' },
+      shellPage(
+        <RouteLoadError title="Internal server error" requestId="req_01JD7Q3M8V2K" onRetry={() => undefined} />,
+      ),
+    ),
+};
+export const RunsSideMenuRepoWarning: Story = {
+  name: 'Runs, repository block with a webhook warning',
+  globals: viewport(1440, 900),
+  render: () => shellRuns({ menu: 'repoWarning' }),
+};
+export const RunsSideMenuRepoError: Story = {
+  name: 'Runs, repository block with a polling error',
+  globals: viewport(1440, 900),
+  render: () => shellRuns({ menu: 'repoError' }),
+};
+export const RunsSideMenuRepoNoBranch: Story = {
+  name: 'Runs, repository block with no default branch',
+  globals: viewport(1440, 900),
+  render: () => shellRuns({ menu: 'repoNoBranch' }),
+};
+export const RunsSideProjectSwitcher: Story = {
+  name: 'Runs, project switcher open',
+  globals: viewport(1440, 900),
+  render: () => shellRuns({ switcher: projectSwitchFixtures.ready }),
+  play: openSwitcher,
+};
+export const RunsSideProjectSwitcherEmpty: Story = {
+  name: 'Runs, project switcher with no projects',
+  globals: viewport(1440, 900),
+  render: () => shellRuns({ switcher: projectSwitchFixtures.empty }),
+  play: openSwitcher,
+};
+export const RunsSideProjectSwitcherError: Story = {
+  name: 'Runs, project switcher could not load',
+  globals: viewport(1440, 900),
+  render: () => shellRuns({ switcher: projectSwitchFixtures.error }),
+  play: openSwitcher,
+};
+export const RunsSideProjectSwitcherLoading: Story = {
+  name: 'Runs, project switcher loading',
+  globals: viewport(1440, 900),
+  render: () => shellRuns({ switcher: projectSwitchFixtures.loading }),
+  play: openSwitcher,
+};
+export const RunsSideProjectSwitcherNoCreate: Story = {
+  name: 'Runs, project switcher without New project',
+  globals: viewport(1440, 900),
+  render: () => shellRuns({ switcher: projectSwitchFixtures.noCreate }),
+  play: openSwitcher,
+};
+/** A project the person cannot open: the org menu stays, the page says so. */
+export const RunsNotFoundSideMenu: Story = {
+  name: 'Runs, project not found: organization menu',
+  globals: viewport(1440, 900),
+  render: () => (
+    <OrgShellFrame viewer="owner" page={null} state="notFound">
+      <main className={styles.shellMain}>
+        <EmptyState
+          title="Page not found"
+          body="This page does not exist, or it belongs to an organization you are not in."
+          action={
+            <Button variant="primary" href="#projects">
+              Go to projects
+            </Button>
+          }
+        />
+      </main>
+    </OrgShellFrame>
   ),
 };

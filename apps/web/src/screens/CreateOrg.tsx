@@ -1,6 +1,6 @@
 import { useEffect, useId, useRef } from 'react';
 import { Banner, Button, Field, Icon, PrefixInput, TextInput } from '@/ds';
-import { InviteLink, SurfaceCard } from '@/components';
+import { InviteLink, PageHeader, SurfaceCard, useShellOwnsChrome } from '@/components';
 import styles from './Screens.module.css';
 
 export interface CreateOrgValues {
@@ -43,12 +43,20 @@ const HINT = 'They get the owner role. Send them the link that appears next.';
  * The page renders inside the platform shell, which draws the bar.
  */
 export function CreateOrg({ state, onChange, onSubmit, onRetry, onCopy, onDone }: CreateOrgProps) {
-  return <main className={styles.emptyMain}>{body(state, { onChange, onSubmit, onRetry, onCopy, onDone })}</main>;
+  const owned = useShellOwnsChrome();
+  // In the shell the title is the page header's h1; the no-access notice keeps its own centred one.
+  const inHeader = owned && state.kind !== 'forbidden';
+  return (
+    <main className={inHeader ? styles.shellMain : styles.emptyMain}>
+      {inHeader && <PageHeader title="Create an organization" />}
+      {body(state, { onChange, onSubmit, onRetry, onCopy, onDone }, inHeader)}
+    </main>
+  );
 }
 
 type Handlers = Pick<CreateOrgProps, 'onChange' | 'onSubmit' | 'onRetry' | 'onCopy' | 'onDone'>;
 
-function body(state: CreateOrgState, h: Handlers) {
+function body(state: CreateOrgState, h: Handlers, titled: boolean) {
   switch (state.kind) {
     case 'forbidden':
       return (
@@ -60,14 +68,14 @@ function body(state: CreateOrgState, h: Handlers) {
     case 'created':
       return (
         <div className={styles.createOrgCol}>
-          <h1>Create an organization</h1>
+          {!titled && <h1>Create an organization</h1>}
           <Created {...state} onCopy={h.onCopy} onDone={h.onDone} />
         </div>
       );
     case 'invitationFailed':
       return (
         <div className={styles.createOrgCol}>
-          <h1>Create an organization</h1>
+          {!titled && <h1>Create an organization</h1>}
           <Banner
             tone="err"
             icon={<Icon name="warning" size={18} />}
@@ -106,7 +114,7 @@ function body(state: CreateOrgState, h: Handlers) {
             if (!state.saving) h.onSubmit();
           }}
         >
-          <h1>Create an organization</h1>
+          {!titled && <h1>Create an organization</h1>}
           {state.formError && (
             <Banner
               tone="err"

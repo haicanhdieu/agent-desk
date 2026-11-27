@@ -3241,6 +3241,174 @@
    "h": 900,
    "title": "No access, organization menu",
    "expand": "fill"
+  },
+  "PlatformOrgsSideMenu.dc.html": {
+   "x": 0,
+   "y": 94000,
+   "w": 1440,
+   "h": 900,
+   "title": "Platform organizations, platform menu",
+   "expand": "fill"
+  },
+  "PlatformAdminsForbiddenNoMenu.dc.html": {
+   "x": 1520,
+   "y": 94000,
+   "w": 1440,
+   "h": 900,
+   "title": "Platform area without the role: no menu",
+   "expand": "fill"
+  },
+  "PlatformOrgMembersSideMenuError.dc.html": {
+   "x": 3040,
+   "y": 94000,
+   "w": 1440,
+   "h": 900,
+   "title": "Platform, one organization: could not load",
+   "expand": "fill"
+  },
+  "PlatformOrgMembersSideMenuLoading.dc.html": {
+   "x": 4560,
+   "y": 94000,
+   "w": 1440,
+   "h": 900,
+   "title": "Platform, one organization: menu loading",
+   "expand": "fill"
+  },
+  "PlatformOrgOverviewSideMenuNotFound.dc.html": {
+   "x": 6080,
+   "y": 94000,
+   "w": 1440,
+   "h": 900,
+   "title": "Platform, organization not found: platform menu",
+   "expand": "fill"
+  },
+  "PlatformOrgOverviewSideMenuSuspended.dc.html": {
+   "x": 7600,
+   "y": 94000,
+   "w": 1440,
+   "h": 900,
+   "title": "Platform, one suspended organization: overview",
+   "expand": "fill"
+  },
+  "PlatformOrgProjectsSideMenu.dc.html": {
+   "x": 9120,
+   "y": 94000,
+   "w": 1440,
+   "h": 900,
+   "title": "Platform, one organization: projects (Name first)",
+   "expand": "fill"
+  },
+  "CreateOrgSideMenu.dc.html": {
+   "x": 10640,
+   "y": 94000,
+   "w": 1440,
+   "h": 900,
+   "title": "Create organization, platform menu",
+   "expand": "fill"
+  },
+  "RunsSideMenu.dc.html": {
+   "x": 0,
+   "y": 95280,
+   "w": 1440,
+   "h": 900,
+   "title": "Runs, full project menu",
+   "expand": "fill"
+  },
+  "RunsSideMenuError.dc.html": {
+   "x": 1520,
+   "y": 95280,
+   "w": 1440,
+   "h": 900,
+   "title": "Runs, project menu could not load",
+   "expand": "fill"
+  },
+  "RunsSideMenuLoading.dc.html": {
+   "x": 3040,
+   "y": 95280,
+   "w": 1440,
+   "h": 900,
+   "title": "Runs, project menu loading",
+   "expand": "fill"
+  },
+  "RunsSideMenuMember.dc.html": {
+   "x": 4560,
+   "y": 95280,
+   "w": 1440,
+   "h": 900,
+   "title": "Runs, project menu for a member or viewer",
+   "expand": "fill"
+  },
+  "RunsSideMenuRepoError.dc.html": {
+   "x": 6080,
+   "y": 95280,
+   "w": 1440,
+   "h": 900,
+   "title": "Runs, repository block error",
+   "expand": "fill"
+  },
+  "RunsSideMenuRepoNoBranch.dc.html": {
+   "x": 7600,
+   "y": 95280,
+   "w": 1440,
+   "h": 900,
+   "title": "Runs, repository block with no default branch",
+   "expand": "fill"
+  },
+  "RunsSideMenuRepoWarning.dc.html": {
+   "x": 9120,
+   "y": 95280,
+   "w": 1440,
+   "h": 900,
+   "title": "Runs, repository block warning",
+   "expand": "fill"
+  },
+  "RunsSideProjectSwitcher.dc.html": {
+   "x": 10640,
+   "y": 95280,
+   "w": 1440,
+   "h": 900,
+   "title": "Project switcher open",
+   "expand": "fill"
+  },
+  "RunsSideProjectSwitcherEmpty.dc.html": {
+   "x": 0,
+   "y": 96560,
+   "w": 1440,
+   "h": 900,
+   "title": "Project switcher, no projects",
+   "expand": "fill"
+  },
+  "RunsSideProjectSwitcherError.dc.html": {
+   "x": 1520,
+   "y": 96560,
+   "w": 1440,
+   "h": 900,
+   "title": "Project switcher, could not load",
+   "expand": "fill"
+  },
+  "RunsSideProjectSwitcherLoading.dc.html": {
+   "x": 3040,
+   "y": 96560,
+   "w": 1440,
+   "h": 900,
+   "title": "Project switcher, loading",
+   "expand": "fill"
+  },
+  "RunsSideProjectSwitcherNoCreate.dc.html": {
+   "x": 4560,
+   "y": 96560,
+   "w": 1440,
+   "h": 900,
+   "title": "Project switcher without New project",
+   "expand": "fill"
+  },
+  "RunsNotFoundSideMenu.dc.html": {
+   "x": 6080,
+   "y": 96560,
+   "w": 1440,
+   "h": 900,
+   "title": "Project out of scope: not found with the organization menu",
+   "expand": "fill"
   }
  },
  "order": [
@@ -3647,7 +3815,28 @@
   "OrgMembersSideMenuError.dc.html",
   "OrgMembersSideMenuLoading.dc.html",
   "OrgInvitationsSettingsSideMenuProjectAdmin.dc.html",
-  "OrgAuditForbiddenSideMenu.dc.html"
+  "OrgAuditForbiddenSideMenu.dc.html",
+  "PlatformOrgsSideMenu.dc.html",
+  "PlatformAdminsForbiddenNoMenu.dc.html",
+  "PlatformOrgMembersSideMenuError.dc.html",
+  "PlatformOrgMembersSideMenuLoading.dc.html",
+  "PlatformOrgOverviewSideMenuNotFound.dc.html",
+  "PlatformOrgOverviewSideMenuSuspended.dc.html",
+  "PlatformOrgProjectsSideMenu.dc.html",
+  "CreateOrgSideMenu.dc.html",
+  "RunsSideMenu.dc.html",
+  "RunsSideMenuError.dc.html",
+  "RunsSideMenuLoading.dc.html",
+  "RunsSideMenuMember.dc.html",
+  "RunsSideMenuRepoError.dc.html",
+  "RunsSideMenuRepoNoBranch.dc.html",
+  "RunsSideMenuRepoWarning.dc.html",
+  "RunsSideProjectSwitcher.dc.html",
+  "RunsSideProjectSwitcherEmpty.dc.html",
+  "RunsSideProjectSwitcherError.dc.html",
+  "RunsSideProjectSwitcherLoading.dc.html",
+  "RunsSideProjectSwitcherNoCreate.dc.html",
+  "RunsNotFoundSideMenu.dc.html"
  ],
  "notes": {
   "t-intro": {

@@ -4,8 +4,10 @@ import {
   auditColumns,
   DataTable,
   EmptyState,
+  PageHeader,
   Pagination,
   RouteLoadError,
+  useShellOwnsChrome,
   type PaginationProps,
 } from '@/components';
 import type { AuditRowView } from '@/mocks/types';
@@ -37,8 +39,9 @@ export function PlatformAudit({
   filtered,
   onClearFilters,
 }: PlatformAuditProps) {
+  const owned = useShellOwnsChrome();
   return (
-    <main className={styles.platformMain}>
+    <main className={owned ? styles.shellMain : styles.platformMain}>
       {view.kind === 'loading' && (
         <div className={styles.platformLoading} aria-busy="true" role="status" aria-label="Loading">
           <span aria-hidden="true">
@@ -54,9 +57,13 @@ export function PlatformAudit({
       {view.kind === 'error' && <RouteLoadError title={view.title} requestId={view.requestId} onRetry={view.onRetry} />}
       {view.kind === 'ready' && (
         <>
-          <div className={styles.listHead}>
-            <h1 tabIndex={-1}>Audit log</h1>
-          </div>
+          {owned ? (
+            <PageHeader title="Audit log" />
+          ) : (
+            <div className={styles.listHead}>
+              <h1 tabIndex={-1}>Audit log</h1>
+            </div>
+          )}
           <div className={styles.platformFilters}>
             <Select
               aria-label="Action"

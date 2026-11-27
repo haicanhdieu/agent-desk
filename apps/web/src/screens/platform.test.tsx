@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import {
@@ -28,6 +29,9 @@ import { PlatformOrgInvitations, type PlatformOrgInvitationsProps } from './Plat
 import { PlatformOrgMembers, type PlatformOrgMembersProps } from './PlatformOrgMembers';
 import { PlatformOrgProjects } from './PlatformOrgProjects';
 import { PlatformOrgs, type PlatformOrgsProps } from './PlatformOrgs';
+import { CreateOrg, type CreateOrgProps } from './CreateOrg';
+import { PlatformShellFrame } from './platformShellFrame';
+import { expectShellOwnedPage, headerActions } from '@/test/shellAssert';
 
 const noop = () => {};
 const pagination = { page: 1, pageSize: 20 as const, total: 3, onPageChange: noop, onPageSizeChange: noop };
@@ -918,5 +922,164 @@ describe('PlatformOrgInvitations', () => {
   it('copy failed shows the by-hand message as an alert', () => {
     render(<PlatformOrgInvitations {...invitationsProps({ copyFailed: true })} />);
     expect(screen.getByText('Could not copy. Select the link and copy it.')).toBeInTheDocument();
+  });
+});
+
+describe('Platform screens in the shell', () => {
+  const menu = 'Platform menu';
+  const top = (page: 'orgs' | 'admins' | 'audit', ui: ReactNode) =>
+    render(<PlatformShellFrame menu={{ page }}>{ui}</PlatformShellFrame>);
+  const inOrg = (
+    tab: 'overview' | 'projects' | 'members' | 'invitations',
+    ui: ReactNode,
+    org: 'active' | 'suspended' | 'loading' | 'error' = 'active',
+  ) => render(<PlatformShellFrame menu={{ org, tab }}>{ui}</PlatformShellFrame>);
+  const apiError = { kind: 'error' as const, title: 'Internal server error', onRetry: vi.fn() };
+
+  it('Organizations ready: one main, h1 in the page header with "Create organization" in its actions', () => {
+    top('orgs', <PlatformOrgs {...orgProps()} />);
+    const main = expectShellOwnedPage('Organizations', { menu });
+    expect(within(headerActions(main)).getByRole('link', { name: 'Create organization' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Organizations', current: 'page' })).toBeInTheDocument();
+  });
+
+  it('Organizations loading and error keep one main and no h1', () => {
+    const { unmount } = top('orgs', <PlatformOrgs {...orgProps({ view: { kind: 'loading' } })} />);
+    expectShellOwnedPage(null, { menu });
+    unmount();
+    top('orgs', <PlatformOrgs {...orgProps({ view: apiError })} />);
+    expectShellOwnedPage(null, { menu });
+  });
+
+  it('Platform admins ready: h1 in the page header with "Add platform admin" in its actions', () => {
+    top('admins', <PlatformAdmins {...props()} />);
+    const main = expectShellOwnedPage('Platform admins', { menu });
+    expect(within(headerActions(main)).getByRole('button', { name: 'Add platform admin' })).toBeInTheDocument();
+  });
+
+  it('Platform admins loading and error keep one main and no h1', () => {
+    const { unmount } = top('admins', <PlatformAdmins {...props({ view: { kind: 'loading' } })} />);
+    expectShellOwnedPage(null, { menu });
+    unmount();
+    top('admins', <PlatformAdmins {...props({ view: apiError })} />);
+    expectShellOwnedPage(null, { menu });
+  });
+
+  it('Platform admins forbidden: one banner, one main, the no-access h1 and no menu', () => {
+    render(
+      <PlatformShellFrame menu={{ page: 'admins' }} sideMenu={false}>
+        <PlatformAdmins {...props({ view: { kind: 'forbidden' } })} />
+      </PlatformShellFrame>,
+    );
+    expect(screen.getAllByRole('main')).toHaveLength(1);
+    expect(screen.getAllByRole('banner')).toHaveLength(1);
+    expect(screen.queryByRole('navigation', { name: menu })).toBeNull();
+    expect(screen.getByRole('heading', { level: 1, name: "You don't have access" })).toBeInTheDocument();
+  });
+
+  it('Audit log ready: h1 in the page header; loading and error have no h1', () => {
+    const { unmount } = top('audit', <PlatformAudit {...auditProps()} />);
+    expectShellOwnedPage('Audit log', { menu });
+    unmount();
+    const loading = top('audit', <PlatformAudit {...auditProps({ view: { kind: 'loading' } })} />);
+    expectShellOwnedPage(null, { menu });
+    loading.unmount();
+    top('audit', <PlatformAudit {...auditProps({ view: apiError })} />);
+    expectShellOwnedPage(null, { menu });
+  });
+
+  it('org detail ready: the org name is the h1 in the page header and the tab name is an h2', () => {
+    inOrg('overview', <PlatformOrgDetail view={ready()} />);
+    const main = expectShellOwnedPage('Acme', { menu });
+    expect(within(main).getByRole('heading', { level: 2, name: 'Overview' })).toBeInTheDocument();
+    expect(within(headerActions(main)).getByRole('button', { name: 'More actions' })).toBeInTheDocument();
+  });
+
+  it('org detail members tab: the tab name is an h2 below the org name', () => {
+    inOrg(
+      'members',
+      <PlatformOrgDetail view={ready()}>
+        <PlatformOrgMembers {...membersProps()} />
+      </PlatformOrgDetail>,
+    );
+    const main = expectShellOwnedPage('Acme', { menu });
+    expect(within(main).getByRole('heading', { level: 2, name: 'Members' })).toBeInTheDocument();
+  });
+
+  it('org detail loading and error views have one main and no h1', () => {
+    const loading = inOrg('overview', <PlatformOrgDetail view={{ kind: 'loading' }} />, 'loading');
+    expectShellOwnedPage(null, { menu });
+    loading.unmount();
+    inOrg('overview', <PlatformOrgDetail view={apiError} />, 'error');
+    expectShellOwnedPage(null, { menu });
+  });
+
+  it('org detail not found keeps one main with the top-level menu', () => {
+    top('orgs', <PlatformOrgDetail view={{ kind: 'notFound', backHref: '/platform/orgs' }} />);
+    const main = expectShellOwnedPage(null, { menu });
+    expect(within(main).getByRole('heading', { level: 2, name: 'Page not found' })).toBeInTheDocument();
+  });
+
+  it('org detail suspended shows the warning inside the one main', () => {
+    inOrg('overview', <PlatformOrgDetail view={ready(true)} />, 'suspended');
+    const main = expectShellOwnedPage('Acme', { menu });
+    expect(within(main).getByText('This organization is suspended')).toBeInTheDocument();
+  });
+
+  const createProps = (state: CreateOrgProps['state']): CreateOrgProps => ({
+    state,
+    onChange: vi.fn(),
+    onSubmit: vi.fn(),
+    onRetry: vi.fn(),
+    onCopy: vi.fn(),
+    onDone: vi.fn(),
+  });
+
+  it('create organization form: h1 in the page header, one main, Organizations current', () => {
+    top(
+      'orgs',
+      <CreateOrg
+        {...createProps({ kind: 'form', values: { name: '', slug: '', email: '' }, errors: {}, saving: false })}
+      />,
+    );
+    expectShellOwnedPage('Create an organization', { menu });
+    expect(screen.getByRole('button', { name: /Create organization/ })).toBeInTheDocument();
+  });
+
+  it('create organization created: h1 in the page header, one main', () => {
+    top(
+      'orgs',
+      <CreateOrg
+        {...createProps({
+          kind: 'created',
+          orgId: 'org-1',
+          email: 'owner@acme.test',
+          expiresOn: '2026-12-01',
+          link: 'https://example.test/invite/abc',
+        })}
+      />,
+    );
+    expectShellOwnedPage('Create an organization', { menu });
+  });
+
+  it('create organization invitationFailed: h1 in the page header, one main', () => {
+    top(
+      'orgs',
+      <CreateOrg
+        {...createProps({
+          kind: 'invitationFailed',
+          values: { name: 'Acme', slug: 'acme', email: 'owner@acme.test' },
+          errors: {},
+          title: 'Could not send the invitation',
+          retrying: false,
+        })}
+      />,
+    );
+    expectShellOwnedPage('Create an organization', { menu });
+  });
+
+  it('create organization forbidden: one main with the no-access h1', () => {
+    top('orgs', <CreateOrg {...createProps({ kind: 'forbidden' })} />);
+    expectShellOwnedPage("You don't have access", { menu, pageHeader: false });
   });
 });
