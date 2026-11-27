@@ -32,9 +32,11 @@ import type { OrgContext } from '../auth/org-context';
 import { isUniqueViolation } from '../common/pg-errors';
 import {
   SIGNAL,
+  browserRepoUrl,
   credentialSecretName,
   projectEnvSecretName,
   runWorkflowId,
+  toAdapterProject,
   type AdapterRegistry,
   type SecretStore,
 } from '@agentdesk/core';
@@ -111,6 +113,12 @@ interface Counts {
   lastRunAt: Date | null;
 }
 
+/** Where a person can open the connected repository, from the code connection that grants access to it. */
+interface RepoLink {
+  repoUrl: string | null;
+  codeProvider: Provider | null;
+}
+
 @Injectable()
 export class ProjectsService {
   private readonly logger = new Logger(ProjectsService.name);
@@ -149,12 +157,34 @@ export class ProjectsService {
     return out;
   }
 
-  private toDto(row: ProjectRow, counts: Counts | undefined): ProjectDto {
+  /** Browser URL and provider of each project's repo, read from the code connection (RLS-scoped) and its adapter. */
+  private async repoLinks(tx: Tx, rows: ProjectRow[]): Promise<Map<string, RepoLink>> {
+    const ids = [...new Set(rows.map((r) => r.codeConnectionId))];
+    const connectionsRows =
+      ids.length === 0 ? [] : await tx.select().from(connections).where(inArray(connections.id, ids));
+    const byId = new Map(connectionsRows.map((c) => [c.id, c]));
+    const links = new Map<string, RepoLink>();
+    for (const row of rows) {
+      const conn = byId.get(row.codeConnectionId);
+      if (!conn) {
+        links.set(row.id, { repoUrl: null, codeProvider: null });
+        continue;
+      }
+      const codeProvider = Provider.parse(conn.provider);
+      const cloneUrl = this.registry.codeHost(codeProvider).repoUrl(toAdapterProject(row, conn.externalId));
+      links.set(row.id, { codeProvider, repoUrl: browserRepoUrl(cloneUrl) });
+    }
+    return links;
+  }
+
+  private toDto(row: ProjectRow, counts: Counts | undefined, repo: RepoLink): ProjectDto {
     return {
       id: row.id,
       name: row.name,
       repoPath: row.repoPath,
+      repoUrl: repo.repoUrl,
       defaultBranch: row.defaultBranch,
+      codeProvider: repo.codeProvider,
       codeConnectionId: row.codeConnectionId,
       boardConnectionId: row.boardConnectionId,
       triggerMode: TriggerMode.parse(row.triggerMode),
@@ -175,7 +205,8 @@ export class ProjectsService {
 
   private async dtoOf(tx: Tx, row: ProjectRow): Promise<ProjectDto> {
     const counts = await this.countsFor(tx, [row.id]);
-    return this.toDto(row, counts.get(row.id));
+    const links = await this.repoLinks(tx, [row]);
+    return this.toDto(row, counts.get(row.id), links.get(row.id) ?? { repoUrl: null, codeProvider: null });
   }
 
   private async load(tx: Tx, projectId: string, lock = false): Promise<ProjectRow> {
@@ -224,8 +255,9 @@ export class ProjectsService {
         tx,
         rows.map((r) => r.id),
       );
+      const links = await this.repoLinks(tx, rows);
       return toPage(
-        rows.map((r) => this.toDto(r, counts.get(r.id))),
+        rows.map((r) => this.toDto(r, counts.get(r.id), links.get(r.id) ?? { repoUrl: null, codeProvider: null })),
         total,
         q,
       );

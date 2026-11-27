@@ -122,6 +122,7 @@ const skillsProps: DeskSkillsProps = {
   frame: deskFrame,
   skills,
   activeName: 'code-build',
+  historyHref: 'https://github.com/harbor-labs/invoicer-api/blob/main/.claude/skills/code-build/SKILL.md',
   dirty: true,
   changedLines: [17],
   commitMessage: 'code-build: run dotnet format before opening the PR',
@@ -157,6 +158,7 @@ const pending = () => new Promise<never>(() => undefined);
 const previewProps: DeskSkillsProps = {
   ...skillsProps,
   activeName: 'qa-e2e',
+  historyHref: 'https://github.com/harbor-labs/invoicer-api/blob/main/.claude/skills/qa-e2e/SKILL.md',
   dirty: false,
   changedLines: [],
   view: 'preview',

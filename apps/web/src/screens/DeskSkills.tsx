@@ -59,6 +59,8 @@ export interface DeskSkillsProps {
   folders?: string[];
   /** The project's default branch, where changes land. Null when it is not known; defaults to `main` (stories). */
   defaultBranch?: string | null;
+  /** Where History opens the selected skill's file; absent when the connected repo has no browser URL. */
+  historyHref?: string;
   /** A submission is in flight (Submit changes disabled). */
   committing?: boolean;
   /** The delete request is in flight (the dialog's confirm disabled). */
@@ -101,6 +103,7 @@ function SkillEditor({
   commitMessage,
   committing,
   branch,
+  historyHref,
   onDelete,
   onCommit,
   onDiscard,
@@ -114,6 +117,7 @@ function SkillEditor({
   commitMessage: string;
   committing: boolean;
   branch: string | null;
+  historyHref?: string;
   onDelete?(name: string): void;
   onCommit?(body: string, message: string): void;
   onDiscard?(): void;
@@ -145,9 +149,22 @@ function SkillEditor({
           </span>
         </div>
         <SegmentedControl aria-label="Editor view" value={view} options={views} onChange={(v) => setView(v as View)} />
-        <Button variant="ghost" size="sm" icon="external" href="https://github.com/">
-          History
-        </Button>
+        {historyHref ? (
+          <Button
+            variant="ghost"
+            size="sm"
+            icon="external"
+            href={historyHref}
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            History
+          </Button>
+        ) : (
+          <Button variant="ghost" size="sm" icon="external" disabled>
+            History
+          </Button>
+        )}
         <IconButton icon="trash" aria-label="Delete skill" onClick={() => onDelete?.(skill.name)} />
       </div>
       {view === 'edit' && (
@@ -229,6 +246,7 @@ export function DeskSkills({
   commitMessage = '',
   folders,
   defaultBranch = 'main',
+  historyHref,
   committing = false,
   deletePending = false,
   submission,
@@ -276,6 +294,7 @@ export function DeskSkills({
                 commitMessage={commitMessage}
                 committing={committing}
                 branch={defaultBranch}
+                historyHref={historyHref}
                 onDelete={onDelete}
                 onCommit={onCommit}
                 onDiscard={onDiscard}

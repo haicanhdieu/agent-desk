@@ -88,6 +88,8 @@ describe('projects', () => {
       triggerMode: 'webhook',
       codeConnectionId: connectionId,
       boardConnectionId: connectionId,
+      codeProvider: 'fake',
+      repoUrl: expect.stringMatching(/^https:\/\/fake\.invalid\/dev\/demo-\d+$/),
       defaultBranch: expect.any(String),
       counts: { needsYou: 0, running: 0, queued: 0 },
       lastRunAt: null,

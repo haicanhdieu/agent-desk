@@ -17,3 +17,22 @@ export function toAdapterProject(row: AdapterProjectRow, connectionExternalId: s
     ...(row.defaultBranch !== null ? { defaultBranch: row.defaultBranch } : {}),
   };
 }
+
+/**
+ * The browser home of a repository from its provider's clone URL (`…/owner/name.git`). No credential may survive:
+ * the token is mounted into the run pod, never part of a URL shown to a person. Null when the URL is not a safe https URL.
+ */
+export function browserRepoUrl(cloneUrl: string): string | null {
+  try {
+    const url = new URL(cloneUrl);
+    if (url.protocol !== 'https:' || url.username !== '' || url.password !== '') return null;
+    const path = url.pathname.replace(/\.git$/, '').replace(/\/+$/, '');
+    if (path === '' || path === '/') return null;
+    url.pathname = path;
+    url.search = '';
+    url.hash = '';
+    return url.toString();
+  } catch {
+    return null;
+  }
+}

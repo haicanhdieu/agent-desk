@@ -84,6 +84,23 @@ describe('desk skills route', () => {
     expect(screen.getByText('a91c3e2-code-build'.slice(0, 7))).toBeInTheDocument();
   });
 
+  it('History opens the selected skill file in the connected repo on its default branch', async () => {
+    const { user } = await renderRoute(`${base}/skills`);
+    const history = () => screen.getByRole('link', { name: 'History' });
+    expect(history()).toHaveAttribute(
+      'href',
+      `https://github.com/harbor-labs/invoicer-api/blob/main/${skillRow('code-build').path}`,
+    );
+
+    const nav = await screen.findByRole('navigation', { name: 'Skills' });
+    await user.click(within(nav).getByRole('link', { name: /code-e2e/ }));
+    expect(await screen.findByRole('heading', { level: 2, name: 'code-e2e' })).toBeInTheDocument();
+    expect(history()).toHaveAttribute(
+      'href',
+      `https://github.com/harbor-labs/invoicer-api/blob/main/${skillRow('code-e2e').path}`,
+    );
+  });
+
   it('desk nav links point at the project routes', async () => {
     await renderRoute(`${base}/skills`);
     const desk = await screen.findByRole('navigation', { name: 'Desk' });

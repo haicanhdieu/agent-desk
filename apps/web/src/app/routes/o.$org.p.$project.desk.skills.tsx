@@ -18,7 +18,7 @@ import { useNow } from '@/app/useNow';
 import { useToast } from '@/ds';
 import { requireProjectPermission } from '@/features/access/guards';
 import { projectPaths, useDeskFrame } from '@/features/desk/frame';
-import { rulesUsing, toSkill } from '@/features/desk/map';
+import { rulesUsing, skillFileUrl, toSkill } from '@/features/desk/map';
 import { isStaleSkill, useCommitSkill, useDeleteSkill } from '@/features/desk/mutations';
 import { deskQueries } from '@/features/desk/queries';
 import { useSkillFolders } from '@/features/desk/skillFolders';
@@ -109,6 +109,17 @@ function DeskSkillsPage() {
   const committing = useRef(false);
 
   const skills = list.map((s) => toSkill(s.name === activeName && detail ? detail : s, rules, now));
+  const active = skills.find((s) => s.name === activeName);
+  const historyHref =
+    active &&
+    skillFileUrl(
+      {
+        url: projectDto.repoUrl,
+        provider: projectDto.codeProvider,
+        defaultBranch: projectDto.defaultBranch,
+      },
+      active.path,
+    );
   const paths = projectPaths(org, projectId);
   const skillHref = (name: string) => {
     const page = pageToSearch(current);
@@ -191,6 +202,7 @@ function DeskSkillsPage() {
       editorKey={editorKey}
       folders={folders}
       defaultBranch={projectDto.defaultBranch}
+      historyHref={historyHref ?? undefined}
       committing={commit.isPending}
       deletePending={remove.isPending}
       submission={submission}
