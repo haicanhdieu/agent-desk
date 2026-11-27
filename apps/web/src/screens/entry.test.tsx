@@ -1,13 +1,14 @@
 import type { ReactElement } from 'react';
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { type PaginationProps } from '@/components';
+import { RouteLoadError, RouteSkeleton, type PaginationProps } from '@/components';
 import { checklistSteps, orgSwitchFixtures, projects, user } from '@/mocks';
 import { SignIn, SignInNoInvitationError } from './SignIn';
 import { ProjectsEmpty } from './ProjectsEmpty';
 import { Projects } from './Projects';
 import { OrgSuspended } from './OrgSuspended';
 import { OrgShellFrame } from './orgShellFrame';
+import { ShellFrame } from './shellFrame';
 import { expectShellOwnedPage, headerActions } from '@/test/shellAssert';
 
 describe('SignIn', () => {
@@ -442,5 +443,51 @@ describe('Projects and ProjectsEmpty in the shell', () => {
     inShell(<ProjectsEmpty user={user} createHref="/new" canCreate={false} />, 'member');
     const main = expectShellOwnedPage('No projects yet', { pageHeader: false });
     expect(within(main).getByText('An owner or admin of this organization creates projects.')).toBeInTheDocument();
+  });
+});
+
+describe('route states and the suspended page in the shell', () => {
+  it('RouteSkeleton is a busy status and draws no main of its own', () => {
+    render(<RouteSkeleton />);
+    expect(screen.getByRole('status', { name: 'Loading' })).toHaveAttribute('aria-busy', 'true');
+    expect(screen.queryByRole('main')).toBeNull();
+  });
+
+  it('RouteLoadError draws the banner with Retry and no main or heading of its own', () => {
+    render(<RouteLoadError title="Internal server error" requestId="req_9" onRetry={vi.fn()} />);
+    expect(screen.getByRole('button', { name: 'Retry' })).toBeInTheDocument();
+    expect(screen.queryByRole('main')).toBeNull();
+    expect(screen.queryByRole('heading', { level: 1 })).toBeNull();
+  });
+
+  it('a load error inside the shell main has the menu, one main and no h1', () => {
+    render(
+      <OrgShellFrame page="projects">
+        <main>
+          <RouteLoadError title="Internal server error" onRetry={vi.fn()} />
+        </main>
+      </OrgShellFrame>,
+    );
+    expectShellOwnedPage(null);
+  });
+
+  it('BR-58: the suspended page in a shell with no menu has one main and the fixed h1', () => {
+    render(
+      <ShellFrame
+        topBar={{
+          variant: 'global',
+          user,
+          crumbs: [],
+          org: { ...orgSwitchFixtures.oneOrg, orgHref: () => '/', createHref: '/orgs/new' },
+          tabs: 'none',
+        }}
+      >
+        <OrgSuspended orgName="Harbor Labs" />
+      </ShellFrame>,
+    );
+    expect(screen.getAllByRole('banner')).toHaveLength(1);
+    expect(screen.getAllByRole('main')).toHaveLength(1);
+    expect(screen.queryByRole('navigation', { name: 'Organization menu' })).toBeNull();
+    expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1);
   });
 });

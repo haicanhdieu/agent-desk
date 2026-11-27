@@ -15,7 +15,7 @@ const invitations = 'Screens/Invitations';
 const orgSettings = 'Screens/OrgSettings';
 const platform = 'Screens/Platform';
 
-/** The 97 boards of design/prototype/project/canvas.json, in canvas order. */
+/** The boards of design/prototype/project/canvas.json, in canvas order. */
 export const boardStories = {
   Main: { title: 'Screens/Overview', exportName: 'Main' },
   NeedsYou: { title: runs, exportName: 'NeedsYou' },
@@ -460,17 +460,26 @@ export const boardStories = {
   Setup4ExitSetup: { title: setup, exportName: 'Setup4ExitSetup' },
   SetupReadyExitSetup: { title: setup, exportName: 'SetupReadyExitSetup' },
   Setup3PreviewDialog: { title: setup, exportName: 'Setup3PreviewDialog' },
+  InvitationAcceptSideMenu: { title: invitations, exportName: 'InvitationAcceptSideMenu' },
+  InvitationAcceptErrorSideMenu: { title: invitations, exportName: 'InvitationAcceptErrorSideMenu' },
+  InvitationAcceptNotAvailableNoMenu: { title: invitations, exportName: 'InvitationAcceptNotAvailableNoMenu' },
+  MyInvitationsSideMenu: { title: invitations, exportName: 'MyInvitationsSideMenu' },
+  MyInvitationsEmptyNoOrg: { title: invitations, exportName: 'MyInvitationsEmptyNoOrg' },
+  MyInvitationsEmptySideSwitcherHeld: { title: invitations, exportName: 'MyInvitationsEmptySideSwitcherHeld' },
+  RouteErrorSideMenu: { title: entry, exportName: 'RouteErrorSideMenu' },
+  RouteErrorCrashSideMenu: { title: entry, exportName: 'RouteErrorCrashSideMenu' },
+  RouteErrorNoMenu: { title: entry, exportName: 'RouteErrorNoMenu' },
+  RouteErrorNotFoundNoMenu: { title: entry, exportName: 'RouteErrorNotFoundNoMenu' },
+  RouteLoadingSideMenu: { title: entry, exportName: 'RouteLoadingSideMenu' },
+  OrgSuspendedNoMenu: { title: entry, exportName: 'OrgSuspendedNoMenu' },
+  OrgSuspendedPlainName: { title: entry, exportName: 'OrgSuspendedPlainName' },
+  MyInvitationsEmptyMember: { title: invitations, exportName: 'MyInvitationsEmptyMember' },
 } as const satisfies Record<string, BoardStory>;
 
 export type BoardName = keyof typeof boardStories;
 
 /** Screen states with no board of their own in canvas.json. Each one is a variant of `board`. */
 export const stateStories = {
-  MyInvitationsEmptyMemberText: {
-    title: invitations,
-    exportName: 'MyInvitationsEmptyMemberText',
-    board: 'MyInvitationsEmpty',
-  },
   Setup1RefreshRepos: { title: setup, exportName: 'Setup1RefreshRepos', board: 'Setup1' },
   Setup1Refreshing: { title: setup, exportName: 'Setup1Refreshing', board: 'Setup1' },
   Setup1ReconnectGithub: { title: setup, exportName: 'Setup1ReconnectGithub', board: 'Setup1' },

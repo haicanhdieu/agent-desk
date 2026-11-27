@@ -1,6 +1,14 @@
 import type { ReactNode } from 'react';
 import { Button, Dialog, Skeleton } from '@/ds';
-import { KeyValue, RouteLoadError, SurfaceCard, TopBar, type OrgSwitchProps } from '@/components';
+import {
+  KeyValue,
+  PageHeader,
+  RouteLoadError,
+  SurfaceCard,
+  TopBar,
+  useShellOwnsChrome,
+  type OrgSwitchProps,
+} from '@/components';
 import type { Actor, InvitationDetailsView } from '@/mocks/types';
 import styles from './Screens.module.css';
 
@@ -27,6 +35,8 @@ export interface InvitationAcceptProps {
 
 /** The invitation link page: the invitee's own invitation with Accept and Decline, or why it cannot be answered. */
 export function InvitationAccept({ user, org, state, ...handlers }: InvitationAcceptProps) {
+  const owned = useShellOwnsChrome();
+  if (owned) return shellBody(state, handlers);
   return (
     <>
       <TopBar
@@ -45,7 +55,8 @@ const noop = () => {};
 
 type Handlers = Omit<InvitationAcceptProps, 'user' | 'org' | 'state'>;
 
-function notice(title: string, text?: string, actions?: ReactNode) {
+function notice(shell: boolean, title: string, text?: string, actions?: ReactNode) {
+  if (shell) return shellNotice(title, text, actions);
   return (
     <div className={styles.emptyNoticeCol}>
       <h1>{title}</h1>
@@ -55,7 +66,7 @@ function notice(title: string, text?: string, actions?: ReactNode) {
   );
 }
 
-function body(state: InvitationAcceptState, h: Handlers) {
+function body(state: InvitationAcceptState, h: Handlers, shell = false) {
   switch (state.kind) {
     case 'loading':
       return (
@@ -77,9 +88,10 @@ function body(state: InvitationAcceptState, h: Handlers) {
         </div>
       );
     case 'pending':
-      return pendingBody(state, h);
+      return pendingBody(state, h, shell);
     case 'accepted':
       return notice(
+        shell,
         `You already joined ${state.orgName}`,
         undefined,
         <Button variant="primary" size="lg" href={state.orgHref}>
@@ -88,6 +100,7 @@ function body(state: InvitationAcceptState, h: Handlers) {
       );
     case 'declined':
       return notice(
+        shell,
         'You declined this invitation',
         undefined,
         <Button size="lg" href={state.invitationsHref}>
@@ -95,9 +108,10 @@ function body(state: InvitationAcceptState, h: Handlers) {
         </Button>,
       );
     case 'revoked':
-      return notice('This invitation was revoked');
+      return notice(shell, 'This invitation was revoked');
     case 'expired':
       return notice(
+        shell,
         'This invitation has expired',
         state.inviter
           ? `Ask ${state.inviter} to resend it.`
@@ -105,6 +119,7 @@ function body(state: InvitationAcceptState, h: Handlers) {
       );
     case 'notAvailable':
       return notice(
+        shell,
         'This invitation is not available',
         'Check that you signed in with the email it was sent to, or ask the person who invited you for a new link.',
         <>
@@ -115,7 +130,7 @@ function body(state: InvitationAcceptState, h: Handlers) {
   }
 }
 
-function pendingBody(state: Extract<InvitationAcceptState, { kind: 'pending' }>, h: Handlers) {
+function pendingBody(state: Extract<InvitationAcceptState, { kind: 'pending' }>, h: Handlers, shell = false) {
   const { details, busy } = state;
   const items = [
     { term: 'Role', value: details.roleName },
@@ -131,8 +146,8 @@ function pendingBody(state: Extract<InvitationAcceptState, { kind: 'pending' }>,
     },
   ];
   return (
-    <div className={styles.welcomeCol}>
-      <h1>{`Join ${details.orgName}`}</h1>
+    <div className={shell ? styles.shellPending : styles.welcomeCol}>
+      {shell ? <PageHeader title={`Join ${details.orgName}`} /> : <h1>{`Join ${details.orgName}`}</h1>}
       <SurfaceCard>
         <div className={styles.acceptCardBody}>
           <KeyValue items={items} termWidth={120} />
@@ -170,5 +185,43 @@ function pendingBody(state: Extract<InvitationAcceptState, { kind: 'pending' }>,
         <p className="muted">You will need a new invitation to join later.</p>
       </Dialog>
     </div>
+  );
+}
+
+function shellNotice(title: string, text?: string, actions?: ReactNode) {
+  return (
+    <>
+      <PageHeader title={title} />
+      {text && <p className="muted">{text}</p>}
+      {actions && <div className={styles.shellNoticeActions}>{actions}</div>}
+    </>
+  );
+}
+
+/**
+ * In the shell the bar and menu are the shell's: this draws only the page, one main. Loading and a failed load have
+ * no title; "not available" is centred like the other pages with no menu; the rest keep their title in the header.
+ */
+function shellBody(state: InvitationAcceptState, h: Handlers) {
+  if (state.kind === 'notAvailable') {
+    return <main className={styles.emptyNotice}>{body(state, h)}</main>;
+  }
+  return (
+    <main className={styles.shellMain}>
+      {state.kind === 'loading' && (
+        <div className={styles.welcomeLoading} aria-busy="true" role="status" aria-label="Loading">
+          <Skeleton variant="block" height={28} width={260} />
+          <Skeleton variant="block" height={150} width="100%" />
+          <span className={styles.acceptActions} aria-hidden="true">
+            <Skeleton variant="block" height={40} width={96} />
+            <Skeleton variant="block" height={40} width={96} />
+          </span>
+        </div>
+      )}
+      {state.kind === 'error' && (
+        <RouteLoadError title="Internal server error" requestId={state.requestId} onRetry={state.onRetry} />
+      )}
+      {state.kind !== 'loading' && state.kind !== 'error' && body(state, h, true)}
+    </main>
   );
 }

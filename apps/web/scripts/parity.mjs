@@ -480,6 +480,20 @@ const stories = {
   Setup4ExitSetup: ['Screens/Setup', 'Setup4ExitSetup'],
   SetupReadyExitSetup: ['Screens/Setup', 'SetupReadyExitSetup'],
   Setup3PreviewDialog: ['Screens/Setup', 'Setup3PreviewDialog'],
+  InvitationAcceptSideMenu: ['Screens/Invitations', 'InvitationAcceptSideMenu'],
+  InvitationAcceptErrorSideMenu: ['Screens/Invitations', 'InvitationAcceptErrorSideMenu'],
+  InvitationAcceptNotAvailableNoMenu: ['Screens/Invitations', 'InvitationAcceptNotAvailableNoMenu'],
+  MyInvitationsSideMenu: ['Screens/Invitations', 'MyInvitationsSideMenu'],
+  MyInvitationsEmptyNoOrg: ['Screens/Invitations', 'MyInvitationsEmptyNoOrg'],
+  MyInvitationsEmptySideSwitcherHeld: ['Screens/Invitations', 'MyInvitationsEmptySideSwitcherHeld'],
+  RouteErrorSideMenu: ['Screens/Entry', 'RouteErrorSideMenu'],
+  RouteErrorCrashSideMenu: ['Screens/Entry', 'RouteErrorCrashSideMenu'],
+  RouteErrorNoMenu: ['Screens/Entry', 'RouteErrorNoMenu'],
+  RouteErrorNotFoundNoMenu: ['Screens/Entry', 'RouteErrorNotFoundNoMenu'],
+  RouteLoadingSideMenu: ['Screens/Entry', 'RouteLoadingSideMenu'],
+  OrgSuspendedNoMenu: ['Screens/Entry', 'OrgSuspendedNoMenu'],
+  OrgSuspendedPlainName: ['Screens/Entry', 'OrgSuspendedPlainName'],
+  MyInvitationsEmptyMember: ['Screens/Invitations', 'MyInvitationsEmptyMember'],
 };
 
 const types = {

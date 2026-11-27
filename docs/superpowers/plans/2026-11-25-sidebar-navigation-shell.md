@@ -1029,13 +1029,13 @@ The setup warning is the first item of the scroll area, below the pinned header,
 
 - Produces: owned `MyInvitations`: with invitations h1 "My invitations"; member-empty h1 "My invitations", h2 "No pending invitations", "No invitations for {email}.", no buttons; no-org welcome unchanged (its sentence is the only h1; centred). Owned `InvitationAccept`: loaded h1 "Join {org}"; `error` is the banner with request id and Retry and no title; `notAvailable` centred. `RouteSkeleton` and `RouteLoadError` render no `main` themselves.
 
-- [ ] **Step 0: Multi-agent gate.** Run both checks in "Multi-agent gate". If either fails, stop: write no code and report which check failed.
-- [ ] **Step 1: Write failing tests** for each state above, each with exactly one `main`.
-- [ ] **Step 2: Run** VITEST on both files. Expected: FAIL.
-- [ ] **Step 3: Implement.**
-- [ ] **Step 4: Stories** (`RouteStates` loading and error). Move `MyInvitationsEmptyMemberText` from `stateStories` to `boardStories` as `MyInvitationsEmptyMember`. Register it with `InvitationAcceptSideMenu`, `InvitationAcceptErrorSideMenu`, `InvitationAcceptNotAvailableNoMenu`, `MyInvitationsSideMenu`, `MyInvitationsEmptyNoOrg`, `MyInvitationsEmptySideSwitcherHeld`, `RouteErrorSideMenu`, `RouteErrorCrashSideMenu`, `RouteErrorNoMenu`, `RouteErrorNotFoundNoMenu`, `RouteLoadingSideMenu`, `OrgSuspendedNoMenu`, `OrgSuspendedPlainName` (REG; expected count 454). `RouteLoadingSideMenu`, `RouteErrorSideMenu` and `InvitationAcceptErrorSideMenu` have no h1.
+- [x] **Step 0: Multi-agent gate.** Run both checks in "Multi-agent gate". If either fails, stop: write no code and report which check failed.
+- [x] **Step 1: Write failing tests** for each state above, each with exactly one `main`.
+- [x] **Step 2: Run** VITEST on both files. Expected: FAIL.
+- [x] **Step 3: Implement.**
+- [x] **Step 4: Stories** (`RouteStates` loading and error). Move `MyInvitationsEmptyMemberText` from `stateStories` to `boardStories` as `MyInvitationsEmptyMember`. Register it with `InvitationAcceptSideMenu`, `InvitationAcceptErrorSideMenu`, `InvitationAcceptNotAvailableNoMenu`, `MyInvitationsSideMenu`, `MyInvitationsEmptyNoOrg`, `MyInvitationsEmptySideSwitcherHeld`, `RouteErrorSideMenu`, `RouteErrorCrashSideMenu`, `RouteErrorNoMenu`, `RouteErrorNotFoundNoMenu`, `RouteLoadingSideMenu`, `OrgSuspendedNoMenu`, `OrgSuspendedPlainName` (REG; expected count 454). `RouteLoadingSideMenu`, `RouteErrorSideMenu` and `InvitationAcceptErrorSideMenu` have no h1.
 - [ ] **Step 5: Run** tests, coverage and smoke, PARITY. Expected: PASS.
-- [ ] **Step 6: Commit** `feat(web): invitation, error and suspended screens in the new shell`.
+- [x] **Step 6: Commit** `feat(web): invitation, error and suspended screens in the new shell`.
 
 ### Task 25: Nav builder, route chrome type and error-menu scope
 

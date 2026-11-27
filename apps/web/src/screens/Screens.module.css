@@ -1040,3 +1040,16 @@
   flex: 0 0 auto;
   padding: 0 28px 16px;
 }
+
+/* invitation pages in the shell */
+.shellPending {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  max-width: 760px;
+}
+.shellNoticeActions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}

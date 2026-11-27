@@ -1,5 +1,7 @@
+import type { ReactNode } from 'react';
 import type { Meta, StoryObj } from '@storybook/react-vite';
-import { userEvent, within } from 'storybook/test';
+import { useEffect, useState } from 'react';
+import { userEvent, waitFor, within } from 'storybook/test';
 import {
   AppShell,
   InviteDialog,
@@ -37,6 +39,7 @@ import { CreateOrg as CreateOrgScreen, type CreateOrgState, type CreateOrgValues
 import { OrgSettingsFrame } from './orgSettingsFrame';
 import { PlatformFrame } from './platformFrame';
 import { OrgShellFrame } from './orgShellFrame';
+import { ShellFrame } from './shellFrame';
 import { viewport } from './viewports';
 
 const noop = () => undefined;
@@ -133,17 +136,6 @@ export const MyInvitationsEmpty: Story = {
       dana,
       noOrg,
     ),
-};
-export const MyInvitationsEmptyMemberText: Story = {
-  name: 'Welcome, org member, no invitations',
-  render: () =>
-    screen({
-      kind: 'empty',
-      member: true,
-      email: 'dana.ortiz@example.com',
-      platformAdmin: false,
-      createHref: '/platform/orgs/new',
-    }),
 };
 export const MyInvitationsEmptyPlatformAdmin: Story = {
   name: 'Welcome, platform admin, no org',
@@ -595,3 +587,69 @@ export const OrgInvitationsSettingsSideMenuProjectAdmin: Story = {
     </OrgShellFrame>
   ),
 };
+
+// The invitation pages in the one shell: the page draws only its own main. The menu is the active org's, with no
+// current item (BR-56); a person with no org, or only a suspended one, has none.
+const shellStory = (story: Story): Story => ({ ...story, parameters: { ...story.parameters, shell: true } });
+const invitationsCrumbs = [{ label: 'My invitations' }];
+const withMenu = (page: ReactNode, user: Actor = dana) => (
+  <OrgShellFrame page={null} user={user} org={harborBar} crumbs={invitationsCrumbs}>
+    {page}
+  </OrgShellFrame>
+);
+const noMenu = (page: ReactNode, org: OrgSwitchProps = noOrg, user: Actor = dana) => (
+  <ShellFrame topBar={{ variant: 'global', user, crumbs: invitationsCrumbs, org, tabs: 'none' }}>{page}</ShellFrame>
+);
+const memberEmpty: MyInvitationsState = {
+  kind: 'empty',
+  member: true,
+  email: 'dana.ortiz@example.com',
+  platformAdmin: false,
+  createHref: '/platform/orgs/new',
+};
+const noOrgEmpty: MyInvitationsState = { ...memberEmpty, member: false };
+
+export const MyInvitationsSideMenu: Story = shellStory({
+  name: 'My invitations, organization menu',
+  render: () => withMenu(screen({ kind: 'list', cards, pending: null })),
+});
+export const MyInvitationsEmptyMember: Story = shellStory({
+  name: 'My invitations, member with none pending',
+  render: () => withMenu(screen(memberEmpty)),
+});
+export const MyInvitationsEmptyNoOrg: Story = shellStory({
+  name: 'My invitations with no organization',
+  render: () => noMenu(screen(noOrgEmpty)),
+});
+
+/** Opened while the org list loads, then the list arrives empty: the switcher stays a button until it is closed. */
+function HeldNoOrg() {
+  const [loaded, setLoaded] = useState(false);
+  useEffect(() => {
+    const t = setTimeout(() => setLoaded(true), 50);
+    return () => clearTimeout(t);
+  }, []);
+  const org: OrgSwitchProps = loaded ? noOrg : { ...noOrg, list: { status: 'loading' } };
+  return noMenu(screen(noOrgEmpty), org);
+}
+export const MyInvitationsEmptySideSwitcherHeld: Story = shellStory({
+  name: 'No organization: switcher held open',
+  render: () => <HeldNoOrg />,
+  play: async ({ canvasElement }) => {
+    await userEvent.click(within(canvasElement).getByRole('button', { name: /^Switch scope/ }));
+    await waitFor(() => within(canvasElement).getByText('No organization'));
+  },
+});
+
+export const InvitationAcceptSideMenu: Story = shellStory({
+  name: 'Invitation, organization menu',
+  render: () => withMenu(accept(pendingState())),
+});
+export const InvitationAcceptErrorSideMenu: Story = shellStory({
+  name: 'Invitation load error keeps the organization menu',
+  render: () => withMenu(accept({ kind: 'error', requestId: 'req_01JD7Q3M8V2K', onRetry: noop })),
+});
+export const InvitationAcceptNotAvailableNoMenu: Story = shellStory({
+  name: 'Invitation not available, no active organization',
+  render: () => noMenu(accept({ kind: 'notAvailable', email: 'jo.marsh@example.org' }, jo, noOrg), noOrg, jo),
+});

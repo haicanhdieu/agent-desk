@@ -3529,6 +3529,118 @@
    "h": 900,
    "title": "Skills step in the shell: template preview dialog",
    "expand": "fill"
+  },
+  "InvitationAcceptSideMenu.dc.html": {
+   "x": 0,
+   "y": 99120,
+   "w": 1440,
+   "h": 900,
+   "title": "Invitation in the shell: organization menu and page header",
+   "expand": "fill"
+  },
+  "InvitationAcceptErrorSideMenu.dc.html": {
+   "x": 1520,
+   "y": 99120,
+   "w": 1440,
+   "h": 900,
+   "title": "Invitation load error in the shell: banner with Retry, no title, menu kept",
+   "expand": "fill"
+  },
+  "InvitationAcceptNotAvailableNoMenu.dc.html": {
+   "x": 3040,
+   "y": 99120,
+   "w": 1440,
+   "h": 900,
+   "title": "Invitation not available in the shell: centred, no menu",
+   "expand": "fill"
+  },
+  "MyInvitationsSideMenu.dc.html": {
+   "x": 4560,
+   "y": 99120,
+   "w": 1440,
+   "h": 900,
+   "title": "My invitations in the shell: organization menu and page header",
+   "expand": "fill"
+  },
+  "MyInvitationsEmptyNoOrg.dc.html": {
+   "x": 6080,
+   "y": 99120,
+   "w": 1440,
+   "h": 900,
+   "title": "My invitations with no organization: centred welcome, no menu",
+   "expand": "fill"
+  },
+  "MyInvitationsEmptySideSwitcherHeld.dc.html": {
+   "x": 7600,
+   "y": 99120,
+   "w": 1440,
+   "h": 900,
+   "title": "No organization: switcher held open after the list arrives",
+   "expand": "fill"
+  },
+  "RouteErrorSideMenu.dc.html": {
+   "x": 9120,
+   "y": 99120,
+   "w": 1440,
+   "h": 900,
+   "title": "Server error in the shell: project menu and banner with Retry",
+   "expand": "fill"
+  },
+  "RouteErrorCrashSideMenu.dc.html": {
+   "x": 0,
+   "y": 100400,
+   "w": 1440,
+   "h": 900,
+   "title": "Crash in the shell: project menu and message with request id",
+   "expand": "fill"
+  },
+  "RouteErrorNoMenu.dc.html": {
+   "x": 1520,
+   "y": 100400,
+   "w": 1440,
+   "h": 900,
+   "title": "Server error in the shell with no menu",
+   "expand": "fill"
+  },
+  "RouteErrorNotFoundNoMenu.dc.html": {
+   "x": 3040,
+   "y": 100400,
+   "w": 1440,
+   "h": 900,
+   "title": "Not found in the shell with no menu",
+   "expand": "fill"
+  },
+  "RouteLoadingSideMenu.dc.html": {
+   "x": 4560,
+   "y": 100400,
+   "w": 1440,
+   "h": 900,
+   "title": "Page loading in the shell: project menu and skeleton",
+   "expand": "fill"
+  },
+  "OrgSuspendedNoMenu.dc.html": {
+   "x": 6080,
+   "y": 100400,
+   "w": 1440,
+   "h": 900,
+   "title": "Suspended organization in the shell: no menu, switcher kept",
+   "expand": "fill"
+  },
+  "OrgSuspendedPlainName.dc.html": {
+   "x": 7600,
+   "y": 100400,
+   "w": 1440,
+   "h": 900,
+   "title": "Suspended only organization in the shell: plain org name",
+   "expand": "fill"
+  },
+  "MyInvitationsEmptyMember.dc.html": {
+   "x": 9120,
+   "y": 100400,
+   "w": 1440,
+   "h": 900,
+   "title": "My invitations in the shell: member with none pending",
+   "expand": "fill"
   }
  },
  "order": [
@@ -3971,7 +4083,21 @@
   "Setup3ExitSetup.dc.html",
   "Setup4ExitSetup.dc.html",
   "SetupReadyExitSetup.dc.html",
-  "Setup3PreviewDialog.dc.html"
+  "Setup3PreviewDialog.dc.html",
+  "InvitationAcceptSideMenu.dc.html",
+  "InvitationAcceptErrorSideMenu.dc.html",
+  "InvitationAcceptNotAvailableNoMenu.dc.html",
+  "MyInvitationsSideMenu.dc.html",
+  "MyInvitationsEmptyNoOrg.dc.html",
+  "MyInvitationsEmptySideSwitcherHeld.dc.html",
+  "RouteErrorSideMenu.dc.html",
+  "RouteErrorCrashSideMenu.dc.html",
+  "RouteErrorNoMenu.dc.html",
+  "RouteErrorNotFoundNoMenu.dc.html",
+  "RouteLoadingSideMenu.dc.html",
+  "OrgSuspendedNoMenu.dc.html",
+  "OrgSuspendedPlainName.dc.html",
+  "MyInvitationsEmptyMember.dc.html"
  ],
  "notes": {
   "t-intro": {

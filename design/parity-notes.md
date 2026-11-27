@@ -727,3 +727,15 @@ Boards registered (4, canvas order 437 to 440): Setup3ExitSetup, Setup4ExitSetup
 - Agent call: "Exit setup" goes to `exitHref`, else the org's Projects href (`org.projectsHref`, `/projects` without an org).
 - Agent call: the header row below 1024px has component stories only (`Components/SetupLayout` InShellHeaderRow, InShellReadyHeaderRow), since the plan registers exactly four boards.
 - The wizard route is not yet wrapped in the shell (later tasks), so no live page changes and no new e2e spec is added; the existing wizard mock specs are run.
+
+## Sidebar navigation shell: Invitation, error, loading and suspended screens (Task 24)
+
+Boards registered (14, canvas order 441 to 454): InvitationAcceptSideMenu, InvitationAcceptErrorSideMenu, InvitationAcceptNotAvailableNoMenu, MyInvitationsSideMenu, MyInvitationsEmptyNoOrg, MyInvitationsEmptySideSwitcherHeld, RouteErrorSideMenu, RouteErrorCrashSideMenu, RouteErrorNoMenu, RouteErrorNotFoundNoMenu, RouteLoadingSideMenu, OrgSuspendedNoMenu, OrgSuspendedPlainName, MyInvitationsEmptyMember. They sit in two canvas rows at y 99120 and 100400. `MyInvitationsEmptyMemberText` left `stateStories` and is now the board story `MyInvitationsEmptyMember` (it replaces the earlier text-only variant). PARITY (Storybook build and the side-by-side render) was not run in this session (4 GiB memory cap), so these 14 pairs are unchecked.
+
+- Agent call: with a shell around it, `MyInvitations` and `InvitationAccept` draw no `TopBar` and one `main`; without a shell they keep the old bar and h1s (list h1 "Invitations", member-empty h1 "No pending invitations").
+- Agent call: in the shell the list and the member-empty page have the page header h1 "My invitations"; member-empty adds the h2 "No pending invitations" and "No invitations for {email}." with no buttons. The no-org welcome and "not available" stay centred with their own h1 and no menu.
+- Agent call: loading and a failed load in the shell show no h1 (`RouteSkeleton` and `RouteLoadError` draw no `main`; the page's own `main` holds them).
+- Agent call: accepted, declined, revoked and expired invitation pages keep their title as the page header h1 in the shell (not centred), with their text and action below; the spec centres only "not available".
+- Agent call: `OrgSuspended` needs no code change: it already draws one centred `main` and no bar. Its new boards only show it in a shell with no menu (switcher kept, or the plain org name for a lone org).
+- Agent call: the Route* boards render the route's `main` by hand in the stories, because the boundary components are wired into the shell by Task 35.
+- The invitation routes are not yet wrapped in the shell (later tasks), so no live page changes and no new e2e spec is added; the existing mock specs are run.

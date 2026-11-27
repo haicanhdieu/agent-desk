@@ -1,7 +1,16 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { userEvent, waitFor, within } from 'storybook/test';
-import { AppShell, NO_PAGE_CRUMBS, RouteLoadError, RouteSkeleton, TopBar, type OrgSwitchProps } from '@/components';
+import {
+  AppShell,
+  EmptyState,
+  NO_PAGE_CRUMBS,
+  RouteLoadError,
+  RouteSkeleton,
+  TopBar,
+  type OrgSwitchProps,
+} from '@/components';
+import { Button } from '@/ds';
 import { checklistSteps, pagedProjects, projects, user } from '@/mocks';
 import type { Actor, OrgOption, Project } from '@/mocks/types';
 import { SignIn as SignInScreen, SignInNoInvitationError } from './SignIn';
@@ -9,6 +18,8 @@ import { ProjectsEmpty as ProjectsEmptyScreen } from './ProjectsEmpty';
 import { Projects as ProjectsScreen } from './Projects';
 import { OrgSuspended as OrgSuspendedScreen } from './OrgSuspended';
 import { OrgShellFrame } from './orgShellFrame';
+import { ProjectShellFrame } from './projectShellFrame';
+import { ShellFrame } from './shellFrame';
 import { viewport } from './viewports';
 import styles from './Screens.module.css';
 
@@ -495,4 +506,78 @@ export const ProjectsResumeSetup: Story = shellStory({
       {projectsPage({ resume: true })}
     </OrgShellFrame>
   ),
+});
+
+// Route states in the one shell: the route's own main holds the skeleton, the banner or the message; the menu is the
+// deepest scope in the URL the person can open, and none when the URL names none.
+const runsCrumbs = [{ label: 'Runs' }];
+const inProject = (page: ReactNode) => (
+  <ProjectShellFrame page="runs" crumbs={runsCrumbs}>
+    <main className={styles.shellMain}>{page}</main>
+  </ProjectShellFrame>
+);
+const noMenuShell = (page: ReactNode, org: OrgSwitchProps = severalOrgs) => (
+  <ShellFrame topBar={{ variant: 'global', user, crumbs: NO_PAGE_CRUMBS, org, tabs: 'none' }}>
+    <main className={styles.shellMain}>{page}</main>
+  </ShellFrame>
+);
+const crash = (
+  <EmptyState
+    headingLevel={1}
+    title="Something went wrong"
+    body="An unexpected error stopped this page. Reload to try again."
+    action={<Button icon="refresh">Reload</Button>}
+  >
+    <p>
+      Request ID: <code>req_01JD7Q3M8V2K</code>
+    </p>
+  </EmptyState>
+);
+
+export const RouteLoadingSideMenu: Story = shellStory({
+  name: 'Page loading with the project menu',
+  render: () => inProject(<RouteSkeleton />),
+});
+export const RouteErrorSideMenu: Story = shellStory({
+  name: 'Server error with the project menu',
+  render: () => inProject(<RouteLoadError title="Internal server error" requestId="req_01JD7Q3M8V2K" onRetry={noop} />),
+});
+export const RouteErrorCrashSideMenu: Story = shellStory({
+  name: 'Crash with the project menu',
+  render: () => inProject(crash),
+});
+export const RouteErrorNoMenu: Story = shellStory({
+  name: 'Server error with no menu',
+  render: () =>
+    noMenuShell(<RouteLoadError title="Internal server error" requestId="req_01JD7Q3M8V2K" onRetry={noop} />),
+});
+export const RouteErrorNotFoundNoMenu: Story = shellStory({
+  name: 'Not found with no menu',
+  render: () =>
+    noMenuShell(
+      <EmptyState
+        headingLevel={1}
+        title="Page not found"
+        body="This page does not exist, or it belongs to an organization you are not in."
+        action={
+          <Button href="/" variant="primary">
+            Go to projects
+          </Button>
+        }
+      />,
+    ),
+});
+
+const suspendedShell = (org: OrgSwitchProps) => (
+  <ShellFrame topBar={{ variant: 'global', user, crumbs: NO_PAGE_CRUMBS, org, tabs: 'none' }}>
+    <OrgSuspendedScreen orgName={harbor.name} />
+  </ShellFrame>
+);
+export const OrgSuspendedNoMenu: Story = shellStory({
+  name: 'Suspended organization: no menu, switcher kept',
+  render: () => suspendedShell(orgOf(suspendedOrg, suspendedOrgs)),
+});
+export const OrgSuspendedPlainName: Story = shellStory({
+  name: 'Suspended only organization: plain name',
+  render: () => suspendedShell(orgOf(suspendedOrg, [suspendedOrg])),
 });
