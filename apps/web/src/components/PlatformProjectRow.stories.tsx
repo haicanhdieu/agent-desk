@@ -21,4 +21,8 @@ type Story = StoryObj<typeof meta>;
 const first = platformProjectRows[0] ?? { id: 'p1', name: 'Alpha' };
 
 export const Default: Story = { args: { row: first } };
+export const LongName: Story = { args: { row: { id: first.id, name: `${'Very long project name '.repeat(8)}` } } };
+export const LongIdAndName: Story = {
+  args: { row: { id: `${first.id}-${'0123456789abcdef'.repeat(6)}`, name: 'Very long project name '.repeat(8) } },
+};
 export const LongId: Story = { args: { row: { id: `${first.id}-${'0123456789abcdef'.repeat(6)}`, name: first.name } } };

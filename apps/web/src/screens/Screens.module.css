@@ -656,6 +656,10 @@
 }
 
 /* invitation link page */
+/* The invitation card's content sits 16px inside its edge, as the invitations list card does. */
+.acceptCardBody {
+  padding: 16px;
+}
 .acceptActions {
   display: flex;
   align-items: center;

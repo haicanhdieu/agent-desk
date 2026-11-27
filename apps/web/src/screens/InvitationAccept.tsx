@@ -134,7 +134,9 @@ function pendingBody(state: Extract<InvitationAcceptState, { kind: 'pending' }>,
     <div className={styles.welcomeCol}>
       <h1>{`Join ${details.orgName}`}</h1>
       <SurfaceCard>
-        <KeyValue items={items} termWidth={120} />
+        <div className={styles.acceptCardBody}>
+          <KeyValue items={items} termWidth={120} />
+        </div>
       </SurfaceCard>
       <div className={styles.acceptActions}>
         <Button variant="primary" size="lg" disabled={busy !== null} aria-busy={busy === 'accept'} onClick={h.onAccept}>

@@ -608,10 +608,10 @@ describe('PlatformAudit', () => {
 const tabPagination = { ...pagination, total: 3 };
 
 describe('PlatformOrgProjects', () => {
-  it('ready: section heading "Projects" and the Id and Name columns', () => {
+  it('ready: section heading "Projects" and the Name and Id columns', () => {
     render(<PlatformOrgProjects view={{ kind: 'ready', rows: platformProjectRows, pagination: tabPagination }} />);
     expect(screen.getByRole('heading', { level: 2, name: 'Projects' })).toBeInTheDocument();
-    expect(screen.getAllByRole('columnheader').map((h) => h.textContent)).toEqual(['Id', 'Name']);
+    expect(screen.getAllByRole('columnheader').map((h) => h.textContent)).toEqual(['Name', 'Id']);
     expect(screen.getByText('Billing jobs')).toBeInTheDocument();
   });
 

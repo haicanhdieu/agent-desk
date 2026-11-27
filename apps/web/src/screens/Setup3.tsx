@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Banner, Icon } from '@/ds';
-import { CommitSummary, SetupLayout, SkillTemplateCard } from '@/components';
+import { CommitSummary, SetupLayout, SkillTemplateCard, SkillTemplatePreview } from '@/components';
 import type { Actor, SkillTemplate } from '@/mocks/types';
 import type { OrgSwitchProps } from '@/components';
 import { DEFAULT_CREDENTIAL_DETAIL, commitLabel, setupSteps, type SetupNav } from './setupSteps';
@@ -13,11 +13,11 @@ export interface Setup3Props extends SetupNav {
   projectName: string;
   repo: string;
   branch: string;
-  templates: SkillTemplate[];
+  /** The cards, each with the SKILL.md text its Preview dialog shows (bundled; nothing is fetched). */
+  templates: readonly (SkillTemplate & { body: string })[];
   selected: string[];
   commitMessage: string;
   credentialDetail?: string;
-  previewHref?: string;
   /** Commits the picked templates. With it, the primary button is a button instead of the `nextHref` link. */
   onContinue?(draft: { names: string[]; message: string }): void;
   /** Skips the step (it is still saved as done). With it, Skip is a button. */
@@ -41,7 +41,6 @@ export function Setup3({
   backHref = '#',
   skipHref = '#',
   nextHref = '#',
-  previewHref = '#',
   onContinue,
   onSkip,
   saving,
@@ -50,6 +49,8 @@ export function Setup3({
 }: Setup3Props) {
   const [picked, setPicked] = useState(selected);
   const [edited, setEdited] = useState<string | null>(null);
+  const [previewing, setPreviewing] = useState<string | null>(null);
+  const previewed = templates.find((t) => t.name === previewing);
   const names = templates.map((t) => t.name).filter((n) => picked.includes(n));
   const unchanged = names.length === selected.length && names.every((n) => selected.includes(n));
   const message = edited ?? (unchanged ? commitMessage : `Add Agent Desk skills: ${names.join(', ')}`);
@@ -91,10 +92,13 @@ export function Setup3({
             template={t}
             checked={picked.includes(t.name)}
             onChange={(on) => toggle(t.name, on)}
-            previewHref={previewHref}
+            onPreview={() => setPreviewing(t.name)}
           />
         ))}
       </div>
+      {previewed && (
+        <SkillTemplatePreview name={previewed.name} body={previewed.body} onClose={() => setPreviewing(null)} />
+      )}
       {names.length > 0 && (
         <CommitSummary
           branch={branch}

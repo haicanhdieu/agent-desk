@@ -317,6 +317,11 @@ export const SignInNoInvitation: Story = {
   render: () => <SignInScreen signInHref="#" error={<SignInNoInvitationError />} />,
 };
 
+export const SignInProofOfConcept: Story = {
+  name: 'Sign in, shortened footer',
+  render: () => <SignInScreen signInHref="#" />,
+};
+
 /** A member of a suspended org: the top bar keeps the org name and the switcher, with no Projects or Settings tabs. */
 const suspendedOrg = { ...harbor, suspended: true };
 const suspendedOrgs: OrgOption[] = [suspendedOrg, northwind, riverside];

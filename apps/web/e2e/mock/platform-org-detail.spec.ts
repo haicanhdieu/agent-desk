@@ -171,17 +171,17 @@ test.describe('BR-24: org detail from the directory', () => {
 });
 
 test.describe('BR-25: Projects show id and name only', () => {
-  test('TC-25.1: columns Id and Name only; each row has the id and name as plain text, no link, no actions', async ({
+  test('TC-25.1: columns Name and Id only; each row has the id and name as plain text, no link, no actions', async ({
     page,
   }) => {
     await openTab(page, 'Projects', 'platformOrgFewProjects');
 
-    await expect(page.getByRole('columnheader')).toHaveText(['Id', 'Name']);
+    await expect(page.getByRole('columnheader')).toHaveText(['Name', 'Id']);
     await expect(bodyRows(page)).toHaveCount(2);
-    await expect(bodyRows(page).nth(0).getByRole('cell')).toHaveText(['b8100000-0000-4000-8000-000000000001', 'Alpha']);
+    await expect(bodyRows(page).nth(0).getByRole('cell')).toHaveText(['Alpha', 'b8100000-0000-4000-8000-000000000001']);
     await expect(bodyRows(page).nth(1).getByRole('cell')).toHaveText([
-      'b8100000-0000-4000-8000-000000000002',
       'Project 02',
+      'b8100000-0000-4000-8000-000000000002',
     ]);
     await expect(page.locator('tbody').getByRole('link')).toHaveCount(0);
     await expect(page.locator('tbody').getByRole('button')).toHaveCount(0);

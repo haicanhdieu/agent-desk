@@ -643,7 +643,7 @@ describe('Setup3', () => {
     boxes.forEach((b) => expect(b).toBeChecked());
     expect(screen.getByRole('link', { name: 'Commit 2 skills and continue' })).toBeInTheDocument();
     expect(screen.getByText(/No skills found in/)).toBeInTheDocument();
-    expect(screen.getAllByRole('link', { name: /^Preview / })).toHaveLength(2);
+    expect(screen.getAllByRole('button', { name: /^Preview / })).toHaveLength(2);
     expect(screen.getByLabelText('Commit message')).toHaveValue('Add Agent Desk skills: code-build, code-review');
   });
   it('count follows toggling; 1 is singular; 0 reads Continue and Skip stays', async () => {

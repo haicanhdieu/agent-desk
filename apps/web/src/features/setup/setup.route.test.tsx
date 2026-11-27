@@ -342,6 +342,30 @@ describe('setup flow', () => {
     expect(projectRow(id).setupStep).toBe('rules');
   });
 
+  it('BR-74: Preview opens that template SKILL.md in a dialog, leaves the picks alone, makes no request and Close returns focus', async () => {
+    const id = seedAt('skills');
+    const { user } = await renderRoute(`${base}/skills?project=${id}`);
+    const preview = await screen.findByRole('button', { name: 'Preview code-review' });
+    const tick = (name: string) => screen.getByRole('checkbox', { name: new RegExp('^' + name) });
+    const before = [tick('code-build'), tick('code-review')].map((c) => (c as HTMLInputElement).checked);
+    const seen: string[] = [];
+    const listener = ({ request }: { request: Request }) => void seen.push(request.url);
+    server.events.on('request:start', listener);
+    try {
+      await user.click(preview);
+      const dialog = await screen.findByRole('dialog', { name: 'code-review SKILL.md' });
+      expect(await within(dialog).findByRole('heading', { name: /Review a pull request/i })).toBeInTheDocument();
+      expect(within(dialog).queryByText(/Build an issue/)).not.toBeInTheDocument();
+      expect(seen).toEqual([]);
+      await user.click(within(dialog).getByRole('button', { name: 'Close' }));
+    } finally {
+      server.events.removeListener('request:start', listener);
+    }
+    expect(screen.queryByRole('dialog', { name: 'code-review SKILL.md' })).not.toBeInTheDocument();
+    expect([tick('code-build'), tick('code-review')].map((c) => (c as HTMLInputElement).checked)).toEqual(before);
+    expect(preview).toHaveFocus();
+  });
+
   it('with no connection, Connect asks the API for the install page and goes there', async () => {
     mockDb.state.connections = mockDb.state.connections.filter((c) => c.orgId !== ids.org.alice);
     const { tab } = stubTab();

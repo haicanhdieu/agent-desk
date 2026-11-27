@@ -19,6 +19,8 @@ describe('root session guard', () => {
     await waitFor(() => expect(router.state.location.pathname).toBe('/sign-in'));
     expect(router.state.location.href).toBe('/sign-in?redirect=%2Fo%2Falice%2Fprojects');
     expect(await screen.findByRole('link', { name: 'Sign in with GitHub' })).toBeInTheDocument();
+    expect(screen.getByText('Proof of concept.')).toBeInTheDocument();
+    expect(screen.queryByText(/Single user per project/)).not.toBeInTheDocument();
   });
 
   it('BR-24 sends a signed-out visitor at an invitation link to sign-in with the link as a safe redirect', async () => {

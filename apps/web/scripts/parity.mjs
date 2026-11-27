@@ -94,6 +94,7 @@ const stories = {
   ProjectsOrgSwitchOpen: ['Screens/Entry', 'ProjectsOrgSwitchOpen'],
   ProjectsSwitching: ['Screens/Entry', 'ProjectsSwitching'],
   SignInNoInvitation: ['Screens/Entry', 'SignInNoInvitation'],
+  SignInProofOfConcept: ['Screens/Entry', 'SignInProofOfConcept'],
   MyInvitations: ['Screens/Invitations', 'MyInvitations'],
   MyInvitationsAccepting: ['Screens/Invitations', 'MyInvitationsAccepting'],
   MyInvitationsEmpty: ['Screens/Invitations', 'MyInvitationsEmpty'],

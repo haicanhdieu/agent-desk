@@ -12,7 +12,7 @@ const meta = {
     },
     checked: true,
     onChange: () => {},
-    previewHref: '#',
+    onPreview: () => {},
   },
   decorators: [
     (S) => (

@@ -181,6 +181,7 @@ export const boardStories = {
   ProjectsOrgSwitchOpen: { title: entry, exportName: 'ProjectsOrgSwitchOpen' },
   ProjectsSwitching: { title: entry, exportName: 'ProjectsSwitching' },
   SignInNoInvitation: { title: entry, exportName: 'SignInNoInvitation' },
+  SignInProofOfConcept: { title: entry, exportName: 'SignInProofOfConcept' },
   MyInvitations: { title: invitations, exportName: 'MyInvitations' },
   MyInvitationsAccepting: { title: invitations, exportName: 'MyInvitationsAccepting' },
   MyInvitationsEmpty: { title: invitations, exportName: 'MyInvitationsEmpty' },

@@ -22,8 +22,10 @@ export interface ProjectsProps {
   newHref: string;
   /** Where a project row links (its runs). Defaults to the prototype's `/runs`. */
   projectHref?: (project: Project) => string;
-  /** Where a row's More menu Settings goes (the project's settings); a row without an href has no Settings item. */
+  /** Where a row's "Agent & settings" action goes (the agent page); a row without an href has no such item. */
   settingsHref?: (project: Project) => string | undefined;
+  /** Where a row's "Resume setup" button goes; a row without an href has no such button. */
+  resumeHref?: (project: Project) => string | undefined;
   /** Where a row's "Switch to polling" goes (the project's settings); a row without an href has no such button. */
   switchToPollingHref?: (project: Project) => string | undefined;
   /** The paging control under the table; its `busy` marks the table aria-busy. */
@@ -56,6 +58,7 @@ export function Projects({
   newHref,
   projectHref = () => '/runs',
   settingsHref,
+  resumeHref,
   switchToPollingHref,
   pagination,
   org,
@@ -92,7 +95,7 @@ export function Projects({
           )}
         </div>
         <p className={`muted ${styles.listIntro}`}>
-          After sign-in you land on the runs of the project you used last. This list is one click away on the logo.
+          After sign-in you land on this list. It is one click away on the logo.
         </p>
         {checklist && <OnboardingChecklist state={checklist} />}
         <DataTable columns={columns} busy={pagination?.busy}>
@@ -102,6 +105,7 @@ export function Projects({
               project={p}
               href={projectHref(p)}
               settingsHref={settingsHref?.(p)}
+              resumeHref={resumeHref?.(p)}
               switchToPollingHref={switchToPollingHref?.(p)}
               {...(onDeleteProject && { onDelete: () => setConfirming(p) })}
             />

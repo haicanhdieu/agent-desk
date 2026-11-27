@@ -9,6 +9,12 @@ import { Projects } from './Projects';
 import { OrgSuspended } from './OrgSuspended';
 
 describe('SignIn', () => {
+  it('BR-76: says Proof of concept and nothing about a single user per project', () => {
+    const { container } = render(<SignIn signInHref="/x" />);
+    expect(screen.getByText('Proof of concept.')).toBeInTheDocument();
+    expect(container).not.toHaveTextContent('Single user per project');
+  });
+
   it('links "Sign in with GitHub" to signInHref', () => {
     render(<SignIn signInHref="/auth/github" />);
     expect(screen.getByRole('link', { name: 'Sign in with GitHub' })).toHaveAttribute('href', '/auth/github');
@@ -198,6 +204,7 @@ describe('Projects onboarding', () => {
     await userEvent.click(screen.getByRole('button', { name: 'More for docs-site' }));
     expect(screen.getByRole('link', { name: 'Runs' })).toBeInTheDocument();
     expect(screen.queryByRole('link', { name: 'Settings' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Agent & settings' })).not.toBeInTheDocument();
   });
 
   it('has no Delete project item without onDeleteProject (fail closed)', async () => {
@@ -222,10 +229,32 @@ describe('Projects onboarding', () => {
     expect(screen.queryByRole('dialog', { name: 'Delete project' })).not.toBeInTheDocument();
   });
 
-  it('shows Settings in the row menu when the row has a settings href', async () => {
+  it('BR-28: shows Agent & settings, not Settings, in the row menu when the row has a settings href', async () => {
     render(<Projects user={user} projects={projects} newHref="/new" settingsHref={() => '/settings'} />);
     await userEvent.click(screen.getByRole('button', { name: 'More for docs-site' }));
-    expect(screen.getByRole('link', { name: 'Settings' })).toHaveAttribute('href', '/settings');
+    expect(screen.getByRole('link', { name: 'Agent & settings' })).toHaveAttribute('href', '/settings');
+    expect(screen.queryByRole('link', { name: 'Settings' })).not.toBeInTheDocument();
+  });
+
+  it('shows Resume setup before More only for a row with a resume href', () => {
+    render(
+      <Projects
+        user={user}
+        projects={projects}
+        newHref="/new"
+        resumeHref={(p) => (p.name === 'docs-site' ? '/resume' : undefined)}
+      />,
+    );
+    expect(screen.getByRole('link', { name: 'Resume setup for docs-site' })).toHaveAttribute('href', '/resume');
+    expect(screen.getAllByRole('link', { name: /^Resume setup for/ })).toHaveLength(1);
+  });
+
+  it('BR-75: the intro reads the new sentence', () => {
+    render(<Projects user={user} projects={projects} newHref="/new" />);
+    expect(
+      screen.getByText('After sign-in you land on this list. It is one click away on the logo.'),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/last used/i)).not.toBeInTheDocument();
   });
 
   it('a member view has no Invitations and no New project', () => {

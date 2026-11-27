@@ -364,3 +364,40 @@ test.describe('BR-57: /invitations for a person who belongs to an org', () => {
     await expect(page.getByText('No pending invitations')).toHaveCount(0);
   });
 });
+
+// BR-70: the invitation card on `/invitations/:id`. jsdom has no layout, so the inset is measured here. The card is
+// the figure that holds the details list; Accept and Decline sit under it, outside the card. The 1px slack is for
+// the card's own border and sub-pixel rounding.
+test.describe('BR-70: invitation card padding', () => {
+  const PENDING_LINK = `/invitations/b4000000-0000-4000-8000-${String(1).padStart(12, '0')}`;
+
+  async function expectInset(page: Page): Promise<void> {
+    await seedOnboarding(page, 'noOrgInvited');
+    await page.clock.setFixedTime(new Date(Date.parse(INVITATIONS_MOCK_NOW) - 60 * 60_000));
+    await page.goto(PENDING_LINK);
+    await expect(page.getByRole('heading', { level: 1, name: 'Join Acme Robotics' })).toBeVisible();
+    const card = page.locator('figure').filter({ has: page.locator('dl') });
+    const box = await card.boundingBox();
+    if (!box) throw new Error('no card box');
+    const parts = card.locator('dt, dd');
+    expect(await parts.count()).toBeGreaterThan(0);
+    for (const part of await parts.all()) {
+      const b = await part.boundingBox();
+      if (!b) throw new Error('no part box');
+      expect(b.x - box.x).toBeGreaterThanOrEqual(15);
+      expect(b.y - box.y).toBeGreaterThanOrEqual(15);
+      expect(box.x + box.width - (b.x + b.width)).toBeGreaterThanOrEqual(15);
+      expect(box.y + box.height - (b.y + b.height)).toBeGreaterThanOrEqual(15);
+    }
+  }
+
+  test('TC-70.1: at 1440 the card content is at least 16px inside every card edge', async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await expectInset(page);
+  });
+
+  test('TC-70.2: at 390 the card content is still at least 16px inside every card edge', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await expectInset(page);
+  });
+});

@@ -65,11 +65,13 @@ describe.each(['member', 'viewer'] as const)('a %s', (role) => {
     expect(deskCalls()).toEqual([]);
   });
 
-  it('has no Settings entry in a project row menu', async () => {
+  it('has no Agent & settings entry in a project row menu', async () => {
     const { user } = await open('/o/acme/projects', role);
     await user.click((await screen.findAllByRole('button', { name: /^More for / }))[0]!);
     expect(await screen.findByRole('link', { name: 'Runs' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Settings' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Settings' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Agent & settings' })).not.toBeInTheDocument();
   });
 });
 

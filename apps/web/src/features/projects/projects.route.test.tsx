@@ -40,7 +40,16 @@ describe('projects route', () => {
     expect(link).toHaveAttribute('href', `/o/alice/p/${ids.project.docsSite}/desk/agent?tab=github`);
   });
 
-  it('the More menu of a project offers Runs and Settings links and an enabled Delete project', async () => {
+  it('BR-75: the intro reads the new sentence and does not mention the last used project', async () => {
+    await renderRoute('/o/alice/projects');
+    await screen.findByRole('link', { name: 'invoicer-web' });
+    expect(
+      screen.getByText('After sign-in you land on this list. It is one click away on the logo.'),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/last used/i)).not.toBeInTheDocument();
+  });
+
+  it('the More menu of a project offers Runs and Agent & settings links and an enabled Delete project', async () => {
     await renderRoute('/o/alice/projects');
     const more = await screen.findByRole('button', { name: 'More for invoicer-api' });
     await userEvent.click(more);
@@ -49,10 +58,11 @@ describe('projects route', () => {
       'href',
       `/o/alice/p/${ids.project.invoicerApi}/runs`,
     );
-    expect(within(menu).getByRole('link', { name: 'Settings' })).toHaveAttribute(
+    expect(within(menu).getByRole('link', { name: 'Agent & settings' })).toHaveAttribute(
       'href',
       `/o/alice/p/${ids.project.invoicerApi}/desk/agent`,
     );
+    expect(within(menu).queryByRole('link', { name: 'Settings' })).not.toBeInTheDocument();
     expect(within(menu).getByRole('button', { name: 'Delete project' })).toBeEnabled();
   });
 

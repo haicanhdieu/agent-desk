@@ -102,9 +102,9 @@ test.describe('BR-25: Projects show id and name only', () => {
     await mine.goto(`${ORGS}/${orgId}/projects`);
 
     await expect(tabHeading(mine, 'Projects')).toBeVisible();
-    await expect(mine.getByRole('columnheader')).toHaveText(['Id', 'Name']);
+    await expect(mine.getByRole('columnheader')).toHaveText(['Name', 'Id']);
     await expect(bodyRows(mine)).toHaveCount(1);
-    await expect(bodyRows(mine).first().getByRole('cell')).toHaveText([projectId, name]);
+    await expect(bodyRows(mine).first().getByRole('cell')).toHaveText([name, projectId]);
   });
 });
 

@@ -9,15 +9,24 @@ export interface ProjectRowProps {
   project: Project;
   /** The project's runs; also the More menu's Runs. */
   href: string;
-  /** The More menu's Settings link (project settings); the item is left out without it (the caller may not open the Desk). */
+  /** The More menu's "Agent & settings" link (the agent page, which opens on its Agents tab); left out without it (the caller may not open the Desk). */
   settingsHref?: string;
+  /** Where "Resume setup" goes (the project's unfinished wizard step); the button is left out without it. */
+  resumeHref?: string;
   /** Where "Switch to polling" goes on a silent-webhook warning (project settings); the button is left out without it. */
   switchToPollingHref?: string;
   /** The More menu's Delete project item; the item is left out without it (the caller may not delete projects). */
   onDelete?: () => void;
 }
 
-export function ProjectRow({ project: p, href, settingsHref, switchToPollingHref, onDelete }: ProjectRowProps) {
+export function ProjectRow({
+  project: p,
+  href,
+  settingsHref,
+  resumeHref,
+  switchToPollingHref,
+  onDelete,
+}: ProjectRowProps) {
   const { tone, mode, text } = p.connection;
   const { menuAt, open, moreRef, toggleMenu, closeMenu } = useRowMenu();
 
@@ -84,6 +93,11 @@ export function ProjectRow({ project: p, href, settingsHref, switchToPollingHref
       <td className="num">{p.queued}</td>
       <td className={styles.lastRun}>{p.lastRun}</td>
       <td className={styles.end}>
+        {resumeHref !== undefined && (
+          <Button size="sm" href={resumeHref} aria-label={`Resume setup for ${p.name}`}>
+            Resume setup
+          </Button>
+        )}
         <span ref={moreRef}>
           <IconButton
             icon="more"
@@ -109,7 +123,7 @@ export function ProjectRow({ project: p, href, settingsHref, switchToPollingHref
                 href={settingsHref}
                 onClick={closeMenu}
               >
-                Settings
+                Agent &amp; settings
               </Button>
             )}
             {onDelete !== undefined && (

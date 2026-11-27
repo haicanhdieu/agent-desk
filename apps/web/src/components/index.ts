@@ -95,6 +95,7 @@ export { StepCardGrid, type StepCardGridProps } from './StepCardGrid';
 export { ProjectRow, type ProjectRowProps } from './ProjectRow';
 export { FollowUpRule, type FollowUpRuleProps } from './FollowUpRule';
 export { SkillTemplateCard, type SkillTemplateCardProps } from './SkillTemplateCard';
+export { SkillTemplatePreview, type SkillTemplatePreviewProps } from './SkillTemplatePreview';
 export { ProjectNav, ProjectStrip, type ProjectNavProps } from './ProjectNav';
 export { NeedsYouBanner, type NeedsYouBannerProps } from './NeedsYouBanner';
 export { IgnoredRow } from './IgnoredRow';

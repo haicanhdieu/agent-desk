@@ -71,11 +71,12 @@ for (const role of ['member', 'viewer'] as const) {
       expect(seen.filter((p) => DESK_DATA.test(p))).toEqual([]);
     });
 
-    test('has no Settings entry in the project list row menu', async ({ page }) => {
+    test('has no Agent & settings entry in the project list row menu', async ({ page }) => {
       await open(page, role, '/o/acme/projects');
       await page.getByRole('button', { name: /^More for invoicer-api/ }).click();
       await expect(rowMenu(page).getByRole('link', { name: 'Runs' })).toBeVisible();
-      await expect(rowMenu(page).getByRole('link', { name: 'Settings' })).toHaveCount(0);
+      await expect(rowMenu(page).getByRole('link', { name: 'Agent & settings' })).toHaveCount(0);
+      await expect(rowMenu(page).getByRole('link', { name: 'Settings', exact: true })).toHaveCount(0);
     });
 
     test('has no Delete project entry in the project list row menu', async ({ page }) => {
@@ -104,10 +105,10 @@ test.describe('an admin', () => {
     await expect(forbidden(page)).toHaveCount(0);
   });
 
-  test('has the Settings entry in the project list row menu', async ({ page }) => {
+  test('has the Agent & settings entry in the project list row menu', async ({ page }) => {
     await open(page, 'orgAdmin', '/o/acme/projects');
     await page.getByRole('button', { name: /^More for invoicer-api/ }).click();
-    await expect(rowMenu(page).getByRole('link', { name: 'Settings' })).toBeVisible();
+    await expect(rowMenu(page).getByRole('link', { name: 'Agent & settings' })).toBeVisible();
   });
 });
 

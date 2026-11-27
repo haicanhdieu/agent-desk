@@ -655,3 +655,13 @@ page is the story MyInvitationsEmptyMemberText (`Screens/Invitations`), a state 
 "No pending invitations" and "No invitations for <email>.", in the same frame, with no Sign out or Create organization.
 
 - Pixel check not run: no Chromium in the runner pod, so `parity.mjs` was not run for MyInvitationsEmpty or the member variant.
+
+## Sidebar navigation shell: smaller items
+
+Board added: SignInProofOfConcept (so `parity.mjs` finds one more board). Storybook and `pnpm parity` were not run in the runner pod, so the pairs below are unchecked.
+
+- SignInProofOfConcept: the story renders the same sign-in screen as SignIn ("Proof of concept." with no single-user sentence); the board is the shortened-footer variant.
+- Projects, ProjectsMember and the other Projects boards: the row menu says "Agent & settings" where the older boards say "Settings", and the intro reads "After sign-in you land on this list. It is one click away on the logo." Intended change (BR-28, BR-75).
+- PlatformOrgProjects boards: Name is the first column, then Id (BR-71).
+- InvitationAccept boards: the details card has 16px padding (BR-70).
+- Setup3: Preview is a button that opens a dialog (BR-74).

@@ -520,7 +520,7 @@ function SkillsStep({ org, projectId }: { org: string; projectId: string }) {
   const { data: agent } = useSuspenseQuery(setupQueries.agent(org, projectId));
   const save = useSaveSkillsStep(org);
   const [errors, setErrors] = useState<StepErrors<'message'>>(noErrors);
-  const templates = SKILL_TEMPLATES.map(({ name, description, note }) => ({ name, description, note }));
+  const templates = SKILL_TEMPLATES;
   const names = templates.map((t) => t.name);
 
   const run = async (picked: string[], message: string) => {
