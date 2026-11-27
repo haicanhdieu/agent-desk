@@ -595,10 +595,10 @@ Add an `it.each` over `tenantAccessFixtures` (owner, admin, projectAdmin, member
 - Consumes: approved boards `RunsSideMenu`, `RunsSideMenuMember`, `RunRunningSideMenu`, `RunRunningStopSideMenu`, `RunIdleSideCollapsed`, `RunIdleSideExpanded`.
 - Produces: the about 54 `Runs*` and `Run*` canvas boards (`RunIdleShell` included) Tasks 20 and 22 match.
 
-- [ ] **Step 0: Multi-agent gate.** Run both checks in "Multi-agent gate". If either fails, stop: write no code and report which check failed.
-- [ ] **Step 1: Redraw:** Runs boards get the project menu and page header (slots and today's counts, search, "Grouped by ticket", chips below). Run boards get the collapsed strip and the run page header; "Full screen" is removed; the repository button leaves the top bar.
-- [ ] **Step 2: Regenerate**, run the grep over `Run*.dc.html` plus `Repo on GitHub|Full screen` (nothing) and VITEST `src/test/coverage.test.ts`.
-- [ ] **Step 3: Commit** `docs(design): redraw runs and run boards in the new shell` (board-only note).
+- [x] **Step 0: Multi-agent gate.** Run both checks in "Multi-agent gate". If either fails, stop: write no code and report which check failed.
+- [x] **Step 1: Redraw:** Runs boards get the project menu and page header (slots and today's counts, search, "Grouped by ticket", chips below). Run boards get the collapsed strip and the run page header; "Full screen" is removed; the repository button leaves the top bar.
+- [x] **Step 2: Regenerate**, run the grep over `Run*.dc.html` plus `Repo on GitHub|Full screen` (nothing) and VITEST `src/test/coverage.test.ts`.
+- [x] **Step 3: Commit** `docs(design): redraw runs and run boards in the new shell` (board-only note).
 
 ### Task 10: Redraw the project configuration boards (after the multi-agent gate)
 
