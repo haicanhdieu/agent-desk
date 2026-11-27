@@ -10,7 +10,6 @@ import { signOutAndRedirect } from '@/features/auth/signOut';
 import { toAcceptState } from '@/features/invitations/map';
 import { useAcceptInvitation, useDeclineInvitation } from '@/features/invitations/mutations';
 import { myInvitationQuery } from '@/features/invitations/queries';
-import { useAppBar } from '@/features/chrome/appBar';
 import { InvitationAccept, type InvitationAcceptState } from '@/screens';
 
 // The invitation link: the signed-in person's own invitation with Accept and Decline, or why it cannot be answered.
@@ -18,6 +17,7 @@ import { InvitationAccept, type InvitationAcceptState } from '@/screens';
 const InvitationId = z.string().uuid();
 
 export const Route = createFileRoute('/invitations/$invitation')({
+  staticData: { chrome: { mode: 'standard', scope: 'personal', crumb: 'My invitations' } },
   loader: ({ context: { queryClient } }) =>
     Promise.all([queryClient.ensureQueryData(sessionQuery), queryClient.ensureQueryData(orgsQuery)]).then(() => null),
   component: InvitationLinkPage,
@@ -29,7 +29,6 @@ const isNotFound = (e: unknown) => e instanceof ApiError && e.status === 404;
 function InvitationLinkPage() {
   const { invitation: param } = Route.useParams();
   const { data: session } = useSuspenseQuery(sessionQuery);
-  const bar = useAppBar(null);
   const valid = InvitationId.safeParse(param).success;
   const invitation = useQuery({ ...myInvitationQuery(param), enabled: valid });
   const accept = useAcceptInvitation();
@@ -41,6 +40,8 @@ function InvitationLinkPage() {
   const [conflicted, setConflicted] = useState(false);
 
   const email = session?.user.email ?? '';
+  // Unused while the shell owns the page (the bar is the shell's); the screen's own fallback bar still takes it.
+  const handle = session?.user.handle ?? '';
 
   const retry = () => {
     setConflicted(false);
@@ -97,8 +98,7 @@ function InvitationLinkPage() {
 
   return (
     <InvitationAccept
-      user={bar.user}
-      org={bar.org}
+      user={{ login: handle, initials: handle.slice(0, 2).toUpperCase() }}
       state={state}
       onAccept={onAccept}
       onDecline={() => setConfirmDecline(true)}

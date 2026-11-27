@@ -66,7 +66,8 @@ async function mount(
   }
   if (opts.hold === 'session-pending') server.use(http.get('*/auth/get-session', () => new Promise(() => {})));
   const client = createAppQueryClient({ retryDelay: 0 });
-  const root = createTestRootRoute();
+  // Unguarded: the hook is rendered without the shell, and a held session read must not hold the route.
+  const root = createTestRootRoute({ guarded: false });
   const routeTree = root.addChildren([createRoute({ getParentRoute: () => root, path: '$' })]);
   const history = createMemoryHistory({ initialEntries: [opts.path ?? input.pathname] });
   const router = createRouterForTree({ queryClient: client, history, routeTree });

@@ -35,6 +35,8 @@ export const SHELL_SCENARIOS = [
   'markerTicket',
   'foreignOrg',
   'foreignInvite',
+  'memberInvite',
+  'adminTwoOrgsOneSuspended',
   'memberOwnsRuns',
   'memberOthersRuns',
 ] as const;
@@ -321,6 +323,33 @@ const seeders: Record<ShellScenario, () => void> = {
     state().invitations.push({
       id: FOREIGN.invitationId,
       orgId: FOREIGN.orgId,
+      email,
+      role: roleRef('member'),
+      scope: { type: 'org' },
+      status: 'pending',
+      expiresAt: new Date(Date.now() + 2 * DAY).toISOString(),
+      invitedBy: { name: 'Zed Zephyr', handle: 'zed' },
+      createdAt: new Date().toISOString(),
+      acceptedAt: null,
+    });
+  },
+  // A platform admin in two orgs (Alice active, Acme suspended): the scope menu labels the suspended one.
+  adminTwoOrgsOneSuspended() {
+    applyOnboardingScenario('twoOrgs');
+    const me = state().users[0];
+    if (me) me.platformAdmin = true;
+    const acme = state().orgs.find((o) => o.id === ids.org.acme);
+    if (!acme) throw new Error('acme org missing');
+    acme.status = 'suspended';
+  },
+  // A pending invitation (for added access) from the second org, where the user is already a member; the first is active.
+  memberInvite() {
+    seeders.adminAMemberB();
+    const email = state().users[0]?.email.toLowerCase();
+    if (email === undefined) throw new Error('seed has no user');
+    state().invitations.push({
+      id: FOREIGN.invitationId,
+      orgId: ids.org.acme,
       email,
       role: roleRef('member'),
       scope: { type: 'org' },

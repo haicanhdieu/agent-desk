@@ -25,9 +25,6 @@ async function open(page: Page, scenario: TenantAdminScenario, path: string): Pr
   await page.goto(path);
 }
 
-// The pages not yet on the shell (My invitations) still draw the old bar with its Settings tab.
-const legacyTab = (page: Page, name: string): Locator =>
-  page.getByRole('navigation', { name: 'Organization sections' }).getByRole('link', { name, exact: true });
 const orgMenu = (page: Page): Locator => page.getByRole('navigation', { name: 'Organization menu' });
 const menuLink = (page: Page, name: string): Locator => orgMenu(page).getByRole('link', { name, exact: true });
 /** The org's name in the top bar (one org has no switch button, so the name is plain text). */
@@ -166,13 +163,11 @@ test.describe('BR-13: reaching Settings and the old invitations link', () => {
     await expect(menuLink(page, 'General')).toHaveCount(0);
   });
 
-  test('TC-13.4: the owner on My invitations opens Settings from the old bar and lands on Members', async ({
-    page,
-  }) => {
+  test('TC-13.4: the owner on My invitations opens Members from the active org menu', async ({ page }) => {
     await open(page, 'twoOwners', '/invitations');
     await expect(page).toHaveURL(/\/invitations$/);
-    await expect(legacyTab(page, 'Org settings')).toBeVisible();
-    await legacyTab(page, 'Org settings').click();
+    await expect(menuLink(page, 'Members')).toBeVisible();
+    await menuLink(page, 'Members').click();
     await expect(page).toHaveURL(new RegExp(`/o/${ORG}/settings/members$`));
     await expect(h1(page, 'Members')).toBeVisible();
     await expectFullSideMenu(page, 'Members');

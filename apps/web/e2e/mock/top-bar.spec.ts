@@ -68,11 +68,15 @@ test.describe('BR-43: top-bar tabs per level', () => {
     await expect(page.getByRole('link', { name: 'Org settings', exact: true })).toHaveCount(0);
   });
 
-  test('TC-43.6: the My invitations page shows the org bar with no tab active', async ({ page }) => {
+  // The tabs moved to the side menu (BR-56): the page shows the active org's menu with no current item, and no bar tabs.
+  test('TC-43.6: the My invitations page shows the org menu with no item current and no tabs in the bar', async ({
+    page,
+  }) => {
     await open(page, 'twoOwners', '/invitations');
-    await expect(tab(page, 'Projects')).toBeVisible();
-    await expect(tab(page, 'Org settings')).toBeVisible();
-    await expect(mainNav(page).locator('[aria-current]')).toHaveCount(0);
+    const menu = page.getByRole('navigation', { name: 'Organization menu' });
+    await expect(menu.getByRole('link', { name: 'Projects' })).toBeVisible();
+    await expect(menu.locator('[aria-current]')).toHaveCount(0);
+    await expect(mainNav(page)).toHaveCount(0);
   });
 
   test('TC-43.7: the needs-you page shows the org bar with no tab active', async ({ page }) => {

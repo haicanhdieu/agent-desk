@@ -3,6 +3,7 @@ import { createMemoryHistory, createRootRouteWithContext, type AnyRoute, type An
 import { act, render } from '@testing-library/react';
 import userEvent, { type UserEvent } from '@testing-library/user-event';
 import { AppProviders } from '@/app/providers';
+import { sessionQuery } from '@/features/auth/session';
 import { createAppQueryClient } from '@/app/queryClient';
 import { rootRouteOptions, type RouterContext } from '@/app/root';
 import { createAppRouter, createRouterForTree } from '@/app/router';
@@ -21,8 +22,16 @@ export interface RenderedRoute {
 }
 
 /** A root route with the app's root options, for tests that need routes the app does not have. */
-export function createTestRootRoute() {
-  return createRootRouteWithContext<RouterContext>()({ ...rootRouteOptions });
+export function createTestRootRoute({ guarded = true }: { guarded?: boolean } = {}) {
+  return createRootRouteWithContext<RouterContext>()({
+    ...rootRouteOptions,
+    // Like routes/__root.tsx: the session is known before the shell draws (it draws nothing without one).
+    ...(guarded && {
+      beforeLoad: async ({ context: { queryClient } }: { context: RouterContext }) => {
+        await queryClient.ensureQueryData(sessionQuery);
+      },
+    }),
+  });
 }
 
 /**

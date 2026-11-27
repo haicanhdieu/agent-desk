@@ -1,6 +1,6 @@
 import { expect, test, type APIRequestContext, type Browser, type BrowserContext, type Page } from '@playwright/test';
 import { ORG_HEADER, ProjectDto, RuleDto, pageOf } from '@agentdesk/contracts';
-import { API, acceptViaApi, inviteAndSignIn, inviteViaApi, ok, signInAs } from './helpers';
+import { API, PLATFORM_ADMIN_HANDLE, acceptViaApi, inviteAndSignIn, inviteViaApi, ok, signInAs } from './helpers';
 import { REPO_P1, REPO_P2, installFake } from './rbac-cast';
 import { withScope, type Org, type Scope } from './onboarding-scope';
 
@@ -166,6 +166,36 @@ test('TC-7.2: after switching to B a reload stays on B projects', async ({ brows
     await u.page.reload();
     await expect(u.page).toHaveURL(new RegExp(`/o/${u.b.org.slug}/projects$`));
     await expectOnlyProjectsOf(u.page, u.b, u.a);
+  });
+});
+
+// ---- BR-46 ----
+
+test('TC-46.1: from a Members page of A, picking org B in the switcher opens B projects', async ({ browser }) => {
+  await withScope(async (scope) => {
+    const u = await personInTwoOrgs(scope, browser);
+    await u.page.goto(`/o/${u.a.org.slug}/settings/members`);
+    await expect(u.page.getByRole('heading', { level: 1, name: 'Members' })).toBeVisible(FIRST_HEADING);
+    await pickOrg(u.page, u.b.org);
+    await expect(u.page).toHaveURL(new RegExp(`/o/${u.b.org.slug}/projects$`));
+    await expectOnlyProjectsOf(u.page, u.b, u.a);
+  });
+});
+
+test('TC-46.2: a platform admin on an org page picks Platform and lands on the Organizations directory', async ({
+  browser,
+}) => {
+  await withScope(async (scope) => {
+    const a = await scope.org('a');
+    const ctx = await scope.person(browser);
+    const page = await ctx.newPage();
+    await inviteAndSignIn(page, scope.pa, a.id, PLATFORM_ADMIN_HANDLE, 'owner', { type: 'org' });
+    await page.goto(`/o/${a.slug}/projects`);
+    await expect(projectsHeading(page)).toBeVisible(FIRST_HEADING);
+    await switchButton(page).click();
+    await page.getByRole('dialog', { name: 'Scope' }).getByRole('link', { name: 'Platform', exact: true }).click();
+    await expect(page).toHaveURL(/\/platform\/orgs$/);
+    await expect(page.getByRole('heading', { level: 1, name: 'Organizations' })).toBeVisible(FIRST_HEADING);
   });
 });
 

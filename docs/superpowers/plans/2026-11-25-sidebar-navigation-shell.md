@@ -1378,13 +1378,13 @@ export function useShellData(input: ShellInput): ShellData;
 
 - Consumes: `scope: 'personal'` (active org menu with no current item, from `sessionAccessQuery`); `crumb: 'My invitations'`. In-page `error` and `notAvailable` states do not call `useReportPageState`.
 
-- [ ] **Step 0: Multi-agent gate.** Run both checks in "Multi-agent gate". If either fails, stop: write no code and report which check failed.
-- [ ] **Step 1: Write failing route tests:** `/invitations` and the link page show the active org's menu with no current item, also when the page's own read fails or says not available; no menu with no active org or a suspended one; the invitation's org is named only if the user is a member; a loader or route crash is the app error page with no menu (one case keeps the two apart); menu grant read failing shows the menu error with Retry. Update headings to "My invitations".
-- [ ] **Step 2: Run** VITEST on the three files. Expected: FAIL.
-- [ ] **Step 3: Implement** `staticData` and drop `useAppBar(null)` use from the routes.
-- [ ] **Step 4: E2E:** in `account-menu.spec.ts` "TC-55.1", "TC-55.2", "TC-55.3"; in `invitations.spec.ts` "TC-7.4", "TC-56.1", "TC-56.2", "TC-56.3", "TC-56.4", "TC-56.5", "TC-56.6" (use `holdReads(page, { invitation: 'fail' })`). Keep TC-57.x green.
-- [ ] **Step 5: Run** VITEST, MOCK the listed specs. Expected: PASS.
-- [ ] **Step 6: Commit** `feat(web): personal pages use the app shell`.
+- [x] **Step 0: Multi-agent gate.** Run both checks in "Multi-agent gate". If either fails, stop: write no code and report which check failed.
+- [x] **Step 1: Write failing route tests:** `/invitations` and the link page show the active org's menu with no current item, also when the page's own read fails or says not available; no menu with no active org or a suspended one; the invitation's org is named only if the user is a member; a loader or route crash is the app error page with no menu (one case keeps the two apart); menu grant read failing shows the menu error with Retry. Update headings to "My invitations".
+- [x] **Step 2: Run** VITEST on the three files. Expected: FAIL.
+- [x] **Step 3: Implement** `staticData` and drop `useAppBar(null)` use from the routes.
+- [x] **Step 4: E2E:** in `account-menu.spec.ts` "TC-55.1", "TC-55.2", "TC-55.3"; in `invitations.spec.ts` "TC-7.4", "TC-56.1", "TC-56.2", "TC-56.3", "TC-56.4", "TC-56.5", "TC-56.6" (use `holdReads(page, { invitation: 'fail' })`). Keep TC-57.x green.
+- [x] **Step 5: Run** VITEST, MOCK the listed specs. Expected: PASS.
+- [x] **Step 6: Commit** `feat(web): personal pages use the app shell`.
 
 ### Task 37: Org switcher states and destinations, end to end (BR-45 to BR-47, BR-53, BR-80) (after the multi-agent gate)
 
@@ -1402,12 +1402,12 @@ export function useShellData(input: ShellInput): ShellData;
 
 - Consumes: `holdReads(page, { orgList })`, `release`.
 
-- [ ] **Step 0: Multi-agent gate.** Run both checks in "Multi-agent gate". If either fails, stop: write no code and report which check failed.
-- [ ] **Step 1: Write failing route tests** (MSW delays then fails `/auth/organization/list`) on an org page and a project page: content shows loading, then an error with Retry, never the loaded page, each with a `main`; the menu has only "Projects" or "Runs" (plus the menu error after failure), no skeleton rows, no gated item, no "Manage in Platform" even for a platform admin, no org or project name anywhere; no org or project query while membership is unknown; the switcher's Retry refetches only the list; the menu's Retry brings the role's items; a failed background refetch keeps the last list.
-- [ ] **Step 2: Run** VITEST `src/features/orgs/orgSwitch.route.test.tsx`. Expected: FAIL where behaviour is missing; fix only in the two listed source files (the shell data hook and the route error/pending states).
-- [ ] **Step 3: E2E mock** (`org-switcher.spec.ts`): "TC-45.1", "TC-45.2", "TC-45.3", "TC-46.1", "TC-46.2", "TC-46.3", "TC-47.1", "TC-47.2", "TC-47.3", "TC-47.4", "TC-47.5", "TC-47.6", "TC-47.7", "TC-47.8", "TC-53.2", "TC-53.4", "TC-80.1", "TC-80.2", "TC-80.3", "TC-80.4", "TC-80.5", "TC-80.6", "TC-80.7", "TC-80.8", "TC-80.9", "TC-80.10", "TC-80.11". Rewrite `org-switch.spec.ts` (mock and local) for scope-only entries and add local "TC-46.1", "TC-46.2".
+- [x] **Step 0: Multi-agent gate.** Run both checks in "Multi-agent gate". If either fails, stop: write no code and report which check failed.
+- [x] **Step 1: Write failing route tests** (MSW delays then fails `/auth/organization/list`) on an org page and a project page: content shows loading, then an error with Retry, never the loaded page, each with a `main`; the menu has only "Projects" or "Runs" (plus the menu error after failure), no skeleton rows, no gated item, no "Manage in Platform" even for a platform admin, no org or project name anywhere; no org or project query while membership is unknown; the switcher's Retry refetches only the list; the menu's Retry brings the role's items; a failed background refetch keeps the last list.
+- [x] **Step 2: Run** VITEST `src/features/orgs/orgSwitch.route.test.tsx`. Expected: FAIL where behaviour is missing; fix only in the two listed source files (the shell data hook and the route error/pending states).
+- [x] **Step 3: E2E mock** (`org-switcher.spec.ts`): "TC-45.1", "TC-45.2", "TC-45.3", "TC-46.1", "TC-46.2", "TC-46.3", "TC-47.1", "TC-47.2", "TC-47.3", "TC-47.4", "TC-47.5", "TC-47.6", "TC-47.7", "TC-47.8", "TC-53.2", "TC-53.4", "TC-80.1", "TC-80.2", "TC-80.3", "TC-80.4", "TC-80.5", "TC-80.6", "TC-80.7", "TC-80.8", "TC-80.9", "TC-80.10", "TC-80.11". Rewrite `org-switch.spec.ts` (mock and local) for scope-only entries and add local "TC-46.1", "TC-46.2".
 - [ ] **Step 4: Run** VITEST, MOCK `org-switcher org-switch`, LOCAL `org-switch`. Expected: PASS.
-- [ ] **Step 5: Commit** `test(web): org switcher states and destinations`.
+- [x] **Step 5: Commit** `test(web): org switcher states and destinations`.
 
 ### Task 38: Remove the needs-you page (BR-30) (after the multi-agent gate)
 

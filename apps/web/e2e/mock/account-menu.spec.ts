@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { IDLE_RUN, INVOICER_API, ORG } from './mock';
+import { IDLE_RUN, INVOICER_API, ORG, seedOnboarding } from './mock';
 
 /*
  * The account menu behind the top bar avatar (issues #213, #227, #229): the avatar is a menu button that opens the identity header (name, full email) and Logout,
@@ -95,5 +95,54 @@ test.describe('sidebar Task 11: the popover fits a phone', () => {
     expect(item.y).toBeGreaterThanOrEqual(0);
     expect(item.x + item.width).toBeLessThanOrEqual(390);
     expect(item.y + item.height).toBeLessThanOrEqual(844);
+  });
+});
+
+// BR-55: "My invitations" opens /invitations from any page, with no pending count.
+test.describe('BR-55: My invitations in the account menu', () => {
+  const openInvitations = async (page: Page): Promise<void> => {
+    await avatar(page).click();
+    await menu(page).getByRole('menuitem', { name: 'My invitations' }).click();
+    await expect(page).toHaveURL(/\/invitations$/);
+    await expect(page.getByRole('heading', { level: 1, name: 'My invitations' })).toBeVisible();
+  };
+
+  test('TC-55.1: from an org, project, run, platform and wizard page, My invitations opens /invitations', async ({
+    page,
+  }) => {
+    await seedOnboarding(page, 'platformAdminOneOrg');
+    for (const path of [
+      `/o/${ORG}/projects`,
+      `/o/${ORG}/p/${INVOICER_API}/runs`,
+      `/o/${ORG}/p/${INVOICER_API}/runs/${IDLE_RUN}`,
+      '/platform/orgs',
+      `/o/${ORG}/projects/new/repo`,
+    ]) {
+      await page.goto(path);
+      await expect(avatar(page)).toBeVisible();
+      await openInvitations(page);
+    }
+  });
+
+  test('TC-55.2: with two pending invitations the item shows no count or badge', async ({ page }) => {
+    await seedOnboarding(page, 'singleOrgTwoPending');
+    await page.clock.setFixedTime(new Date('2026-11-21T12:00:00.000Z'));
+    await page.goto(`/o/${ORG}/projects`);
+    await avatar(page).click();
+    const m = menu(page);
+    await expect(m.getByText('Alice', { exact: true })).toBeVisible();
+    await expect(m.getByText('alice@example.com', { exact: true })).toBeVisible();
+    await expect(m.getByRole('menuitem')).toHaveText(['My invitations', 'Logout']);
+    await expect(m.getByRole('menuitem', { name: 'My invitations' })).toHaveText('My invitations');
+    await expect(
+      m.getByRole('menuitem', { name: 'My invitations' }).locator('[class*="badge" i], [class*="count" i]'),
+    ).toHaveCount(0);
+  });
+
+  test('TC-55.3: on an error page My invitations opens /invitations', async ({ page }) => {
+    await seedOnboarding(page, 'singleOrg');
+    await page.goto(`/o/${ORG}/this-address-does-not-exist`);
+    await expect(page.getByRole('heading', { name: 'Page not found' })).toBeVisible();
+    await openInvitations(page);
   });
 });

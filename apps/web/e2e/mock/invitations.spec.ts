@@ -1,7 +1,8 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
 import { INVITATIONS_MOCK_NOW, orgInvitationFixtures } from '../../src/mocks/dto/invitations';
 import type { OnboardingScenario } from '../../src/mocks/msw/onboardingScenarios';
-import { seedOnboarding } from './mock';
+import { FOREIGN } from '../../src/mocks/msw/shellScenarios';
+import { holdReads, seedOnboarding, seedShell } from './mock';
 
 /*
  * The Invitations page: row actions, paging, copy link, the Expires column and the Invited by column (spec
@@ -356,7 +357,7 @@ test.describe('BR-57: /invitations for a person who belongs to an org', () => {
     await seedOnboarding(page, 'singleOrgTwoPending');
     await page.clock.setFixedTime(new Date('2026-11-21T12:00:00.000Z'));
     await page.goto('/invitations');
-    await expect(page.getByRole('heading', { level: 1, name: 'Invitations' })).toBeVisible();
+    await expect(page.getByRole('heading', { level: 1, name: 'My invitations' })).toBeVisible();
     const cards = page.getByRole('heading', { level: 2, name: 'Acme Robotics invited you as Member' });
     await expect(cards).toHaveCount(2);
     await expect(cards.first()).toBeVisible();
@@ -399,5 +400,101 @@ test.describe('BR-70: invitation card padding', () => {
   test('TC-70.2: at 390 the card content is still at least 16px inside every card edge', async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
     await expectInset(page);
+  });
+});
+
+// BR-56 and TC-7.4: the invitation pages sit in the app shell, with the active org's menu and no current item.
+test.describe('BR-56: the menu on invitation pages', () => {
+  const orgMenu = (page: Page): Locator => page.getByRole('navigation', { name: 'Organization menu' });
+  const anyMenu = (page: Page): Locator => page.getByRole('navigation', { name: /menu$/ });
+  const bar = (page: Page): Locator => page.getByRole('banner').first();
+  const markedItems = (menu: Locator): Locator => menu.locator('[aria-current]');
+  const LINK = `/invitations/${FOREIGN.invitationId}`;
+  const UNAVAILABLE = '/invitations/not-an-invitation';
+  const afterNow = async (page: Page): Promise<void> => page.clock.setFixedTime(new Date('2026-11-21T12:00:00.000Z'));
+
+  /** Org A's menu is shown, no item is marked, and org B (the invitation's) is named in neither the menu nor the bar. */
+  async function expectActiveOrgMenu(page: Page): Promise<void> {
+    const menu = orgMenu(page);
+    await expect(menu.getByRole('link', { name: 'Projects' })).toBeVisible();
+    await expect(markedItems(menu)).toHaveCount(0);
+    await expect(menu).not.toContainText(FOREIGN.orgName);
+    await expect(bar(page)).not.toContainText(FOREIGN.orgName);
+  }
+
+  test('TC-7.4: an org owner on /invitations has no menu item marked current', async ({ page }) => {
+    await seedOnboarding(page, 'singleOrgTwoPending');
+    await afterNow(page);
+    await page.goto('/invitations');
+    await expect(page.getByRole('heading', { level: 1, name: 'My invitations' })).toBeVisible();
+    const menu = orgMenu(page);
+    await expect(menu.getByRole('link', { name: 'Projects' })).toBeVisible();
+    await expect(markedItems(menu)).toHaveCount(0);
+  });
+
+  test("TC-56.1: org A's menu shows on /invitations and on the link page, with no current item and no org B name", async ({
+    page,
+  }) => {
+    await seedShell(page, 'foreignInvite');
+    await page.goto('/invitations');
+    await expect(page.getByRole('heading', { level: 1, name: 'My invitations' })).toBeVisible();
+    await expectActiveOrgMenu(page);
+    await page.goto(LINK);
+    await expect(page.getByRole('heading', { level: 1, name: `Join ${FOREIGN.orgName}` })).toBeVisible();
+    await expectActiveOrgMenu(page);
+  });
+
+  test('TC-56.2: a failing read shows the error with Retry in the content and keeps the menu', async ({ page }) => {
+    await seedShell(page, 'foreignInvite');
+    await holdReads(page, { invitation: 'fail', myInvitations: 'fail' });
+    for (const path of [LINK, '/invitations']) {
+      await page.goto(path);
+      const main = page.getByRole('main');
+      await expect(main.getByText('Internal server error')).toBeVisible();
+      await expect(main.getByRole('button', { name: 'Retry' })).toBeVisible();
+      await expectActiveOrgMenu(page);
+    }
+  });
+
+  test("TC-56.3: an unavailable link shows the message with org A's menu and no current item", async ({ page }) => {
+    await seedShell(page, 'foreignInvite');
+    await page.goto(UNAVAILABLE);
+    await expect(page.getByRole('heading', { name: 'This invitation is not available' })).toBeVisible();
+    await expectActiveOrgMenu(page);
+  });
+
+  test('TC-56.4: a person with no active org has no side menu on /invitations or an unavailable link', async ({
+    page,
+  }) => {
+    await seedOnboarding(page, 'noOrgInvited');
+    await afterNow(page);
+    await page.goto('/invitations');
+    await expect(page.getByRole('heading', { level: 1, name: 'My invitations' })).toBeVisible();
+    await expect(anyMenu(page)).toHaveCount(0);
+    await page.goto(UNAVAILABLE);
+    await expect(page.getByRole('heading', { name: 'This invitation is not available' })).toBeVisible();
+    await expect(anyMenu(page)).toHaveCount(0);
+  });
+
+  test('TC-56.5: a person whose active org is suspended has no side menu on any invitation page', async ({ page }) => {
+    await seedShell(page, 'suspendedOnly');
+    await holdReads(page, { invitation: 'fail' });
+    await page.goto('/invitations');
+    await expect(page.getByRole('heading', { level: 1, name: 'My invitations' })).toBeVisible();
+    await expect(anyMenu(page)).toHaveCount(0);
+    await page.goto(LINK);
+    await expect(page.getByRole('main').getByText('Internal server error')).toBeVisible();
+    await expect(anyMenu(page)).toHaveCount(0);
+  });
+
+  test('TC-56.6: a member of both orgs sees the active org menu with no current item on the link page', async ({
+    page,
+  }) => {
+    await seedShell(page, 'memberInvite');
+    await page.goto(LINK);
+    await expect(page.getByRole('heading', { level: 1, name: 'Join Acme' })).toBeVisible();
+    const menu = orgMenu(page);
+    await expect(menu.getByRole('link', { name: 'Projects' })).toBeVisible();
+    await expect(markedItems(menu)).toHaveCount(0);
   });
 });

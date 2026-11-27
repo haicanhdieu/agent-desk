@@ -1,5 +1,6 @@
 import { Outlet } from '@tanstack/react-router';
 import type { QueryClient } from '@tanstack/react-query';
+import type { ReactNode } from 'react';
 import { NotFound, RouteError } from './boundaries';
 import { SkipLink } from '@/components';
 import { ShellHost } from './shell/ShellHost';
@@ -9,13 +10,16 @@ export interface RouterContext {
   queryClient: QueryClient;
 }
 
-function RootLayout() {
+/**
+ * Wraps the whole match tree (the router's `InnerWrap`): the skip link and the shell host. They sit above the root
+ * match, so they stay mounted while the first load is pending and the shell around the loading page is the same one
+ * that surrounds the loaded page (an open org switcher survives the org list arriving).
+ */
+export function AppWrap({ children }: { children?: ReactNode }) {
   return (
     <>
       <SkipLink />
-      <ShellHost>
-        <Outlet />
-      </ShellHost>
+      <ShellHost>{children}</ShellHost>
     </>
   );
 }
@@ -25,7 +29,7 @@ function RootLayout() {
  * same root. Task-specific root behaviour (the session guard) lives in __root.tsx.
  */
 export const rootRouteOptions = {
-  component: RootLayout,
+  component: Outlet,
   notFoundComponent: NotFound,
   errorComponent: RouteError,
 };

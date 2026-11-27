@@ -4,6 +4,7 @@ import { registerOrgResyncTarget } from '@/features/auth/orgResync';
 import { registerOrgSuspendedRouter } from '@/features/auth/orgSuspended';
 import { registerSignOutTarget } from '@/features/auth/signOut';
 import { NotFound, RouteError, RoutePending } from './boundaries';
+import { AppWrap } from './root';
 import { routeTree } from './routeTree.gen';
 import { parseSearch, stringifySearch } from './searchParams';
 
@@ -25,6 +26,8 @@ function routerDefaults({ queryClient, history }: CreateAppRouterOptions) {
     defaultPendingComponent: RoutePending,
     defaultErrorComponent: RouteError,
     defaultNotFoundComponent: NotFound,
+    // Above the root match, so the shell (and an open org switcher) stays mounted while the first load is pending.
+    InnerWrap: AppWrap,
     // Plain `?ticket=12`, not TanStack's JSON-quoted default (see searchParams.ts).
     parseSearch,
     stringifySearch,

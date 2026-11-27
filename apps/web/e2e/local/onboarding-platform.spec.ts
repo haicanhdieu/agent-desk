@@ -214,7 +214,7 @@ test('TC-38.1: the first owner opens the copied link, signs in, accepts, and lan
   );
 });
 
-test('TC-40.2: a platform admin with no org opens "/", and the switcher reads "No organization", holds the Platform group and Create organization, and no org', async ({
+test('TC-40.2: a platform admin with no org opens "/", and the switcher reads "No organization", holds Platform and Create organization, and no org', async ({
   browser,
 }) => {
   await withScope(async (scope) => {
@@ -226,12 +226,10 @@ test('TC-40.2: a platform admin with no org opens "/", and the switcher reads "N
     const menu = switcherMenu(page);
     await expect(menu).toBeVisible();
     await expect(menu.getByRole('link')).toHaveCount(2);
-    await expect(
-      menu.getByRole('group', { name: 'Platform' }).getByRole('link', { name: 'Platform admin', exact: true }),
-    ).toBeVisible();
+    await expect(menu.getByRole('link', { name: 'Platform', exact: true })).toBeVisible();
     await expect(menu.getByRole('link', { name: 'Create organization', exact: true })).toBeVisible();
     await expect(menu.getByRole('group', { name: 'Switch organization' })).toHaveCount(0);
-    // One divider: between the Platform group and Create organization.
+    // One divider: between Platform and Create organization.
     await expect(menu.getByRole('separator')).toHaveCount(1);
   });
 });

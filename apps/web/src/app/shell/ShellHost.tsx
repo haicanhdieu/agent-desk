@@ -1,3 +1,4 @@
+import { useQuery } from '@tanstack/react-query';
 import { useRouterState } from '@tanstack/react-router';
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import {
@@ -19,6 +20,7 @@ import {
 import { AppLink, BELOW_DESKTOP, useMediaQuery } from '@/ds';
 import type { MenuModel } from '@/features/chrome/nav';
 import type { RouteChrome } from '@/features/chrome/routeChrome';
+import { sessionQuery } from '@/features/auth/session';
 import { useShellData } from '@/features/chrome/useShellData';
 
 interface Reported {
@@ -110,12 +112,15 @@ export function ShellHost({ children }: { children: ReactNode }) {
   }, []);
   const pageState = reports[reports.length - 1]?.state;
 
+  // The shell sits above the root session guard: until a session is known (loading, or signed out and about to be
+  // sent to sign-in) nothing of it is drawn and none of its reads are sent.
+  const signedIn = Boolean(useQuery(sessionQuery).data);
   const bare = chrome?.mode === 'none';
   const unownedValue = useMemo<ShellContextValue>(
     () => ({ owned: false, wizardSlot: null, reportPageState: bare ? NO_REPORT : reportPageState }),
     [bare, reportPageState],
   );
-  if (bare || (chrome === undefined && pageState === undefined)) {
+  if (bare || !signedIn || (chrome === undefined && pageState === undefined)) {
     return <ShellContext.Provider value={unownedValue}>{children}</ShellContext.Provider>;
   }
   return (
@@ -255,6 +260,7 @@ function OwnedShell({
     crumbs,
     org: data.orgSwitch,
     tabs: 'none',
+    ...(data.logoHref !== undefined && { links: { projects: data.logoHref } }),
     ...(data.projectSwitch !== undefined &&
       data.titleScope !== undefined && { project: { name: data.titleScope }, projectMenu: data.projectSwitch }),
     ...(inDrawer && { onOpenMenu: () => setDrawerOpen(true), menuOpen: drawerOpen }),

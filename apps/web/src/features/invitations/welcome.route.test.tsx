@@ -1,11 +1,19 @@
 import { screen, waitFor, within } from '@testing-library/react';
+import { http, HttpResponse } from 'msw';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ids } from '@/mocks/dto/ids';
 import { mockDb } from '@/mocks/msw/db';
+import { server } from '@/mocks/msw/node';
 import { scenarios } from '@/mocks/msw/scenarios';
-import { applyShellScenario } from '@/mocks/msw/shellScenarios';
+import { FOREIGN, applyShellScenario } from '@/mocks/msw/shellScenarios';
 import { renderRoute } from '@/test/renderRoute';
 
+// The shell's top bar is the first banner; a card header inside the page can count as one too.
+const topBar = (): HTMLElement => {
+  const [bar] = screen.getAllByRole('banner');
+  if (!bar) throw new Error('no top bar');
+  return bar;
+};
 const cards = () => screen.getAllByRole('listitem');
 const firstCard = (): HTMLElement => {
   const [card] = cards();
@@ -34,7 +42,7 @@ afterEach(() => vi.useRealTimers());
 describe('welcome page with invitations', () => {
   it('BR-2 / lands on /invitations with one card per pending invitation, each with Accept and Decline', async () => {
     const { router } = await renderRoute('/', { scenario: () => scenarios.onboarding('noOrgInvited') });
-    expect(await screen.findByRole('heading', { level: 1, name: 'Invitations' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { level: 1, name: 'My invitations' })).toBeInTheDocument();
     expect(router.state.location.pathname).toBe('/invitations');
     const pending = mockDb.state.invitations.filter((i) => i.status === 'pending');
     expect(pending.length).toBeGreaterThan(1);
@@ -50,13 +58,13 @@ describe('welcome page with invitations', () => {
 
   it('TC-4.1 lists only the pending invitation, not the expired and revoked ones', async () => {
     await renderRoute('/invitations', { scenario: () => scenarios.onboarding('noOrgInvitedStates') });
-    await screen.findByRole('heading', { level: 1, name: 'Invitations' });
+    await screen.findByRole('heading', { level: 1, name: 'My invitations' });
     expect(cards()).toHaveLength(1);
   });
 
   it('TC-52.3 shows "Invited by <name>, expires <date>" and drops "Invited by" when the inviter is gone', async () => {
     await renderRoute('/invitations', { scenario: () => scenarios.onboarding('noOrgInvited') });
-    await screen.findByRole('heading', { level: 1, name: 'Invitations' });
+    await screen.findByRole('heading', { level: 1, name: 'My invitations' });
     expect(screen.getAllByText(/^Invited by Ada Lovelace, expires 23 Nov, \d\d:\d\d$/).length).toBeGreaterThan(0);
     expect(screen.getByText(/^Expires 23 Nov, \d\d:\d\d$/)).toBeInTheDocument();
   });
@@ -69,7 +77,7 @@ describe('welcome page with invitations', () => {
       },
     });
     expect(await screen.findByText('Internal server error')).toBeInTheDocument();
-    expect(screen.queryByRole('heading', { name: 'Invitations' })).toBeNull();
+    expect(screen.queryByRole('heading', { name: 'My invitations' })).toBeNull();
     expect(screen.getByRole('button', { name: 'Retry' })).toBeInTheDocument();
   });
 
@@ -80,7 +88,7 @@ describe('welcome page with invitations', () => {
         scenarios.serverError('me.access');
       },
     });
-    expect(await screen.findByRole('heading', { level: 1, name: 'Invitations' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { level: 1, name: 'My invitations' })).toBeInTheDocument();
     expect(cards().length).toBeGreaterThan(0);
     expect(buttonIn(firstCard(), 'Accept')).toBeEnabled();
   });
@@ -133,7 +141,7 @@ describe('welcome page without invitations', () => {
 describe('welcome page when the active org is suspended', () => {
   it('BR-79: the page opens; the platform-admin check is session-wide, so the refused org read is not needed', async () => {
     await renderRoute('/invitations', { scenario: () => applyShellScenario('suspendedOnly') });
-    expect(await screen.findByRole('heading', { level: 1, name: 'No pending invitations' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { level: 2, name: 'No pending invitations' })).toBeInTheDocument();
     expect(screen.queryByText('Internal server error')).toBeNull();
   });
 });
@@ -141,7 +149,7 @@ describe('welcome page when the active org is suspended', () => {
 describe('welcome page for a member without invitations', () => {
   it('BR-57: a member with no pending invitation is not told they are no member', async () => {
     await renderRoute('/invitations', { scenario: () => scenarios.onboarding('memberNoInvites') });
-    expect(await screen.findByRole('heading', { level: 1, name: 'No pending invitations' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { level: 2, name: 'No pending invitations' })).toBeInTheDocument();
     const email = mockDb.state.users[0]?.email ?? '';
     expect(screen.getByText(`No invitations for ${email}.`)).toBeInTheDocument();
     expect(screen.queryByText("You're not a member of any organization")).toBeNull();
@@ -159,7 +167,7 @@ describe('welcome page for a member without invitations', () => {
         if (me) me.platformAdmin = true;
       },
     });
-    expect(await screen.findByRole('heading', { level: 1, name: 'No pending invitations' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { level: 2, name: 'No pending invitations' })).toBeInTheDocument();
     expect(screen.queryByText('Create an organization and invite its first owner.')).toBeNull();
     expect(within(screen.getByRole('main')).queryByRole('link', { name: 'Create organization' })).toBeNull();
   });
@@ -170,7 +178,7 @@ describe('accept and decline', () => {
     const { router, queryClient, user } = await renderRoute('/invitations', {
       scenario: () => scenarios.onboarding('noOrgInvited'),
     });
-    await screen.findByRole('heading', { level: 1, name: 'Invitations' });
+    await screen.findByRole('heading', { level: 1, name: 'My invitations' });
     const id = firstPending().id;
     await user.click(buttonIn(firstCard(), 'Accept'));
     await waitFor(() => expect(router.state.location.pathname).toBe('/o/acme-robotics/projects'));
@@ -182,19 +190,19 @@ describe('accept and decline', () => {
     const { router, user } = await renderRoute('/invitations', {
       scenario: () => scenarios.onboarding('noOrgInvited'),
     });
-    await screen.findByRole('heading', { level: 1, name: 'Invitations' });
+    await screen.findByRole('heading', { level: 1, name: 'My invitations' });
     const before = cards().length;
     await user.click(buttonIn(firstCard(), 'Accept'));
     await waitFor(() => expect(router.state.location.pathname).toBe('/o/acme-robotics/projects'));
     await router.navigate({ to: '/invitations' });
-    await screen.findByRole('heading', { level: 1, name: 'Invitations' });
+    await screen.findByRole('heading', { level: 1, name: 'My invitations' });
     await waitFor(() => expect(cards()).toHaveLength(before - 1));
     expect(screen.getAllByText('Whole organization')).toHaveLength(2);
   });
 
   it('Decline asks for confirmation; Cancel keeps the card and sends nothing', async () => {
     const { user } = await renderRoute('/invitations', { scenario: () => scenarios.onboarding('noOrgInvited') });
-    await screen.findByRole('heading', { level: 1, name: 'Invitations' });
+    await screen.findByRole('heading', { level: 1, name: 'My invitations' });
     const firstId = firstPending().id;
     const before = cards().length;
     await user.click(buttonIn(firstCard(), 'Decline'));
@@ -208,7 +216,7 @@ describe('accept and decline', () => {
 
   it('BR-22 confirming Decline removes the card and the invitation is declined', async () => {
     const { user } = await renderRoute('/invitations', { scenario: () => scenarios.onboarding('noOrgInvited') });
-    await screen.findByRole('heading', { level: 1, name: 'Invitations' });
+    await screen.findByRole('heading', { level: 1, name: 'My invitations' });
     const before = cards().length;
     const firstId = firstPending().id;
     await user.click(buttonIn(firstCard(), 'Decline'));
@@ -237,7 +245,7 @@ describe('accept and decline', () => {
     const { router, user } = await renderRoute('/invitations', {
       scenario: () => scenarios.onboarding('noOrgInvited'),
     });
-    await screen.findByRole('heading', { level: 1, name: 'Invitations' });
+    await screen.findByRole('heading', { level: 1, name: 'My invitations' });
     const before = cards().length;
     const row = firstPending();
     row.status = 'revoked';
@@ -252,7 +260,7 @@ describe('accept and decline', () => {
     const { router, user } = await renderRoute('/invitations', {
       scenario: () => scenarios.onboarding('noOrgInvited'),
     });
-    await screen.findByRole('heading', { level: 1, name: 'Invitations' });
+    await screen.findByRole('heading', { level: 1, name: 'My invitations' });
     const before = cards().length;
     firstPending().status = 'revoked';
     await user.click(buttonIn(firstCard(), 'Decline'));
@@ -273,18 +281,24 @@ const ownerWithInvitations = () => {
   mockDb.state.auth = { signedIn: true, activeOrganizationId: ids.org.alice };
 };
 
-const mainNav = () => screen.queryByRole('navigation', { name: 'Organization sections' });
+const mainNav = () => screen.queryByRole('navigation', { name: 'Organization menu' });
 
 describe('welcome page under the app bar', () => {
-  it('BR-43 / BR-13 an owner sees the org bar with no tab active and Settings in the org menu', async () => {
-    const { user } = await renderRoute('/invitations', { scenario: ownerWithInvitations });
-    await screen.findByRole('heading', { level: 1, name: 'Invitations' });
-    const nav = await screen.findByRole('navigation', { name: 'Organization sections' });
+  it('BR-56 / BR-45 an owner sees the org menu with no current item, and the switcher offers scope choices only', async () => {
+    const { user } = await renderRoute('/invitations', {
+      scenario: () => {
+        ownerWithInvitations();
+        const me = mockDb.state.users[0];
+        if (me) me.platformAdmin = true;
+      },
+    });
+    await screen.findByRole('heading', { level: 1, name: 'My invitations' });
+    const nav = await screen.findByRole('navigation', { name: 'Organization menu' });
+    expect(await within(nav).findByRole('link', { name: 'General' })).not.toHaveAttribute('aria-current');
     expect(within(nav).getByRole('link', { name: 'Projects' })).not.toHaveAttribute('aria-current');
-    expect(await within(nav).findByRole('link', { name: 'Org settings' })).not.toHaveAttribute('aria-current');
     await user.click(screen.getByRole('button', { name: /^Switch scope/ }));
     const menu = await screen.findByRole('dialog', { name: 'Scope' });
-    expect(within(menu).getByRole('link', { name: 'Org settings' })).toHaveAttribute('href', '/o/alice/settings');
+    expect(within(menu).queryByRole('link', { name: 'Org settings' })).toBeNull();
   });
 
   it('BR-43 a person with no org sees "No organization", the bell and no tabs', async () => {
@@ -293,5 +307,82 @@ describe('welcome page under the app bar', () => {
     expect(screen.getByText('No organization')).toBeInTheDocument();
     expect(mainNav()).toBeNull();
     expect(screen.getByRole('button', { name: 'Notifications (coming soon)' })).toBeInTheDocument();
+  });
+});
+
+describe('welcome page in the app shell (BR-56)', () => {
+  it('a platform admin with no org: the switcher offers Platform, and the logo opens Platform > Organizations', async () => {
+    const { user } = await renderRoute('/invitations', { scenario: () => scenarios.onboarding('platformAdminNoOrg') });
+    await screen.findByRole('heading', { level: 1, name: "You're not a member of any organization" });
+    expect(within(topBar()).getByRole('link', { name: /agent ?desk/i })).toHaveAttribute('href', '/platform/orgs');
+    await user.click(screen.getByRole('button', { name: /^Switch scope/ }));
+    const menu = await screen.findByRole('dialog', { name: 'Scope' });
+    expect(within(menu).getByRole('link', { name: /^Platform$/ })).toHaveAttribute('href', '/platform');
+    expect(within(menu).queryByRole('group', { name: 'Switch organization' })).toBeNull();
+  });
+
+  const orgMenu = () => screen.queryByRole('navigation', { name: 'Organization menu' });
+  const markedItems = (menu: HTMLElement) => menu.querySelectorAll('[aria-current]');
+
+  it('TC-56.1: shows the active org menu with no current item and never names the invitation org in bar or menu', async () => {
+    await renderRoute('/invitations', { scenario: () => applyShellScenario('foreignInvite') });
+    expect(await screen.findByRole('heading', { level: 1, name: 'My invitations' })).toBeInTheDocument();
+    const menu = await screen.findByRole('navigation', { name: 'Organization menu' });
+    expect(await within(menu).findByRole('link', { name: 'Projects' })).toBeInTheDocument();
+    expect(markedItems(menu)).toHaveLength(0);
+    expect(screen.getAllByRole('main')).toHaveLength(1);
+    expect(within(menu).queryByText(FOREIGN.orgName)).toBeNull();
+    expect(within(topBar()).queryByText(FOREIGN.orgName)).toBeNull();
+  });
+
+  it('TC-56.2: when the list read fails the error is in the content and the menu stays', async () => {
+    await renderRoute('/invitations', {
+      scenario: () => {
+        applyShellScenario('foreignInvite');
+        scenarios.serverError('me.listInvitations');
+      },
+    });
+    expect(await within(await screen.findByRole('main')).findByText('Internal server error')).toBeInTheDocument();
+    const menu = await screen.findByRole('navigation', { name: 'Organization menu' });
+    expect(await within(menu).findByRole('link', { name: 'Projects' })).toBeInTheDocument();
+    expect(markedItems(menu)).toHaveLength(0);
+    expect(within(menu).queryByText(FOREIGN.orgName)).toBeNull();
+  });
+
+  it('TC-56.4: a person with no active org gets no menu', async () => {
+    await renderRoute('/invitations', { scenario: () => scenarios.onboarding('noOrgInvited') });
+    await screen.findByRole('heading', { level: 1, name: 'My invitations' });
+    expect(orgMenu()).toBeNull();
+  });
+
+  it('TC-56.5: a suspended active org gets no menu', async () => {
+    await renderRoute('/invitations', { scenario: () => applyShellScenario('suspendedOnly') });
+    await screen.findByRole('heading', { level: 1, name: 'My invitations' });
+    expect(orgMenu()).toBeNull();
+  });
+
+  it('BR-15: a failing grant read shows the menu error with Retry, beside the page', async () => {
+    await renderRoute('/invitations', {
+      scenario: () => {
+        applyShellScenario('foreignInvite');
+        scenarios.serverError('me.access');
+      },
+    });
+    await screen.findByRole('heading', { level: 1, name: 'My invitations' });
+    const menu = await screen.findByRole('navigation', { name: 'Organization menu' });
+    expect(await within(menu).findByText('Could not load the menu.')).toBeInTheDocument();
+    expect(within(menu).getByRole('button', { name: 'Retry' })).toBeInTheDocument();
+  });
+
+  it('BR-12 / BR-56: a loader crash is the app error page with no menu, unlike the page own read failure', async () => {
+    await renderRoute('/invitations', {
+      scenario: () => {
+        applyShellScenario('foreignInvite');
+        server.use(http.get('*/auth/organization/list', () => HttpResponse.json({ message: 'boom' }, { status: 500 })));
+      },
+    });
+    expect(await screen.findByRole('button', { name: 'Retry' })).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'My invitations' })).toBeNull();
+    expect(orgMenu()).toBeNull();
   });
 });

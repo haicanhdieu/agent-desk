@@ -60,6 +60,8 @@ it('the key and every scenario name', () => {
     'markerTicket',
     'foreignOrg',
     'foreignInvite',
+    'memberInvite',
+    'adminTwoOrgsOneSuspended',
     'memberOwnsRuns',
     'memberOthersRuns',
   ]);
@@ -303,5 +305,21 @@ describe('the defining facts', () => {
     expect(foreign?.org.name).toBe(FOREIGN.orgName);
     expect(foreign?.status).toBe('pending');
     expect((await orgList()).some((o) => o.id === FOREIGN.orgId)).toBe(false);
+  });
+
+  it('memberInvite: a pending invitation from a second org the user is a member of, active org the first', async () => {
+    apply('memberInvite');
+    const mine = (await api.me.listInvitations({ query: { page: 1, pageSize: 50 } })).items;
+    expect(mine.find((i) => i.org.id === ids.org.acme)?.status).toBe('pending');
+    expect((await orgList()).map((o) => o.id)).toEqual(expect.arrayContaining([ids.org.alice, ids.org.acme]));
+    expect(mockDb.auth.activeOrganizationId).toBe(ids.org.alice);
+  });
+  it('adminTwoOrgsOneSuspended: a platform admin in Alice (active) and a suspended Acme', async () => {
+    apply('adminTwoOrgsOneSuspended');
+    expect((await api.me.platform()).platformAdmin).toBe(true);
+    const orgs = await orgList();
+    expect(orgs.map((o) => o.id)).toEqual(expect.arrayContaining([ids.org.alice, ids.org.acme]));
+    expect(mockDb.state.orgs.find((o) => o.id === ids.org.acme)?.status).toBe('suspended');
+    expect(mockDb.state.orgs.find((o) => o.id === ids.org.alice)?.status).not.toBe('suspended');
   });
 });

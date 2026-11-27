@@ -1,12 +1,15 @@
 import { ApiError } from '@agentdesk/contracts/client';
-import { createRoute } from '@tanstack/react-router';
-import { act, renderHook, screen, waitFor, within } from '@testing-library/react';
+import { createMemoryHistory, createRoute } from '@tanstack/react-router';
+import { act, render, renderHook, screen, waitFor, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
-import { http, HttpResponse } from 'msw';
+import { delay, http, HttpResponse } from 'msw';
 import { ids } from '@/mocks/dto/ids';
 import { mockDb } from '@/mocks/msw/db';
 import { server } from '@/mocks/msw/node';
 import { scenarios } from '@/mocks/msw/scenarios';
+import { AppProviders } from '@/app/providers';
+import { createAppQueryClient } from '@/app/queryClient';
+import { createAppRouter } from '@/app/router';
 import { createTestRootRoute, renderRoute } from '@/test/renderRoute';
 import { ORG_SWITCHED_MESSAGE } from '@/features/auth/orgResync';
 import { toastFromError } from './boundaries';
@@ -195,5 +198,47 @@ describe('useNow', () => {
     a.unmount();
     b.unmount();
     vi.useRealTimers();
+  });
+});
+
+describe('a signed-out load (session guard)', () => {
+  it('draws no shell and sends no platform, org or access read before the redirect to sign-in', async () => {
+    const wire: string[] = [];
+    const onRequest = ({ request }: { request: Request }) => {
+      wire.push(`${request.method} ${new URL(request.url).pathname}`);
+    };
+    server.events.on('request:start', onRequest);
+    scenarios.signedOut();
+    // A slow session read: the route's pending page (shown after 300 ms) is on screen while the session is unknown.
+    server.use(
+      http.get('*/auth/get-session', async () => {
+        await delay(700);
+        return undefined;
+      }),
+    );
+    // The shell's landmarks must never appear: watch the DOM for the whole load, not just its end.
+    let sawShell = false;
+    let sawPending = false;
+    const watch = new MutationObserver(() => {
+      if (document.querySelector('header, nav[aria-label$="menu"]')) sawShell = true;
+      if (document.querySelector('[aria-busy="true"]')) sawPending = true;
+    });
+    watch.observe(document.body, { childList: true, subtree: true });
+    try {
+      // Not through renderRoute: its act() holds back the renders of the pending page.
+      const queryClient = createAppQueryClient({ retryDelay: 0 });
+      const router = createAppRouter({
+        queryClient,
+        history: createMemoryHistory({ initialEntries: ['/o/alice/projects'] }),
+      });
+      render(<AppProviders router={router} queryClient={queryClient} />);
+      await waitFor(() => expect(router.state.location.pathname).toBe('/sign-in'), { timeout: 4000 });
+    } finally {
+      watch.disconnect();
+      server.events.removeListener('request:start', onRequest);
+    }
+    expect(sawPending, 'the pending page was on screen while the session was unknown').toBe(true);
+    expect(sawShell).toBe(false);
+    expect(wire.filter((r) => /\/api\/(me|projects)|organization\/list/.test(r))).toEqual([]);
   });
 });

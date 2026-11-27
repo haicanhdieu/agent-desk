@@ -49,6 +49,8 @@ export interface ShellData {
   crumbs: PageCrumb[];
   titleScope?: string;
   goToProjectsHref: string;
+  /** The logo's target when it is not the default `/projects`: Platform > Organizations for a platform admin with no org. */
+  logoHref?: string;
 }
 
 const isStatus = (e: unknown, ...codes: number[]) => e instanceof ApiError && codes.includes(e.status);
@@ -405,5 +407,6 @@ export function useShellData(input: ShellInput): ShellData {
     crumbs,
     ...(titleScope !== undefined && { titleScope }),
     goToProjectsHref: goToProjectsHref(shownScope),
+    ...(platformAdmin && memberships?.length === 0 && { logoHref: '/platform/orgs' }),
   };
 }
