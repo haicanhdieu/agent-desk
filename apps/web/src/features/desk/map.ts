@@ -41,6 +41,29 @@ export function toSkill(dto: SkillSummaryDto & { body?: string }, rules: RuleDto
   };
 }
 
+/**
+ * The browser URL of one skill file. The API supplies the provider-specific prefix, already ending at the project's
+ * default branch; the web app only appends the selected skill's path. No host or path scheme is invented here, and an
+ * unsafe or credential-carrying prefix never becomes a link.
+ */
+export function skillFileHref(baseUrl: string | null | undefined, skillPath: string): string | undefined {
+  if (baseUrl === null || baseUrl === undefined) return undefined;
+  let url: URL;
+  try {
+    url = new URL(baseUrl);
+  } catch {
+    return undefined;
+  }
+  if ((url.protocol !== 'https:' && url.protocol !== 'http:') || url.username !== '' || url.password !== '')
+    return undefined;
+  const segments = skillPath.split('/').filter((s) => s !== '' && s !== '.' && s !== '..');
+  if (segments.length === 0) return undefined;
+  url.pathname = `${url.pathname.replace(/\/+$/, '')}/${segments.map(encodeURIComponent).join('/')}`;
+  url.search = '';
+  url.hash = '';
+  return url.toString();
+}
+
 /** "14 runs in 30 days · last 2 min ago", or "Never ran" when the rule has no run at all. Pass `useNow()`. */
 export function ruleStats(stats: RuleDto['stats'], now: Date): string {
   if (stats.lastRunAt === null) return stats.runs30d === 0 ? 'Never ran' : `${plural(stats.runs30d, 'run')} in 30 days`;

@@ -88,6 +88,9 @@ describe('projects', () => {
       triggerMode: 'webhook',
       codeConnectionId: connectionId,
       boardConnectionId: connectionId,
+      codeProvider: 'fake',
+      repoUrl: expect.stringMatching(/^https:\/\/fake\.invalid\/dev\/demo-\d+$/),
+      skillFileBaseUrl: expect.stringMatching(/^https:\/\/fake\.invalid\/dev\/demo-\d+\/-\/blob\/main\/$/),
       defaultBranch: expect.any(String),
       counts: { needsYou: 0, running: 0, queued: 0 },
       lastRunAt: null,
@@ -107,6 +110,53 @@ describe('projects', () => {
     expectContract('projects.get', get);
     const list = await t.app.inject({ method: 'GET', url: '/api/projects', headers: { cookie: alice } });
     expect((expectContract('projects.list', list) as Page<ProjectDto>).items.some((x) => x.id === p.id)).toBe(true);
+  });
+
+  it('projects with no recorded default branch have no skill file prefix', async () => {
+    const created = (await createProject({})).json() as ProjectDto;
+    await asOrg(aliceOrg, 'update projects set default_branch = null where id = $1', [created.id]);
+    const got = await t.app.inject({ method: 'GET', url: `/api/projects/${created.id}`, headers: { cookie: alice } });
+    const p = expectContract('projects.get', got) as ProjectDto;
+    expect(p.defaultBranch).toBeNull();
+    expect(p.skillFileBaseUrl).toBeNull();
+    const list = await t.app.inject({ method: 'GET', url: '/api/projects', headers: { cookie: alice } });
+    const page = expectContract('projects.list', list) as Page<ProjectDto>;
+    expect(page.items.find((x) => x.id === created.id)?.skillFileBaseUrl).toBeNull();
+  });
+
+  it('a project whose code connection is not visible in its org has no repository link', async () => {
+    // Installing in Bob's org gives us a real connection that Alice's RLS scope cannot see. Pointing the project at it
+    // is the same state the API sees when a connection was removed from the org.
+    const install = await t.app.inject({
+      method: 'POST',
+      url: '/api/connections/fake/install',
+      headers: { cookie: bob },
+    });
+    const start = new URL((install.json() as { url: string }).url);
+    const callback = await t.app.inject({
+      method: 'GET',
+      url: `${start.pathname}${start.search}`,
+      headers: { cookie: bob },
+    });
+    const bobConnection = new URL(String(callback.headers['location'])).searchParams.get('connection') ?? '';
+    expect(bobConnection).not.toBe('');
+
+    const created = (await createProject({})).json() as ProjectDto;
+    await asOrg(aliceOrg, 'update projects set code_connection_id = $1, repo_path = $2 where id = $3', [
+      bobConnection,
+      `dev/orphan-${randomUUID()}`,
+      created.id,
+    ]);
+    const got = await t.app.inject({ method: 'GET', url: `/api/projects/${created.id}`, headers: { cookie: alice } });
+    const p = expectContract('projects.get', got) as ProjectDto;
+    expect(p).toMatchObject({ repoUrl: null, skillFileBaseUrl: null, codeProvider: null });
+    const list = await t.app.inject({ method: 'GET', url: '/api/projects', headers: { cookie: alice } });
+    const page = expectContract('projects.list', list) as Page<ProjectDto>;
+    expect(page.items.find((x) => x.id === created.id)).toMatchObject({
+      repoUrl: null,
+      skillFileBaseUrl: null,
+      codeProvider: null,
+    });
   });
 
   it('BR-50: create writes exactly one placeholder default agent; a second project gets its own', async () => {

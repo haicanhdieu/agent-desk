@@ -188,6 +188,22 @@ describe('DeskSkills', () => {
     expect(screen.getByText(/submitted for review/i)).toBeInTheDocument();
   });
 
+  it('History opens the selected skill file at the given URL', () => {
+    const href = 'https://git.example.com/acme/app/blob/trunk/.claude/skills/code-build/SKILL.md';
+    render(<DeskSkills frame={deskFrame} skills={skills} activeName="code-build" historyHref={href} />);
+    const link = screen.getByRole('link', { name: 'History' });
+    expect(link).toHaveAttribute('href', href);
+    expect(link).toHaveAttribute('target', '_blank');
+    expect(link).toHaveAttribute('rel', 'noopener noreferrer');
+  });
+
+  it('disables History with an explanation when the file URL is unknown', () => {
+    render(<DeskSkills frame={deskFrame} skills={skills} activeName="code-build" />);
+    const button = screen.getByRole('button', { name: 'History' });
+    expect(button).toBeDisabled();
+    expect(button).toHaveAttribute('title', expect.stringContaining('connected repository'));
+  });
+
   const submission = {
     action: 'save',
     sourceBranch: 'agent-desk/skill-update-code-build-x1',

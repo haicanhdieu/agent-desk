@@ -760,12 +760,18 @@ const impl: Impl = {
     if (db().projects.some((p) => p.orgId === orgId && p.repoPath === body.repoPath)) {
       throw conflict('Project already exists', [{ pointer: '/repoPath', detail: 'A project already uses this repo.' }]);
     }
+    const branch = (db().repos[conn.id] ?? []).find((r) => r.repoPath === body.repoPath)?.defaultBranch ?? null;
+    const home =
+      conn.provider === 'github' ? `https://github.com/${body.repoPath}` : `https://fake.invalid/${body.repoPath}`;
     const row: ProjectRow = {
       id: mockDb.nextId(),
       orgId,
       name: body.name ?? body.repoPath.split('/').at(-1) ?? body.repoPath,
       repoPath: body.repoPath,
-      defaultBranch: (db().repos[conn.id] ?? []).find((r) => r.repoPath === body.repoPath)?.defaultBranch ?? null,
+      repoUrl: conn.provider === 'github' ? home : null,
+      skillFileBaseUrl: branch === null ? null : `${home}/${conn.provider === 'github' ? 'blob' : '-/blob'}/${branch}/`,
+      defaultBranch: branch,
+      codeProvider: conn.provider,
       codeConnectionId: conn.id,
       boardConnectionId: conn.id,
       triggerMode: body.triggerMode,

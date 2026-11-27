@@ -84,6 +84,53 @@ describe('desk skills route', () => {
     expect(screen.getByText('a91c3e2-code-build'.slice(0, 7))).toBeInTheDocument();
   });
 
+  it('History opens the selected skill file in the connected repo on its default branch', async () => {
+    const { user } = await renderRoute(`${base}/skills`);
+    const history = () => screen.getByRole('link', { name: 'History' });
+    expect(history()).toHaveAttribute(
+      'href',
+      `https://github.com/harbor-labs/invoicer-api/blob/main/${skillRow('code-build').path}`,
+    );
+
+    const nav = await screen.findByRole('navigation', { name: 'Skills' });
+    await user.click(within(nav).getByRole('link', { name: /code-e2e/ }));
+    expect(await screen.findByRole('heading', { level: 2, name: 'code-e2e' })).toBeInTheDocument();
+    expect(history()).toHaveAttribute(
+      'href',
+      `https://github.com/harbor-labs/invoicer-api/blob/main/${skillRow('code-e2e').path}`,
+    );
+  });
+
+  it('History is disabled when the connected repo has no file prefix', async () => {
+    await renderRoute(`${base}/skills`, {
+      scenario: () => {
+        const row = mockDb.state.projects.find((p) => p.id === projectId);
+        if (!row) throw new Error('project missing');
+        row.skillFileBaseUrl = null;
+      },
+    });
+    const history = () => screen.getByRole('button', { name: 'History' });
+    expect(await screen.findByRole('heading', { level: 2, name: 'code-build' })).toBeInTheDocument();
+    expect(history()).toBeDisabled();
+    expect(history()).toHaveAttribute('title', expect.stringContaining('connected repository'));
+  });
+
+  it('History uses a non-GitHub provider file prefix from the API', async () => {
+    await renderRoute(`${base}/skills`, {
+      scenario: () => {
+        const row = mockDb.state.projects.find((p) => p.id === projectId);
+        if (!row) throw new Error('project missing');
+        row.skillFileBaseUrl = 'https://git.example.com/harbor-labs/invoicer-api/-/blob/trunk/';
+        row.codeProvider = 'fake';
+      },
+    });
+    expect(await screen.findByRole('heading', { level: 2, name: 'code-build' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'History' })).toHaveAttribute(
+      'href',
+      `https://git.example.com/harbor-labs/invoicer-api/-/blob/trunk/${skillRow('code-build').path}`,
+    );
+  });
+
   it('desk nav links point at the project routes', async () => {
     await renderRoute(`${base}/skills`);
     const desk = await screen.findByRole('navigation', { name: 'Desk' });
@@ -596,6 +643,10 @@ describe('desk skills paging', () => {
     expect(await screen.findByRole('heading', { level: 2, name: nameOf(22) })).toBeInTheDocument();
     expect(screen.getByLabelText('SKILL.md source')).toHaveValue(`body of ${nameOf(22)}`);
     expect(listed()).toHaveLength(20);
+    expect(screen.getByRole('link', { name: 'History' })).toHaveAttribute(
+      'href',
+      `https://github.com/harbor-labs/invoicer-api/blob/main/.claude/skills/${nameOf(22)}/SKILL.md`,
+    );
   });
 
   it('?page=4 with 22 skills goes to ?page=2', async () => {

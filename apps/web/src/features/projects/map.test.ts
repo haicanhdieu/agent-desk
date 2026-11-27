@@ -90,6 +90,9 @@ describe('toProject', () => {
     id: 'p1',
     name: 'invoicer-api',
     repoPath: 'harbor-labs/invoicer-api',
+    repoUrl: 'https://github.com/harbor-labs/invoicer-api',
+    skillFileBaseUrl: 'https://github.com/harbor-labs/invoicer-api/blob/main/',
+    codeProvider: 'github',
     codeConnectionId: 'c1',
     boardConnectionId: 'c1',
     triggerMode: 'webhook',
@@ -152,9 +155,21 @@ describe('toProjectMenuItems', () => {
       id: 'p1',
       name: 'invoicer-api',
       repoPath: 'o/invoicer-api',
+      repoUrl: 'https://github.com/o/invoicer-api',
+      skillFileBaseUrl: 'https://github.com/o/invoicer-api/blob/main/',
+      codeProvider: 'github',
       counts: { needsYou: 2, running: 2, queued: 0 },
     },
-    { ...base, id: 'p2', name: 'docs-site', repoPath: 'o/docs-site', counts: { needsYou: 0, running: 0, queued: 0 } },
+    {
+      ...base,
+      id: 'p2',
+      name: 'docs-site',
+      repoPath: 'o/docs-site',
+      repoUrl: 'https://github.com/o/docs-site',
+      skillFileBaseUrl: 'https://github.com/o/docs-site/blob/main/',
+      codeProvider: 'github',
+      counts: { needsYou: 0, running: 0, queued: 0 },
+    },
   ];
 
   it('marks the current project and links each row through the given href', () => {

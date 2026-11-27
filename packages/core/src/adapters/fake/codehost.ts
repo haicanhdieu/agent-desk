@@ -13,6 +13,7 @@ import {
   type NewConnection,
   type SkillChangeResult,
 } from '../types';
+import { browserRepoUrl } from '../project';
 import { FAKE_EXTERNAL_ID } from './board';
 import { FAKE_REPOS, sha1, type FakeStore } from './store';
 
@@ -56,6 +57,13 @@ export class FakeCodeHostAdapter implements CodeHostAdapter {
 
   repoUrl(project: AdapterProject): string {
     return `https://fake.invalid/${project.repoPath}.git`;
+  }
+
+  fileUrlBase(project: AdapterProject, ref: string): string | null {
+    const home = browserRepoUrl(this.repoUrl(project));
+    const refPath = ref.split('/').map(encodeURIComponent).join('/');
+    if (home === null || refPath === '') return null;
+    return `${home}/-/blob/${refPath}/`;
   }
 
   gitCredentialUsername(): string {

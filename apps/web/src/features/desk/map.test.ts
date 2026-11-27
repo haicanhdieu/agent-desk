@@ -1,6 +1,6 @@
 import type { AgentDto, RuleDto, SkillDto } from '@agentdesk/contracts';
 import { describe, expect, it } from 'vitest';
-import { ruleStats, ruleSummary, rulesUsing, toRule, toRuleAgentOption, toSkill } from './map';
+import { ruleStats, ruleSummary, rulesUsing, skillFileHref, toRule, toRuleAgentOption, toSkill } from './map';
 
 const now = new Date('2026-11-12T14:14:00.000Z');
 
@@ -241,5 +241,41 @@ describe('toRule agent', () => {
   it('toRuleAgentOption marks kinds that need a credential (OpenCode does not)', () => {
     expect(toRuleAgentOption(codex).needsCredential).toBe(true);
     expect(toRuleAgentOption({ ...codex, provider: 'opencode' }).needsCredential).toBe(false);
+  });
+});
+
+describe('skillFileHref', () => {
+  // The API's provider-specific prefix already ends at the project's default branch.
+  const base = 'https://git.example.com/acme/app/blob/release/1.2/';
+
+  it('appends the selected skill path to the connected repo file prefix', () => {
+    expect(skillFileHref(base, '.claude/skills/a b/SKILL.md')).toBe(
+      'https://git.example.com/acme/app/blob/release/1.2/.claude/skills/a%20b/SKILL.md',
+    );
+  });
+
+  it('works for a provider whose file prefix differs from GitHub', () => {
+    expect(skillFileHref('https://git.example.com/acme/app/-/blob/main/', '.agents/skills/code-build/SKILL.md')).toBe(
+      'https://git.example.com/acme/app/-/blob/main/.agents/skills/code-build/SKILL.md',
+    );
+  });
+
+  it('drops traversal and empty path segments', () => {
+    expect(skillFileHref(base, './foo/../.claude//SKILL.md')).toBe(
+      'https://git.example.com/acme/app/blob/release/1.2/foo/.claude/SKILL.md',
+    );
+  });
+
+  it('has no link when the prefix is unknown', () => {
+    expect(skillFileHref(null, '.claude/skills/code-build/SKILL.md')).toBeUndefined();
+    expect(skillFileHref(undefined, '.claude/skills/code-build/SKILL.md')).toBeUndefined();
+  });
+
+  it('has no link when the prefix is not a safe http(s) URL', () => {
+    expect(skillFileHref('javascript:alert(1)', '.claude/SKILL.md')).toBeUndefined();
+  });
+
+  it('has no link when the prefix carries credentials', () => {
+    expect(skillFileHref('https://token@git.example.com/acme/app/blob/main/', '.claude/SKILL.md')).toBeUndefined();
   });
 });

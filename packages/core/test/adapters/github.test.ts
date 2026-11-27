@@ -656,6 +656,11 @@ describe('github code host', () => {
     expect(host().gitCredentialUsername()).toBe('x-access-token');
   });
 
+  it('fileUrlBase addresses a file at the ref with each branch segment encoded', () => {
+    expect(host().fileUrlBase(project, 'main')).toBe('https://github.com/acme/widgets/blob/main/');
+    expect(host().fileUrlBase(project, 'release/1.2')).toBe('https://github.com/acme/widgets/blob/release/1.2/');
+  });
+
   it('names GH_TOKEN as the env var the gh CLI reads its token from', () => {
     expect(host().cliTokenEnvName()).toBe('GH_TOKEN');
   });

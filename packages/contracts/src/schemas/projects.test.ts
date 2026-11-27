@@ -1,5 +1,45 @@
 import { describe, expect, it } from 'vitest';
-import { UpdateProjectRequest } from './projects';
+import { ProjectDto, UpdateProjectRequest } from './projects';
+
+const project = {
+  id: '00000000-0000-4000-8000-000000000001',
+  name: 'app',
+  repoPath: 'acme/app',
+  repoUrl: 'https://git.example.com/acme/app',
+  skillFileBaseUrl: 'https://git.example.com/acme/app/blob/main/',
+  defaultBranch: 'main',
+  codeConnectionId: '00000000-0000-4000-8000-000000000002',
+  boardConnectionId: '00000000-0000-4000-8000-000000000002',
+  triggerMode: 'webhook',
+  pollIntervalSeconds: 300,
+  maxConcurrentRuns: 2,
+  maxRunsPerTicket: 10,
+  timeoutSeconds: 86400,
+  pausedKeepSeconds: 604800,
+  doneKeepSeconds: 86400,
+  idleEndSeconds: 1800,
+  autoResumeMax: 5,
+  setupStep: 'ready',
+  createdAt: '2026-11-12T00:00:00.000Z',
+  counts: { needsYou: 0, running: 0, queued: 0 },
+  lastRunAt: null,
+} as const;
+
+describe('ProjectDto repository link', () => {
+  it('requires the connected repository home URL and code provider', () => {
+    expect(ProjectDto.safeParse({ ...project, codeProvider: 'github' }).success).toBe(true);
+    expect(ProjectDto.safeParse({ ...project, repoUrl: undefined, codeProvider: 'github' }).success).toBe(false);
+    expect(ProjectDto.safeParse({ ...project, repoUrl: 'not a url', codeProvider: 'github' }).success).toBe(false);
+    expect(
+      ProjectDto.safeParse({ ...project, repoUrl: null, skillFileBaseUrl: null, codeProvider: null }).success,
+    ).toBe(true);
+  });
+
+  it('requires the skill file prefix to be an absolute URL or null', () => {
+    expect(ProjectDto.safeParse({ ...project, skillFileBaseUrl: 'not a url' }).success).toBe(false);
+    expect(ProjectDto.safeParse({ ...project, skillFileBaseUrl: undefined }).success).toBe(false);
+  });
+});
 
 const message = (body: Record<string, number>) => {
   const r = UpdateProjectRequest.safeParse(body);

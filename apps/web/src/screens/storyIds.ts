@@ -451,6 +451,7 @@ export const stateStories = {
   Setup4Skip: { title: setup, exportName: 'Setup4Skip', board: 'Setup4' },
   SetupReadyNoRule: { title: setup, exportName: 'SetupReadyNoRule', board: 'SetupReady' },
   Setup4Prompt: { title: setup, exportName: 'Setup4Prompt', board: 'Setup4' },
+  DeskSkillsHistoryUnavailable: { title: desk, exportName: 'DeskSkillsHistoryUnavailable', board: 'DeskSkills' },
   DeskSkillsSetupWarning: { title: desk, exportName: 'DeskSkillsSetupWarning', board: 'DeskSkills' },
   DeskSkillsPreview: { title: desk, exportName: 'DeskSkillsPreview', board: 'DeskSkills' },
   DeskSkillsPreviewEmpty: { title: desk, exportName: 'DeskSkillsPreviewEmpty', board: 'DeskSkills' },

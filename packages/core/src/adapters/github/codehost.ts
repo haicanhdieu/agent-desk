@@ -19,6 +19,7 @@ import {
   type NewConnection,
   type SkillChangeResult,
 } from '../types';
+import { browserRepoUrl } from '../project';
 import { assertSafeRef, errorHeaders, errorStatus, splitRepoPath, type GithubClients } from './app';
 
 export interface GithubCodeHostOptions {
@@ -287,6 +288,13 @@ export class GithubCodeHostAdapter implements CodeHostAdapter {
   repoUrl(project: AdapterProject): string {
     const { owner, repo } = splitRepoPath(project.repoPath);
     return `https://github.com/${owner}/${repo}.git`;
+  }
+
+  fileUrlBase(project: AdapterProject, ref: string): string | null {
+    const home = browserRepoUrl(this.repoUrl(project));
+    const refPath = ref.split('/').map(encodeURIComponent).join('/');
+    if (home === null || refPath === '') return null;
+    return `${home}/blob/${refPath}/`;
   }
 
   gitCredentialUsername(): string {
