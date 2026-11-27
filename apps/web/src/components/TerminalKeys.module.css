@@ -1,0 +1,11 @@
+.keys {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 8px 10px;
+  background: var(--term-bar);
+  border-top: 1px solid var(--term-bar-line);
+}
+.keys > * {
+  flex: none;
+}

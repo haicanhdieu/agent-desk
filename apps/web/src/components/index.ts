@@ -174,3 +174,5 @@ export {
   type AgentPaneCredential,
 } from './AgentPane';
 export { ProviderPicker, type ProviderPickerProps, type ProviderPickerOption } from './ProviderPicker';
+export { PageHeader, type PageHeaderProps } from './PageHeader';
+export { TerminalKeys, type TerminalKey, type TerminalKeysProps } from './TerminalKeys';

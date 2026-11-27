@@ -764,11 +764,11 @@ Fill mode (spec "Page fit inside the shell"): the root is the given height and d
 
 - Produces: `PageHeader(props: { title: ReactNode; meta?: ReactNode; actions?: ReactNode; banner?: ReactNode; loading?: boolean })`, one h1 with `tabIndex={-1}`, banner rendered after the title row. `export type TerminalKey = 'esc' | 'tab' | 'left' | 'up' | 'down' | 'right' | 'ctrl-c' | 'enter'`; `TerminalKeys(props: { onKey(key: TerminalKey): void })`.
 
-- [ ] **Step 1: Write failing tests.** PageHeader: exactly one h1; no empty actions container when `actions` is absent; banner follows the h1 in DOM order; `loading` shows a skeleton and no h1 text. TerminalKeys: `group` "Terminal keys" with buttons in exactly this order: "Esc", "Tab", "Left arrow", "Up arrow", "Down arrow", "Right arrow", "Ctrl-C", "Enter" (arrows are chevron icons); each click and keyboard activation calls `onKey` once with its key; `pointerdown` and `mousedown` are `preventDefault`ed so focus does not move. PlatformOrgHeader keeps its existing assertions.
-- [ ] **Step 2: Run** VITEST on the three test files. Expected: FAIL.
-- [ ] **Step 3: Implement.** The header never shrinks in a flex column (`flex: none`), so a fill page can pin it at the top of its own main column. h1 22px at one offset with padding from the boards; `PlatformOrgHeader` uses the same classes (org name h1, slug and status, "Edit organization", "More actions"). TerminalKeys uses `ds/Button`, `--term-bar`, `--term-bar-line`, wraps instead of shrinking or scrolling. Stories: PageHeader default, actions, banner, loading; TerminalKeys default and wrapped narrow.
-- [ ] **Step 4: Run** the tests and smoke test. Expected: PASS.
-- [ ] **Step 5: Commit** `feat(web): add PageHeader and TerminalKeys components`.
+- [x] **Step 1: Write failing tests.** PageHeader: exactly one h1; no empty actions container when `actions` is absent; banner follows the h1 in DOM order; `loading` shows a skeleton and no h1 text. TerminalKeys: `group` "Terminal keys" with buttons in exactly this order: "Esc", "Tab", "Left arrow", "Up arrow", "Down arrow", "Right arrow", "Ctrl-C", "Enter" (arrows are chevron icons); each click and keyboard activation calls `onKey` once with its key; `pointerdown` and `mousedown` are `preventDefault`ed so focus does not move. PlatformOrgHeader keeps its existing assertions.
+- [x] **Step 2: Run** VITEST on the three test files. Expected: FAIL.
+- [x] **Step 3: Implement.** The header never shrinks in a flex column (`flex: none`), so a fill page can pin it at the top of its own main column. h1 22px at one offset with padding from the boards; `PlatformOrgHeader` uses the same classes (org name h1, slug and status, "Edit organization", "More actions"). TerminalKeys uses `ds/Button`, `--term-bar`, `--term-bar-line`, wraps instead of shrinking or scrolling. Stories: PageHeader default, actions, banner, loading; TerminalKeys default and wrapped narrow.
+- [x] **Step 4: Run** the tests and smoke test. Expected: PASS.
+- [x] **Step 5: Commit** `feat(web): add PageHeader and TerminalKeys components`.
 
 ### Task 16: Smaller items in components and screens (BR-28, BR-70, BR-71, BR-74 to BR-76) (after the multi-agent gate)
 
