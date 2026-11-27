@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { Button, IconButton } from '@/ds';
+import { Button, IconButton, PHONE, useMediaQuery } from '@/ds';
 import type { Actor } from '@/mocks/types';
 import { AccountMenu } from './AccountMenu';
 import { Brand } from './Brand';
@@ -37,6 +37,12 @@ export interface TopBarProps {
   actions?: ReactNode;
   /** In-app hrefs; `projects` defaults to the org crumb's `projectsHref`, then "/projects"; "/runs" for Runs. The Settings tab shows only with `desk`. */
   links?: { projects?: string; runs?: string; desk?: string };
+  /** Shows the "Open menu" button, which opens the side menu drawer. Absent: no button. */
+  onOpenMenu?(): void;
+  /** Whether the drawer is open (aria-expanded of the "Open menu" button). */
+  menuOpen?: boolean;
+  /** False when a host owns document.title. Default true. */
+  ownsTitle?: boolean;
 }
 
 function toItem(c: PageCrumb): BreadcrumbItem {
@@ -64,10 +70,20 @@ export function TopBar({
   children,
   actions,
   links,
+  onOpenMenu,
+  menuOpen = false,
+  ownsTitle = true,
 }: TopBarProps) {
+  const phone = useMediaQuery(PHONE);
   const projectsHref = links?.projects ?? org?.projectsHref ?? '/projects';
   const avatar = <AccountMenu user={user} />;
-  const bell = <IconButton icon="bell" aria-label="Notifications on" />;
+  const bell = (
+    <IconButton icon="bell" aria-label="Notifications (coming soon)" title="Notifications (coming soon)" disabled />
+  );
+  const topClass = onOpenMenu ? `${styles.top} ${styles.topShell}` : styles.top;
+  const menuButton = onOpenMenu && (
+    <IconButton icon="menu" aria-label="Open menu" aria-expanded={menuOpen} onClick={onOpenMenu} />
+  );
   const shownTabs = tabs ?? (variant === 'project' ? 'project' : 'none');
   const orgCrumb = org && <OrgSwitch {...org} />;
   const projectCrumb = project && <ProjectSwitch project={project.name} menu={projectMenu} />;
@@ -77,12 +93,13 @@ export function TopBar({
   if (projectCrumb) items.push({ control: projectCrumb });
   items.push(...crumbs.map(toItem));
   const scope = variant === 'platform' ? 'Platform' : variant === 'global' ? org?.current?.name : project?.name;
-  useDocumentTitle(pageTitle({ crumbs, scope, state }));
+  useDocumentTitle(ownsTitle ? pageTitle({ crumbs, scope, state }) : undefined);
   const breadcrumb = items.length > 0 && <Breadcrumb items={items} />;
 
   if (variant === 'run') {
     return (
-      <header className={styles.top}>
+      <header className={topClass}>
+        {menuButton}
         <Brand withName={false} href={projectsHref} />
         <span className={styles.sep} />
         {breadcrumb}
@@ -113,8 +130,9 @@ export function TopBar({
 
   if (variant === 'platform') {
     return (
-      <header className={styles.top}>
-        <Brand href={projectsHref} />
+      <header className={topClass}>
+        {menuButton}
+        <Brand withName={!phone} href={projectsHref} />
         {breadcrumb && (
           <>
             <span className={styles.sep} />
@@ -131,8 +149,9 @@ export function TopBar({
 
   if (variant === 'global') {
     return (
-      <header className={styles.top}>
-        <Brand href={projectsHref} />
+      <header className={topClass}>
+        {menuButton}
+        <Brand withName={!phone} href={projectsHref} />
         {breadcrumb && (
           <>
             <span className={styles.sep} />
@@ -148,8 +167,9 @@ export function TopBar({
   }
 
   return (
-    <header className={styles.top}>
-      <Brand href={projectsHref} />
+    <header className={topClass}>
+      {menuButton}
+      <Brand withName={!phone} href={projectsHref} />
       <span className={styles.sep} />
       {breadcrumb}
       {nav}

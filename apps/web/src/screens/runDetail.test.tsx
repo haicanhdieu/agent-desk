@@ -862,7 +862,7 @@ describe('RunDetail under the app bar (BR-46)', () => {
     expect(within(crumbs).getByRole('button', { name: /invoicer-api/ })).toBeInTheDocument();
     expect(within(crumbs).getByRole('link', { name: 'Runs' })).toHaveAttribute('href', '/o/acme/p/1/runs');
     expect(within(crumbs).getByText('Run 61')).toHaveAttribute('aria-current', 'page');
-    expect(screen.getByRole('button', { name: 'Notifications on' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Notifications (coming soon)' })).toBeInTheDocument();
   });
 
   it('uses the given project name in the project crumb', () => {

@@ -117,7 +117,7 @@ describe('run detail route', () => {
       expect(within(crumbs).getByText('Run 62')).toHaveAttribute('aria-current', 'page');
       expect(within(banner()).queryByRole('navigation', { name: 'Organization sections' })).not.toBeInTheDocument();
       expect(within(banner()).queryByRole('navigation', { name: 'Project sections' })).not.toBeInTheDocument();
-      expect(within(banner()).getByRole('button', { name: 'Notifications on' })).toBeInTheDocument();
+      expect(within(banner()).getByRole('button', { name: 'Notifications (coming soon)' })).toBeInTheDocument();
     });
 
     it('TC-46.3: the project crumb opens the switcher with the org projects', async () => {

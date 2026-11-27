@@ -283,6 +283,6 @@ describe('welcome page under the app bar', () => {
     await screen.findByRole('heading', { level: 1, name: "You're not a member of any organization" });
     expect(screen.getByText('No organization')).toBeInTheDocument();
     expect(mainNav()).toBeNull();
-    expect(screen.getByRole('button', { name: 'Notifications on' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Notifications (coming soon)' })).toBeInTheDocument();
   });
 });

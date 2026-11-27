@@ -27,7 +27,14 @@ export {
 export { TopBar, TopBarSeparator, type TopBarProps } from './TopBar';
 export { SubNav, type SubNavGroup, type SubNavItem, type SubNavProps } from './SubNav';
 export { RepoBlock, type RepoBlockProps } from './RepoBlock';
-export { AppShell, type AppShellProps } from './AppShell';
+export { AppShell, type AppShellProps, type MenuMode } from './AppShell';
+export {
+  ShellContext,
+  useReportPageState,
+  useShellOwnsChrome,
+  type ShellContextValue,
+  type ShellPageState,
+} from './shellContext';
 export { DeskLayout, type DeskLayoutProps } from './DeskLayout';
 export {
   Terminal,

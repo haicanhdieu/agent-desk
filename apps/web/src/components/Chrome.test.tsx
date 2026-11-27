@@ -15,6 +15,26 @@ import { orgSwitchFixtures } from '@/mocks';
 const user = { login: 'kim-hale', initials: 'KH' };
 const project = { org: 'harbor-labs', name: 'invoicer-api', repoUrl: 'https://github.com/harbor-labs/invoicer-api' };
 
+describe('TopBar bell and title', () => {
+  it('has a disabled, unfocusable bell named "Notifications (coming soon)" with that tooltip, never "Notifications on"', () => {
+    render(<TopBar crumbs={NO_PAGE_CRUMBS} variant="global" user={user} />);
+    const bell = screen.getByRole('button', { name: 'Notifications (coming soon)' });
+    expect(bell).toBeDisabled();
+    expect(bell).toHaveAttribute('title', 'Notifications (coming soon)');
+    bell.focus();
+    expect(bell).not.toHaveFocus();
+    expect(screen.queryByRole('button', { name: 'Notifications on' })).toBeNull();
+  });
+  it('leaves document.title alone with ownsTitle={false}', () => {
+    document.title = 'Before';
+    const { unmount } = render(<TopBar crumbs={[{ label: 'Runs' }]} variant="global" user={user} ownsTitle={false} />);
+    expect(document.title).toBe('Before');
+    unmount();
+    render(<TopBar crumbs={[{ label: 'Runs' }]} variant="global" user={user} />);
+    expect(document.title).toContain('Runs');
+  });
+});
+
 describe('Brand', () => {
   it('link has the all-projects accessible name', () => {
     render(<Brand href="/projects" />);
@@ -190,7 +210,7 @@ describe('TopBar project', () => {
   it('has repo link, bell and avatar', () => {
     render(<TopBar crumbs={NO_PAGE_CRUMBS} variant="project" user={user} project={project} active="runs" />);
     expect(screen.getByRole('link', { name: /Repo on GitHub/ })).toHaveAttribute('href', project.repoUrl);
-    expect(screen.getByRole('button', { name: 'Notifications on' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Notifications (coming soon)' })).toBeInTheDocument();
     expect(screen.getByTitle('kim-hale')).toHaveTextContent('KH');
   });
 });
@@ -222,7 +242,7 @@ describe('TopBar org level', () => {
     expect(within(tabs).getByRole('link', { name: 'Projects' })).toHaveAttribute('href', '/o/acme/projects');
     expect(within(tabs).getByRole('link', { name: 'Org settings' })).toHaveAttribute('href', '/o/acme/settings');
     expect(within(tabs).getByRole('link', { name: 'Org settings' })).not.toHaveAttribute('aria-current');
-    expect(screen.getByRole('button', { name: 'Notifications on' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Notifications (coming soon)' })).toBeInTheDocument();
   });
   it('shows only Projects without a settings link (BR-43)', () => {
     render(
@@ -261,7 +281,7 @@ describe('TopBar org level', () => {
       />,
     );
     expect(screen.getByText('No organization')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Notifications on' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Notifications (coming soon)' })).toBeInTheDocument();
   });
   it('cuts a long org name with a title', () => {
     render(
@@ -281,7 +301,7 @@ describe('TopBar org level', () => {
     expect(screen.queryByRole('navigation', { name: 'Project sections' })).toBeNull();
     expect(screen.queryByRole('button', { name: /^Switch project/ })).toBeNull();
     expect(screen.getByRole('img', { name: 'Agent Desk' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Notifications on' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Notifications (coming soon)' })).toBeInTheDocument();
   });
 });
 
@@ -305,7 +325,7 @@ describe('TopBar platform', () => {
     expect(within(crumbs).getByText('Harbor Labs')).toBeInTheDocument();
     const tabs = screen.getByRole('navigation', { name: 'Platform sections' });
     expect(within(tabs).getByRole('link', { name: 'Organizations' })).toHaveAttribute('aria-current', 'page');
-    expect(screen.getByRole('button', { name: 'Notifications on' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Notifications (coming soon)' })).toBeInTheDocument();
     expect(document.title).toContain('Platform');
   });
 });
@@ -331,7 +351,7 @@ describe('TopBar project level with the org crumb', () => {
     expect(within(tabs).getByRole('link', { name: 'Project settings' })).toHaveAttribute('aria-current', 'page');
     expect(within(tabs).getByRole('link', { name: /Runs/ })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: /Repo on GitHub/ })).toHaveAttribute('href', project.repoUrl);
-    expect(screen.getByRole('button', { name: 'Notifications on' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Notifications (coming soon)' })).toBeInTheDocument();
   });
   it('shows no org text when no org crumb is given', () => {
     render(<TopBar crumbs={NO_PAGE_CRUMBS} variant="project" user={user} project={project} active="runs" />);
@@ -378,7 +398,7 @@ describe('TopBar run', () => {
     expect(last.tagName).not.toBe('A');
     expect(screen.queryByRole('navigation', { name: 'Organization sections' })).toBeNull();
     expect(screen.queryByRole('navigation', { name: 'Project sections' })).toBeNull();
-    expect(screen.getAllByRole('button', { name: 'Notifications on' })).toHaveLength(1);
+    expect(screen.getAllByRole('button', { name: 'Notifications (coming soon)' })).toHaveLength(1);
     expect(screen.getByText('Running pill')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Cancel run' })).toBeInTheDocument();
     expect(screen.queryByText('Agent Desk')).toBeNull();

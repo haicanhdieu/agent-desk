@@ -575,7 +575,7 @@ describe('Runs under the app bar (BR-43)', () => {
     expect(within(tabs).getByRole('link', { name: 'Projects' })).toBeInTheDocument();
     expect(within(tabs).queryByRole('link', { current: 'page' })).toBeNull();
     expect(within(tabs).queryByRole('link', { name: /^Runs/ })).toBeNull();
-    expect(within(bar).getByRole('button', { name: 'Notifications on' })).toBeInTheDocument();
+    expect(within(bar).getByRole('button', { name: 'Notifications (coming soon)' })).toBeInTheDocument();
   });
 
   it('NeedsYou has one Main nav: the example strip in the page is labelled apart from the bar', () => {

@@ -19,6 +19,7 @@ export const TOP_BAR_CALL_SITES: Record<string, number> = {
   'screens/RunsPage.tsx': 1,
   'screens/orgSettingsFrame.tsx': 1,
   'screens/platformFrame.tsx': 1,
+  'screens/shellFrame.tsx': 1,
 };
 
 const src = resolve(__dirname, '..');

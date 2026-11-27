@@ -17,6 +17,49 @@
   display: flex;
   min-height: 0;
 }
+/* The content slot: the page inside it decides what scrolls. */
+.content {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.contentFill {
+  flex: 1;
+  min-height: 0;
+}
+/* The inline side menu: sticky under the 52px bar with its own scroll; the extra bottom padding keeps its last item
+   above the fold, since the box is as tall as the window while its top sits under the bar. */
+.menuSlot {
+  position: sticky;
+  top: 52px;
+  align-self: flex-start;
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  max-height: 100vh;
+  max-height: 100dvh;
+  box-sizing: border-box;
+  padding-bottom: 52px;
+  overflow-y: auto;
+  background: var(--bg);
+}
+.menuSlot > .subnav {
+  flex: 1 1 auto;
+}
+/* A root with a fixed height: the body is exactly the space under the bar, so the menu fills it and scrolls on its own. */
+.appFixed .menuSlot {
+  position: static;
+  align-self: stretch;
+  max-height: none;
+  padding-bottom: 0;
+}
+.wizardSlot {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
 .main {
   flex: 1;
   min-width: 0;
@@ -396,4 +439,42 @@
   height: 14px;
   border-radius: 4px;
   background: var(--line);
+}
+
+/* Phone: two rows in one fixed bar height. Row 1: menu button, logo mark, bell, account. Row 2: both switchers
+   sharing the width (ellipsis, never empty). Page crumbs are hidden. Only on a bar the shell hosts (it has the menu button); the old bars keep their tabs. */
+@media (max-width: 639px) {
+  .topShell {
+    height: 96px;
+    flex: 0 0 96px;
+    flex-wrap: wrap;
+    align-content: center;
+    gap: 6px 10px;
+    padding: 0 12px;
+  }
+  .topShell > .sep,
+  .topShell > .tabs,
+  .topShell > .runExtra {
+    display: none;
+  }
+  .topShell > .crumbs {
+    order: 3;
+    flex: 1 1 100%;
+  }
+  .topShell .crumbs .crumb,
+  .topShell .crumbs .sepch,
+  .topShell .crumbs .crumbText {
+    display: none;
+  }
+  .topShell .crumbs .crumbControl {
+    flex: 1 1 0;
+    min-width: 0;
+  }
+  .topShell .crumbs .switchWrap,
+  .topShell .crumbs .switch {
+    flex: 1 1 0;
+    width: 100%;
+    max-width: none;
+    min-width: 0;
+  }
 }

@@ -191,3 +191,16 @@ export const PlatformOrgLoading: Story = {
     platformTabs: { ...platformTabs, active: 'orgs' },
   },
 };
+
+export const WithOpenMenu: Story = {
+  args: {
+    variant: 'global',
+    user,
+    crumbs: NO_PAGE_CRUMBS,
+    org: orgWithSettings,
+    onOpenMenu: () => {},
+    menuOpen: false,
+  },
+};
+export const WithOpenMenuExpanded: Story = { args: { ...WithOpenMenu.args, menuOpen: true } };
+export const HostOwnsTitle: Story = { args: { ...WithOpenMenu.args, ownsTitle: false } };
