@@ -88,6 +88,7 @@ export function Setup2({
   user,
   org,
   projectName,
+  exitHref,
   repo,
   kinds,
   providers,
@@ -216,6 +217,7 @@ export function Setup2({
       user={user}
       org={org}
       projectName={projectName}
+      exitHref={exitHref}
       steps={setupSteps({ repo, withWorkspace: true })}
       current={1}
       stepLabel="Step 2 of 5"

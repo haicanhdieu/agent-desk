@@ -49,6 +49,7 @@ export function Setup4({
   user,
   org,
   projectName,
+  exitHref,
   repo,
   rule,
   skills,
@@ -76,6 +77,7 @@ export function Setup4({
       user={user}
       org={org}
       projectName={projectName}
+      exitHref={exitHref}
       steps={setupSteps({ repo, credential: credentialDetail, skills: skills.join(', '), withWorkspace: true })}
       current={4}
       stepLabel="Step 5 of 5, optional"

@@ -1,4 +1,6 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
+import { ShellFrame } from '@/screens/shellFrame';
+import { viewport } from '@/screens/viewports';
 import { SetupLayout } from './SetupLayout';
 import { GuardsCard } from './GuardsCard';
 import { CommitSummary } from './CommitSummary';
@@ -110,3 +112,57 @@ export const ContinueAnyway: Story = {
     },
   },
 };
+
+// In the shell: the stepper takes the menu slot and the layout draws only the page. Below 1024px a header row at the
+// top of the page holds the step label and "Exit setup"; the stepper moves into the drawer.
+const shellBar = {
+  variant: 'global',
+  user,
+  crumbs: [{ label: 'Projects', href: '#projects' }, { label: 'New project' }],
+  org,
+  tabs: 'none',
+} as const;
+const shellArgs = {
+  user,
+  org,
+  projectName: 'invoicer-api',
+  exitHref: '#projects',
+  steps,
+  current: 1,
+  stepLabel: 'Step 3 of 4, optional',
+  title: 'Start from skill templates',
+  intro: 'Pick templates to add them, or skip if your repo already has skills.',
+  children: <p className="muted">Step content goes here.</p>,
+  footer: { back: '#', skip: '#', next: { label: 'Continue', href: '#' } },
+};
+const shellStory = (
+  height: number,
+  args: Partial<Parameters<typeof SetupLayout>[0]>,
+  globals?: Story['globals'],
+): Story => ({
+  args: { ...shellArgs, ...args },
+  decorators: [],
+  parameters: { layout: 'fullscreen' },
+  ...(globals && { globals }),
+  render: (a) => (
+    <ShellFrame wizard height={height} topBar={shellBar}>
+      <SetupLayout {...a} />
+    </ShellFrame>
+  ),
+});
+const phone = viewport(390, 844);
+
+export const InShell: Story = shellStory(760, {});
+export const InShellHeaderRow: Story = shellStory(844, {}, phone);
+export const InShellReadyHeaderRow: Story = shellStory(
+  844,
+  {
+    current: 3,
+    ready: 'Ready to trigger',
+    stepLabel: undefined,
+    header: <h1>Project ready</h1>,
+    children: <p className="muted">Ready content goes here.</p>,
+    footer: undefined,
+  },
+  phone,
+);

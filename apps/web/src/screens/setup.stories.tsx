@@ -1,6 +1,8 @@
+import type { ReactNode } from 'react';
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import { userEvent, within } from 'storybook/test';
 import { AppShell } from '@/components';
+import { ShellFrame } from './shellFrame';
 import { CommandChip } from '@/ds';
 import {
   agentKindViews,
@@ -34,6 +36,8 @@ const meta = {
   decorators: [
     (S, ctx) => {
       const h = ctx.parameters.artboardHeight as number;
+      // A story with `parameters.shell` brings its own ShellFrame; the others sit in the old bare frame.
+      if (ctx.parameters.shell) return <S />;
       return (
         <div style={{ width: 1440, height: h }}>
           <AppShell height={h} topBar={null}>
@@ -513,3 +517,89 @@ export const SetupReadyNoRule: Story = {
     />
   ),
 };
+
+// The wizard in the one shell: the stepper takes the menu slot (the drawer below 1024px) and the page draws its own
+// main, with "Exit setup" in the stepper column, or in a header row at the top of the page below 1024px.
+const wizardStory = (story: Story): Story => ({
+  ...story,
+  parameters: { ...story.parameters, shell: true },
+});
+function WizardFrame({ height = 900, children }: { height?: number; children: ReactNode }) {
+  return (
+    <ShellFrame
+      wizard
+      height={height}
+      topBar={{
+        variant: 'global',
+        user,
+        crumbs: [{ label: 'Projects', href: '#projects' }, { label: 'New project' }],
+        org: bar.org,
+        tabs: 'none',
+      }}
+    >
+      {children}
+    </ShellFrame>
+  );
+}
+const wizardSkills = (
+  <Setup3Screen
+    user={user}
+    {...bar}
+    projectName={projectName}
+    repo={repo}
+    branch="main"
+    templates={skillTemplates}
+    selected={skillTemplates.map((t) => t.name)}
+    commitMessage="Add Agent Desk skills: code-build, code-review"
+    exitHref="#projects"
+  />
+);
+
+export const Setup3ExitSetup: Story = wizardStory({
+  name: 'Setup 3, skills, in the shell with Exit setup',
+  render: () => <WizardFrame>{wizardSkills}</WizardFrame>,
+});
+
+export const Setup3PreviewDialog: Story = wizardStory({
+  name: 'Setup 3, skills, template preview dialog',
+  render: () => <WizardFrame>{wizardSkills}</WizardFrame>,
+  play: async ({ canvasElement }) => {
+    await userEvent.click(within(canvasElement).getAllByRole('button', { name: /^Preview / })[0]);
+  },
+});
+
+export const Setup4ExitSetup: Story = wizardStory({
+  name: 'Setup 4, first rule, in the shell with Exit setup',
+  render: () => (
+    <WizardFrame>
+      <Setup4Screen
+        user={user}
+        {...bar}
+        projectName={projectName}
+        repo={repo}
+        rule={rule}
+        skills={['code-build', 'code-review']}
+        followUp={{ command: 'code-review', target: 'pr', skill: 'code-review', enabled: true }}
+        maxRunsPerTicket={agentSettings.maxRunsPerTicket}
+        promptPreview={{ state: 'ready', systemLines: promptSystemLines }}
+        modelList={liveModels}
+        defaultAgentName="Claude"
+        exitHref="#projects"
+      />
+    </WizardFrame>
+  ),
+});
+
+export const SetupReadyExitSetup: Story = wizardStory({
+  name: 'Setup, ready, in the shell with Exit setup',
+  render: () => (
+    <WizardFrame>
+      <SetupReadyScreen
+        {...ready}
+        lastEvent={{ mode: 'webhook', at: 'ping, 14:01:37' }}
+        summary={readySummary(connectionCopy.triggerSummary('webhook'))}
+        exitHref="#projects"
+      />
+    </WizardFrame>
+  ),
+});

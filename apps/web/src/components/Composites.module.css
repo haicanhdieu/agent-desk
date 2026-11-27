@@ -54,6 +54,21 @@
   flex-direction: column;
   gap: 18px;
 }
+/* Inside the shell's menu slot: the slot sets the width and the border. */
+.setupLeftSlot {
+  padding: 28px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+.setupExit {
+  padding: 0 4px;
+}
+.setupRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
 .setupHead {
   display: flex;
   flex-direction: column;

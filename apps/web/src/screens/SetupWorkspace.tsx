@@ -69,6 +69,7 @@ export function SetupWorkspace({
   user,
   org,
   projectName,
+  exitHref,
   repo,
   credentialDetail = DEFAULT_CREDENTIAL_DETAIL,
   script = SETUP_SCRIPT_STARTER,
@@ -90,6 +91,7 @@ export function SetupWorkspace({
       user={user}
       org={org}
       projectName={projectName}
+      exitHref={exitHref}
       steps={setupSteps({ repo, credential: credentialDetail, withWorkspace: true })}
       current={2}
       stepLabel="Step 3 of 5, optional"

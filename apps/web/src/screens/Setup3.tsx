@@ -32,6 +32,7 @@ export function Setup3({
   user,
   org,
   projectName,
+  exitHref,
   repo,
   branch,
   templates,
@@ -60,6 +61,7 @@ export function Setup3({
       user={user}
       org={org}
       projectName={projectName}
+      exitHref={exitHref}
       steps={setupSteps({ repo, credential: credentialDetail, withWorkspace: true })}
       current={3}
       stepLabel="Step 4 of 5, optional"

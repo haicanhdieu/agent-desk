@@ -12,6 +12,8 @@ export interface SetupReadyProps {
   /** The org crumb and menu in the top bar. */
   org?: OrgSwitchProps;
   projectName: string;
+  /** Where "Exit setup" goes; the org's Projects page by default. */
+  exitHref?: string;
   repo: string;
   /** The label the first rule needs, if any. */
   label?: { name: string; color?: string };
@@ -36,6 +38,7 @@ export function SetupReady({
   user,
   org,
   projectName,
+  exitHref,
   repo,
   label,
   command,
@@ -54,6 +57,7 @@ export function SetupReady({
       user={user}
       org={org}
       projectName={projectName}
+      exitHref={exitHref}
       steps={setupSteps({ repo, credential: credentialDetail, skills, withWorkspace: true })}
       current={5}
       ready="Ready to trigger"

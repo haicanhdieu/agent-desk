@@ -717,3 +717,13 @@ Boards registered (5, canvas order 432 to 436): RunIdle1024, RunIdleSideCollapse
 - Agent call: the cancel and stop confirms hang under their header buttons (a relatively positioned wrapper around each button). The old bar branch keeps its fixed offsets.
 - "Full screen" is removed in both branches.
 - Agent call: the multi-agent gate marker "Enter the API key for this endpoint." is not in `features/desk/agent.form.ts` on `main` or here; the text now lives in `AgentPane.tsx`, `Setup2.tsx` and their specs, so the work is merged under another file and the gate was treated as passed (the earlier shell units rely on the same base).
+
+## Sidebar navigation shell: Wizard frame with the stepper in the menu slot (Task 23)
+
+Boards registered (4, canvas order 437 to 440): Setup3ExitSetup, Setup4ExitSetup, SetupReadyExitSetup, Setup3PreviewDialog. They continue the canvas row at y 97840 (x 7600 to 12160). PARITY (Storybook build and the side-by-side render) was not run in this session (4 GiB memory cap), so these 4 pairs are unchecked.
+
+- Agent call: with a shell around it, `SetupLayout` draws no `TopBar`; the "Setup progress" aside is portalled into `wizardSlot` (nothing is drawn while the slot is null, e.g. a closed drawer). Without a shell it keeps the old bar and inline aside.
+- Agent call: at 1024px and up "Exit setup" follows the "Progress is saved" note in the aside; below 1024px a header row at the top of `main` holds the step label and "Exit setup", and the label is not repeated above the title. The Ready step has no label, so its row holds only "Exit setup".
+- Agent call: "Exit setup" goes to `exitHref`, else the org's Projects href (`org.projectsHref`, `/projects` without an org).
+- Agent call: the header row below 1024px has component stories only (`Components/SetupLayout` InShellHeaderRow, InShellReadyHeaderRow), since the plan registers exactly four boards.
+- The wizard route is not yet wrapped in the shell (later tasks), so no live page changes and no new e2e spec is added; the existing wizard mock specs are run.

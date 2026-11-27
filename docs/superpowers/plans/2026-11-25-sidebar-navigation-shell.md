@@ -1004,13 +1004,13 @@ The setup warning is the first item of the scroll area, below the pinned header,
 - Consumes: `ShellContext.wizardSlot`, `useMediaQuery(BELOW_DESKTOP)`; the multi-agent `Setup2` (provider picker, h1 "Add your agent"), the stepper label "Add agent" with the detail "<provider label>, <model>" (default "Claude Code, opus") and `Setup4`'s "Project default (<name>)". Its content, copy and states are not changed; only the frame around them is.
 - Produces: `SetupLayoutProps` and the six screens gain `exitHref?: string`. Owned: no `TopBar`; `aside` "Setup progress" (project name, `Stepper`, "Progress is saved. You can leave and resume from the project list.") is portalled with `createPortal` into `wizardSlot`; at 1024px and up "Exit setup" follows the note; below 1024px it is not in the aside and a header row at the top of `main` holds the step label and "Exit setup". The Ready step's row holds only "Exit setup".
 
-- [ ] **Step 0: Multi-agent gate.** Run both checks in "Multi-agent gate". If either fails, stop: write no code and report which check failed.
-- [ ] **Step 1: Write failing tests:** with a slot element the stepper renders inside it; with `owned` and `wizardSlot: null` no stepper renders; with no provider it renders in place; at 1440 "Step N of M" (", optional" kept) is above the title once and "Exit setup" is in the aside once; at 390 and 1023 the header row has both, each exactly once, and neither is repeated in the aside or above the title; Ready at 390 has only "Exit setup"; no collapse button; one h1.
-- [ ] **Step 2: Run** VITEST on both files. Expected: FAIL.
-- [ ] **Step 3: Implement.**
-- [ ] **Step 4: Stories** (including the header row below 1024px); register `Setup3ExitSetup`, `Setup4ExitSetup`, `SetupReadyExitSetup`, `Setup3PreviewDialog` (REG; expected count 440).
+- [x] **Step 0: Multi-agent gate.** Run both checks in "Multi-agent gate". If either fails, stop: write no code and report which check failed.
+- [x] **Step 1: Write failing tests:** with a slot element the stepper renders inside it; with `owned` and `wizardSlot: null` no stepper renders; with no provider it renders in place; at 1440 "Step N of M" (", optional" kept) is above the title once and "Exit setup" is in the aside once; at 390 and 1023 the header row has both, each exactly once, and neither is repeated in the aside or above the title; Ready at 390 has only "Exit setup"; no collapse button; one h1.
+- [x] **Step 2: Run** VITEST on both files. Expected: FAIL.
+- [x] **Step 3: Implement.**
+- [x] **Step 4: Stories** (including the header row below 1024px); register `Setup3ExitSetup`, `Setup4ExitSetup`, `SetupReadyExitSetup`, `Setup3PreviewDialog` (REG; expected count 440).
 - [ ] **Step 5: Run** tests, coverage and smoke, PARITY. Expected: PASS.
-- [ ] **Step 6: Commit** `feat(web): wizard frame with exit setup`.
+- [x] **Step 6: Commit** `feat(web): wizard frame with exit setup`.
 
 ### Task 24: Invitation, error, loading and suspended screens (after the multi-agent gate)
 

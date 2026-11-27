@@ -32,6 +32,8 @@ export interface SetupNav {
   backHref?: string;
   nextHref?: string;
   skipHref?: string;
+  /** Where "Exit setup" goes; the org's Projects page by default. */
+  exitHref?: string;
 }
 
 /** Setup 3 primary button. 0 selected reads "Continue" (nothing to commit; Skip stays), 1 is singular. */

@@ -456,6 +456,10 @@ export const boardStories = {
   RunIdleSideExpanded: { title: detail, exportName: 'RunIdleSideExpanded' },
   RunRunningSideMenu: { title: detail, exportName: 'RunRunningSideMenu' },
   RunRunningStopSideMenu: { title: detail, exportName: 'RunRunningStopSideMenu' },
+  Setup3ExitSetup: { title: setup, exportName: 'Setup3ExitSetup' },
+  Setup4ExitSetup: { title: setup, exportName: 'Setup4ExitSetup' },
+  SetupReadyExitSetup: { title: setup, exportName: 'SetupReadyExitSetup' },
+  Setup3PreviewDialog: { title: setup, exportName: 'Setup3PreviewDialog' },
 } as const satisfies Record<string, BoardStory>;
 
 export type BoardName = keyof typeof boardStories;

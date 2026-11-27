@@ -1,3 +1,4 @@
+import { cloneElement, type ReactElement } from 'react';
 import { render, screen, within } from '@testing-library/react';
 import { vi } from 'vitest';
 import userEvent from '@testing-library/user-event';
@@ -10,6 +11,8 @@ import { Setup3 } from './Setup3';
 import { Setup4 } from './Setup4';
 import { SetupReady } from './SetupReady';
 import { SetupWorkspace } from './SetupWorkspace';
+import { ShellContext } from '@/components/shellContext';
+import { setViewportWidth } from '@/test/fakeMatchMedia';
 
 const repos = [
   { name: 'harbor-labs/invoicer-api', meta: 'Private, updated 2 hours ago' },
@@ -907,5 +910,61 @@ describe('SetupReady without rule:create', () => {
     expect(screen.getByText('No rule yet')).toBeInTheDocument();
     expect(screen.queryByRole('link', { name: 'Add a rule' })).toBeNull();
     expect(screen.getByRole('link', { name: 'Go to runs' })).toBeInTheDocument();
+  });
+});
+
+describe('setup screens in the shell frame', () => {
+  const screens: [string, ReactElement, string | null][] = [
+    ['Setup1', s1, 'Step 1 of 5'],
+    ['Setup2', s2(), 'Step 2 of 5'],
+    [
+      'SetupWorkspace',
+      <SetupWorkspace user={user} projectName="invoicer-api" repo={repo} plugins={{ plugins: [] }} />,
+      'Step 3 of 5, optional',
+    ],
+    ['Setup3', s3(), 'Step 4 of 5, optional'],
+    ['Setup4', s4, 'Step 5 of 5, optional'],
+    ['SetupReady', ready, null],
+  ];
+  const withExit = (el: ReactElement) => cloneElement(el, { exitHref: '/leave' } as Record<string, unknown>);
+  const inShell = (el: ReactElement, slot: HTMLElement) => (
+    <ShellContext.Provider value={{ owned: true, wizardSlot: slot, reportPageState: () => () => {} }}>
+      {withExit(el)}
+    </ShellContext.Provider>
+  );
+  let slot: HTMLElement;
+  beforeEach(() => {
+    slot = document.createElement('div');
+    document.body.appendChild(slot);
+  });
+  afterEach(() => slot.remove());
+
+  it.each(screens)('%s at 1440 has its stepper and Exit setup in the slot, and one h1', (_n, el, label) => {
+    render(inShell(el, slot));
+    expect(within(slot).getByRole('complementary', { name: 'Setup progress' })).toBeInTheDocument();
+    const exit = screen.getAllByRole('link', { name: 'Exit setup' });
+    expect(exit).toHaveLength(1);
+    expect(slot).toContainElement(exit[0]);
+    expect(exit[0]).toHaveAttribute('href', '/leave');
+    if (label) expect(screen.getAllByText(label)).toHaveLength(1);
+    expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1);
+    expect(screen.queryByRole('banner')).toBeNull();
+  });
+
+  it.each(screens)('%s at 390 has the header row with Exit setup once, outside the slot', (_n, el, label) => {
+    setViewportWidth(390);
+    render(inShell(el, slot));
+    const exit = screen.getAllByRole('link', { name: 'Exit setup' });
+    expect(exit).toHaveLength(1);
+    expect(slot).not.toContainElement(exit[0]);
+    expect(exit[0]).toHaveAttribute('href', '/leave');
+    if (label) {
+      const text = screen.getAllByText(label);
+      expect(text).toHaveLength(1);
+      expect(text[0].parentElement).toBe(exit[0].parentElement);
+    } else {
+      expect(screen.queryByText(/Step \d+ of/)).toBeNull();
+    }
+    expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1);
   });
 });

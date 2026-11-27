@@ -3497,6 +3497,38 @@
    "h": 900,
    "title": "Running, stop confirm under the header button",
    "expand": "fill"
+  },
+  "Setup3ExitSetup.dc.html": {
+   "x": 7600,
+   "y": 97840,
+   "w": 1440,
+   "h": 900,
+   "title": "Skills step in the shell: stepper in the menu slot with Exit setup",
+   "expand": "fill"
+  },
+  "Setup4ExitSetup.dc.html": {
+   "x": 9120,
+   "y": 97840,
+   "w": 1440,
+   "h": 900,
+   "title": "First rule step in the shell: stepper in the menu slot with Exit setup",
+   "expand": "fill"
+  },
+  "SetupReadyExitSetup.dc.html": {
+   "x": 10640,
+   "y": 97840,
+   "w": 1440,
+   "h": 900,
+   "title": "Ready step in the shell: stepper in the menu slot with Exit setup",
+   "expand": "fill"
+  },
+  "Setup3PreviewDialog.dc.html": {
+   "x": 12160,
+   "y": 97840,
+   "w": 1440,
+   "h": 900,
+   "title": "Skills step in the shell: template preview dialog",
+   "expand": "fill"
   }
  },
  "order": [
@@ -3935,7 +3967,11 @@
   "RunIdleSideCollapsed.dc.html",
   "RunIdleSideExpanded.dc.html",
   "RunRunningSideMenu.dc.html",
-  "RunRunningStopSideMenu.dc.html"
+  "RunRunningStopSideMenu.dc.html",
+  "Setup3ExitSetup.dc.html",
+  "Setup4ExitSetup.dc.html",
+  "SetupReadyExitSetup.dc.html",
+  "Setup3PreviewDialog.dc.html"
  ],
  "notes": {
   "t-intro": {

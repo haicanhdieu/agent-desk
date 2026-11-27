@@ -91,6 +91,7 @@ export function Setup1({
   user,
   org,
   projectName,
+  exitHref,
   repos,
   selected,
   installedOn,
@@ -153,6 +154,7 @@ export function Setup1({
       user={user}
       org={org}
       projectName={name || projectName}
+      exitHref={exitHref}
       steps={setupSteps({ withWorkspace: true })}
       current={0}
       stepLabel="Step 1 of 5"

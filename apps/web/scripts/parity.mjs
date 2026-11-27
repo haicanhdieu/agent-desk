@@ -476,6 +476,10 @@ const stories = {
   RunIdleSideExpanded: ['Screens/Run detail', 'RunIdleSideExpanded'],
   RunRunningSideMenu: ['Screens/Run detail', 'RunRunningSideMenu'],
   RunRunningStopSideMenu: ['Screens/Run detail', 'RunRunningStopSideMenu'],
+  Setup3ExitSetup: ['Screens/Setup', 'Setup3ExitSetup'],
+  Setup4ExitSetup: ['Screens/Setup', 'Setup4ExitSetup'],
+  SetupReadyExitSetup: ['Screens/Setup', 'SetupReadyExitSetup'],
+  Setup3PreviewDialog: ['Screens/Setup', 'Setup3PreviewDialog'],
 };
 
 const types = {
