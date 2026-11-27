@@ -2,6 +2,7 @@ import { Outlet } from '@tanstack/react-router';
 import type { QueryClient } from '@tanstack/react-query';
 import { NotFound, RouteError } from './boundaries';
 import { SkipLink } from '@/components';
+import { ShellHost } from './shell/ShellHost';
 
 /** Context every route sees (loaders call `context.queryClient.ensureQueryData`). */
 export interface RouterContext {
@@ -12,7 +13,9 @@ function RootLayout() {
   return (
     <>
       <SkipLink />
-      <Outlet />
+      <ShellHost>
+        <Outlet />
+      </ShellHost>
     </>
   );
 }
