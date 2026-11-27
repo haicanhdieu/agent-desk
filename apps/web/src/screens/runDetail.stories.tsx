@@ -9,6 +9,7 @@ import {
   transcriptFixtures,
   transcriptStateFixtures,
 } from '@/mocks';
+import { ProjectShellFrame, type ProjectShellFrameProps } from './projectShellFrame';
 import { RunDetail } from './RunDetail';
 import { RunTerminalArea, type RunTerminalAreaProps } from './RunTerminalArea';
 import styles from './Screens.module.css';
@@ -427,4 +428,65 @@ export const RunRunningUsageReconnecting: Story = {
   decorators: artboard(1440, 900),
   globals: viewport(1440, 900),
   args: { data: runUsageDetails.RunRunningUsageReconnecting, lines: terminalByRun[61] },
+};
+
+// The run page inside the shell: the shell draws the bar and the project menu; the page draws its header (title, facts
+// and the run actions) over the terminal and the context panel. The confirms hang under their header buttons.
+const runCrumbs = (n: number) => [{ label: 'Runs', href: '#runs' }, { label: `Run ${n}` }];
+const shellRun = (
+  data: (typeof runDetails)[keyof typeof runDetails],
+  lines: React.ComponentProps<typeof RunDetail>['lines'],
+  frame: Partial<ProjectShellFrameProps> = {},
+  props: Partial<React.ComponentProps<typeof RunDetail>> = {},
+) => (
+  <ProjectShellFrame page="runs" crumbs={runCrumbs(data.run.id)} {...frame}>
+    <RunDetail
+      data={data}
+      lines={lines}
+      onCancel={() => undefined}
+      onFinish={() => undefined}
+      onStopOpen={() => undefined}
+      onStop={() => undefined}
+      onCancelClose={() => undefined}
+      onStopClose={() => undefined}
+      onTogglePanel={() => undefined}
+      {...props}
+    />
+  </ProjectShellFrame>
+);
+
+export const RunIdle1024: Story = {
+  name: 'Run needs you at 1024px',
+  decorators: artboard(1024, 900),
+  globals: viewport(1024, 900),
+  args: { data: runDetails.RunIdle, lines: terminalByRun[62] },
+  render: () => shellRun(runDetails.RunIdle, terminalByRun[62], { collapsed: true }),
+};
+export const RunIdleSideCollapsed: Story = {
+  name: 'Run needs you, menu collapsed, actions in the page header',
+  decorators: artboard(1440, 900),
+  globals: viewport(1440, 900),
+  args: { data: runDetails.RunIdle, lines: terminalByRun[62] },
+  render: () => shellRun(runDetails.RunIdle, terminalByRun[62], { collapsed: true }),
+};
+export const RunIdleSideExpanded: Story = {
+  name: 'Run needs you, menu expanded',
+  decorators: artboard(1440, 900),
+  globals: viewport(1440, 900),
+  args: { data: runDetails.RunIdle, lines: terminalByRun[62] },
+  render: () => shellRun(runDetails.RunIdle, terminalByRun[62]),
+};
+export const RunRunningSideMenu: Story = {
+  name: 'Running, cancel confirm under the header button',
+  decorators: artboard(1440, 900),
+  globals: viewport(1440, 900),
+  args: { data: runDetails.RunRunning, lines: terminalByRun[61] },
+  render: () => shellRun(runDetails.RunRunning, terminalByRun[61], {}, { cancelConfirmOpen: true }),
+};
+export const RunRunningStopSideMenu: Story = {
+  name: 'Running, stop confirm under the header button',
+  decorators: artboard(1440, 900),
+  globals: viewport(1440, 900),
+  args: { data: runDetails.RunRunningStop, lines: terminalByRun[61] },
+  render: () => shellRun(runDetails.RunRunningStop, terminalByRun[61], {}, { stopConfirmOpen: true }),
 };

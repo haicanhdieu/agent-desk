@@ -708,3 +708,12 @@ Boards registered (3, canvas order 429 to 431): DeskRulesSideMenu, DeskRulesSide
 
 - Agent call: in the shell `DeskAgent` and `DeskRules` draw one `main` themselves (not through `DeskFrame`): a column (`PageHeader`, tab strip, scroll area) and, beside it, the side pane. The setup warning is passed as `lead` to the first item of each tab's scroll area (`AgentList`, `PanelScroll`, the rules list).
 - Agent call: BR-44: "Manage installation on GitHub" and "Send test ping" are removed in both branches; the action row now exists only in polling mode, for "Check now".
+
+## Sidebar navigation shell: Run page header (Task 22)
+
+Boards registered (5, canvas order 432 to 436): RunIdle1024, RunIdleSideCollapsed, RunIdleSideExpanded, RunRunningSideMenu, RunRunningStopSideMenu. They sit in a new canvas row at y 97840. PARITY (Storybook build and the side-by-side render) was not run in this session (4 GiB memory cap), so these 5 pairs are unchecked.
+
+- Agent call: in the shell `RunDetail` draws one `main` with a `PageHeader` (title "Run N", status, command, ticket, elapsed and the pending note as meta; the run actions and "Collapse context panel (])" as actions) over the terminal and side panel. The panel button shows only with `onTogglePanel`, and the action row is absent when nothing is given.
+- Agent call: the cancel and stop confirms hang under their header buttons (a relatively positioned wrapper around each button). The old bar branch keeps its fixed offsets.
+- "Full screen" is removed in both branches.
+- Agent call: the multi-agent gate marker "Enter the API key for this endpoint." is not in `features/desk/agent.form.ts` on `main` or here; the text now lives in `AgentPane.tsx`, `Setup2.tsx` and their specs, so the work is merged under another file and the gate was treated as passed (the earlier shell units rely on the same base).

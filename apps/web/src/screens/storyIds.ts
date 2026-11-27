@@ -451,6 +451,11 @@ export const boardStories = {
   DeskRulesSideMenu: { title: desk, exportName: 'DeskRulesSideMenu' },
   DeskRulesSideMenuSetupWarning: { title: desk, exportName: 'DeskRulesSideMenuSetupWarning' },
   DeskAgentSideMenu: { title: desk, exportName: 'DeskAgentSideMenu' },
+  RunIdle1024: { title: detail, exportName: 'RunIdle1024' },
+  RunIdleSideCollapsed: { title: detail, exportName: 'RunIdleSideCollapsed' },
+  RunIdleSideExpanded: { title: detail, exportName: 'RunIdleSideExpanded' },
+  RunRunningSideMenu: { title: detail, exportName: 'RunRunningSideMenu' },
+  RunRunningStopSideMenu: { title: detail, exportName: 'RunRunningStopSideMenu' },
 } as const satisfies Record<string, BoardStory>;
 
 export type BoardName = keyof typeof boardStories;

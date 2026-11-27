@@ -5,6 +5,8 @@ import { orgSwitchFixtures } from '@/mocks';
 import { runDetailPrMerged, runDetails, runUsageDetails, terminalByRun, transcriptFixtures } from '@/mocks';
 import type { RunDetailKey } from '@/mocks';
 import { RunDetail as RunDetailScreen } from './RunDetail';
+import { ProjectShellFrame } from './projectShellFrame';
+import { expectShellOwnedPage, headerActions } from '@/test/shellAssert';
 
 // The screen shows a run action only for a handler it is given (the route passes one where the viewer holds the
 // permission). These tests exercise the buttons themselves, so they render a viewer who may do everything; the
@@ -159,7 +161,7 @@ describe('RunDetail actions', () => {
     expect(screen.getAllByText('Issue #139').length).toBeGreaterThan(0);
     expect(screen.getAllByText('7:40').length).toBeGreaterThan(0);
     expect(screen.getByRole('button', { name: 'Collapse context panel (])' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Full screen terminal (F)' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Full screen/ })).not.toBeInTheDocument();
   });
 });
 
@@ -929,5 +931,154 @@ describe('RunDetail usage boards', () => {
   it('shows no usage numbers for a run with none', () => {
     render(<RunDetail data={runUsageDetails.RunSucceededUsageNone} lines={terminalByRun[60]} />);
     expect(screen.getByText('No usage data for this run.')).toBeInTheDocument();
+  });
+});
+
+describe('RunDetail page header in the shell', () => {
+  const menu = 'Project menu';
+  const crumbs = [{ label: 'Runs', href: '/runs' }, { label: 'Run 62' }];
+  const inShell = (k: RunDetailKey, props: Partial<React.ComponentProps<typeof RunDetailScreen>> = {}) =>
+    render(
+      <ProjectShellFrame page="runs" crumbs={crumbs}>
+        <RunDetailScreen data={runDetails[k]} lines={linesFor(k)} {...props} />
+      </ProjectShellFrame>,
+    );
+  const allHandlers = {
+    onCancel: noop,
+    onFinish: noop,
+    onStopOpen: noop,
+    onStop: noop,
+    onCloseSession: noop,
+    onTogglePanel: noop,
+  };
+  const headerButtons = (main: HTMLElement) =>
+    within(headerActions(main))
+      .getAllByRole('button')
+      .map((b) => b.textContent || b.getAttribute('aria-label'));
+
+  it('draws one main with the h1 "Run 62" and the status, command, ticket and elapsed as header meta', () => {
+    inShell('RunIdle');
+    const main = expectShellOwnedPage('Run 62', { menu });
+    const header = screen.getByRole('heading', { level: 1 }).closest('header')!;
+    expect(within(header).getByText('/code-review')).toBeInTheDocument();
+    expect(within(header).getByText('PR #148')).toBeInTheDocument();
+    expect(within(header).getByText('4:51')).toBeInTheDocument();
+    expect(within(main).getByRole('log')).toBeInTheDocument();
+  });
+
+  it('puts every action in the header when every handler is given', () => {
+    inShell('RunRunning', allHandlers);
+    const main = expectShellOwnedPage('Run 61', { menu });
+    expect(headerButtons(main)).toEqual(['Finish', 'Stop session', 'Cancel run', 'Collapse context panel (])']);
+  });
+
+  it('an idle run offers Finish run enabled in the header', () => {
+    inShell('RunIdle', allHandlers);
+    const main = expectShellOwnedPage('Run 62', { menu });
+    expect(within(headerActions(main)).getByRole('button', { name: 'Finish run' })).toBeEnabled();
+  });
+
+  it('a reopened session offers only Close session before the panel button', () => {
+    render(
+      <ProjectShellFrame page="runs" crumbs={crumbs}>
+        <RunDetailScreen
+          data={{ ...runDetails.RunDone, reopened: true }}
+          lines={linesFor('RunDone')}
+          {...allHandlers}
+        />
+      </ProjectShellFrame>,
+    );
+    const main = expectShellOwnedPage('Run 62', { menu });
+    expect(headerButtons(main)).toEqual(['Close session', 'Collapse context panel (])']);
+    expect(
+      within(screen.getByRole('heading', { level: 1 }).closest('header')!).getByText('Succeeded · Session open'),
+    ).toBeInTheDocument();
+  });
+
+  it('an ended run links to the ticket in a new tab instead of Finish, Stop and Cancel', () => {
+    inShell('RunSucceeded', allHandlers);
+    const main = expectShellOwnedPage('Run 60', { menu });
+    const actions = within(headerActions(main));
+    expect(actions.getByRole('link', { name: /^View (PR|issue)$/ })).toHaveAttribute('target', '_blank');
+    for (const name of [/^Finish/, 'Stop session', 'Cancel run', 'Close session']) {
+      expect(actions.queryByRole('button', { name })).toBeNull();
+    }
+  });
+
+  it('without handlers the header has no Finish, Stop, Cancel or Close and no panel button', () => {
+    inShell('RunIdle');
+    const main = expectShellOwnedPage('Run 62', { menu });
+    expect(main.querySelector('[data-page-header-actions]')).toBeNull();
+    expect(screen.queryByRole('button', { name: /^Finish/ })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Stop session' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Cancel run' })).toBeNull();
+  });
+
+  it('has no Full screen control', () => {
+    inShell('RunRunning', allHandlers);
+    expect(screen.queryByRole('button', { name: /Full screen/ })).toBeNull();
+  });
+
+  it('shows the pending note as a status in the header', () => {
+    inShell('RunIdle', { ...allHandlers, pendingNote: 'Finishing…' });
+    const header = screen.getByRole('heading', { level: 1 }).closest('header')!;
+    expect(within(header).getByRole('status')).toHaveTextContent('Finishing…');
+  });
+
+  it('the cancel confirm sits inside the element wrapping the Cancel run header button', () => {
+    inShell('RunRunning', { ...allHandlers, cancelConfirmOpen: true });
+    const main = expectShellOwnedPage('Run 61', { menu });
+    const dialog = within(main).getByRole('dialog', { name: 'Cancel run 61?' });
+    const button = within(headerActions(main)).getAllByRole('button', { name: 'Cancel run' })[0]!;
+    expect(button.parentElement).toContainElement(dialog);
+    expect(dialog.getAttribute('style') ?? '').not.toMatch(/right: 150px|top: 56px/);
+    expect(within(dialog).getByRole('button', { name: 'Keep running' })).toBeInTheDocument();
+  });
+
+  it('the stop confirm sits inside the element wrapping the Stop session header button', () => {
+    inShell('RunRunning', { ...allHandlers, stopConfirmOpen: true });
+    const main = expectShellOwnedPage('Run 61', { menu });
+    const dialog = within(main).getByRole('dialog', { name: 'Stop the session?' });
+    const button = within(headerActions(main)).getAllByRole('button', { name: 'Stop session' })[0]!;
+    expect(button.parentElement).toContainElement(dialog);
+    expect(dialog.getAttribute('style') ?? '').not.toMatch(/right: 290px|top: 56px/);
+    expect(within(dialog).getByRole('button', { name: 'Keep running' })).toBeInTheDocument();
+  });
+
+  it('still shows the run agent name', () => {
+    inShell('RunRunning');
+    const main = expectShellOwnedPage('Run 61', { menu });
+    expect(within(main).getByText(runDetails.RunRunning.run.agent)).toBeInTheDocument();
+  });
+
+  it('the notice links keep exactly the hrefs they are given', () => {
+    const base = runDetails.RunFailed;
+    const links = [
+      { label: 'Connection details', href: '/o/acme/p/1/desk/agent#connection' },
+      { label: 'Switch to polling', href: '/o/acme/p/1/desk/agent?tab=trigger' },
+      { label: 'Change time limit', href: '/o/acme/p/1/desk/agent?tab=limits' },
+      { label: 'Replace credential', href: '/o/acme/p/1/desk/agent?agent=3' },
+    ];
+    render(
+      <ProjectShellFrame page="runs" crumbs={crumbs}>
+        <RunDetailScreen
+          data={{
+            ...base,
+            endNote: { ...base.endNote!, actions: links.map((l) => ({ ...l, icon: 'external' as const })) },
+          }}
+          lines={linesFor('RunFailed')}
+        />
+      </ProjectShellFrame>,
+    );
+    for (const l of links) {
+      expect(screen.getByRole('link', { name: l.label })).toHaveAttribute('href', l.href);
+    }
+  });
+
+  it('draws the Collapse button that toggles the panel', async () => {
+    const onTogglePanel = vi.fn();
+    inShell('RunRunning', { ...allHandlers, onTogglePanel });
+    await userEvent.click(screen.getByRole('button', { name: 'Collapse context panel (])' }));
+    expect(onTogglePanel).toHaveBeenCalledTimes(1);
   });
 });

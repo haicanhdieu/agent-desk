@@ -979,12 +979,12 @@ The setup warning is the first item of the scroll area, below the pinned header,
 
 - Produces: `RunDetail` props are unchanged. Owned: `PageHeader` with title "Run {n}", meta (status badge or "Succeeded · Session open" / "Setup failed", `CommandChip` and `TicketRef`, elapsed, pending note `status`), actions gated by the same callback presence as today ("Close session", "View PR"/"View issue", "Finish run" or disabled "Finish", "Stop session", "Cancel run") plus "Collapse context panel (])"; no "Full screen" in either branch; cancel and stop popovers anchored to their header buttons (not fixed `right`/`top` offsets).
 
-- [ ] **Step 0: Multi-agent gate.** Run both checks in "Multi-agent gate". If either fails, stop: write no code and report which check failed.
-- [ ] **Step 1: Write failing tests:** every action above appears in the header exactly when its callback is passed; none of Finish, Stop, Cancel, Close without callbacks and no empty action row; the confirms keep "Cancel run {n}?" and "Stop the session?" with "Keep running" and render inside the element wrapping their button; no control named /Full screen/; the run's agent name (MA BR-54) still shows, and the notice links "Connection details", "Switch to polling", "Change time limit" and "Replace credential" render with exactly the hrefs they are given.
-- [ ] **Step 2: Run** VITEST `src/screens/runDetail.test.tsx`. Expected: FAIL.
-- [ ] **Step 3: Implement.** Update the legacy test that expected "Full screen" to expect none.
-- [ ] **Step 4: Stories;** register `RunIdle1024`, `RunIdleSideCollapsed`, `RunIdleSideExpanded`, `RunRunningSideMenu`, `RunRunningStopSideMenu` (REG; expected count 436).
-- [ ] **Step 5: Run** tests, coverage and smoke, PARITY. Expected: PASS.
+- [x] **Step 0: Multi-agent gate.** Run both checks in "Multi-agent gate". If either fails, stop: write no code and report which check failed.
+- [x] **Step 1: Write failing tests:** every action above appears in the header exactly when its callback is passed; none of Finish, Stop, Cancel, Close without callbacks and no empty action row; the confirms keep "Cancel run {n}?" and "Stop the session?" with "Keep running" and render inside the element wrapping their button; no control named /Full screen/; the run's agent name (MA BR-54) still shows, and the notice links "Connection details", "Switch to polling", "Change time limit" and "Replace credential" render with exactly the hrefs they are given.
+- [x] **Step 2: Run** VITEST `src/screens/runDetail.test.tsx`. Expected: FAIL.
+- [x] **Step 3: Implement.** Update the legacy test that expected "Full screen" to expect none.
+- [x] **Step 4: Stories;** register `RunIdle1024`, `RunIdleSideCollapsed`, `RunIdleSideExpanded`, `RunRunningSideMenu`, `RunRunningStopSideMenu` (REG; expected count 436).
+- [x] **Step 5: Run** tests, coverage and smoke, PARITY. Expected: PASS.
 - [ ] **Step 6: Commit** `feat(web): run page header`.
 
 ### Task 23: Wizard frame with the stepper in the menu slot (after the multi-agent gate)

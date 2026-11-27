@@ -339,6 +339,29 @@
   display: flex;
   min-height: 0;
 }
+/* run detail inside the shell: the page header over the terminal and the context panel */
+.runShellMain {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.runShellMain > header {
+  flex: 0 0 auto;
+  padding: 16px 24px;
+  border-bottom: 1px solid var(--line);
+}
+.runBody {
+  flex: 1;
+  display: flex;
+  min-height: 0;
+}
+/* wraps a header button that has a confirm, so the confirm hangs under that button */
+.runActionAnchor {
+  position: relative;
+  display: inline-flex;
+}
 
 /* desk boards */
 .deskRow {

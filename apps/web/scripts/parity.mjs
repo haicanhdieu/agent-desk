@@ -471,6 +471,11 @@ const stories = {
   DeskRulesSideMenu: ['Screens/Desk', 'DeskRulesSideMenu'],
   DeskRulesSideMenuSetupWarning: ['Screens/Desk', 'DeskRulesSideMenuSetupWarning'],
   DeskAgentSideMenu: ['Screens/Desk', 'DeskAgentSideMenu'],
+  RunIdle1024: ['Screens/Run detail', 'RunIdle1024'],
+  RunIdleSideCollapsed: ['Screens/Run detail', 'RunIdleSideCollapsed'],
+  RunIdleSideExpanded: ['Screens/Run detail', 'RunIdleSideExpanded'],
+  RunRunningSideMenu: ['Screens/Run detail', 'RunRunningSideMenu'],
+  RunRunningStopSideMenu: ['Screens/Run detail', 'RunRunningStopSideMenu'],
 };
 
 const types = {
