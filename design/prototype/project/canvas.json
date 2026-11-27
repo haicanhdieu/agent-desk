@@ -1159,7 +1159,7 @@
    "y": 36400,
    "w": 1440,
    "h": 900,
-   "title": "Projects \u2014 owner or admin: Projects tab active, Settings tab in the top bar, no Settings button in the head",
+   "title": "Projects \u2014 owner or admin: Projects active in the org menu, no Settings button in the head",
    "expand": "fill"
   },
   "ProjectsEmptyChecklistSettings.dc.html": {
@@ -1167,7 +1167,7 @@
    "y": 36400,
    "w": 1440,
    "h": 900,
-   "title": "Projects \u2014 empty, owner: checklist, Projects tab active, Settings tab in the top bar",
+   "title": "Projects \u2014 empty, owner: checklist, Projects active in the org menu",
    "expand": "fill"
   },
   "OrgInvitationsSettings.dc.html": {
@@ -1919,7 +1919,7 @@
    "y": 59440,
    "w": 1440,
    "h": 900,
-   "title": "Projects \u2014 platform admin, switcher open with Platform admin above Create organization",
+   "title": "Projects \u2014 platform admin, switcher open with Platform above Create organization",
    "expand": "fill"
   },
   "MyInvitationsEmptyPlatformAdminMenu.dc.html": {
