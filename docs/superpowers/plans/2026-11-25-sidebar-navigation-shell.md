@@ -575,10 +575,10 @@ Add an `it.each` over `tenantAccessFixtures` (owner, admin, projectAdmin, member
 - Consumes: approved boards `PlatformOrgsSideMenu`, `PlatformOrgProjectsSideMenu`, `PlatformOrgOverviewSideMenuSuspended`, `PlatformOrgOverviewSideMenuNotFound`, `PlatformOrgMembersSideMenuLoading`, `PlatformOrgMembersSideMenuError`, `PlatformAdminsForbiddenNoMenu`.
 - Produces: the about 74 `Platform*` canvas boards Tasks 16 and 19 match.
 
-- [ ] **Step 0: Multi-agent gate.** Run both checks in "Multi-agent gate". If either fails, stop: write no code and report which check failed.
-- [ ] **Step 1: Redraw:** platform menu or platform one-org menu (never both), org header with slug, status, "Edit organization", "More actions", tab name as h2. `PlatformOrgProjects*` columns become Name, then Id.
-- [ ] **Step 2: Regenerate**, run the Task 6 grep over `Platform*.dc.html` (nothing) and VITEST `src/test/coverage.test.ts`.
-- [ ] **Step 3: Commit** `docs(design): redraw platform boards in the new shell` (board-only note).
+- [x] **Step 0: Multi-agent gate.** Run both checks in "Multi-agent gate". If either fails, stop: write no code and report which check failed.
+- [x] **Step 1: Redraw:** platform menu or platform one-org menu (never both), org header with slug, status, "Edit organization", "More actions", tab name as h2. `PlatformOrgProjects*` columns become Name, then Id.
+- [x] **Step 2: Regenerate**, run the Task 6 grep over `Platform*.dc.html` (nothing) and VITEST `src/test/coverage.test.ts`.
+- [x] **Step 3: Commit** `docs(design): redraw platform boards in the new shell` (board-only note).
 
 ### Task 9: Redraw the Runs and run boards (after the multi-agent gate)
 
