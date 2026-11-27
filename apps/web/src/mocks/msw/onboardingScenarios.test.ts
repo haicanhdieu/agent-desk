@@ -53,7 +53,7 @@ afterEach(() => vi.useRealTimers());
 
 it('the key and every scenario name', () => {
   expect(ONBOARDING_SCENARIO_KEY).toBe('agentdesk.mock.onboarding');
-  expect(ONBOARDING_SCENARIOS).toHaveLength(25);
+  expect(ONBOARDING_SCENARIOS).toHaveLength(26);
   expect(parseOnboardingScenario('owner')).toBe('owner');
   expect(parseOnboardingScenario('setupReader')).toBe('setupReader');
   expect(parseOnboardingScenario('nope')).toBeUndefined();
@@ -166,6 +166,16 @@ describe('tenant-admin menu scenarios', () => {
     const mine = await api.me.listInvitations({ query: { page: 1, pageSize: 100 } });
     expect(mine.total).toBe(2);
     expect(mine.items.every((i) => i.status === 'pending')).toBe(true);
+  });
+});
+
+describe('member with no invitations', () => {
+  it('memberNoInvites is an org member with no invitation of their own', async () => {
+    scenarios.onboarding('memberNoInvites');
+    expect(await userOrgs()).toEqual(['Alice']);
+    expect(mockDb.state.invitations).toEqual([]);
+    const mine = await api.me.listInvitations({ query: { page: 1, pageSize: 100 } });
+    expect(mine.total).toBe(0);
   });
 });
 

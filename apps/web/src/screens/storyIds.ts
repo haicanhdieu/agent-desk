@@ -410,6 +410,11 @@ export type BoardName = keyof typeof boardStories;
 
 /** Screen states with no board of their own in canvas.json. Each one is a variant of `board`. */
 export const stateStories = {
+  MyInvitationsEmptyMemberText: {
+    title: invitations,
+    exportName: 'MyInvitationsEmptyMemberText',
+    board: 'MyInvitationsEmpty',
+  },
   Setup1RefreshRepos: { title: setup, exportName: 'Setup1RefreshRepos', board: 'Setup1' },
   Setup1Refreshing: { title: setup, exportName: 'Setup1Refreshing', board: 'Setup1' },
   Setup1ReconnectGithub: { title: setup, exportName: 'Setup1ReconnectGithub', board: 'Setup1' },

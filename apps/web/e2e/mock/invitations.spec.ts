@@ -327,3 +327,40 @@ test.describe('BR-52: Invited by shows the display name or the handle', () => {
     await expect(rowOf(page, 'b@x.dev').locator('td:nth-child(6)')).toHaveText('bob');
   });
 });
+
+test.describe('BR-57: /invitations for a person who belongs to an org', () => {
+  const NOT_MEMBER = "You're not a member of any organization";
+
+  test('TC-57.1: an org member with no pending invitation is not told they are no member', async ({ page }) => {
+    await open(page, 'memberNoInvites', '/invitations');
+    await expect(page.getByText('No pending invitations', { exact: true })).toBeVisible();
+    await expect(page.getByText('No invitations for mira.chen@harborlabs.dev.', { exact: true })).toBeVisible();
+    await expect(page.getByText(NOT_MEMBER)).toHaveCount(0);
+  });
+
+  test('TC-57.2: a person with no org keeps the current welcome text', async ({ page }) => {
+    await open(page, 'noOrgUninvited', '/invitations');
+    await expect(page.getByText(NOT_MEMBER, { exact: true })).toBeVisible();
+    await expect(
+      page.getByText('No invitations for uninvited@x.dev. Ask an owner or admin to invite you.', { exact: true }),
+    ).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Sign out' })).toBeVisible();
+  });
+
+  // Agent call: the scenario `singleOrgTwoPending` holds two pending invitations; the case only needs the list to
+  // show and the empty text not to. It does not use open(): that helper's clock is the instant these rows expire, so
+  // the clock is set to a day before they do.
+  test('TC-57.3: an org member with a pending invitation sees it listed, not "No pending invitations"', async ({
+    page,
+  }) => {
+    await seedOnboarding(page, 'singleOrgTwoPending');
+    await page.clock.setFixedTime(new Date('2026-11-21T12:00:00.000Z'));
+    await page.goto('/invitations');
+    await expect(page.getByRole('heading', { level: 1, name: 'Invitations' })).toBeVisible();
+    const cards = page.getByRole('heading', { level: 2, name: 'Acme Robotics invited you as Member' });
+    await expect(cards).toHaveCount(2);
+    await expect(cards.first()).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Accept' })).toHaveCount(2);
+    await expect(page.getByText('No pending invitations')).toHaveCount(0);
+  });
+});

@@ -118,16 +118,33 @@ export const MyInvitationsEmpty: Story = {
   name: 'Welcome, no org, no invitations',
   render: () =>
     screen(
-      { kind: 'empty', email: 'dana.ortiz@example.com', platformAdmin: false, createHref: '/platform/orgs/new' },
+      {
+        kind: 'empty',
+        member: false,
+        email: 'dana.ortiz@example.com',
+        platformAdmin: false,
+        createHref: '/platform/orgs/new',
+      },
       dana,
       noOrg,
     ),
+};
+export const MyInvitationsEmptyMemberText: Story = {
+  name: 'Welcome, org member, no invitations',
+  render: () =>
+    screen({
+      kind: 'empty',
+      member: true,
+      email: 'dana.ortiz@example.com',
+      platformAdmin: false,
+      createHref: '/platform/orgs/new',
+    }),
 };
 export const MyInvitationsEmptyPlatformAdmin: Story = {
   name: 'Welcome, platform admin, no org',
   render: () =>
     screen(
-      { kind: 'empty', email: 'ops@example.com', platformAdmin: true, createHref: '/platform/orgs/new' },
+      { kind: 'empty', member: false, email: 'ops@example.com', platformAdmin: true, createHref: '/platform/orgs/new' },
       opsAdmin,
       adminOrg,
     ),
@@ -136,7 +153,7 @@ export const MyInvitationsEmptyPlatformAdminMenu: Story = {
   name: 'Welcome, platform admin, no org, menu open with Platform admin',
   render: () =>
     screen(
-      { kind: 'empty', email: 'ops@example.com', platformAdmin: true, createHref: '/platform/orgs/new' },
+      { kind: 'empty', member: false, email: 'ops@example.com', platformAdmin: true, createHref: '/platform/orgs/new' },
       opsAdmin,
       {
         ...adminOrg,

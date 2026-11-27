@@ -25,6 +25,7 @@ export const ONBOARDING_SCENARIOS = [
   'platformAdminNoRole',
   'singleOrgTwoPending',
   'singleOrg',
+  'memberNoInvites',
   'twoOrgs',
   'twoOrgsSlowSwitch',
   'twoOrgsNoRoleInSecond',
@@ -290,6 +291,15 @@ const seeders: Record<OnboardingScenario, () => void> = {
   singleOrgTwoPending() {
     seeders.singleOrg();
     state().invitations = inviteeInvitations(me().email.toLowerCase(), (f) => [f.pending, f.pendingProjects]);
+  },
+  // An org member (owner of the one org) with no invitation of their own: /invitations shows the member empty state.
+  memberNoInvites() {
+    signInAs(
+      { name: 'Mira Chen', email: 'mira.chen@harborlabs.dev', handle: 'mira.chen' },
+      [{ orgId: ids.org.alice, roleKey: 'owner' }],
+      ids.org.alice,
+    );
+    state().invitations = [];
   },
   singleOrg() {
     signInAs({}, [{ orgId: ids.org.alice, roleKey: 'owner' }], ids.org.alice);

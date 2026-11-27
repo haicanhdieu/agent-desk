@@ -129,6 +129,33 @@ describe('welcome page without invitations', () => {
   });
 });
 
+describe('welcome page for a member without invitations', () => {
+  it('BR-57: a member with no pending invitation is not told they are no member', async () => {
+    await renderRoute('/invitations', { scenario: () => scenarios.onboarding('memberNoInvites') });
+    expect(await screen.findByRole('heading', { level: 1, name: 'No pending invitations' })).toBeInTheDocument();
+    const email = mockDb.state.users[0]?.email ?? '';
+    expect(screen.getByText(`No invitations for ${email}.`)).toBeInTheDocument();
+    expect(screen.queryByText("You're not a member of any organization")).toBeNull();
+    const main = within(screen.getByRole('main'));
+    expect(main.queryByRole('button', { name: 'Sign out' })).toBeNull();
+    expect(main.queryByRole('button', { name: 'Create organization' })).toBeNull();
+    expect(main.queryByRole('link', { name: 'Create organization' })).toBeNull();
+  });
+
+  it('BR-57: a platform admin who is a member sees the same member text, with no Create organization', async () => {
+    await renderRoute('/invitations', {
+      scenario: () => {
+        scenarios.onboarding('memberNoInvites');
+        const me = mockDb.state.users[0];
+        if (me) me.platformAdmin = true;
+      },
+    });
+    expect(await screen.findByRole('heading', { level: 1, name: 'No pending invitations' })).toBeInTheDocument();
+    expect(screen.queryByText('Create an organization and invite its first owner.')).toBeNull();
+    expect(within(screen.getByRole('main')).queryByRole('link', { name: 'Create organization' })).toBeNull();
+  });
+});
+
 describe('accept and decline', () => {
   it('Accept joins the org, refreshes the org list and lands on its projects page', async () => {
     const { router, queryClient, user } = await renderRoute('/invitations', {

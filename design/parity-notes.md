@@ -647,3 +647,11 @@ item reads "Change access".
 - Agent call: the route keeps working until Task 31: it passes the capability table, offers only the project's own agent's provider as a card (other kinds show as chips), and keeps saving into the existing agent.
 - The interactive prototype under `design/prototype/interactive` is not regenerated here; a later change runs `_tools/build-boards.mjs` and `_checks/nav-check.mjs`.
 - Not compared by browser: the new boards were not rendered side by side in this change (Storybook is not built in the runner pod). Smoke and axe run on the new stories.
+
+## Sidebar navigation shell: member with no invitations (BR-57)
+
+Spec: `docs/superpowers/specs/2026-11-25-sidebar-navigation-shell-design.md` (BR-57). The member variant of the empty welcome
+page is the story MyInvitationsEmptyMemberText (`Screens/Invitations`), a state of the MyInvitationsEmpty board: the h1
+"No pending invitations" and "No invitations for <email>.", in the same frame, with no Sign out or Create organization.
+
+- Pixel check not run: no Chromium in the runner pod, so `parity.mjs` was not run for MyInvitationsEmpty or the member variant.

@@ -26,7 +26,13 @@ const props = (state: MyInvitationsState) => ({
 
 describe('MyInvitations', () => {
   it('BR-37: a non-admin with no invitation sees the welcome copy and Sign out, no Create organization', async () => {
-    const p = props({ kind: 'empty', email: 'dana.ortiz@example.com', platformAdmin: false, createHref: '/orgs/new' });
+    const p = props({
+      kind: 'empty',
+      member: false,
+      email: 'dana.ortiz@example.com',
+      platformAdmin: false,
+      createHref: '/orgs/new',
+    });
     render(<MyInvitations {...p} />);
     expect(
       screen.getByRole('heading', { level: 1, name: "You're not a member of any organization" }),
@@ -42,7 +48,13 @@ describe('MyInvitations', () => {
   it('BR-34: a platform admin sees Create organization linking to createHref, and Sign out', () => {
     render(
       <MyInvitations
-        {...props({ kind: 'empty', email: 'ops@example.com', platformAdmin: true, createHref: '/orgs/new' })}
+        {...props({
+          kind: 'empty',
+          member: false,
+          email: 'ops@example.com',
+          platformAdmin: true,
+          createHref: '/orgs/new',
+        })}
       />,
     );
     expect(screen.getByText('Create an organization and invite its first owner.')).toBeInTheDocument();

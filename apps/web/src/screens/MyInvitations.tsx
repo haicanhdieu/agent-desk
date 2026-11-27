@@ -7,7 +7,7 @@ export type MyInvitationsState =
   | { kind: 'loading' }
   | { kind: 'error'; requestId?: string; onRetry: () => void }
   | { kind: 'list'; cards: InvitationCardView[]; pending: { id: string; action: 'accept' | 'decline' } | null }
-  | { kind: 'empty'; email: string; platformAdmin: boolean; createHref: string };
+  | { kind: 'empty'; member: boolean; email: string; platformAdmin: boolean; createHref: string };
 
 export interface MyInvitationsProps {
   user: Actor;
@@ -78,6 +78,14 @@ function body(
         </div>
       );
     case 'empty':
+      if (state.member) {
+        return (
+          <div className={styles.emptyNoticeCol}>
+            <h1>No pending invitations</h1>
+            <p className="muted">No invitations for {state.email}.</p>
+          </div>
+        );
+      }
       return (
         <div className={styles.emptyNoticeCol}>
           <h1>You&apos;re not a member of any organization</h1>

@@ -26,6 +26,7 @@ const noop = () => undefined;
 
 function WelcomePage() {
   const { data: session } = useSuspenseQuery(sessionQuery);
+  const { data: orgs } = useSuspenseQuery(orgsQuery);
   const bar = useAppBar(null);
   const invitations = useQuery(myInvitationsQuery);
   const access = useQuery(sessionAccessQuery);
@@ -66,7 +67,7 @@ function WelcomePage() {
   } else if (access.data === undefined) {
     state = { kind: 'loading' };
   } else {
-    state = { kind: 'empty', email, platformAdmin, createHref: '/platform/orgs/new' };
+    state = { kind: 'empty', member: orgs.length > 0, email, platformAdmin, createHref: '/platform/orgs/new' };
   }
 
   const declineBusy = decline.isPending;

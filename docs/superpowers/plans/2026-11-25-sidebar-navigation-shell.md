@@ -415,12 +415,12 @@ graph LR
 - Consumes: `orgsQuery` (`features/auth/session.ts`).
 - Produces: `MyInvitationsState` empty variant becomes `{ kind: 'empty'; member: boolean; email: string; platformAdmin: boolean; createHref: string }`; `member` is `orgs.length > 0`. Onboarding scenario `memberNoInvites` (an org member, `invitations = []`). Story `MyInvitationsEmptyMemberText`.
 
-- [ ] **Step 1: Write the failing route test.** In `welcome.route.test.tsx`, "BR-57: a member with no pending invitation is not told they are no member": org member with `mockDb.state.invitations = []`; expect heading level 1 "No pending invitations", text `No invitations for <session email>.`, no text "You're not a member of any organization", no button "Sign out" or "Create organization" in `main`. Keep the no-org case as it is (BR-37 text).
-- [ ] **Step 2: Run** VITEST `src/features/invitations/welcome.route.test.tsx`. Expected: FAIL on the "not a member" text.
-- [ ] **Step 3: Implement.** When `member`, the screen renders only the h1 "No pending invitations" and the paragraph, in today's frame (top bar unchanged), for platform admins too. The no-org branch is unchanged. Add the story and list it in `stateStories` with `board: 'MyInvitationsEmpty'`; do not change the coverage check. Add the scenario and its scenario test.
-- [ ] **Step 4: Add the mock e2e** "TC-57.1" (asserts only the two sentences and the absent claim: no top bar, menu or heading level), "TC-57.2" (no-org welcome text, only those sentences) and "TC-57.3" (one pending invitation shows its card, no "No pending invitations").
-- [ ] **Step 5: Run** VITEST on both test files, then MOCK `e2e/mock/invitations.spec.ts`. Expected: PASS. Run PARITY for `MyInvitationsEmpty` and record the member variant in `design/parity-notes.md`.
-- [ ] **Step 6: Commit** `fix(web): do not tell a member with no invitations they have no organization` (the listed files).
+- [x] **Step 1: Write the failing route test.** In `welcome.route.test.tsx`, "BR-57: a member with no pending invitation is not told they are no member": org member with `mockDb.state.invitations = []`; expect heading level 1 "No pending invitations", text `No invitations for <session email>.`, no text "You're not a member of any organization", no button "Sign out" or "Create organization" in `main`. Keep the no-org case as it is (BR-37 text).
+- [x] **Step 2: Run** VITEST `src/features/invitations/welcome.route.test.tsx`. Expected: FAIL on the "not a member" text.
+- [x] **Step 3: Implement.** When `member`, the screen renders only the h1 "No pending invitations" and the paragraph, in today's frame (top bar unchanged), for platform admins too. The no-org branch is unchanged. Add the story and list it in `stateStories` with `board: 'MyInvitationsEmpty'`; do not change the coverage check. Add the scenario and its scenario test.
+- [x] **Step 4: Add the mock e2e** "TC-57.1" (asserts only the two sentences and the absent claim: no top bar, menu or heading level), "TC-57.2" (no-org welcome text, only those sentences) and "TC-57.3" (one pending invitation shows its card, no "No pending invitations").
+- [x] **Step 5: Run** VITEST on both test files, then MOCK `e2e/mock/invitations.spec.ts`. Expected: PASS. Run PARITY for `MyInvitationsEmpty` and record the member variant in `design/parity-notes.md`.
+- [x] **Step 6: Commit** `fix(web): do not tell a member with no invitations they have no organization` (the listed files).
 
 ### Task 2: Step 0, filter every Desk menu link by permission
 
