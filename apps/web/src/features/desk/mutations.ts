@@ -5,7 +5,7 @@ import { useRef } from 'react';
 import { useToast } from '@/ds';
 import { api } from '../api';
 import { checklistKey } from '../onboarding/checklist';
-import { projectsListKey, projectsQueries } from '../projects/queries';
+import { markProjectDeleted, projectsListKey, projectsQueries, unmarkProjectDeleted } from '../projects/queries';
 import { waitForPoll } from './checkNow';
 import { deskQueries, rulesKey, skillsKey } from './queries';
 
@@ -207,6 +207,8 @@ export function useDeleteProject(org: string) {
   return useMutation({
     mutationFn: (projectId: string) => api.projects.remove({ params: { projectId } }),
     onSuccess: async (_, projectId) => {
+      // From here its detail read answering 404 is the delete itself, not a page that lost access.
+      markProjectDeleted(projectId);
       await qc.cancelQueries({ queryKey: projectsQueries.detail(org, projectId).queryKey });
       await qc.invalidateQueries({ queryKey: projectsListKey(org), refetchType: 'all' });
     },
@@ -216,4 +218,5 @@ export function useDeleteProject(org: string) {
 /** Drops every cached query of a deleted project (detail, connection, desk). */
 export function forgetProject(qc: QueryClient, org: string, projectId: string): void {
   qc.removeQueries({ queryKey: projectsQueries.detail(org, projectId).queryKey });
+  unmarkProjectDeleted(projectId);
 }

@@ -1,8 +1,8 @@
 import { createContext, useContext, useEffect } from 'react';
 import type { PageState } from './pageTitle';
 
-/** A page state the shell host may need to know about: the fixed ones, plus an in-page error or load. */
-export type ShellPageState = PageState | 'error' | 'loading';
+/** A page state the shell host may need to know about: the fixed ones, plus an in-page error or load and a suspended org. */
+export type ShellPageState = PageState | 'error' | 'loading' | 'suspended';
 
 export interface ShellContextValue {
   /** True when a shell around the page draws the top bar, the side menu and the layout. */
@@ -11,6 +11,8 @@ export interface ShellContextValue {
   wizardSlot: HTMLElement | null;
   /** Tells the shell what the page shows; returns the undo, which the page calls when it stops showing it. */
   reportPageState(state: ShellPageState): () => void;
+  /** Where "Go to projects" leads from this page: the shown menu's org, else the landing page. Absent without a shell. */
+  goToProjectsHref?: string;
 }
 
 export const ShellContext = createContext<ShellContextValue | null>(null);
@@ -18,6 +20,11 @@ export const ShellContext = createContext<ShellContextValue | null>(null);
 /** Whether a shell owns the chrome. A screen draws its own bar and layout only when this is false. */
 export function useShellOwnsChrome(): boolean {
   return useContext(ShellContext)?.owned ?? false;
+}
+
+/** The "Go to projects" address the shell computed for the page, if a shell owns it. */
+export function useGoToProjectsHref(): string | undefined {
+  return useContext(ShellContext)?.goToProjectsHref;
 }
 
 /** Reports the page state to the shell while mounted. `undefined` reports nothing; without a shell it does nothing. */

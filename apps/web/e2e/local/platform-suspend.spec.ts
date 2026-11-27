@@ -23,12 +23,15 @@ import {
   asPlatformAdmin,
   createOrg,
   freshUser,
+  grantPlatformAdmin,
   inviteAndSignIn,
   inviteViaApi,
   ok,
   platformAdminContext,
   platformOrgIdBySlug,
   reactivateOrg,
+  REPO,
+  revokePlatformAdmin,
   signInAndCreateProject,
   suspendOrg,
 } from './helpers';
@@ -49,6 +52,7 @@ let pa: APIRequestContext;
 const toClose: BrowserContext[] = [];
 const toDispose: APIRequestContext[] = [];
 const toReactivate: string[] = [];
+const toRevoke: string[] = [];
 
 test.beforeAll(async ({ request: probe }) => {
   const ready = await probe.get(`${API}/readyz`).catch(() => null);
@@ -58,6 +62,7 @@ test.beforeAll(async ({ request: probe }) => {
 
 test.afterEach(async () => {
   for (const id of toReactivate.splice(0)) await reactivateOrg(pa, id, 'e2e cleanup').catch(() => null);
+  for (const id of toRevoke.splice(0)) await revokePlatformAdmin(pa, id).catch(() => null);
   for (const api of toDispose.splice(0)) await api.dispose().catch(() => null);
   for (const ctx of toClose.splice(0)) await ctx.close().catch(() => null);
 });
@@ -320,7 +325,7 @@ test.describe('BR-43: the org audit log of a suspension', () => {
 });
 
 test.describe('BR-51: a platform admin who is an owner of a suspended org', () => {
-  test('TC-51.2: after the org is suspended /platform/orgs opens, the org menu keeps "Platform admin", and /o/<slug>/projects shows "This organization is suspended"', async ({
+  test('TC-51.2: after the org is suspended /platform/orgs opens, the org menu keeps "Platform", and /o/<slug>/projects shows "This organization is suspended"', async ({
     browser,
   }) => {
     const handle = `e2e-${tagOf()}`;
@@ -352,8 +357,118 @@ test.describe('BR-51: a platform admin who is an owner of a suspended org', () =
     await mine.getByRole('button', { name: /^Switch scope/ }).click();
     const menu = mine.getByRole('dialog', { name: 'Scope' });
     await expect(menu).toBeVisible();
-    await menu.getByRole('link', { name: 'Platform admin' }).click();
+    await menu.getByRole('link', { name: 'Platform', exact: true }).click();
     await expect(mine).toHaveURL(/\/platform(\/|$)/);
     await expect(mine.getByRole('heading', { name: 'Organizations', level: 1 })).toBeVisible();
+  });
+});
+
+const anyMenu = (page: Page): Locator => page.getByRole('navigation', { name: /menu$/ });
+const switchButton = (page: Page): Locator => page.getByRole('button', { name: /^Switch scope/ });
+const accountButton = (page: Page): Locator => page.getByRole('button', { name: /^Account menu for/ });
+
+/** A fresh org whose only member is a new owner, signed in on `page`; the org is then suspended. */
+async function suspendedSoleOrg(page: Page): Promise<{ slug: string; name: string }> {
+  const tag = tagOf();
+  const slug = `e2e-s-${tag}`;
+  const name = `E2E S ${tag}`;
+  const org = await createOrg(pa, name, slug);
+  await inviteAndSignIn(page, pa, org.id, `e2e-so-${tag}`, 'owner', { type: 'org' });
+  await suspend(org.id, 'Billing hold');
+  return { slug, name };
+}
+
+test.describe('BR-58: a suspended org with another way out', () => {
+  test('TC-58.2: a platform admin whose only org is suspended sees the message with no menu and leaves by "Platform"', async ({
+    page,
+  }) => {
+    // Given: a new owner of a fresh org, their only membership, who is also a platform admin (revoked in afterEach).
+    const tag = tagOf();
+    const slug = `e2e-p-${tag}`;
+    const org = await createOrg(pa, `E2E P ${tag}`, slug);
+    const handle = `e2e-pa-${tag}`;
+    await inviteAndSignIn(page, pa, org.id, handle, 'owner', { type: 'org' });
+    const { entry } = await grantPlatformAdmin(pa, `${handle}@dev.local`);
+    toRevoke.push(entry.id);
+    await suspend(org.id, 'Billing hold');
+
+    await page.goto(`/o/${slug}/projects`);
+    await expect(suspendedTitle(page)).toBeVisible();
+    await expect(anyMenu(page)).toHaveCount(0);
+    await switchButton(page).click();
+    await page.getByRole('dialog', { name: 'Scope' }).getByRole('link', { name: 'Platform', exact: true }).click();
+
+    await expect(page).toHaveURL(/\/platform(\/|$)/);
+    await expect(page.getByRole('heading', { name: 'Organizations', level: 1 })).toBeVisible();
+  });
+
+  test('TC-58.3: a project address under the suspended org shows the message, no menu and no project data; the other org opens', async ({
+    page,
+  }) => {
+    const w = await newWorld(page);
+    const bSlug = `e2e-b-${tagOf()}`;
+    const b = await createOrg(pa, `E2E B ${bSlug}`, bSlug);
+    const second = await inviteViaApi(pa, b.id, `${w.handle}@dev.local`, 'owner', { type: 'org' });
+    await acceptViaApi(page, second.id);
+    await suspend(w.orgId, w.reason);
+
+    await page.goto(`/o/${w.handle}/p/${w.projectId}/runs`);
+    await expect(suspendedTitle(page)).toBeVisible();
+    await expect(anyMenu(page)).toHaveCount(0);
+    // No project data and no reason: the project's repository and id are nowhere in the page.
+    await expect(page.locator('body')).not.toContainText(REPO);
+    await expect(page.locator('body')).not.toContainText(w.projectId);
+    await expect(page.locator('body')).not.toContainText(w.reason);
+
+    await switchButton(page).click();
+    await page
+      .getByRole('dialog', { name: 'Scope' })
+      .getByRole('group', { name: 'Switch organization' })
+      .getByRole('link', { name: new RegExp(`E2E B ${bSlug}`) })
+      .click();
+    await expect(page).toHaveURL(new RegExp(`/o/${bSlug}/projects$`));
+    await expect(suspendedTitle(page)).toHaveCount(0);
+  });
+});
+
+test.describe('BR-79: the only org is suspended and there is no platform role', () => {
+  test('TC-79.1: opening the app shows the message with no menu and the org name as plain text', async ({ page }) => {
+    const { name } = await suspendedSoleOrg(page);
+
+    await page.goto('/');
+
+    await expect(suspendedTitle(page)).toBeVisible();
+    await expect(anyMenu(page)).toHaveCount(0);
+    await expect(switchButton(page)).toHaveCount(0);
+    await expect(page.getByRole('banner').getByText(name, { exact: true })).toBeVisible();
+  });
+
+  test('TC-79.2: "My invitations" in the account menu opens /invitations, which stays with no menu and the same plain name', async ({
+    page,
+  }) => {
+    const { slug, name } = await suspendedSoleOrg(page);
+    await page.goto(`/o/${slug}/projects`);
+    await expect(suspendedTitle(page)).toBeVisible();
+
+    await accountButton(page).click();
+    await page.getByRole('menuitem', { name: 'My invitations' }).click();
+
+    await expect(page).toHaveURL(/\/invitations$/);
+    await expect(anyMenu(page)).toHaveCount(0);
+    await expect(switchButton(page)).toHaveCount(0);
+    await expect(page.getByRole('banner').getByText(name, { exact: true })).toBeVisible();
+    await expect(page).toHaveURL(/\/invitations$/);
+  });
+
+  test('TC-79.3: "Logout" in the account menu ends the session and shows the sign-in page', async ({ page }) => {
+    const { slug } = await suspendedSoleOrg(page);
+    await page.goto(`/o/${slug}/projects`);
+    await expect(suspendedTitle(page)).toBeVisible();
+
+    await accountButton(page).click();
+    await page.getByRole('menuitem', { name: 'Logout' }).click();
+
+    await expect(page).toHaveURL(/\/sign-in/);
+    await expect(page.getByRole('link', { name: 'Sign in with GitHub' })).toBeVisible();
   });
 });

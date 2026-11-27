@@ -1,6 +1,6 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
 import type { PlatformScenario } from '../../src/mocks/msw/platformScenarios';
-import { ORG, SESSION_MOCK_NOW, chooseAction, seedPlatform } from './mock';
+import { INVOICER_API, ORG, SESSION_MOCK_NOW, chooseAction, seedPlatform, seedShell } from './mock';
 
 /*
  * Suspend, reactivate and the suspended org page (spec 2026-11-23-platform-admin-dashboard-design.md "E2E requirements":
@@ -284,7 +284,7 @@ test.describe('BR-49: the suspended message is fixed', () => {
 });
 
 test.describe('BR-51: a platform admin whose active org is suspended', () => {
-  test('TC-51.1: the menu shows "Platform admin", /platform/orgs opens, and the org pages show the message', async ({
+  test('TC-51.1: the switcher shows "Platform", /platform/orgs opens, and the org pages show the message', async ({
     page,
   }) => {
     await open(page, 'suspendedPlatformAdmin', `/o/${ORG}/projects`);
@@ -294,7 +294,7 @@ test.describe('BR-51: a platform admin whose active org is suspended', () => {
 
     await orgMenuButton(page).click();
     await expect(menu(page)).toBeVisible();
-    const entry = menu(page).getByRole('link', { name: 'Platform admin', exact: true });
+    const entry = menu(page).getByRole('link', { name: 'Platform', exact: true });
     await expect(entry).toBeVisible();
     await entry.click();
 
@@ -302,5 +302,109 @@ test.describe('BR-51: a platform admin whose active org is suspended', () => {
     await expect(page.getByRole('heading', { name: 'Organizations', level: 1 })).toBeVisible();
     await expect(page.locator('tbody tr').first()).toBeVisible();
     await expect(suspendedTitle(page)).toHaveCount(0);
+  });
+});
+
+const anyMenu = (page: Page): Locator => page.getByRole('navigation', { name: /menu$/ });
+const accountMenuButton = (page: Page): Locator =>
+  page.getByRole('banner').getByRole('button', { name: /^Account menu for/ });
+
+test.describe('BR-58: a suspended org with another way out', () => {
+  test('TC-58.1: the suspended message shows with no side menu and the switcher; picking org A opens its Projects', async ({
+    page,
+  }) => {
+    await open(page, 'suspendedMember', `/o/${ORG}/projects`);
+
+    await expect(suspendedTitle(page)).toBeVisible();
+    await expect(page.getByRole('main').getByRole('heading', { name: 'This organization is suspended' })).toBeVisible();
+    await expect(anyMenu(page)).toHaveCount(0);
+    await expect(orgMenuButton(page)).toBeVisible();
+
+    await orgMenuButton(page).click();
+    await switchGroup(page).getByRole('link', { name: 'Acme', exact: true }).click();
+
+    await expect(page).toHaveURL(/\/o\/acme\/projects$/);
+    await expect(page.getByRole('heading', { name: 'Projects', level: 1 })).toBeVisible();
+    await expect(suspendedTitle(page)).toHaveCount(0);
+  });
+
+  test('TC-58.2: a platform admin whose only org is suspended sees the message, no menu and the switcher, and leaves by Platform', async ({
+    page,
+  }) => {
+    await open(page, 'suspendedPlatformAdmin', `/o/${ORG}/projects`);
+
+    await expect(suspendedTitle(page)).toBeVisible();
+    await expect(anyMenu(page)).toHaveCount(0);
+    await expect(orgMenuButton(page)).toBeVisible();
+
+    await orgMenuButton(page).click();
+    await menu(page).getByRole('link', { name: 'Platform', exact: true }).click();
+
+    await expect(page).toHaveURL(/\/platform\/orgs$/);
+    await expect(page.getByRole('heading', { name: 'Organizations', level: 1 })).toBeVisible();
+    await expect(suspendedTitle(page)).toHaveCount(0);
+  });
+
+  test('TC-58.3: a project address under the suspended org shows the message, no menu and no project data; the other org opens', async ({
+    page,
+  }) => {
+    await open(page, 'suspendedMember', `/o/${ORG}/p/${INVOICER_API}/runs`);
+
+    await expect(suspendedTitle(page)).toBeVisible();
+    await expect(anyMenu(page)).toHaveCount(0);
+    for (const name of ['invoicer-api', 'invoicer-web', 'docs-site', 'billing-jobs']) {
+      await expect(page.getByText(name)).toHaveCount(0);
+    }
+
+    await orgMenuButton(page).click();
+    await switchGroup(page).getByRole('link', { name: 'Acme', exact: true }).click();
+
+    await expect(page).toHaveURL(/\/o\/acme\/projects$/);
+    await expect(suspendedTitle(page)).toHaveCount(0);
+  });
+});
+
+test.describe('BR-79: the only org is suspended and there is no platform role', () => {
+  async function openOnlyOrg(page: Page, path: string): Promise<void> {
+    await page.clock.install({ time: new Date(SESSION_MOCK_NOW) });
+    await seedShell(page, 'suspendedOnly');
+    await page.goto(path);
+  }
+
+  test('TC-79.1: opening the app shows the message with no menu and the org name as plain text', async ({ page }) => {
+    await openOnlyOrg(page, '/');
+
+    await expect(suspendedTitle(page)).toBeVisible();
+    await expect(anyMenu(page)).toHaveCount(0);
+    await expect(orgMenuButton(page)).toHaveCount(0);
+    await expect(page.getByRole('banner').getByText('Alice', { exact: true })).toBeVisible();
+  });
+
+  test('TC-79.2: "My invitations" in the account menu opens /invitations, which stays with no menu and the same plain name', async ({
+    page,
+  }) => {
+    await openOnlyOrg(page, `/o/${ORG}/projects`);
+    await expect(suspendedTitle(page)).toBeVisible();
+
+    await accountMenuButton(page).click();
+    await page.getByRole('menuitem', { name: 'My invitations' }).click();
+
+    await expect(page).toHaveURL(/\/invitations$/);
+    await expect(page.getByRole('heading', { name: /invitations/i, level: 1 })).toBeVisible();
+    await expect(anyMenu(page)).toHaveCount(0);
+    await expect(orgMenuButton(page)).toHaveCount(0);
+    await expect(page.getByRole('banner').getByText('Alice', { exact: true })).toBeVisible();
+    await expect(page).toHaveURL(/\/invitations$/);
+  });
+
+  test('TC-79.3: "Logout" in the account menu ends the session and shows the sign-in page', async ({ page }) => {
+    await openOnlyOrg(page, `/o/${ORG}/projects`);
+    await expect(suspendedTitle(page)).toBeVisible();
+
+    await accountMenuButton(page).click();
+    await page.getByRole('menuitem', { name: 'Logout' }).click();
+
+    await expect(page).toHaveURL(/\/sign-in/);
+    await expect(page.getByRole('link', { name: 'Sign in with GitHub' })).toBeVisible();
   });
 });

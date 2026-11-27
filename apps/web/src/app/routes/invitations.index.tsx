@@ -4,7 +4,7 @@ import { createFileRoute } from '@tanstack/react-router';
 import { useState } from 'react';
 import { toastFromError } from '@/app/boundaries';
 import { Button, Dialog, useToast } from '@/ds';
-import { sessionAccessQuery } from '@/features/access/queries';
+import { platformAdminQuery } from '@/features/access/queries';
 import { orgsQuery, sessionQuery } from '@/features/auth/session';
 import { signOutAndRedirect } from '@/features/auth/signOut';
 import { toInvitationCard } from '@/features/invitations/map';
@@ -29,7 +29,8 @@ function WelcomePage() {
   const { data: orgs } = useSuspenseQuery(orgsQuery);
   const bar = useAppBar(null);
   const invitations = useQuery(myInvitationsQuery);
-  const access = useQuery(sessionAccessQuery);
+  // Session-wide (never pinned to the active org), so a suspended active org does not refuse it.
+  const access = useQuery(platformAdminQuery);
   const accept = useAcceptInvitation();
   const decline = useDeclineInvitation();
   const toast = useToast();

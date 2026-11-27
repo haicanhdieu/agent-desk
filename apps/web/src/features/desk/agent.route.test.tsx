@@ -408,6 +408,40 @@ describe('desk agent route', () => {
   });
 });
 
+describe('desk agent route: a delete that races a refetch', () => {
+  it('never shows Not found when the project read answers 404 while the delete is landing', async () => {
+    const { user, router, queryClient } = await openPage('Danger zone');
+    let sawNotFound = false;
+    const watch = new MutationObserver(() => {
+      if (screen.queryByRole('heading', { name: 'Page not found' })) sawNotFound = true;
+    });
+    watch.observe(document.body, { childList: true, subtree: true });
+    // The project is gone once the DELETE is answered. The delete then refreshes the list, and a refetch of the
+    // project's detail starting in that gap (after the delete cancelled its own reads, before the page has left) answers 404.
+    let deleted = false;
+    const onResponse = ({ request }: { request: Request }) => {
+      if (request.method === 'DELETE') deleted = true;
+      else if (deleted && new URL(request.url).pathname === '/api/projects') {
+        deleted = false;
+        void queryClient.refetchQueries({ queryKey: ['org', 'alice', 'projects', projectId], exact: true });
+      }
+    };
+    server.events.on('response:mocked', onResponse);
+    stopCapture = () => {
+      server.events.removeListener('response:mocked', onResponse);
+      watch.disconnect();
+    };
+
+    await user.click(screen.getByRole('button', { name: 'Delete project' }));
+    await user.click(
+      within(screen.getByRole('dialog', { name: 'Delete project' })).getByRole('button', { name: 'Delete project' }),
+    );
+    await waitFor(() => expect(router.state.location.pathname).toBe('/o/alice/projects'));
+    await screen.findByRole('heading', { level: 1, name: 'Projects' });
+    expect(sawNotFound).toBe(false);
+  });
+});
+
 describe('desk agent route: Check now', () => {
   const pollPath = `${projectPath}/connection/poll`;
   const checkNow = () => screen.getByRole('button', { name: /^Check(ing)?( now|…)?$/ });

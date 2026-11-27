@@ -84,6 +84,28 @@ describe('OrgSwitch', () => {
     expect(within(menu).queryByRole('link', { name: 'Org settings' })).toBeNull();
   });
 
+  it('BR-79: one suspended current org with legacy hrefs and no platform role is plain text, not a button', () => {
+    render(
+      <OrgSwitch
+        current={{ id: 'o1', slug: 'acme', name: 'Acme', suspended: true }}
+        orgs={[{ id: 'o1', slug: 'acme', name: 'Acme', suspended: true }]}
+        platformAdmin={false}
+        orgHref={orgHref}
+        createHref={createHref}
+        projectsHref={projectsHref}
+        settingsHref={settingsHref}
+      />,
+    );
+    expect(screen.queryByRole('button', { name: /^Switch scope/ })).toBeNull();
+    expect(screen.getByText('Acme')).toBeInTheDocument();
+  });
+
+  it('BR-12: several orgs and none current (not-found page) read "Organization", never "No organization"', () => {
+    render(<OrgSwitch {...orgSwitchFixtures.severalOrgs} current={null} orgHref={orgHref} createHref={createHref} />);
+    expect(button()).toHaveTextContent('Organization');
+    expect(button()).not.toHaveTextContent('No organization');
+  });
+
   it('BR-44: one org with no current org still shows the button for the lone org', () => {
     render(
       <OrgSwitch

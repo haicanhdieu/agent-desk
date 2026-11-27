@@ -23,7 +23,13 @@ export interface OrgSwitchProps extends OrgSwitchData {
 export function OrgSwitch(props: OrgSwitchProps) {
   const { orgs, current, list, platformAdmin, platformHref, projectsHref, settingsHref, manageHref } = props;
   const legacy = projectsHref !== undefined || settingsHref !== undefined || manageHref !== undefined;
-  const plainWanted = list === undefined && orgs.length <= 1 && !platformAdmin && platformHref === undefined && !legacy;
+  // Legacy hrefs (the logo's, the org's pages) only keep the button while they lead somewhere: a suspended org's pages are refused.
+  const plainWanted =
+    list === undefined &&
+    orgs.length <= 1 &&
+    !platformAdmin &&
+    platformHref === undefined &&
+    (!legacy || current?.suspended === true);
   const [open, setOpen] = useState(false);
   // The switcher stays a button while it is open or holds focus, so it never vanishes under the person.
   const [focused, setFocused] = useState(false);
@@ -82,7 +88,12 @@ function OrgSwitchMenu({
       : shown
         ? `Switch scope, currently organization ${shown.name}`
         : 'Switch scope, currently no organization';
-  const buttonText = inPlatform ? 'Platform' : listed ? 'Organization' : (shown?.name ?? 'No organization');
+  // With organizations but none shown (a not-found page), the place reads "Organization"; "No organization" is for none at all.
+  const buttonText = inPlatform
+    ? 'Platform'
+    : listed
+      ? 'Organization'
+      : (shown?.name ?? (orgs.length > 0 ? 'Organization' : 'No organization'));
   const menuId = useId();
 
   // Outside press, ArrowDown on the button and the arrow keys inside the popover; Escape and focus return stay with the Popover.

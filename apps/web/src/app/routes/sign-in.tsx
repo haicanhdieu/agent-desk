@@ -31,6 +31,8 @@ export const Route = createFileRoute('/sign-in')({
     const session = await queryClient.ensureQueryData(sessionQuery).catch(() => null);
     if (session) throw redirectTo({ to: '/' });
   },
+  // The sign-in page draws its own layout: the shell never owns it, whatever a boundary reports.
+  staticData: { chrome: { mode: 'none' } },
   component: SignInPage,
 });
 

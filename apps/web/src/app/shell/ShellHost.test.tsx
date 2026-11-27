@@ -1,12 +1,13 @@
 import { ORG_HEADER } from '@agentdesk/contracts';
 import { createRoute, type AnyRoute } from '@tanstack/react-router';
 import { act, screen, waitFor, within } from '@testing-library/react';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { useReportPageState } from '@/components';
 import type { RouteChrome } from '@/features/chrome/routeChrome';
 import { sessionQuery, type Session } from '@/features/auth/session';
 import { ids } from '@/mocks/dto/ids';
+import { mockDb } from '@/mocks/msw/db';
 import { server } from '@/mocks/msw/node';
 import { scenarios } from '@/mocks/msw/scenarios';
 import { createTestRootRoute, renderRoute } from '@/test/renderRoute';
@@ -25,7 +26,7 @@ afterEach(() => {
 });
 
 /** A page that counts how often it mounts, so a remount by the shell is visible. */
-function Page({ name = 'Page', state }: { name?: string; state?: 'forbidden' | 'notFound' }) {
+function Page({ name = 'Page', state }: { name?: string; state?: 'forbidden' | 'notFound' | 'error' | 'suspended' }) {
   useEffect(() => {
     mounts += 1;
     return () => {
@@ -36,6 +37,19 @@ function Page({ name = 'Page', state }: { name?: string; state?: 'forbidden' | '
   return (
     <main id="main">
       <p>{name} content</p>
+    </main>
+  );
+}
+
+/** A page of an active org that starts reporting `suspended` when its button is pressed (a refusal arriving late). */
+function LateSuspended() {
+  const [suspended, setSuspended] = useState(false);
+  useReportPageState(suspended ? 'suspended' : undefined);
+  return (
+    <main id="main">
+      <button type="button" onClick={() => setSuspended(true)}>
+        Refuse
+      </button>
     </main>
   );
 }
@@ -54,6 +68,15 @@ function buildTree(): AnyRoute {
     });
   return root.addChildren([
     route('/plain', undefined, <main id="main">plain content</main>),
+    route('/gone', undefined, <Page name="Gone" state="notFound" />),
+    route('/bare', { mode: 'none' }, <Page name="Bare" state="notFound" />),
+    route('/o/$org/late', standard({ scope: 'org', item: 'projects', crumb: 'Late' }), <LateSuspended />),
+    route('/o/$org/suspended', undefined, <Page name="Suspended" state="suspended" />),
+    route(
+      '/o/$org/broken',
+      standard({ scope: 'org', item: 'projects', crumb: 'Broken' }),
+      <Page name="Broken" state="error" />,
+    ),
     route('/o/$org/projects', standard({ scope: 'org', item: 'projects', crumb: 'Projects' })),
     route('/o/$org/other', standard({ scope: 'org', item: 'projects', crumb: 'Other' }), <Page name="Other" />),
     route('/o/$org/second', standard({ scope: 'org', item: 'projects', crumb: 'Second' }), <Page name="Second" />),
@@ -113,6 +136,61 @@ describe('ShellHost: ownership', () => {
     await act(() => router.navigate({ href: '/o/alice/other' }));
     await screen.findByText('Other content');
     expect(root().className).not.toBe(filled);
+  });
+});
+
+describe('ShellHost: pages that report a state', () => {
+  it('a route without chrome that reports notFound gets the bar and keeps one main', async () => {
+    await renderRoute('/gone', org());
+    await screen.findByText('Gone content');
+    expect(screen.getAllByRole('banner')).toHaveLength(1);
+    expect(screen.getAllByRole('main')).toHaveLength(1);
+    expect(screen.queryByRole('navigation', { name: /menu/i })).toBeNull();
+  });
+
+  it('a route that declares mode none never gets the shell, whatever its page reports', async () => {
+    await renderRoute('/bare', org());
+    await screen.findByText('Bare content');
+    expect(screen.queryByRole('banner')).toBeNull();
+  });
+
+  it.each(['/o/alice/denied', '/o/alice/missing'])(
+    'a page that reports forbidden or notFound (%s) keeps the org menu with no current item',
+    async (path) => {
+      await renderRoute(path, org());
+      const menu = await screen.findByRole('navigation', { name: 'Organization menu' });
+      await within(menu).findByRole('link', { name: 'Projects' });
+      expect(within(menu).queryAllByRole('link', { current: 'page' })).toHaveLength(0);
+    },
+  );
+
+  it('an in-page error keeps the menu with the page item current', async () => {
+    await renderRoute('/o/alice/broken', org());
+    await screen.findByText('Broken content');
+    await waitFor(() => expect(screen.getByRole('link', { name: 'Projects', current: 'page' })).toBeInTheDocument());
+  });
+
+  it('a suspended page shows no menu, names the org in the switcher and reads no org data', async () => {
+    await renderRoute('/o/alice/suspended', { ...org(), scenario: () => scenarios.platform('suspendedMember') });
+    await screen.findByText('Suspended content');
+    expect(await screen.findByRole('button', { name: /^Switch scope/ })).toBeInTheDocument();
+    expect(screen.queryByRole('navigation', { name: 'Organization menu' })).toBeNull();
+    expect(mockDb.requests('GET', '/api/projects')).toBe(0);
+  });
+});
+
+describe('ShellHost: an active org that then reports suspended', () => {
+  it('draws no org menu, sends no further org-access request and shows no org crumb or title', async () => {
+    const { user } = await renderRoute('/o/alice/late', org());
+    await screen.findByRole('navigation', { name: 'Organization menu' });
+    const before = mockDb.requests('GET', '/api/me/access');
+
+    await user.click(screen.getByRole('button', { name: 'Refuse' }));
+
+    await waitFor(() => expect(screen.queryByRole('navigation', { name: 'Organization menu' })).toBeNull());
+    expect(mockDb.requests('GET', '/api/me/access')).toBe(before);
+    expect(within(screen.getByRole('banner')).queryByText('Late')).toBeNull();
+    expect(document.title).not.toContain('Alice');
   });
 });
 

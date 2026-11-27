@@ -4,7 +4,6 @@ import { resolve } from 'node:path';
 // The drift risk: screens and routes draw their own TopBar. Every render site is listed here with its count, so a new
 // bar fails the first test until a reviewer sees it added, and each one must pass its page crumbs.
 export const TOP_BAR_CALL_SITES: Record<string, number> = {
-  'app/boundaries.tsx': 2,
   'app/shell/ShellHost.tsx': 1,
   'components/SetupLayout.tsx': 1,
   'screens/DeskFrame.tsx': 1,

@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ids } from '@/mocks/dto/ids';
 import { mockDb } from '@/mocks/msw/db';
 import { scenarios } from '@/mocks/msw/scenarios';
+import { applyShellScenario } from '@/mocks/msw/shellScenarios';
 import { renderRoute } from '@/test/renderRoute';
 
 const cards = () => screen.getAllByRole('listitem');
@@ -117,15 +118,23 @@ describe('welcome page without invitations', () => {
     );
   });
 
-  it('shows the error state when the access check fails, instead of hiding Create organization', async () => {
+  it('shows the error state when the platform-admin check fails, instead of hiding Create organization', async () => {
     await renderRoute('/invitations', {
       scenario: () => {
         scenarios.onboarding('platformAdminNoOrg');
-        scenarios.serverError('me.access');
+        scenarios.serverError('me.platform');
       },
     });
     expect(await screen.findByText('Internal server error')).toBeInTheDocument();
     expect(screen.queryByText('Create organization')).toBeNull();
+  });
+});
+
+describe('welcome page when the active org is suspended', () => {
+  it('BR-79: the page opens; the platform-admin check is session-wide, so the refused org read is not needed', async () => {
+    await renderRoute('/invitations', { scenario: () => applyShellScenario('suspendedOnly') });
+    expect(await screen.findByRole('heading', { level: 1, name: 'No pending invitations' })).toBeInTheDocument();
+    expect(screen.queryByText('Internal server error')).toBeNull();
   });
 });
 

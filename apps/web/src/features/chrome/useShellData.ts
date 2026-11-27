@@ -80,12 +80,15 @@ function targetFromPath(pathname: string): Target {
   }
 }
 
+/** Pages whose shell comes from their own address, whatever their route declares. */
+function isAddressState(state: ShellPageState | undefined): boolean {
+  return state === 'notFound' || state === 'forbidden' || state === 'suspended';
+}
+
 function targetOf(input: ShellInput): Target {
   const { chrome, params } = input;
   if (chrome === undefined || chrome.mode === 'none' || chrome.scope === undefined) {
-    return input.pageState === 'notFound' || input.pageState === 'forbidden'
-      ? targetFromPath(input.pathname)
-      : { scope: 'none' };
+    return isAddressState(input.pageState) ? targetFromPath(input.pathname) : { scope: 'none' };
   }
   switch (chrome.scope) {
     case 'org':
@@ -147,9 +150,11 @@ export function useShellData(input: ShellInput): ShellData {
         : undefined;
   const member = slug === undefined ? undefined : memberships?.find((o) => o.slug === slug);
   const urlId = urlOrgId();
+  // A page that reports `suspended` (the refusal can arrive before the membership list shows it) is never an active org.
+  const orgSuspended = member?.status === 'suspended' || pageState === 'suspended';
   const tenantOk =
     member !== undefined &&
-    member.status !== 'suspended' &&
+    !orgSuspended &&
     session !== undefined &&
     session !== null &&
     member.id === session.activeOrganizationId &&
@@ -169,7 +174,11 @@ export function useShellData(input: ShellInput): ShellData {
 
   const projectId = target.scope === 'project' ? target.projectId : undefined;
   const projectOn = tenantOk && projectId !== undefined;
-  const detailQ = useQuery({ ...projectsQueries.detail(tenantSlug ?? '', projectId ?? ''), enabled: projectOn });
+  const detailQ = useQuery({
+    ...projectsQueries.detail(tenantSlug ?? '', projectId ?? ''),
+    enabled: projectOn,
+    throwOnError: false,
+  });
   const connectionQ = useQuery({
     ...projectsQueries.connection(tenantSlug ?? '', projectId ?? ''),
     enabled: projectOn,
@@ -202,7 +211,7 @@ export function useShellData(input: ShellInput): ShellData {
   const user: Actor = { login: handle, initials: handle.slice(0, 2).toUpperCase() };
 
   // --- the menu -----------------------------------------------------------------------------------------------
-  const errorPage = pageState === 'notFound' || pageState === 'forbidden';
+  const errorPage = isAddressState(pageState);
   const item: MenuItemKey | undefined = errorPage ? undefined : chrome?.item;
   const parent = chrome?.parent === true && !errorPage;
 
@@ -235,7 +244,7 @@ export function useShellData(input: ShellInput): ShellData {
   const grant = (): GrantState | null => {
     if (listState === 'loading') return 'orgListLoading';
     if (listState === 'error') return 'orgListError';
-    if (member === undefined || member.status === 'suspended') return null;
+    if (member === undefined || orgSuspended) return null;
     if (!tenantOk) return 'loading';
     return accessState === 'ready' ? 'ready' : accessState;
   };
@@ -358,7 +367,7 @@ export function useShellData(input: ShellInput): ShellData {
     crumbs = platformCrumbs(pathname, orgCrumb).crumbs;
     titleScope = 'Platform';
   } else {
-    const suspended = member?.status === 'suspended';
+    const suspended = orgSuspended;
     const label =
       chrome?.crumb ??
       (chrome?.mode === 'wizard' ? 'New project' : target.scope === 'personal' ? 'My invitations' : undefined);

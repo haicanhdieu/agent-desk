@@ -108,8 +108,14 @@ describe('401 sign-out path', () => {
         ]),
       component: () => <p>Loaded</p>,
     });
+    // The start page asks for nothing: a page the router does not know would get the shell, whose own reads would
+    // hit the 401 first and use up the once-guard before the burst under test.
+    const home = createRoute({ getParentRoute: () => root, path: '/', component: () => <p>Home</p> });
     // An expired session: every /api route answers 401.
-    const { router } = await renderRoute('/', { routeTree: root.addChildren([page]), scenario: scenarios.signedOut });
+    const { router } = await renderRoute('/', {
+      routeTree: root.addChildren([home, page]),
+      scenario: scenarios.signedOut,
+    });
     const navigate = vi.spyOn(router, 'navigate');
 
     await router.navigate({ href: '/two' });

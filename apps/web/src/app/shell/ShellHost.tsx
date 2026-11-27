@@ -85,18 +85,45 @@ function focusMain() {
   main.focus();
 }
 
+/** What a page owned only because it reports a state (no route chrome) gets: the standard shell with no item. */
+const STANDARD_CHROME: RouteChrome = { mode: 'standard' };
+
+const NO_REPORT = () => () => undefined;
+
 /**
  * Draws the shell (top bar, side menu, drawer) around the page of a route that declares `staticData.chrome`; a route
- * without it gets only its content. The collapse choice lives here so it outlives navigation between pages.
+ * without it gets only its content, unless its page reports a state (not found, forbidden, error, loading, suspended):
+ * then the host owns the chrome too (mode standard, whatever the route declares), except under `mode: 'none'`. The
+ * collapse choice lives here so it outlives navigation between pages.
  */
 export function ShellHost({ children }: { children: ReactNode }) {
   const { chrome, entryKey, params } = useChrome();
   const [sharedCollapsed, setSharedCollapsed] = useState(false);
-  if (chrome === undefined) return <>{children}</>;
+
+  // What the page reports (not found, forbidden, error, loading): the last report wins.
+  const [reports, setReports] = useState<Reported[]>([]);
+  const nextId = useRef(0);
+  const reportPageState = useCallback((state: ShellPageState) => {
+    const id = nextId.current++;
+    setReports((prev) => [...prev, { id, state }]);
+    return () => setReports((prev) => prev.filter((r) => r.id !== id));
+  }, []);
+  const pageState = reports[reports.length - 1]?.state;
+
+  const bare = chrome?.mode === 'none';
+  const unownedValue = useMemo<ShellContextValue>(
+    () => ({ owned: false, wizardSlot: null, reportPageState: bare ? NO_REPORT : reportPageState }),
+    [bare, reportPageState],
+  );
+  if (bare || (chrome === undefined && pageState === undefined)) {
+    return <ShellContext.Provider value={unownedValue}>{children}</ShellContext.Provider>;
+  }
   return (
     <OwnedShell
-      chrome={chrome}
+      chrome={chrome ?? STANDARD_CHROME}
       entryKey={entryKey}
+      pageState={pageState}
+      reportPageState={reportPageState}
       params={params}
       sharedCollapsed={sharedCollapsed}
       setSharedCollapsed={setSharedCollapsed}
@@ -109,6 +136,8 @@ export function ShellHost({ children }: { children: ReactNode }) {
 function OwnedShell({
   chrome,
   entryKey,
+  pageState,
+  reportPageState,
   params,
   sharedCollapsed,
   setSharedCollapsed,
@@ -116,6 +145,8 @@ function OwnedShell({
 }: {
   chrome: RouteChrome;
   entryKey: string;
+  pageState: ShellPageState | undefined;
+  reportPageState(state: ShellPageState): () => void;
   params: Record<string, string | undefined>;
   sharedCollapsed: boolean;
   setSharedCollapsed(update: (prev: boolean) => boolean): void;
@@ -124,16 +155,6 @@ function OwnedShell({
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const locationHref = useRouterState({ select: (s) => s.location.href });
   const below = useMediaQuery(BELOW_DESKTOP);
-
-  // What the page reports (not found, forbidden, error, loading): the last report wins.
-  const [reports, setReports] = useState<Reported[]>([]);
-  const nextId = useRef(0);
-  const reportPageState = useCallback((state: ShellPageState) => {
-    const id = nextId.current++;
-    setReports((prev) => [...prev, { id, state }]);
-    return () => setReports((prev) => prev.filter((r) => r.id !== id));
-  }, []);
-  const pageState = reports[reports.length - 1]?.state;
 
   const [wizardSlot, setWizardSlot] = useState<HTMLElement | null>(null);
 
@@ -220,8 +241,8 @@ function OwnedShell({
     ) : undefined;
 
   const value = useMemo<ShellContextValue>(
-    () => ({ owned: true, wizardSlot, reportPageState }),
-    [wizardSlot, reportPageState],
+    () => ({ owned: true, wizardSlot, reportPageState, goToProjectsHref: data.goToProjectsHref }),
+    [wizardSlot, reportPageState, data.goToProjectsHref],
   );
 
   const crumbs: PageCrumb[] = data.projectPlaceholder

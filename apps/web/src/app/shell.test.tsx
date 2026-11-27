@@ -1,8 +1,12 @@
 import { ApiError } from '@agentdesk/contracts/client';
 import { createRoute } from '@tanstack/react-router';
-import { act, renderHook, screen, waitFor } from '@testing-library/react';
+import { act, renderHook, screen, waitFor, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
+import { http, HttpResponse } from 'msw';
+import { ids } from '@/mocks/dto/ids';
 import { mockDb } from '@/mocks/msw/db';
+import { server } from '@/mocks/msw/node';
+import { scenarios } from '@/mocks/msw/scenarios';
 import { createTestRootRoute, renderRoute } from '@/test/renderRoute';
 import { ORG_SWITCHED_MESSAGE } from '@/features/auth/orgResync';
 import { toastFromError } from './boundaries';
@@ -14,6 +18,49 @@ describe('app shell', () => {
     await screen.findByRole('heading', { name: 'Page not found' });
     await user.tab();
     expect(document.activeElement).toBe(screen.getByRole('link', { name: 'Skip to main content' }));
+  });
+
+  it('BR-12: an unknown path has one main and the skip link focuses it', async () => {
+    const { user } = await renderRoute('/unknown');
+    await screen.findByRole('heading', { name: 'Page not found' });
+    const main = screen.getByRole('main');
+    expect(within(main).getByRole('heading', { name: 'Page not found' })).toBeInTheDocument();
+    expect(screen.getAllByRole('main')).toHaveLength(1);
+    await user.tab();
+    await user.keyboard('{Enter}');
+    expect(document.activeElement).toBe(main);
+  });
+
+  it('BR-12: an unknown path keeps the top bar and shows no side menu', async () => {
+    await renderRoute('/unknown', { scenario: () => scenarios.onboarding('twoOrgs') });
+    await screen.findByRole('heading', { name: 'Page not found' });
+    expect(screen.getAllByRole('banner')).toHaveLength(1);
+    expect(screen.queryByRole('navigation', { name: /menu/i })).toBeNull();
+  });
+
+  it('BR-16: for a slug the person is not in, "Go to projects" does not point back at that slug', async () => {
+    await renderRoute('/o/not-mine/projects', { scenario: () => scenarios.onboarding('twoOrgs') });
+    await screen.findByRole('heading', { name: 'Page not found' });
+    const link = screen.getByRole('link', { name: 'Go to projects' });
+    expect(link.getAttribute('href')).not.toContain('not-mine');
+    expect(link).toHaveAttribute('href', '/');
+  });
+
+  it('BR-13: a project page open when its read starts answering 404 becomes Not found and names the project nowhere', async () => {
+    const { queryClient } = await renderRoute(`/o/alice/p/${ids.project.invoicerApi}/runs`);
+    await screen.findByRole('heading', { level: 1, name: 'Runs' });
+    expect(screen.getAllByText('invoicer-api').length).toBeGreaterThan(0);
+
+    server.use(
+      http.get('*/api/projects/:projectId', () =>
+        HttpResponse.json({ type: 'about:blank', title: 'Not found', status: 404 }, { status: 404 }),
+      ),
+    );
+    await act(() => queryClient.invalidateQueries({ queryKey: ['org', 'alice', 'projects', ids.project.invoicerApi] }));
+
+    expect(await screen.findByRole('heading', { name: 'Page not found' })).toBeInTheDocument();
+    expect(screen.queryAllByText('invoicer-api')).toHaveLength(0);
+    expect(document.title).not.toContain('invoicer-api');
   });
 
   it('shows NotFound for an unknown path', async () => {
@@ -37,8 +84,10 @@ describe('app shell', () => {
     const { user } = await renderRoute('/flaky', { routeTree: root.addChildren([flaky]) });
 
     expect(await screen.findByText('Database unavailable')).toBeInTheDocument();
+    expect(within(screen.getByRole('main')).getByRole('button', { name: 'Retry' })).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Retry' }));
-    expect(await screen.findByText('Loaded fine')).toBeInTheDocument();
+    // The page that loads after the error is no longer inside the shell the error page asked for, so it mounts once more.
+    await waitFor(() => expect(screen.getByText('Loaded fine')).toBeInTheDocument());
     expect(calls).toBe(2);
   });
 
@@ -101,6 +150,7 @@ describe('app shell', () => {
     await renderRoute('/crash', { routeTree: root.addChildren([crash]) });
     expect(await screen.findByRole('heading', { name: 'Something went wrong' })).toBeInTheDocument();
     expect(screen.getByText(/req-crash-1/)).toBeInTheDocument();
+    expect(within(screen.getByRole('main')).getByRole('heading', { name: 'Something went wrong' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Reload' })).toBeInTheDocument();
     spy.mockRestore();
   });

@@ -30,6 +30,7 @@ export { RepoBlock, type RepoBlockProps } from './RepoBlock';
 export { AppShell, type AppShellProps, type MenuMode } from './AppShell';
 export {
   ShellContext,
+  useGoToProjectsHref,
   useReportPageState,
   useShellOwnsChrome,
   type ShellContextValue,
