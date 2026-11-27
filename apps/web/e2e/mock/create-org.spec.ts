@@ -126,9 +126,7 @@ test.describe('the create-org page lives in the platform shell', () => {
     await expect(page).toHaveURL(/\/platform\/orgs\/new$/);
     await expect(page.getByRole('button', { name: /^Switch scope/ })).toContainText('Platform');
     await expect(
-      page
-        .getByRole('navigation', { name: 'Platform sections' })
-        .getByRole('link', { name: 'Organizations', exact: true }),
+      page.getByRole('navigation', { name: 'Platform menu' }).getByRole('link', { name: 'Organizations', exact: true }),
     ).toHaveAttribute('aria-current', 'page');
     await expect(
       page.getByRole('navigation', { name: 'Breadcrumb' }).getByText('Create organization', { exact: true }),

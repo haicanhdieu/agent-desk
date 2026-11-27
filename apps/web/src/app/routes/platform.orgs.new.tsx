@@ -9,6 +9,7 @@ import { CreateOrg } from '@/screens';
 // `beforeLoad` check (a non-admin gets the forbidden state before this page renders and no create request is sent).
 // UI only: the API is the authority.
 export const Route = createFileRoute('/platform/orgs/new')({
+  staticData: { chrome: { mode: 'standard', scope: 'platform', item: 'platformOrgs' } },
   component: CreateOrgPage,
 });
 

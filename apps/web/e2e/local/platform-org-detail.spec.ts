@@ -47,7 +47,7 @@ test.afterAll(async () => {
 const tagOf = (): string => randomBytes(4).toString('hex');
 const bodyRows = (page: Page): Locator => page.locator('tbody tr');
 const rowOf = (page: Page, text: string): Locator => bodyRows(page).filter({ hasText: text });
-const sideMenu = (page: Page): Locator => page.getByRole('navigation', { name: 'Platform admin' });
+const sideMenu = (page: Page): Locator => page.getByRole('navigation', { name: 'Platform menu' });
 const tabHeading = (page: Page, name: string): Locator => page.getByRole('heading', { name, level: 2 });
 
 async function freshOrg(): Promise<{ id: string; name: string; slug: string }> {

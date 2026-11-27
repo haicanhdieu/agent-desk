@@ -38,7 +38,7 @@ async function open(
   await page.goto(opts.path ?? DETAIL);
 }
 
-const sideMenu = (page: Page): Locator => page.getByRole('navigation', { name: 'Platform admin' });
+const sideMenu = (page: Page): Locator => page.getByRole('navigation', { name: 'Platform menu' });
 const bodyRows = (page: Page): Locator => page.locator('tbody tr');
 const rowOf = (page: Page, text: string): Locator => bodyRows(page).filter({ hasText: text });
 const loading = (page: Page): Locator => page.getByRole('status', { name: 'Loading', exact: true });

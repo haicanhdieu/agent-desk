@@ -31,11 +31,12 @@ const withOrgs = (orgs: PlatformOrgDto[]) => () => {
 };
 
 describe('Organizations directory', () => {
-  it('has the Platform sections tabs with Organizations current and no side menu', async () => {
+  it('has the Platform menu with Organizations current and no section tabs', async () => {
     await renderRoute('/platform/orgs', { scenario: withOrgs([org(1)]) });
     await ready();
-    const tabs = screen.getByRole('navigation', { name: 'Platform sections' });
-    expect(within(tabs).getByRole('link', { name: 'Organizations' })).toHaveAttribute('aria-current', 'page');
+    const menu = screen.getByRole('navigation', { name: 'Platform menu' });
+    expect(within(menu).getByRole('link', { name: 'Organizations' })).toHaveAttribute('aria-current', 'page');
+    expect(screen.queryByRole('navigation', { name: 'Platform sections' })).toBeNull();
     expect(screen.queryByRole('navigation', { name: 'Platform admin' })).toBeNull();
   });
 

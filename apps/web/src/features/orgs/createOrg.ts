@@ -10,6 +10,7 @@ import { orgsQuery } from '../auth/session';
 import { GENERIC_FORM_ERROR } from '../desk/problem';
 import { formatShortDate } from '../invitations/dates';
 import { invitationUrl } from '../orgInvitations/link';
+import { platformKeys } from '../platform/keys';
 import { refreshAudit } from '../platform/mutations';
 
 // The platform admin's create-org form (spec BR-35, BR-36, BR-39): TanStack Form validated with the contract's
@@ -157,6 +158,7 @@ export function useCreateOrgWithOwner({ onOrgSwitched }: CreateOrgOptions) {
             id = (await api.platform.createOrg({ body })).id;
             orgId.current = id;
             void queryClient.invalidateQueries({ queryKey: orgsQuery.queryKey });
+            void queryClient.invalidateQueries({ queryKey: platformKeys.orgsAll() });
             void refreshAudit(queryClient);
           } catch (e) {
             const p = problemOf(e);

@@ -5,6 +5,7 @@ import {
   ORG_SUSPENDED_PROBLEM_TYPE,
   PlatformOrgDetailDto,
   pageOf,
+  routes,
 } from '@agentdesk/contracts';
 import {
   expect,
@@ -213,7 +214,7 @@ test.describe('BR-38: the API refuses a suspended org', () => {
     const w = await newWorld(page);
     await suspend(w.orgId, w.reason);
 
-    const res = await w.owner.request.get(`/api/orgs/${w.orgId}/projects`, { headers: { [ORG_HEADER]: w.orgId } });
+    const res = await w.owner.request.get(routes.projects.list.path, { headers: { [ORG_HEADER]: w.orgId } });
     await expectSuspendedRefusal(res, [w.reason, w.projectId, 'dev/demo']);
   });
 
@@ -255,11 +256,11 @@ test.describe('BR-38: the API refuses a suspended org', () => {
     const user = await freshUser(pa, w.orgId);
     toDispose.push(user.api);
 
-    // Spec step: GET /api/orgs/<org id>/projects. The user has no active org (an invitation is not accepted, and
+    // Spec step: GET /api/projects (routes.projects.list). The user has no active org (an invitation is not accepted, and
     // set-active on an org one is not in is refused), so the session guard answers 403 "No active organization".
     // The membership branch (a non-member of the ACTIVE org) cannot be reached from the local stack; the API int test
     // apps/api/test/org-suspended.int.test.ts ("answers a non-member the plain 403 and never the suspension") covers it.
-    const res = await user.api.get(`/api/orgs/${w.orgId}/projects`);
+    const res = await user.api.get(routes.projects.list.path);
     const text = await res.text();
     expect(res.status(), text).toBe(403);
     expect(text).not.toContain(ORG_SUSPENDED_PROBLEM_TYPE);
@@ -267,7 +268,7 @@ test.describe('BR-38: the API refuses a suspended org', () => {
     expect(text).not.toContain(w.projectId);
 
     // Naming the org in the header is the org-mismatch refusal (409): still not the suspension, and no project data.
-    const named = await user.api.get(`/api/orgs/${w.orgId}/projects`, { headers: { [ORG_HEADER]: w.orgId } });
+    const named = await user.api.get(routes.projects.list.path, { headers: { [ORG_HEADER]: w.orgId } });
     const namedText = await named.text();
     expect(named.status(), namedText).toBe(409);
     expect((JSON.parse(namedText) as { type?: string }).type, namedText).toMatch(/(^|[:/])org-mismatch$/);
@@ -303,7 +304,7 @@ test.describe('BR-43: the org audit log of a suspension', () => {
     await expect(page.getByRole('heading', { name: 'Audit log', level: 1 })).toBeVisible();
     for (const sentence of ['suspended the organization', 'reactivated the organization']) {
       const row = bodyRows(page).filter({
-        has: page.locator('td:nth-child(3)', { hasText: new RegExp(`^\\s*${sentence}\\s*$`) }),
+        has: page.locator('td:nth-child(3)', { hasText: new RegExp(`\\b${sentence}\\s*$`) }),
       });
       await expect(row).toHaveCount(1);
       await expect(row.locator('td:nth-child(2)').getByText('Platform admin', { exact: true })).toBeVisible();
@@ -332,7 +333,7 @@ test.describe('BR-51: a platform admin who is an owner of a suspended org', () =
     // oldest membership), so once it is suspended every org route of this session is refused.
     const mine = await adminPage(browser);
     await mine.goto(`/o/${handle}/projects`);
-    await expect(mine.getByRole('heading', { name: 'Projects', level: 1 })).toBeVisible();
+    await expect(mine.getByRole('heading', { name: 'Create your first project', level: 1 })).toBeVisible();
     await ok(await mine.request.get('/api/me/access', { headers: { [ORG_HEADER]: org.id } }), 200, 'access, active');
 
     // Step 1: suspend. The session's active org is now the refused one.

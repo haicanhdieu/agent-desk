@@ -1175,14 +1175,14 @@ export function useShellData(input: ShellInput): ShellData;
 - Consumes: shell host; `RouteChrome` (`scope: 'platform'` or `'platformOrg'`); platform screens' owned branch.
 - Produces: `side-nav.spec.ts`, extended by Tasks 29, 30, 32, 33 and 40.
 
-- [ ] **Step 0: Multi-agent gate.** Run both checks in "Multi-agent gate". If either fails, stop: write no code and report which check failed.
-- [ ] **Step 1: Write failing route tests** in `shell.route.test.tsx`: one "Platform menu" with Organizations, Platform admins, Audit log and the matching one current (`orgs/new` marks Organizations); inside one org it is replaced by the one-org menu (never two navs); "Organizations" back link; loading placeholders "Loading organization" and "Loading menu"; failed read: "Organization", no status, links present; missing org: platform menu with Organizations current and "Page not found", "This organization does not exist.", "Back to organizations"; non-admin: forbidden, no side nav, no `/api/platform` request, "Go to projects".
-- [ ] **Step 2: Run** VITEST `src/features/platform`. Expected: FAIL.
-- [ ] **Step 3: Implement:** drop `TopBar`, `PlatformLayout`, `useOrgGroup` and `PlatformOrgCrumb` wiring from `platform.tsx` (the host owns them); `PlatformForbidden` (in `boundaries.tsx`) reports `forbidden` and draws no top bar when owned.
-- [ ] **Step 4: Rewrite** the listed specs. `platform-shell` TC-3.1 now expects no menu and no section links on a forbidden `/platform`, keeping "no `/api/platform` request" and "Go to projects". Entry "Platform admin" is now "Platform".
-- [ ] **Step 5: Add** to `side-nav.spec.ts`: "TC-5.1", "TC-5.2", "TC-31.1", "TC-31.2", "TC-32.1", "TC-32.2", "TC-33.1", "TC-33.2", "TC-33.3", "TC-34.1", "TC-34.2", "TC-35.1", "TC-35.2", "TC-35.3". (Local halves: Task 43.)
+- [x] **Step 0: Multi-agent gate.** Run both checks in "Multi-agent gate". If either fails, stop: write no code and report which check failed.
+- [x] **Step 1: Write failing route tests** in `shell.route.test.tsx`: one "Platform menu" with Organizations, Platform admins, Audit log and the matching one current (`orgs/new` marks Organizations); inside one org it is replaced by the one-org menu (never two navs); "Organizations" back link; loading placeholders "Loading organization" and "Loading menu"; failed read: "Organization", no status, links present; missing org: platform menu with Organizations current and "Page not found", "This organization does not exist.", "Back to organizations"; non-admin: forbidden, no side nav, no `/api/platform` request, "Go to projects".
+- [x] **Step 2: Run** VITEST `src/features/platform`. Expected: FAIL.
+- [x] **Step 3: Implement:** drop `TopBar`, `PlatformLayout`, `useOrgGroup` and `PlatformOrgCrumb` wiring from `platform.tsx` (the host owns them); `PlatformForbidden` (in `boundaries.tsx`) reports `forbidden` and draws no top bar when owned.
+- [x] **Step 4: Rewrite** the listed specs. `platform-shell` TC-3.1 now expects no menu and no section links on a forbidden `/platform`, keeping "no `/api/platform` request" and "Go to projects". Entry "Platform admin" is now "Platform".
+- [x] **Step 5: Add** to `side-nav.spec.ts`: "TC-5.1", "TC-5.2", "TC-31.1", "TC-31.2", "TC-32.1", "TC-32.2", "TC-33.1", "TC-33.2", "TC-33.3", "TC-34.1", "TC-34.2", "TC-35.1", "TC-35.2", "TC-35.3". (Local halves: Task 43.)
 - [ ] **Step 6: Run** VITEST, MOCK the listed mock specs plus `side-nav`, LOCAL the listed local specs. Expected: PASS.
-- [ ] **Step 7: Commit** `feat(web): platform pages use the app shell`.
+- [x] **Step 7: Commit** `feat(web): platform pages use the app shell`.
 
 ### Task 29: Move the organization pages onto the shell (after the multi-agent gate)
 

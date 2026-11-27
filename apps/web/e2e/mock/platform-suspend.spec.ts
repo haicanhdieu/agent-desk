@@ -67,9 +67,11 @@ test.describe('BR-4: an unknown organization', () => {
     await expect(page.getByRole('heading', { name: 'Page not found' })).toBeVisible();
     await expect(page.getByText('This organization does not exist.', { exact: true })).toBeVisible();
     await expect(page.getByRole('link', { name: 'Back to organizations' })).toBeVisible();
-    // Inside the platform layout: the Platform bar is there, and no org side menu.
-    await expect(page.getByRole('navigation', { name: 'Platform sections' })).toBeVisible();
-    await expect(page.getByRole('navigation', { name: 'Platform admin' })).toHaveCount(0);
+    // Inside the platform area: the Platform menu is there with Organizations current, and no org menu.
+    const menu = page.getByRole('navigation', { name: 'Platform menu' });
+    await expect(menu.getByRole('link', { name: 'Organizations' })).toHaveAttribute('aria-current', 'page');
+    await expect(menu.getByRole('link', { name: 'Platform admins' })).toBeVisible();
+    await expect(menu.getByRole('link', { name: 'Overview' })).toHaveCount(0);
   });
 });
 
@@ -101,8 +103,8 @@ test.describe('BR-32: suspend an active organization', () => {
     await expect(page.getByText(`Reason: ${REASON}`, { exact: true })).toBeVisible();
 
     await page
-      .getByRole('navigation', { name: 'Platform sections' })
-      .getByRole('link', { name: 'Organizations' })
+      .getByRole('navigation', { name: 'Platform menu' })
+      .getByRole('link', { name: /Organizations/ })
       .click();
     const row = page.locator('tbody tr').filter({ hasText: 'Acme' }).first();
     await expect(row).toContainText('Suspended');

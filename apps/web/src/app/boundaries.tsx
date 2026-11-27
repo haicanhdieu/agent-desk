@@ -10,6 +10,8 @@ import {
   TopBar,
   pageTitle,
   useDocumentTitle,
+  useReportPageState,
+  useShellOwnsChrome,
 } from '@/components';
 import { Button, type ToastInput } from '@/ds';
 import { ORG_SWITCHED_MESSAGE, isOrgMismatch } from '@/features/auth/orgResync';
@@ -64,13 +66,21 @@ export function Forbidden({ titled = true }: { titled?: boolean } = {}) {
   );
 }
 
-/** The platform area for someone who is not a platform admin: the normal org top bar and no platform data. */
+/**
+ * The platform area for someone who is not a platform admin and no platform data. Under the shell it reports
+ * "forbidden" and draws only the page (the shell owns the bar and, for a non-admin, shows no menu); without one it
+ * draws its own org bar.
+ */
 export function PlatformForbidden() {
   const bar = useAppBar(null);
+  const owned = useShellOwnsChrome();
+  useReportPageState('forbidden');
   return (
     <>
-      <TopBar variant="global" crumbs={NO_PAGE_CRUMBS} state="forbidden" user={bar.user} org={bar.org} tabs="org" />
-      <div className={styles.page}>
+      {!owned && (
+        <TopBar variant="global" crumbs={NO_PAGE_CRUMBS} state="forbidden" user={bar.user} org={bar.org} tabs="org" />
+      )}
+      <main className={styles.page}>
         <EmptyState
           title="You don't have access"
           headingLevel={1}
@@ -81,7 +91,7 @@ export function PlatformForbidden() {
             </Button>
           }
         />
-      </div>
+      </main>
     </>
   );
 }

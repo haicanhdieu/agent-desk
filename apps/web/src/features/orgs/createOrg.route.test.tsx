@@ -152,6 +152,16 @@ describe('BR-35 a platform admin creates an org', () => {
     expect(spy).toHaveBeenCalledWith(expect.objectContaining({ queryKey: ['session', 'orgs'] }));
   });
 
+  it('marks the cached platform directory stale after the create, so it lists the new org', async () => {
+    const rendered = await open();
+    rendered.queryClient.setQueryData(['platform', 'orgs', {}], { items: [], total: 0 });
+    expect(rendered.queryClient.getQueryState(['platform', 'orgs', {}])?.isInvalidated).toBe(false);
+    await fill(rendered, { name: 'Fresh Org', email: 'f@dev.local' });
+    await submit(rendered);
+    await screen.findByRole('heading', { name: 'Organization created' });
+    expect(rendered.queryClient.getQueryState(['platform', 'orgs', {}])?.isInvalidated).toBe(true);
+  });
+
   it('holds the form read-only while the create is in flight', async () => {
     let release: () => void = () => undefined;
     const gate = new Promise<void>((resolve) => (release = resolve));
@@ -575,15 +585,15 @@ describe('create organization in the platform shell', () => {
     expect(rendered.router.state.location.pathname).toBe('/platform/orgs/new');
   });
 
-  it('the page renders inside the platform shell: Platform bar, crumbs Organizations / Create organization, Organizations tab current', async () => {
+  it('the page renders inside the platform shell: Platform bar, crumbs Organizations / Create organization, Organizations current in the Platform menu', async () => {
     await open('platformAdminOneOrg');
     expect(screen.getByRole('button', { name: /^Switch scope, currently Platform/ })).toBeInTheDocument();
     const crumbs = screen.getByRole('navigation', { name: 'Breadcrumb' });
     expect(within(crumbs).getByRole('link', { name: 'Organizations' })).toBeInTheDocument();
     expect(within(crumbs).getByText('Create organization')).toBeInTheDocument();
-    const tabs = screen.getByRole('navigation', { name: 'Platform sections' });
+    const tabs = screen.getByRole('navigation', { name: 'Platform menu' });
     expect(within(tabs).getByRole('link', { name: 'Organizations' })).toHaveAttribute('aria-current', 'page');
-    expect(screen.getAllByRole('banner')).toHaveLength(1);
+    expect(screen.getAllByRole('banner').filter((b) => !b.closest('main'))).toHaveLength(1);
   });
 
   it('/platform/orgs/new is not read as an org id', async () => {

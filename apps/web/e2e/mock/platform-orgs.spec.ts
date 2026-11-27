@@ -259,7 +259,7 @@ async function fill(page: Page, v: { name: string; slug: string }): Promise<void
 
 async function backToDirectory(page: Page): Promise<void> {
   await orgMenuButton(page).click();
-  await page.getByRole('dialog', { name: 'Scope' }).getByRole('link', { name: 'Platform admin', exact: true }).click();
+  await page.getByRole('dialog', { name: 'Scope' }).getByRole('link', { name: 'Platform', exact: true }).click();
   await expect(page).toHaveURL(/\/platform\/orgs$/);
   await expect(heading(page)).toBeVisible();
   await expect(bodyRows(page).first()).toBeVisible();

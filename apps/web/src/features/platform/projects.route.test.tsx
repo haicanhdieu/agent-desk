@@ -16,7 +16,7 @@ const bodyRows = () => screen.getAllByRole('row').slice(1);
 describe('Platform org Projects tab', () => {
   it('BR-24: the side menu Projects link opens the section with its heading', async () => {
     const { user, router } = await renderRoute(`/platform/orgs/${ACME}`, { scenario: asAdmin });
-    const menu = await screen.findByRole('navigation', { name: 'Platform admin' });
+    const menu = await screen.findByRole('navigation', { name: 'Platform menu' });
     await user.click(await within(menu).findByRole('link', { name: 'Projects' }));
     await ready();
     expect(router.state.location.pathname).toBe(projectsPath);

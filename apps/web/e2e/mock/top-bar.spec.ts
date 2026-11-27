@@ -81,9 +81,10 @@ test.describe('BR-43: top-bar tabs per level', () => {
     await expect(page.getByRole('heading', { name: 'Create an organization', level: 1 })).toBeVisible();
     await expect(bar(page)).toBeVisible();
     await expect(mainNav(page)).toHaveCount(0);
-    // The page is in the platform shell: the bar carries the breadcrumb and the platform tabs, never the org tabs.
+    // The page is in the platform shell: the bar carries the breadcrumb and no section links; the Platform menu is beside the page.
     await expect(bar(page).getByRole('navigation', { name: 'Breadcrumb' })).toBeVisible();
-    await expect(bar(page).getByRole('navigation', { name: 'Platform sections' })).toBeVisible();
+    await expect(bar(page).getByRole('navigation', { name: 'Platform sections' })).toHaveCount(0);
+    await expect(page.getByRole('navigation', { name: 'Platform menu' })).toBeVisible();
     await expect(bar(page).getByRole('link', { name: 'Projects', exact: true })).toHaveCount(0);
     await expect(bar(page).getByRole('link', { name: 'Org settings', exact: true })).toHaveCount(0);
   });

@@ -7,6 +7,7 @@ import { PlatformOrgOverview } from '@/screens';
 
 // The Overview of one organization: its facts. The header, Banner and dialogs are the `$orgId` layout's.
 export const Route = createFileRoute('/platform/orgs/$orgId/')({
+  staticData: { chrome: { mode: 'standard', scope: 'platformOrg', item: 'orgOverview' } },
   component: PlatformOrgOverviewPage,
 });
 

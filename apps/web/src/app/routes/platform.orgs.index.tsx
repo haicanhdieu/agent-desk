@@ -25,6 +25,7 @@ const OrgsSearch = PageSearch.extend({
 });
 
 export const Route = createFileRoute('/platform/orgs/')({
+  staticData: { chrome: { mode: 'standard', scope: 'platform', item: 'platformOrgs' } },
   validateSearch: OrgsSearch,
   component: PlatformOrgsPage,
 });

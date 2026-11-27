@@ -27,6 +27,7 @@ import { PlatformAdmins, type PlatformAdminsProps } from '@/screens';
 // Who may open the platform area. The shell has already refused anyone who is not a platform admin; a 403 from the
 // list (rights lost since) shows the same forbidden state. UI only: the API is the authority.
 export const Route = createFileRoute('/platform/admins')({
+  staticData: { chrome: { mode: 'standard', scope: 'platform', item: 'platformAdmins' } },
   validateSearch: PageSearch,
   component: PlatformAdminsPage,
 });

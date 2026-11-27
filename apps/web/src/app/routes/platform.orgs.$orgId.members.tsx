@@ -29,6 +29,7 @@ import { PlatformOrgMembers, type ListView, type PlatformOrgMembersProps } from 
 // removes assignments for platform admins. A 403 from a read (rights lost since) shows the shell's forbidden state.
 // UI only: the API is the authority.
 export const Route = createFileRoute('/platform/orgs/$orgId/members')({
+  staticData: { chrome: { mode: 'standard', scope: 'platformOrg', item: 'orgMembers' } },
   validateSearch: PageSearch,
   component: PlatformOrgMembersPage,
 });
