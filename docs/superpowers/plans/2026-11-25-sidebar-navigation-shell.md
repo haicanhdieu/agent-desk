@@ -509,12 +509,12 @@ Add an `it.each` over `tenantAccessFixtures` (owner, admin, projectAdmin, member
 
 - Produces: no prop change. Behaviour of `ds/Tabs.tsx`: roving `tabIndex`, `ArrowRight`/`ArrowLeft` wrap, `Home`/`End`, selection follows focus through `onViewChange(id)`, `soon` views skipped, `preventDefault`, handler on the `tablist` element only.
 
-- [ ] **Step 1: Write the failing component test** with three usable views plus one `soon`: ArrowRight focuses and reports the next and wraps from last to first; ArrowLeft the reverse; Home and End go to first and last usable; `defaultPrevented` is true; only the selected tab has `tabIndex 0`; the `soon` tab is skipped; with one view focus stays and `onViewChange` is not called with another id; a keydown on an element outside the tablist calls nothing. Apply to `DeskSetup`'s log bar by construction (same component).
-- [ ] **Step 2: Run** VITEST `src/components/TerminalBar.test.tsx`. Expected: FAIL (no key handling).
-- [ ] **Step 3: Implement** in `TerminalBar`, keeping its markup and look. Add the story `TwoUsableTabs` with controlled state.
-- [ ] **Step 4: Add mock e2e** "TC-81.1", "TC-81.2" (focus and selection stay on the one tab) and "TC-81.3" (Left and Right inside the terminal do not move to the tabs).
-- [ ] **Step 5: Run** the test and MOCK `e2e/mock/terminal-tabs.spec.ts`. Expected: PASS.
-- [ ] **Step 6: Commit** `feat(web): keyboard support on the terminal view tabs`.
+- [x] **Step 1: Write the failing component test** with three usable views plus one `soon`: ArrowRight focuses and reports the next and wraps from last to first; ArrowLeft the reverse; Home and End go to first and last usable; `defaultPrevented` is true; only the selected tab has `tabIndex 0`; the `soon` tab is skipped; with one view focus stays and `onViewChange` is not called with another id; a keydown on an element outside the tablist calls nothing. Apply to `DeskSetup`'s log bar by construction (same component).
+- [x] **Step 2: Run** VITEST `src/components/TerminalBar.test.tsx`. Expected: FAIL (no key handling).
+- [x] **Step 3: Implement** in `TerminalBar`, keeping its markup and look. Add the story `TwoUsableTabs` with controlled state.
+- [x] **Step 4: Add mock e2e** "TC-81.1", "TC-81.2" (focus and selection stay on the one tab) and "TC-81.3" (Left and Right inside the terminal do not move to the tabs).
+- [x] **Step 5: Run** the test and MOCK `e2e/mock/terminal-tabs.spec.ts`. Expected: PASS.
+- [x] **Step 6: Commit** `feat(web): keyboard support on the terminal view tabs`.
 
 ### Task 6: Redraw the entry, personal and wizard boards (after the multi-agent gate)
 
