@@ -16,9 +16,8 @@ const main = (page: Page) => page.getByRole('main');
 const ignoredChip = (page: Page) => main(page).getByRole('link', { name: /^Ignored/ });
 const resume = (page: Page, project: string) => page.getByRole('link', { name: `Resume setup for ${project}` });
 const anyResume = (page: Page) => page.getByRole('link', { name: /^Resume setup for / });
-/** The top bar's Projects section link: leaves the wizard inside the app, with no reload. */
-const topProjects = (page: Page) =>
-  page.getByRole('navigation', { name: 'Organization sections' }).getByRole('link', { name: 'Projects', exact: true });
+/** The wizard's Exit setup link: leaves the wizard inside the app, with no reload. */
+const topProjects = (page: Page) => page.getByRole('link', { name: 'Exit setup' });
 /** One step of the wizard's progress list. */
 const stepItem = (page: Page, label: string) =>
   page.getByRole('complementary', { name: 'Setup progress' }).getByRole('listitem').filter({ hasText: label });
@@ -136,7 +135,7 @@ test.describe('BR-78: Resume setup opens the first unfinished step', () => {
     await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
     await expectStepCurrent(page, 'Add skills');
     for (const label of ['Connect repository', 'Add agent', 'Prepare workspace']) await expectStepDone(page, label);
-    // Leave inside the app (no reload) through the top bar, then resume again.
+    // Leave inside the app (no reload) with Exit setup, then resume again.
     await topProjects(page).click();
     await expect(page).toHaveURL(new RegExp(`/o/${ORG}/projects$`));
     await resume(page, 'invoicer-web').click();

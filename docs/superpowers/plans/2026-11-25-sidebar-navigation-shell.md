@@ -1330,13 +1330,13 @@ export function useShellData(input: ShellInput): ShellData;
 
 - Consumes: `SetupLayout` `exitHref` and portal (Task 23). Route chrome `{ mode: 'wizard', scope: 'org', crumb: 'New project' }`; every step passes `exitHref = /o/<org>/projects`. The route and its steps are the merged multi-agent ones (step 2 "Add your agent", stepper "Add agent"); only the frame and `exitHref` change, not the step's saving or its states.
 
-- [ ] **Step 0: Multi-agent gate.** Run both checks in "Multi-agent gate". If either fails, stop: write no code and report which check failed.
-- [ ] **Step 1: Write failing route tests** with `setViewportWidth`: the stepper is in the shell's menu slot at 1024 and 1440, with no section menu, tabs or collapse button; at 390 and 1023 the header row shows the right "Step N of M" per step and the drawer holds the stepper without "Exit setup"; "Exit setup" goes to Projects with no confirm and saved steps stay; a menu collapsed on Projects is still collapsed after "Exit setup", and an expanded one stays expanded.
-- [ ] **Step 2: Run** VITEST `src/features/setup/setup.route.test.tsx`. Expected: FAIL.
-- [ ] **Step 3: Implement.**
-- [ ] **Step 4: Add** to `setup.spec.ts` "TC-36.1", "TC-36.2", "TC-36.3", "TC-36.4", "TC-37.1", "TC-37.2", "TC-37.3", "TC-37.4", and rewrite any old top-bar assertion, in `setup-agent.spec.ts`, `agent-model.spec.ts` and `setup-agent-wizard.spec.ts` too. In `resume-setup.spec.ts` leave with "Exit setup".
-- [ ] **Step 5: Run** VITEST, MOCK `setup top-bar setup-agent agent-model`, LOCAL `resume-setup` and `setup-agent-wizard` if present. Expected: PASS.
-- [ ] **Step 6: Commit** `feat(web): wizard uses the app shell with exit setup`.
+- [x] **Step 0: Multi-agent gate.** Run both checks in "Multi-agent gate". If either fails, stop: write no code and report which check failed.
+- [x] **Step 1: Write failing route tests** with `setViewportWidth`: the stepper is in the shell's menu slot at 1024 and 1440, with no section menu, tabs or collapse button; at 390 and 1023 the header row shows the right "Step N of M" per step and the drawer holds the stepper without "Exit setup"; "Exit setup" goes to Projects with no confirm and saved steps stay; a menu collapsed on Projects is still collapsed after "Exit setup", and an expanded one stays expanded.
+- [x] **Step 2: Run** VITEST `src/features/setup/setup.route.test.tsx`. Expected: FAIL.
+- [x] **Step 3: Implement.**
+- [x] **Step 4: Add** to `setup.spec.ts` "TC-36.1", "TC-36.2", "TC-36.3", "TC-36.4", "TC-37.1", "TC-37.2", "TC-37.3", "TC-37.4", and rewrite any old top-bar assertion, in `setup-agent.spec.ts`, `agent-model.spec.ts` and `setup-agent-wizard.spec.ts` too. In `resume-setup.spec.ts` leave with "Exit setup".
+- [x] **Step 5: Run** VITEST, MOCK `setup top-bar setup-agent agent-model`, LOCAL `resume-setup` and `setup-agent-wizard` if present. Expected: PASS.
+- [x] **Step 6: Commit** `feat(web): wizard uses the app shell with exit setup`.
 
 ### Task 35: Error, forbidden and suspended pages in the shell (BR-12, BR-13, BR-16, BR-58, BR-79) (after the multi-agent gate)
 

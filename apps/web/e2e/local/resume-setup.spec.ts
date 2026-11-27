@@ -27,8 +27,7 @@ test.beforeAll(async ({ request }) => {
 const agentHeading = (page: Page) => page.getByRole('heading', { name: 'Add your agent', level: 1 });
 const workspaceHeading = (page: Page) => page.getByRole('heading', { name: 'Prepare the workspace', level: 1 });
 const anyResume = (page: Page) => page.getByRole('link', { name: /^Resume setup for / });
-const topProjects = (page: Page) =>
-  page.getByRole('navigation', { name: 'Organization sections' }).getByRole('link', { name: 'Projects', exact: true });
+const exitSetup = (page: Page) => page.getByRole('link', { name: 'Exit setup' });
 
 /** One step of the wizard's progress list; a done step carries the check mark and is not the current step. */
 const stepItem = (page: Page, label: string) =>
@@ -107,7 +106,7 @@ test('TC-78.1: leaving inside the app with no reload and resuming lands on the f
 }) => {
   const { handle, projectId } = await projectLeftAfterAgentStep(page);
   // No reload: through the top-bar Projects link (until "Exit setup" replaces it).
-  await topProjects(page).click();
+  await exitSetup(page).click();
   await expect(page).toHaveURL(new RegExp(`/o/${handle}/projects$`));
   await anyResume(page).click();
   await expect(page).toHaveURL(new RegExp(`/projects/new/setup\\?project=${projectId}$`));

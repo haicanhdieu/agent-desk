@@ -64,6 +64,7 @@ import { Setup1, Setup2, Setup3, Setup4, SetupReady, type Setup1Draft, type Setu
 // `project.setupStep` (via `?project=`): asking for a later step than the project has reached redirects there.
 
 export const Route = createFileRoute('/o/$org/projects/new/$step')({
+  staticData: { chrome: { mode: 'wizard', scope: 'org', crumb: 'New project' } },
   validateSearch: (search) => SetupSearch.parse(search),
   beforeLoad: async ({ context: { queryClient }, params, search }) => {
     // Creating a project is org-level `project:create`; refused before the step is read or anything is requested.
@@ -315,6 +316,7 @@ function RepoStep({ org, projectId, connectionId }: { org: string; projectId?: s
       key={project?.id ?? 'new'}
       user={bar.user}
       org={bar.org}
+      exitHref={`/o/${encodeURIComponent(org)}/projects`}
       projectName={project?.name ?? repoName(selected)}
       repos={shown}
       selected={selected}
@@ -460,6 +462,7 @@ function AgentStep({ org, projectId }: { org: string; projectId: string }) {
     <Setup2
       user={bar.user}
       org={bar.org}
+      exitHref={`/o/${encodeURIComponent(org)}/projects`}
       projectName={project.name}
       repo={project.repoPath}
       kinds={AGENT_KIND_VIEWS}
@@ -536,6 +539,7 @@ function SkillsStep({ org, projectId }: { org: string; projectId: string }) {
     <Setup3
       user={bar.user}
       org={bar.org}
+      exitHref={`/o/${encodeURIComponent(org)}/projects`}
       projectName={project.name}
       repo={project.repoPath}
       branch="main"
@@ -647,6 +651,7 @@ function RulesStep({ org, projectId }: { org: string; projectId: string }) {
     <Setup4
       user={bar.user}
       org={bar.org}
+      exitHref={`/o/${encodeURIComponent(org)}/projects`}
       projectName={project.name}
       repo={project.repoPath}
       rule={rule}
@@ -708,6 +713,7 @@ function ReadyStep({ org, projectId }: { org: string; projectId: string }) {
     <SetupReady
       user={bar.user}
       org={bar.org}
+      exitHref={`/o/${encodeURIComponent(org)}/projects`}
       projectName={project.name}
       repo={project.repoPath}
       label={label ? { name: label } : undefined}

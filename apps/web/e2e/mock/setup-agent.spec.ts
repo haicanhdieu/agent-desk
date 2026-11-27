@@ -39,10 +39,7 @@ async function resumeAgentStepWithCredential(page: Page) {
   await page.getByRole('textbox', { name: 'Token' }).fill(TOKEN);
   await page.getByRole('button', { name: 'Continue' }).click();
   await expect(workspaceHeading(page)).toBeVisible();
-  await page
-    .getByRole('navigation', { name: 'Organization sections' })
-    .getByRole('link', { name: 'Projects', exact: true })
-    .click();
+  await page.getByRole('link', { name: 'Exit setup' }).click();
   await page.getByRole('link', { name: /^Resume setup for / }).click();
   await expect(workspaceHeading(page)).toBeVisible();
   await page.getByRole('link', { name: 'Back' }).click();
@@ -401,10 +398,7 @@ test.describe('BR-64: no step asks for a Claude credential', () => {
     await expect(page.getByRole('heading', { name: 'Trigger your first run from GitHub', level: 1 })).toBeVisible();
     await noClaudeCredential();
 
-    await page
-      .getByRole('navigation', { name: 'Organization sections' })
-      .getByRole('link', { name: 'Projects' })
-      .click();
+    await page.getByRole('link', { name: 'Exit setup' }).click();
     const row = page
       .getByRole('heading', { level: 2, name: 'Get started' })
       .locator('..')

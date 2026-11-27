@@ -93,6 +93,7 @@ export function WorkspaceStep({ org, project, bar, credentialDetail, backHref, o
     <SetupWorkspace
       user={bar.user}
       org={bar.org}
+      exitHref={`/o/${encodeURIComponent(org)}/projects`}
       projectName={project.name}
       repo={project.repoPath}
       {...(credentialDetail !== undefined && { credentialDetail })}
