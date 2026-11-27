@@ -1,7 +1,10 @@
+import type { ReactElement } from 'react';
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { deskFrame, memberPickerOptions, pagedProjectMemberRows, projectMemberRows, projectRoleCards } from '@/mocks';
 import { AddProjectMemberDialog } from '@/components';
+import { ProjectShellFrame } from './projectShellFrame';
+import { expectShellOwnedPage, headerActions } from '@/test/shellAssert';
 import { DeskMembers, type DeskMembersProps } from './DeskMembers';
 
 const frame = {
@@ -16,6 +19,10 @@ const frame = {
     members: '#members',
     audit: '#audit',
   },
+};
+const warnFrame = {
+  ...deskFrame,
+  warning: { title: 'Workspace setup needs attention', detail: 'The last test failed.', href: '#setup' },
 };
 const base = {
   frame,
@@ -238,5 +245,33 @@ describe('DeskMembers', () => {
       />,
     );
     expect(screen.getByText('Member is no longer on this project').closest('[role="status"]')).not.toBeNull();
+  });
+});
+
+describe('DeskMembers in the shell', () => {
+  const menu = 'Project menu';
+  const inShell = (ui: ReactElement) => render(<ProjectShellFrame page="members">{ui}</ProjectShellFrame>);
+
+  it('ready draws one main with the h1 Members and both actions in the header', () => {
+    inShell(<DeskMembers {...ready()} />);
+    const main = expectShellOwnedPage('Members', { menu });
+    const actions = within(headerActions(main));
+    expect(actions.getByRole('button', { name: 'Invite people' })).toBeInTheDocument();
+    expect(actions.getByRole('button', { name: 'Add member' })).toBeInTheDocument();
+  });
+
+  it('loading and error keep one main and no h1', () => {
+    const { unmount } = inShell(<DeskMembers {...base} state={{ kind: 'loading' }} />);
+    expectShellOwnedPage(null, { menu });
+    unmount();
+    inShell(<DeskMembers {...base} state={{ kind: 'error', onRetry: vi.fn() }} />);
+    expectShellOwnedPage(null, { menu });
+  });
+
+  it('the setup warning follows the h1', () => {
+    inShell(<DeskMembers {...ready()} frame={warnFrame} />);
+    expectShellOwnedPage('Members', { menu });
+    const header = screen.getByRole('heading', { level: 1 }).closest('header')!;
+    expect(within(header).getByText('Workspace setup needs attention')).toBeInTheDocument();
   });
 });

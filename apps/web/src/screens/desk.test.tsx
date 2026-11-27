@@ -10,7 +10,10 @@ import {
   rules,
   skills,
 } from '@/mocks';
+import type { ReactElement } from 'react';
 import { DeskSkills } from './DeskSkills';
+import { ProjectShellFrame } from './projectShellFrame';
+import { expectShellOwnedPage, headerActions } from '@/test/shellAssert';
 import { DeskRules } from './DeskRules';
 import { DeskAgent } from './DeskAgent';
 import { vi } from 'vitest';
@@ -810,5 +813,60 @@ describe('Desk under the app bar (BR-43)', () => {
   it('without org: no org menu', () => {
     render(<DeskSkills frame={{ ...deskFrame, links }} skills={skills} activeName="code-build" />);
     expect(within(screen.getByRole('banner')).queryByRole('button', { name: /organization/i })).toBeNull();
+  });
+});
+
+describe('DeskSkills in the shell', () => {
+  const menu = 'Project menu';
+  const inShell = (ui: ReactElement) =>
+    render(
+      <ProjectShellFrame page="skills" fill>
+        {ui}
+      </ProjectShellFrame>,
+    );
+  const warning = { title: 'Workspace setup needs attention', detail: 'The last test failed.', href: '#setup' };
+
+  it('draws one main with the h1 Skills, the folder line and New skill in the header', () => {
+    inShell(<DeskSkills frame={deskFrame} skills={skills} activeName="code-build" />);
+    const main = expectShellOwnedPage('Skills', { menu });
+    const header = screen.getByRole('heading', { level: 1 }).closest('header')!;
+    expect(within(header).getByText('.claude/skills/ on main')).toBeInTheDocument();
+    expect(within(headerActions(main)).getByRole('button', { name: 'New skill' })).toBeInTheDocument();
+    expect(within(main).getByRole('heading', { level: 2, name: 'code-build' })).toBeInTheDocument();
+  });
+
+  it('joins several skill folders with "or" in the header line', () => {
+    inShell(
+      <DeskSkills
+        frame={deskFrame}
+        skills={skills}
+        activeName="code-build"
+        folders={['.claude/skills', '.agent/skills']}
+      />,
+    );
+    expectShellOwnedPage('Skills', { menu });
+    const header = screen.getByRole('heading', { level: 1 }).closest('header')!;
+    expect(within(header).getByText('.claude/skills/ or .agent/skills/ on main')).toBeInTheDocument();
+  });
+
+  it('has no skill History link and, empty, no second New skill button', () => {
+    const { unmount } = inShell(<DeskSkills frame={deskFrame} skills={skills} activeName="code-build" />);
+    expect(screen.queryByRole('link', { name: 'History' })).toBeNull();
+    unmount();
+    inShell(<DeskSkills frame={deskFrame} skills={[]} />);
+    expect(screen.getAllByRole('button', { name: 'New skill' })).toHaveLength(1);
+  });
+
+  it('the setup warning follows the h1', () => {
+    inShell(<DeskSkills frame={{ ...deskFrame, warning }} skills={skills} activeName="code-build" />);
+    expectShellOwnedPage('Skills', { menu });
+    const header = screen.getByRole('heading', { level: 1 }).closest('header')!;
+    expect(within(header).getByText('Workspace setup needs attention')).toBeInTheDocument();
+  });
+
+  it('outside the shell the skill History link is gone too', () => {
+    render(<DeskSkills frame={deskFrame} skills={skills} activeName="code-build" />);
+    expect(screen.queryByRole('link', { name: 'History' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'History' })).toBeNull();
   });
 });

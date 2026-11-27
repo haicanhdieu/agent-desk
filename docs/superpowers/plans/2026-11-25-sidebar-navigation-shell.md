@@ -921,13 +921,13 @@ Fill mode (spec "Page fit inside the shell"): the root is the given height and d
 
 - Produces: `DeskFrame` gains `title?: string; meta?: ReactNode; actions?: ReactNode`. Owned, with a `title`, it renders only the page: `PageHeader` with the setup warning in `banner` ("Open workspace setup" kept; not on the setup page), then the body. Used by the four screens here. `DeskRules` and `DeskAgent` leave this frame in Task 56. Also `SetupWarningBanner(props: { warning: FrameWarning }): JSX.Element`, exported from `DeskFrame.tsx`: the warning drawn today, which Task 56 places itself.
 
-- [ ] **Step 0: Multi-agent gate.** Run both checks in "Multi-agent gate". If either fails, stop: write no code and report which check failed.
-- [ ] **Step 1: Write failing tests:** per the pattern; the warning follows the h1; Skills h1 "Skills" with ".claude/skills/ on main" and "New skill"; Workspace setup h1 "Workspace setup" with its version line and "Test setup"; in both branches there is no skill "History" and no empty action row ("Send test ping" and "Manage installation" are Task 56).
-- [ ] **Step 2: Run** VITEST on the four files. Expected: FAIL.
-- [ ] **Step 3: Implement.** Hide skill "History" in both branches. Skills and Workspace setup are fill pages with inner scroll; the Skills list and Setup panels stay in-page columns.
-- [ ] **Step 4: Stories** of these screens and of the forbidden page onto `ShellFrame`; register `DeskRulesForbiddenSideMenu`, `DeskSkillsSideMenu`, `DeskSetupSideMenu` (REG; expected count 428). A diff over about 800 lines is split into two PRs (skills and setup; then members and audit).
-- [ ] **Step 5: Run** tests, coverage and smoke, PARITY. Expected: PASS.
-- [ ] **Step 6: Commit** `feat(web): project frame, skills, setup, members and audit screens in the new shell`.
+- [x] **Step 0: Multi-agent gate.** Run both checks in "Multi-agent gate". If either fails, stop: write no code and report which check failed.
+- [x] **Step 1: Write failing tests:** per the pattern; the warning follows the h1; Skills h1 "Skills" with ".claude/skills/ on main" and "New skill"; Workspace setup h1 "Workspace setup" with its version line and "Test setup"; in both branches there is no skill "History" and no empty action row ("Send test ping" and "Manage installation" are Task 56).
+- [x] **Step 2: Run** VITEST on the four files. Expected: FAIL.
+- [x] **Step 3: Implement.** Hide skill "History" in both branches. Skills and Workspace setup are fill pages with inner scroll; the Skills list and Setup panels stay in-page columns.
+- [x] **Step 4: Stories** of these screens and of the forbidden page onto `ShellFrame`; register `DeskRulesForbiddenSideMenu`, `DeskSkillsSideMenu`, `DeskSetupSideMenu` (REG; expected count 428). A diff over about 800 lines is split into two PRs (skills and setup; then members and audit).
+- [x] **Step 5: Run** tests, coverage and smoke, PARITY. Expected: PASS.
+- [x] **Step 6: Commit** `feat(web): project frame, skills, setup, members and audit screens in the new shell`.
 
 ### Task 56: Agent & settings and Routing rules screens in the shell (BR-44, BR-65) (after the multi-agent gate)
 

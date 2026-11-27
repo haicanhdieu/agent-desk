@@ -98,6 +98,25 @@
   gap: 20px;
 }
 
+/* a page inside the shell that fills the height and scrolls its panels inside */
+.shellMainFill {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  padding: 24px 32px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+/* the body of a shell page that has no main of its own (the frame's main holds it) */
+.shellBody {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  min-width: 0;
+}
+
 /* projects list */
 .listMain {
   flex: 1;

@@ -3409,6 +3409,30 @@
    "h": 900,
    "title": "Project out of scope: not found with the organization menu",
    "expand": "fill"
+  },
+  "DeskRulesForbiddenSideMenu.dc.html": {
+   "x": 7600,
+   "y": 96560,
+   "w": 1440,
+   "h": 900,
+   "title": "Routing rules URL opened without access: project menu, no active item",
+   "expand": "fill"
+  },
+  "DeskSkillsSideMenu.dc.html": {
+   "x": 9120,
+   "y": 96560,
+   "w": 1440,
+   "h": 900,
+   "title": "Skills in the shell: project menu, page header and skill list",
+   "expand": "fill"
+  },
+  "DeskSetupSideMenu.dc.html": {
+   "x": 10640,
+   "y": 96560,
+   "w": 1440,
+   "h": 900,
+   "title": "Workspace setup in the shell: project menu, page header and editor",
+   "expand": "fill"
   }
  },
  "order": [
@@ -3836,7 +3860,10 @@
   "RunsSideProjectSwitcherError.dc.html",
   "RunsSideProjectSwitcherLoading.dc.html",
   "RunsSideProjectSwitcherNoCreate.dc.html",
-  "RunsNotFoundSideMenu.dc.html"
+  "RunsNotFoundSideMenu.dc.html",
+  "DeskRulesForbiddenSideMenu.dc.html",
+  "DeskSkillsSideMenu.dc.html",
+  "DeskSetupSideMenu.dc.html"
  ],
  "notes": {
   "t-intro": {

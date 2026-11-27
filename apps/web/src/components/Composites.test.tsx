@@ -301,6 +301,13 @@ describe('SkillList', () => {
     expect(onNew).toHaveBeenCalled();
     expect(screen.queryAllByRole('listitem')).toHaveLength(0);
   });
+  it('hideHeader draws neither the Skills heading, the New skill button nor the folder line', () => {
+    render(<SkillList skills={skills} branch="main" hideHeader />);
+    expect(screen.queryByRole('heading', { name: 'Skills' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'New skill' })).toBeNull();
+    expect(screen.queryByText(/on main/)).toBeNull();
+    expect(screen.getAllByRole('link')).toHaveLength(2);
+  });
   it('draws the footer under the list, outside the Skills navigation landmark', () => {
     render(<SkillList skills={skills} branch="main" footer={<p>Footer text</p>} />);
     const footer = screen.getByText('Footer text');

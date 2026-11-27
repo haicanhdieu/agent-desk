@@ -1,6 +1,9 @@
-import { render, screen } from '@testing-library/react';
+import type { ReactElement } from 'react';
+import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { deskFrame, pagedAuditLastPage, projectAuditRows } from '@/mocks';
+import { ProjectShellFrame } from './projectShellFrame';
+import { expectShellOwnedPage } from '@/test/shellAssert';
 import { DeskAudit, type DeskAuditProps } from './DeskAudit';
 
 const frame = {
@@ -15,6 +18,10 @@ const frame = {
     members: '#members',
     audit: '#audit',
   },
+};
+const warnFrame = {
+  ...deskFrame,
+  warning: { title: 'Workspace setup needs attention', detail: 'The last test failed.', href: '#setup' },
 };
 const ready = (over: Partial<Extract<DeskAuditProps['state'], { kind: 'ready' }>> = {}): DeskAuditProps => ({
   frame,
@@ -66,5 +73,37 @@ describe('DeskAudit', () => {
   it('BR-1: the side menu marks Audit log as the current item', () => {
     render(<DeskAudit {...ready()} />);
     expect(screen.getByRole('link', { name: /Audit log/ })).toHaveAttribute('aria-current', 'page');
+  });
+});
+
+describe('DeskAudit in the shell', () => {
+  const menu = 'Project menu';
+  const inShell = (ui: ReactElement) => render(<ProjectShellFrame page="audit">{ui}</ProjectShellFrame>);
+
+  it('ready draws one main with the h1 Audit log and no chrome of its own', () => {
+    inShell(<DeskAudit {...ready()} />);
+    const main = expectShellOwnedPage('Audit log', { menu });
+    expect(
+      within(main)
+        .getAllByRole('columnheader')
+        .map((h) => h.textContent),
+    ).toEqual(['When', 'Who', 'What']);
+  });
+
+  it('loading and error keep one main and no h1', () => {
+    const { unmount } = inShell(<DeskAudit frame={frame} state={{ kind: 'loading' }} />);
+    expectShellOwnedPage(null, { menu });
+    unmount();
+    inShell(<DeskAudit frame={frame} state={{ kind: 'error', onRetry: vi.fn() }} />);
+    expectShellOwnedPage(null, { menu });
+    expect(screen.getByRole('button', { name: 'Retry' })).toBeInTheDocument();
+  });
+
+  it('the setup warning follows the h1 and keeps Open workspace setup', () => {
+    inShell(<DeskAudit {...ready()} frame={warnFrame} />);
+    const main = expectShellOwnedPage('Audit log', { menu });
+    const header = screen.getByRole('heading', { level: 1 }).closest('header')!;
+    expect(within(header).getByText('Workspace setup needs attention')).toBeInTheDocument();
+    expect(within(main).getByRole('link', { name: 'Open workspace setup' })).toBeInTheDocument();
   });
 });

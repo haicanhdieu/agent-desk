@@ -33,6 +33,7 @@ import {
   type ScriptVersion,
   type SetupPhase,
   type TermLine,
+  useShellOwnsChrome,
 } from '@/components';
 import styles from './Screens.module.css';
 import { DeskFrame, type DeskFrameData } from './DeskFrame';
@@ -272,6 +273,8 @@ export function DeskSetup({
   onTabChange,
   environment,
 }: DeskSetupProps) {
+  const owned = useShellOwnsChrome();
+  const Body = owned ? 'div' : 'main';
   const [ownTab, setOwnTab] = useState<DeskSetupTab>('script');
   const activeTab = tab ?? ownTab;
   const changeTab = (next: DeskSetupTab) => {
@@ -284,7 +287,7 @@ export function DeskSetup({
   const dirty = value !== saved;
   const nextVersion = (script?.version ?? 0) + 1;
   const fit = (page: ReactNode) =>
-    height === 'viewport' ? (
+    height === 'viewport' && !owned ? (
       <AppShell height="viewport" topBar={null}>
         {page}
       </AppShell>
@@ -294,11 +297,13 @@ export function DeskSetup({
 
   if (loading || loadError) {
     return fit(
-      <DeskFrame active="setup" {...frame}>
-        <main className={styles.setupDeskMain} aria-busy={loading || undefined}>
-          <div className={styles.setupDeskHead}>
-            <h2>Workspace setup</h2>
-          </div>
+      <DeskFrame active="setup" {...frame} {...(owned && { title: 'Workspace setup', fill: true })}>
+        <Body className={styles.setupDeskMain} aria-busy={loading || undefined}>
+          {!owned && (
+            <div className={styles.setupDeskHead}>
+              <h2>Workspace setup</h2>
+            </div>
+          )}
           <div className={styles.setupDeskBody}>
             {loadError ? (
               <Banner tone="err" icon={<Icon name="warning" size={16} />} title="Could not load the setup script">
@@ -308,7 +313,7 @@ export function DeskSetup({
               <Skeleton variant="block" height={240} />
             )}
           </div>
-        </main>
+        </Body>
       </DeskFrame>,
     );
   }
@@ -334,37 +339,53 @@ export function DeskSetup({
     </Button>
   );
 
+  const metaText = script
+    ? test && dirty
+      ? `Editing from version ${script.version}. The test runs this draft; runs keep using version ${script.version} until you save.`
+      : `Version ${script.version}, saved by ${script.savedBy} ${script.savedAgo}. Runs use the saved version; Agent Desk stores it, not your repo.`
+    : 'No setup script: runs start the agent right after cloning.';
+  const headActions = test ? (
+    <>
+      <Button icon="play" onClick={() => onTest?.(value)}>
+        Test again
+      </Button>
+      {save}
+    </>
+  ) : (
+    <Button variant="primary" icon="play" onClick={() => onTest?.(value)}>
+      Test setup
+    </Button>
+  );
+
   return fit(
-    <DeskFrame active="setup" {...frame}>
+    <DeskFrame
+      active="setup"
+      {...frame}
+      {...(owned && {
+        title: 'Workspace setup',
+        meta: (
+          <>
+            {dirty && script !== null && <LabelChip name="Unsaved changes" tone="idle" />} {metaText}
+          </>
+        ),
+        actions: headActions,
+        fill: true,
+      })}
+    >
       <div className={styles.deskRow}>
-        <main className={styles.setupDeskMain}>
-          <div className={styles.setupDeskHead}>
-            <div className={styles.skillHeadText}>
-              <span className={styles.skillTitleRow}>
-                <h2>Workspace setup</h2>
-                {dirty && script !== null && <LabelChip name="Unsaved changes" tone="idle" />}
-              </span>
-              <span className={`faint ${styles.skillMeta}`}>
-                {script
-                  ? test && dirty
-                    ? `Editing from version ${script.version}. The test runs this draft; runs keep using version ${script.version} until you save.`
-                    : `Version ${script.version}, saved by ${script.savedBy} ${script.savedAgo}. Runs use the saved version; Agent Desk stores it, not your repo.`
-                  : 'No setup script: runs start the agent right after cloning.'}
-              </span>
+        <Body className={styles.setupDeskMain}>
+          {!owned && (
+            <div className={styles.setupDeskHead}>
+              <div className={styles.skillHeadText}>
+                <span className={styles.skillTitleRow}>
+                  <h2>Workspace setup</h2>
+                  {dirty && script !== null && <LabelChip name="Unsaved changes" tone="idle" />}
+                </span>
+                <span className={`faint ${styles.skillMeta}`}>{metaText}</span>
+              </div>
+              {headActions}
             </div>
-            {test ? (
-              <>
-                <Button icon="play" onClick={() => onTest?.(value)}>
-                  Test again
-                </Button>
-                {save}
-              </>
-            ) : (
-              <Button variant="primary" icon="play" onClick={() => onTest?.(value)}>
-                Test setup
-              </Button>
-            )}
-          </div>
+          )}
 
           <div className={styles.setupTabs}>
             <Tabs
@@ -464,7 +485,7 @@ export function DeskSetup({
           <TabPanel value="environment" active={activeTab} idPrefix={TAB_PREFIX}>
             {environment && <DeskSetupEnvironment {...environment} />}
           </TabPanel>
-        </main>
+        </Body>
 
         <SidePanel aria-label={test ? 'Test result' : 'Plugins and history'}>
           {test ? (

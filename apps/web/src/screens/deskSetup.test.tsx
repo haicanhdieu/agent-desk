@@ -1,4 +1,5 @@
-import { render, screen } from '@testing-library/react';
+import type { ReactElement } from 'react';
+import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import {
@@ -17,6 +18,8 @@ import type { DeskSetupEnvironmentProps } from './DeskSetupEnvironment';
 import type { PaginationProps } from '@/components';
 import { SetupWorkspace } from './SetupWorkspace';
 import { RunDetail } from './RunDetail';
+import { ProjectShellFrame } from './projectShellFrame';
+import { expectShellOwnedPage, headerActions } from '@/test/shellAssert';
 
 const props: DeskSetupProps = {
   frame: deskFrame,
@@ -444,5 +447,61 @@ describe('DeskSetup tabs and Environment', () => {
     await userEvent.click(screen.getByRole('tab', { name: 'Environment' }));
     expect(onTabChange).toHaveBeenCalledWith('environment');
     expect(screen.getByRole('textbox', { name: 'Setup script' })).toBeInTheDocument();
+  });
+});
+
+describe('DeskSetup in the shell', () => {
+  const menu = 'Project menu';
+  const inShell = (ui: ReactElement) =>
+    render(
+      <ProjectShellFrame page="setup" fill>
+        {ui}
+      </ProjectShellFrame>,
+    );
+
+  it('draws one main with the h1 Workspace setup, the version line and Test setup in the header', () => {
+    inShell(<DeskSetup {...props} />);
+    const main = expectShellOwnedPage('Workspace setup', { menu });
+    const header = screen.getByRole('heading', { level: 1 }).closest('header')!;
+    expect(within(header).getByText(/Version 4, saved by kim-hale 2 days ago/)).toBeInTheDocument();
+    expect(within(headerActions(main)).getByRole('button', { name: 'Test setup' })).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { level: 2, name: 'Workspace setup' })).toBeNull();
+  });
+
+  it('in test mode with a changed script the header carries Test again, Save, the edit line and the chip', async () => {
+    const test = {
+      status: 'failed' as const,
+      phases: setupPhases.failed,
+      plugins: setupPlugins.result,
+      lines: setupTestTerminal,
+      scriptLabel: 'Draft',
+      checkout: 'main a91c3e2',
+      started: '14:31',
+    };
+    inShell(<DeskSetup {...props} test={test} />);
+    await userEvent.type(screen.getByRole('textbox', { name: 'Setup script' }), '\necho changed');
+    const main = expectShellOwnedPage('Workspace setup', { menu });
+    const header = screen.getByRole('heading', { level: 1 }).closest('header')!;
+    expect(within(header).getByText(/Editing from version 4/)).toBeInTheDocument();
+    expect(within(header).getByText('Unsaved changes')).toBeInTheDocument();
+    const actions = within(headerActions(main));
+    expect(actions.getByRole('button', { name: 'Test again' })).toBeInTheDocument();
+    expect(actions.getByRole('button', { name: 'Save version 5' })).toBeEnabled();
+    expect(actions.queryByRole('button', { name: 'Test setup' })).toBeNull();
+  });
+
+  it('loading keeps one main', () => {
+    inShell(<DeskSetup {...props} loading />);
+    expect(screen.getAllByRole('main')).toHaveLength(1);
+  });
+
+  it('the setup page shows no setup warning banner even when the frame has one', () => {
+    inShell(
+      <DeskSetup
+        {...props}
+        frame={{ ...deskFrame, warning: { title: 'Workspace setup needs attention', detail: 'x', href: '#setup' } }}
+      />,
+    );
+    expect(screen.queryByText('Workspace setup needs attention')).toBeNull();
   });
 });

@@ -7,6 +7,7 @@ import {
   ProjectMemberRow,
   projectMemberColumns,
   RouteLoadError,
+  useShellOwnsChrome,
   type PaginationProps,
 } from '@/components';
 import type { ProjectMemberRowView } from '@/mocks/types';
@@ -75,9 +76,29 @@ export function DeskMembers({
     button.click();
   }, [menuRow, state]);
 
+  const owned = useShellOwnsChrome();
+  const Body = owned ? 'div' : 'main';
+  const invite = <Button onClick={onInvite}>Invite people</Button>;
+  const add = (
+    <Button variant="primary" onClick={onAdd}>
+      Add member
+    </Button>
+  );
   return (
-    <DeskFrame {...frame} active="members">
-      <main className={styles.listMain}>
+    <DeskFrame
+      {...frame}
+      active="members"
+      title={state.kind === 'ready' ? 'Members' : undefined}
+      actions={
+        state.kind === 'ready' ? (
+          <>
+            {invite}
+            {state.rows.length > 0 && add}
+          </>
+        ) : undefined
+      }
+    >
+      <Body className={owned ? styles.shellBody : styles.listMain}>
         {state.kind === 'loading' && (
           <div className={styles.membersLoading} aria-busy="true" role="status" aria-label="Loading">
             <span aria-hidden="true">
@@ -95,19 +116,17 @@ export function DeskMembers({
         )}
         {state.kind === 'ready' && (
           <>
-            <div className={styles.listHead}>
-              <h1 ref={headingRef} tabIndex={-1}>
-                Members
-              </h1>
-              <div className={styles.listHeadActions}>
-                <Button onClick={onInvite}>Invite people</Button>
-                {state.rows.length > 0 && (
-                  <Button variant="primary" onClick={onAdd}>
-                    Add member
-                  </Button>
-                )}
+            {!owned && (
+              <div className={styles.listHead}>
+                <h1 ref={headingRef} tabIndex={-1}>
+                  Members
+                </h1>
+                <div className={styles.listHeadActions}>
+                  {invite}
+                  {state.rows.length > 0 && add}
+                </div>
               </div>
-            </div>
+            )}
             <p className="muted">
               People with access to this project. A role in {orgName} also applies here. Those people are labelled
               Organization and are managed in {orgName} Settings, Members.
@@ -140,7 +159,7 @@ export function DeskMembers({
             {state.pagination && <Pagination {...state.pagination} />}
           </>
         )}
-      </main>
+      </Body>
       {children}
       {removeConfirm && (
         <Dialog

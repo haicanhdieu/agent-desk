@@ -6,6 +6,7 @@ import {
   EmptyState,
   Pagination,
   RouteLoadError,
+  useShellOwnsChrome,
   type PaginationProps,
 } from '@/components';
 import type { AuditRowView } from '@/mocks/types';
@@ -23,9 +24,11 @@ export interface DeskAuditProps {
 
 /** The project's Audit log page inside the Desk: when, who and what for each entry, paging, and the states around it. */
 export function DeskAudit({ frame, state }: DeskAuditProps) {
+  const owned = useShellOwnsChrome();
+  const Body = owned ? 'div' : 'main';
   return (
-    <DeskFrame {...frame} active="audit">
-      <main className={styles.listMain}>
+    <DeskFrame {...frame} active="audit" title={state.kind === 'ready' ? 'Audit log' : undefined}>
+      <Body className={owned ? styles.shellBody : styles.listMain}>
         {state.kind === 'loading' && (
           <div className={styles.membersLoading} aria-busy="true" role="status" aria-label="Loading">
             <span aria-hidden="true">
@@ -43,9 +46,11 @@ export function DeskAudit({ frame, state }: DeskAuditProps) {
         )}
         {state.kind === 'ready' && (
           <>
-            <div className={styles.listHead}>
-              <h1 tabIndex={-1}>Audit log</h1>
-            </div>
+            {!owned && (
+              <div className={styles.listHead}>
+                <h1 tabIndex={-1}>Audit log</h1>
+              </div>
+            )}
             <p className="muted">Changes to this project, newest first.</p>
             <DataTable columns={auditColumns} busy={state.pagination?.busy}>
               {state.rows.map((row) => (
@@ -56,7 +61,7 @@ export function DeskAudit({ frame, state }: DeskAuditProps) {
             {state.pagination && <Pagination {...state.pagination} />}
           </>
         )}
-      </main>
+      </Body>
     </DeskFrame>
   );
 }

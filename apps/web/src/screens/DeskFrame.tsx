@@ -1,5 +1,13 @@
 import type { ReactNode } from 'react';
-import { DESK_CRUMB, DeskLayout, TopBar, type OrgSwitchProps, type ProjectSwitchMenu } from '@/components';
+import {
+  DESK_CRUMB,
+  DeskLayout,
+  PageHeader,
+  TopBar,
+  useShellOwnsChrome,
+  type OrgSwitchProps,
+  type ProjectSwitchMenu,
+} from '@/components';
 import { Banner, Button, Icon } from '@/ds';
 import type { Actor, ConnectionStatus } from '@/mocks/types';
 import styles from './Screens.module.css';
@@ -45,6 +53,27 @@ export interface DeskFrameData {
   warning?: FrameWarning;
 }
 
+/** The setup warning, drawn in a banner with "Open workspace setup" when the warning has a link. */
+export function SetupWarningBanner({ warning }: { warning: FrameWarning }) {
+  return (
+    <Banner
+      tone="warn"
+      icon={<Icon name="warning" size={16} />}
+      title={warning.title}
+      centered
+      actions={
+        warning.href ? (
+          <Button size="sm" href={warning.href}>
+            Open workspace setup
+          </Button>
+        ) : undefined
+      }
+    >
+      {warning.detail}
+    </Banner>
+  );
+}
+
 /** Top bar plus the Desk sub navigation shared by the Desk boards. Children render in the content column. */
 export function DeskFrame({
   active,
@@ -55,8 +84,32 @@ export function DeskFrame({
   projectMenu,
   org,
   warning,
+  title,
+  meta,
+  actions,
+  fill,
   children,
-}: DeskFrameData & { active: 'skills' | 'rules' | 'agent' | 'setup' | 'members' | 'audit'; children?: ReactNode }) {
+}: DeskFrameData & {
+  active: 'skills' | 'rules' | 'agent' | 'setup' | 'members' | 'audit';
+  /** In the shell: the page title (h1). Without it the page draws no header. */
+  title?: string;
+  meta?: ReactNode;
+  actions?: ReactNode;
+  /** In the shell: the page fills the height and its panels scroll inside it. */
+  fill?: boolean;
+  children?: ReactNode;
+}) {
+  const owned = useShellOwnsChrome();
+  if (owned) {
+    // The shell draws the bar and the menu: the frame is only the page's `main`, its header and the body.
+    const banner = warning && active !== 'setup' ? <SetupWarningBanner warning={warning} /> : undefined;
+    return (
+      <main className={fill ? styles.shellMainFill : styles.shellMain}>
+        {title !== undefined ? <PageHeader title={title} meta={meta} actions={actions} banner={banner} /> : banner}
+        {children}
+      </main>
+    );
+  }
   return (
     <>
       <TopBar
@@ -84,21 +137,7 @@ export function DeskFrame({
       >
         {warning && active !== 'setup' && (
           <div className={styles.deskWarning}>
-            <Banner
-              tone="warn"
-              icon={<Icon name="warning" size={16} />}
-              title={warning.title}
-              centered
-              actions={
-                warning.href ? (
-                  <Button size="sm" href={warning.href}>
-                    Open workspace setup
-                  </Button>
-                ) : undefined
-              }
-            >
-              {warning.detail}
-            </Banner>
+            <SetupWarningBanner warning={warning} />
           </div>
         )}
         {children}

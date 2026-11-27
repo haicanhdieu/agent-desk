@@ -12,6 +12,7 @@ import {
   SkillPreviewPane,
   type SkillPreviewPaneProps,
   type PaginationProps,
+  useShellOwnsChrome,
 } from '@/components';
 import type { Skill } from '@/mocks/types';
 import styles from './Screens.module.css';
@@ -268,13 +269,29 @@ export function DeskSkills({
 }: DeskSkillsProps) {
   const active = activeSkill ?? skills.find((s) => s.name === activeName) ?? skills[0];
   const branchLabel = defaultBranch ?? 'the default branch';
+  const owned = useShellOwnsChrome();
+  const Body = owned ? 'div' : 'main';
   const doomed = deleting ? skills.find((s) => s.name === deleting) : undefined;
   const page = (
     <>
-      <DeskFrame active="skills" {...frame}>
+      <DeskFrame
+        active="skills"
+        {...frame}
+        {...(owned && {
+          title: 'Skills',
+          meta: `${folders ? folders.map((f) => `${f}/`).join(' or ') : '.claude/skills/'} on ${branchLabel}`,
+          actions: (
+            <Button variant="primary" icon="plus">
+              New skill
+            </Button>
+          ),
+          fill: true,
+        })}
+      >
         <div className={styles.deskRow}>
           <SkillList
             branch={branchLabel}
+            hideHeader={owned}
             folders={folders}
             activeName={active?.name}
             skills={skills.map((s) => ({
@@ -286,7 +303,7 @@ export function DeskSkills({
             onSelect={onSelect}
             footer={skills.length > 0 && pagination ? <Pagination {...pagination} /> : undefined}
           />
-          <main className={styles.skillsMain}>
+          <Body className={styles.skillsMain}>
             {submission && <SubmissionNotice submission={submission} onDismiss={onDismissSubmission} />}
             {active ? (
               <SkillEditor
@@ -320,13 +337,15 @@ export function DeskSkills({
                   </>
                 }
                 action={
-                  <Button variant="primary" icon="plus">
-                    New skill
-                  </Button>
+                  owned ? undefined : (
+                    <Button variant="primary" icon="plus">
+                      New skill
+                    </Button>
+                  )
                 }
               />
             )}
-          </main>
+          </Body>
         </div>
       </DeskFrame>
       {doomed && (
@@ -359,7 +378,7 @@ export function DeskSkills({
       )}
     </>
   );
-  return height === 'viewport' ? (
+  return height === 'viewport' && !owned ? (
     <AppShell height="viewport" topBar={null}>
       {page}
     </AppShell>

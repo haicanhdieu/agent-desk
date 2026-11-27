@@ -78,6 +78,7 @@ import { DeskSkills as DeskSkillsScreen, type DeskSkillsProps } from './DeskSkil
 import { toModelList } from '@/components';
 import { agentModelsFixtures } from '@/mocks/dto/agentModels';
 import { StatusIcon, Toast, ToastRegion } from '@/ds';
+import { ProjectShellFrame } from './projectShellFrame';
 import { viewport } from './viewports';
 
 // Artboards come from canvas.json: DeskSkills, DeskSkillDelete, the DeskRulesAgent* boards, DeskSetup, DeskSetupTest 1440x900; every Agent & settings board 1440x900 (the panel scrolls inside);
@@ -1684,3 +1685,38 @@ export const DeskSetupEnvironmentTesting: Story = {
       },
     ),
 };
+
+// The project Desk pages in the one shell: the "Project menu" beside a page that draws only its header and body.
+const deskShellStory = (story: Story): Story => ({ ...story, parameters: { ...story.parameters, shell: true } });
+
+export const DeskSkillsSideMenu: Story = deskShellStory({
+  name: 'Skills, side menu',
+  render: () => (
+    <ProjectShellFrame page="skills" fill crumbs={[{ label: 'Skills' }]}>
+      <DeskSkillsScreen {...skillsProps} />
+    </ProjectShellFrame>
+  ),
+});
+
+export const DeskSetupSideMenu: Story = deskShellStory({
+  name: 'Workspace setup, side menu',
+  render: () => (
+    <ProjectShellFrame page="setup" fill crumbs={[{ label: 'Workspace setup' }]}>
+      <DeskSetupScreen {...setupProps} />
+    </ProjectShellFrame>
+  ),
+});
+
+export const DeskRulesForbiddenSideMenu: Story = deskShellStory({
+  name: 'Routing rules URL opened without access: project menu, no active item',
+  render: () => (
+    <ProjectShellFrame page={null} state="forbidden">
+      <main className={screenStyles.emptyNotice}>
+        <div className={screenStyles.emptyNoticeCol}>
+          <h1>You don&apos;t have access</h1>
+          <p className="muted">Ask an owner of this organization to give you access.</p>
+        </div>
+      </main>
+    </ProjectShellFrame>
+  ),
+});

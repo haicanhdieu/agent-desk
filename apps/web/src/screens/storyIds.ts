@@ -445,6 +445,9 @@ export const boardStories = {
   RunsSideProjectSwitcherLoading: { title: runs, exportName: 'RunsSideProjectSwitcherLoading' },
   RunsSideProjectSwitcherNoCreate: { title: runs, exportName: 'RunsSideProjectSwitcherNoCreate' },
   RunsNotFoundSideMenu: { title: runs, exportName: 'RunsNotFoundSideMenu' },
+  DeskRulesForbiddenSideMenu: { title: desk, exportName: 'DeskRulesForbiddenSideMenu' },
+  DeskSkillsSideMenu: { title: desk, exportName: 'DeskSkillsSideMenu' },
+  DeskSetupSideMenu: { title: desk, exportName: 'DeskSetupSideMenu' },
 } as const satisfies Record<string, BoardStory>;
 
 export type BoardName = keyof typeof boardStories;

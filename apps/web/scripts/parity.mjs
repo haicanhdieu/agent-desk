@@ -465,6 +465,9 @@ const stories = {
   RunsSideProjectSwitcherLoading: ['Screens/Runs', 'RunsSideProjectSwitcherLoading'],
   RunsSideProjectSwitcherNoCreate: ['Screens/Runs', 'RunsSideProjectSwitcherNoCreate'],
   RunsNotFoundSideMenu: ['Screens/Runs', 'RunsNotFoundSideMenu'],
+  DeskRulesForbiddenSideMenu: ['Screens/Desk', 'DeskRulesForbiddenSideMenu'],
+  DeskSkillsSideMenu: ['Screens/Desk', 'DeskSkillsSideMenu'],
+  DeskSetupSideMenu: ['Screens/Desk', 'DeskSetupSideMenu'],
 };
 
 const types = {

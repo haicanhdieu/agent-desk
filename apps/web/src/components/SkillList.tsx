@@ -13,21 +13,36 @@ export interface SkillListProps {
   onSelect?(name: string): void;
   /** Drawn under the list (the paging control). */
   footer?: ReactNode;
+  /** The page header already shows the title, the New skill button and the folders: draw only the list. */
+  hideHeader?: boolean;
 }
 
-export function SkillList({ skills, activeName, branch, folders, onNew, onSelect, footer }: SkillListProps) {
+export function SkillList({
+  skills,
+  activeName,
+  branch,
+  folders,
+  onNew,
+  onSelect,
+  footer,
+  hideHeader,
+}: SkillListProps) {
   return (
     <div className={styles.skills}>
       <nav className={styles.skillsNav} aria-label="Skills">
-        <div className={styles.skillsHead}>
-          <h2>Skills</h2>
-          <Button size="sm" icon="plus" onClick={onNew}>
-            New skill
-          </Button>
-        </div>
-        <p className={styles.skillsPath}>
-          {folders ? folders.map((f) => `${f}/`).join(', ') : 'Skill folders'} on {branch}
-        </p>
+        {!hideHeader && (
+          <>
+            <div className={styles.skillsHead}>
+              <h2>Skills</h2>
+              <Button size="sm" icon="plus" onClick={onNew}>
+                New skill
+              </Button>
+            </div>
+            <p className={styles.skillsPath}>
+              {folders ? folders.map((f) => `${f}/`).join(', ') : 'Skill folders'} on {branch}
+            </p>
+          </>
+        )}
         <ul className={styles.skillItems}>
           {skills.map((s) => {
             const active = s.name === activeName;

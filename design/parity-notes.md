@@ -691,3 +691,13 @@ Boards registered (13, canvas order 412 to 425): RunsSideMenu, RunsSideMenuError
 - Agent call: `Runs.tsx` and `RunsProblems.tsx` need no change, both draw through `RunsPage`, which carries the owned branch.
 - Agent call: `RunsNotFoundSideMenu` renders the not-found notice (the text of `app/boundaries.tsx` `NotFound`) inside `OrgShellFrame`, since `app/` is not presentational.
 - The repository link comes from the menu block, which uses `repoUrl` as given; `repoUrlOf` (`features/runs/map.ts`) still hard-codes github.com, flagged and not fixed.
+
+## Sidebar navigation shell: project frame, Skills, Workspace setup, Members and Audit log screens in the shell (Task 21)
+
+Boards registered (3, canvas order 425 to 428): DeskRulesForbiddenSideMenu, DeskSkillsSideMenu, DeskSetupSideMenu. They continue the canvas row at y 96560 (x 7600 to 10640). PARITY (Storybook build and the side-by-side render) was not run in this session (4 GiB memory cap), so these 3 pairs are unchecked.
+
+- Agent call: `DeskFrame` renders only the page's `main` (header, setup warning, body) when the shell owns the chrome; the screens' own `main` becomes a `div` then, so there is one `main`.
+- Agent call: `SkillList` gets `hideHeader`: in the shell the page header already holds "Skills", the folder line and "New skill", so the list column draws only the list.
+- Agent call: the skill "History" link is removed in both branches, as the task says. The header "New skill" button has no handler yet, as the list's button had none.
+- Agent call: `DeskRulesForbiddenSideMenu` is the forbidden notice inside `ProjectShellFrame` (the text of the Members forbidden board), since `app/` is not presentational.
+- Members and Audit log get no new board: they use the existing screen tests in the shell.
