@@ -504,10 +504,15 @@
 
 .settings {
   display: grid;
-  grid-template-columns: 260px minmax(0, 1fr);
-  gap: 32px;
+  grid-template-columns: var(--settings-intro-column, 260px) minmax(0, 1fr);
+  gap: var(--settings-gap, 32px);
   padding: 22px 0;
   border-bottom: 1px solid var(--line);
+}
+@media (max-width: 720px) {
+  .settings {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 .settingsHead {
   display: flex;

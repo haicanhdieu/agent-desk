@@ -151,6 +151,31 @@ test('TC-61.3: Save limits stays pinned while the Limits panel scrolls', async (
   await expectColumnFits(page);
 });
 
+test('TC-314: Save limits aligns with the settings grid, not the page edge', async ({ page }) => {
+  await open(page, 900);
+  await tab(page, 'Limits').click();
+  const label = box(page.getByText('Run time limit', { exact: true }));
+  const save = box(page.getByRole('button', { name: 'Save limits' }));
+  const area = box(panel(page, 'Limits'));
+  expect((await save).x).toBeCloseTo((await label).x, 0);
+  expect((await save).y).toBeGreaterThanOrEqual((await area).y + (await area).height - 1);
+  await expectPageFits(page);
+});
+
+test('TC-314: at a narrow width the intro stacks and Save limits aligns with the form', async ({ page }) => {
+  await seedAgents(page, 'manyAgents');
+  await page.setViewportSize({ width: 640, height: 900 });
+  await page.goto(AGENT);
+  await expect(heading(page)).toBeVisible();
+  await tab(page, 'Limits').click();
+  const intro = box(page.getByRole('heading', { level: 2, name: 'Limits' }));
+  const label = box(page.getByText('Run time limit', { exact: true }));
+  const save = box(page.getByRole('button', { name: 'Save limits' }));
+  expect((await intro).y + (await intro).height).toBeLessThanOrEqual((await label).y);
+  expect((await save).x).toBeCloseTo((await label).x, 0);
+  await expectPageFits(page);
+});
+
 test('TC-61.3: the error banner of a refused save stays pinned with Save limits while the panel scrolls', async ({
   page,
 }) => {

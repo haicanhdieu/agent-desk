@@ -859,6 +859,9 @@
 /* Agent & settings: a page that fits the window. The top bar, page header and tab strip stay put; only the open tab's
    panel scrolls, and every scroll box is keyboard-reachable. */
 .agentSettingsMain {
+  /* The pinned Limits action bar mirrors SettingsSection's grid so the button starts with the form, not the page. */
+  --settings-intro-column: 260px;
+  --settings-gap: 32px;
   flex: 1;
   min-width: 0;
   min-height: 0;
@@ -930,6 +933,27 @@
   padding: 12px 40px;
   border-top: 1px solid var(--line);
   background: var(--bg);
+}
+/* The Limits bar uses the settings grid: its contents start where the fields start, not at the viewport edge. */
+.agentSaveBarSettings {
+  display: grid;
+  grid-template-columns: var(--settings-intro-column, 260px) minmax(0, 1fr);
+  column-gap: var(--settings-gap, 32px);
+}
+.agentSaveBarContent {
+  grid-column: 2;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+@media (max-width: 720px) {
+  .agentSaveBarSettings {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .agentSaveBarContent {
+    grid-column: 1;
+  }
 }
 .agentLoading {
   display: flex;
