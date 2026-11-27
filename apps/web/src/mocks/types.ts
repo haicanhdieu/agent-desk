@@ -244,6 +244,8 @@ export interface OrgSwitchData {
   current: OrgOption | null;
   orgs: OrgOption[];
   platformAdmin: boolean;
+  /** The org list while it is not ready; absent means ready, with `orgs`. */
+  list?: { status: 'loading' } | { status: 'error'; onRetry(): void };
   /** Absent means the org menu has no such item. */
   projectsHref?: string;
   settingsHref?: string;

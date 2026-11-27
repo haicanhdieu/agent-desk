@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import { ProjectSwitch, type ProjectSwitchMenu } from './ProjectSwitch';
@@ -170,6 +170,53 @@ describe('ProjectSwitch menu', () => {
       screen.getByRole('button', { name: 'Elsewhere' }).focus();
       show({ status: 'ready', items });
       expect(screen.getByRole('button', { name: 'Elsewhere' })).toHaveFocus();
+    });
+  });
+
+  describe('scope switcher states', () => {
+    const footer = { allProjectsHref: '/o/acme/projects', newProjectHref: '/o/acme/projects/new' };
+    const states: [string, ProjectSwitchMenu][] = [
+      ['loading', { status: 'loading', ...footer }],
+      ['error', { status: 'error', onRetry: () => undefined, ...footer }],
+      ['empty', { status: 'ready', items: [], ...footer }],
+      ['ready', { status: 'ready', items, ...footer }],
+    ];
+
+    it.each(states)('%s: titled "Switch project", footer has All projects and New project', async (_n, menu) => {
+      const user = setup(menu);
+      await user.click(button());
+      const dialog = screen.getByRole('dialog');
+      expect(within(dialog).getByText('Switch project')).toBeInTheDocument();
+      expect(within(dialog).getByRole('link', { name: 'All projects' })).toHaveAttribute(
+        'href',
+        footer.allProjectsHref,
+      );
+      expect(within(dialog).getByRole('link', { name: 'New project' })).toHaveAttribute('href', footer.newProjectHref);
+    });
+
+    it('without newProjectHref there is no New project', async () => {
+      const user = setup({ status: 'ready', items, allProjectsHref: footer.allProjectsHref });
+      await user.click(button());
+      expect(screen.getByRole('link', { name: 'All projects' })).toBeInTheDocument();
+      expect(screen.queryByRole('link', { name: 'New project' })).toBeNull();
+    });
+
+    it('labels counts "{n} needs you" only when above 0', async () => {
+      const user = setup({ status: 'ready', items, ...footer });
+      await user.click(button());
+      const dialog = screen.getByRole('dialog');
+      expect(within(dialog).getByText('1 needs you')).toBeInTheDocument();
+      expect(within(dialog).queryByText('0')).toBeNull();
+      expect(within(dialog).queryByText(/^0 needs you/)).toBeNull();
+    });
+
+    it('error keeps its alert and Retry beside the footer', async () => {
+      const onRetry = vi.fn();
+      const user = setup({ status: 'error', onRetry, ...footer });
+      await user.click(button());
+      expect(screen.getByRole('alert')).toHaveTextContent('Could not load your projects.');
+      await user.click(screen.getByRole('button', { name: 'Retry' }));
+      expect(onRetry).toHaveBeenCalledTimes(1);
     });
   });
 });

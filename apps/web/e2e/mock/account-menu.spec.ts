@@ -43,7 +43,7 @@ test('Escape and an outside press close the account menu', async ({ page }) => {
   await expect(menu(page)).toHaveCount(0);
 });
 
-test('the account menu shows the name with the full email under it, Logout with an icon below a separator, and no My invitations or Settings', async ({
+test('the account menu shows the name with the full email under it, My invitations above Logout (Logout with an icon) below a separator, and no Settings', async ({
   page,
 }) => {
   await page.goto(`/o/${ORG}/projects`);
@@ -53,10 +53,11 @@ test('the account menu shows the name with the full email under it, Logout with 
   await expect(m).toBeVisible();
   await expect(m.getByText('Alice', { exact: true })).toBeVisible();
   await expect(m.getByText('alice@example.com', { exact: true })).toBeVisible();
-  await expect(m.getByRole('menuitem')).toHaveText(['Logout']);
+  await expect(m.getByRole('menuitem')).toHaveText(['My invitations', 'Logout']);
   await expect(m.getByRole('menuitem', { name: 'Logout' }).locator('svg')).toHaveCount(1);
   await expect(m.getByRole('separator')).toHaveCount(1);
-  await expect(m.getByRole('menuitem', { name: /Settings|invitations/i })).toHaveCount(0);
+  await expect(m.getByRole('menuitem', { name: 'My invitations' })).toHaveAttribute('href', '/invitations');
+  await expect(m.getByRole('menuitem', { name: /Settings/i })).toHaveCount(0);
   expect((await m.boundingBox())?.width).toBe(240);
 });
 

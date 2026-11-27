@@ -46,6 +46,35 @@ export const NoOrgPlatformItem: Story = {
   args: { ...orgSwitchFixtures.platformAdminNoOrg, platformHref: '/platform/orgs' },
   play: openOnLoad,
 };
+const scopeOnly = {
+  orgHref: links.orgHref,
+  createHref: links.createHref,
+  projectsHref: undefined,
+  settingsHref: undefined,
+};
+export const Loading: Story = {
+  args: {
+    ...scopeOnly,
+    ...orgSwitchFixtures.platformAdmin,
+    platformHref: '/platform/orgs',
+    list: { status: 'loading' },
+  },
+  play: openOnLoad,
+};
+export const ErrorWithRetry: Story = {
+  args: {
+    ...scopeOnly,
+    ...orgSwitchFixtures.platformAdmin,
+    platformHref: '/platform/orgs',
+    list: { status: 'error', onRetry: () => undefined },
+  },
+  play: openOnLoad,
+};
+export const PlainText: Story = { args: { ...scopeOnly, ...orgSwitchFixtures.oneOrg } };
+export const ScopeOnlyOpen: Story = {
+  args: { ...scopeOnly, ...orgSwitchFixtures.platformAdmin, platformHref: '/platform/orgs' },
+  play: openOnLoad,
+};
 export const NoOrg: Story = { args: { current: null, orgs: [], platformAdmin: false } };
 export const LongName: Story = { args: orgSwitchFixtures.longName, play: openOnLoad };
 export const WithSuspendedOrg: Story = {

@@ -9,6 +9,10 @@ export type ProjectSwitchMenu = (
 ) & {
   /** Called when the menu opens, so the list can be fetched lazily. */
   onOpen?(): void;
+  /** Footer link "All projects"; absent means no such item. */
+  allProjectsHref?: string;
+  /** Footer link "New project"; absent means no such item. */
+  newProjectHref?: string;
 };
 
 export interface ProjectSwitchProps {
@@ -82,7 +86,9 @@ function ProjectSwitchWithMenu({ project, menu }: { project: string; menu: Proje
       >
         {/* The Popover is the dialog and handles the arrow keys; this wrapper carries the id. */}
         <div id={menuId}>
+          <div className={styles.menuTitle}>Switch project</div>
           <SwitchMenuBody menu={menu} onNavigate={() => setOpen(false)} />
+          <SwitchMenuFooter menu={menu} onNavigate={() => setOpen(false)} />
         </div>
       </Popover>
     </div>
@@ -119,7 +125,29 @@ function SwitchMenuBody({ menu, onNavigate }: { menu: ProjectSwitchMenu; onNavig
       </div>
     );
   }
-  return <ProjectMenu items={menu.items} onNavigate={onNavigate} />;
+  return <ProjectMenu items={menu.items} onNavigate={onNavigate} labelled />;
+}
+
+function SwitchMenuFooter({ menu, onNavigate }: { menu: ProjectSwitchMenu; onNavigate(): void }) {
+  const { allProjectsHref, newProjectHref } = menu;
+  if (allProjectsHref === undefined && newProjectHref === undefined) return null;
+  return (
+    <>
+      <div role="separator" className={styles.menuDivider} />
+      <div className={styles.menuFooter}>
+        {allProjectsHref !== undefined && (
+          <AppLink href={allProjectsHref} className={styles.menuItem} onClick={onNavigate}>
+            <span className={styles.menuLabel}>All projects</span>
+          </AppLink>
+        )}
+        {newProjectHref !== undefined && (
+          <AppLink href={newProjectHref} className={styles.menuItem} onClick={onNavigate}>
+            <span className={styles.menuLabel}>New project</span>
+          </AppLink>
+        )}
+      </div>
+    </>
+  );
 }
 
 export interface ProjectMenuProps {
@@ -135,9 +163,11 @@ export interface ProjectMenuProps {
   }[];
   /** Called when a project link is followed, so a surrounding popover can close. */
   onNavigate?(): void;
+  /** The switcher's style: a count reads "{n} needs you" and a zero shows nothing. */
+  labelled?: boolean;
 }
 
-export function ProjectMenu({ items, onNavigate }: ProjectMenuProps) {
+export function ProjectMenu({ items, onNavigate, labelled }: ProjectMenuProps) {
   return (
     <div className={styles.menu}>
       {items.map((it) => (
@@ -157,8 +187,8 @@ export function ProjectMenu({ items, onNavigate }: ProjectMenuProps) {
               {it.warning}
             </InlineStatus>
           ) : it.needsYou > 0 ? (
-            <CountBadge count={it.needsYou} />
-          ) : (
+            <CountBadge count={it.needsYou} label={labelled ? 'needs you' : undefined} />
+          ) : labelled ? null : (
             <span className={styles.menuZero}>0</span>
           )}
         </AppLink>

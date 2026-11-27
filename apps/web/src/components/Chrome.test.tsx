@@ -587,7 +587,7 @@ describe('TopBar account menu', () => {
     expect(trigger()).toHaveAttribute('aria-expanded', 'false');
   });
 
-  it('shows the name with the full email directly under it, then a separator and Logout with an icon', async () => {
+  it('shows the name with the full email directly under it, then a separator, My invitations and Logout with an icon', async () => {
     const { events } = setup('global');
     await events.click(trigger());
     const m = screen.getByRole('menu', { name: 'Account' });
@@ -598,12 +598,12 @@ describe('TopBar account menu', () => {
     expect(email).toHaveClass('email');
     expect(name.nextElementSibling).toBe(email);
     expect(within(m).queryByText('kim-hale')).toBeNull();
-    expect(within(m).queryByRole('menuitem', { name: /My invitations/ })).toBeNull();
+    expect(within(m).getByRole('menuitem', { name: 'My invitations' })).toHaveAttribute('href', '/invitations');
     const logout = within(m).getByRole('menuitem', { name: 'Logout' });
     expect(logout.querySelector('svg')).not.toBeNull();
     const separator = within(m).getByRole('separator');
     expect(Boolean(separator.compareDocumentPosition(logout) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true);
-    expect(within(m).getAllByRole('menuitem')).toHaveLength(1);
+    expect(within(m).getAllByRole('menuitem')).toHaveLength(2);
     expect(m).toHaveStyle({ width: '240px' });
   });
 
