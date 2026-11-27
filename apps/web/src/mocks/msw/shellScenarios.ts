@@ -35,6 +35,8 @@ export const SHELL_SCENARIOS = [
   'markerTicket',
   'foreignOrg',
   'foreignInvite',
+  'memberOwnsRuns',
+  'memberOthersRuns',
 ] as const;
 export type ShellScenario = (typeof SHELL_SCENARIOS)[number];
 
@@ -294,6 +296,16 @@ const seeders: Record<ShellScenario, () => void> = {
     if (!run) throw new Error('run 62 fixture missing');
     run.ticket.title = MARKER_TEXT;
     run.args = MARKER_TEXT;
+  },
+  // Alice is a member of invoicer-api (nothing org-wide) and owns its runs: a member keeps the run actions on own runs.
+  memberOwnsRuns() {
+    seeders.memberP1ViewerP2();
+    for (const run of state().runs.filter((r) => r.projectId === P1)) run.ownerUserId = ids.user.alice;
+  },
+  // The same seat, with the runs owned by someone else: a member has no run action there.
+  memberOthersRuns() {
+    seeders.memberP1ViewerP2();
+    for (const run of state().runs.filter((r) => r.projectId === P1)) run.ownerUserId = 'user-someone-else';
   },
   // An org and a project alice is not in: they must show nowhere.
   foreignOrg() {

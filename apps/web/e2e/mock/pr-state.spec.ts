@@ -1,6 +1,6 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
 import type { PrState } from '../../src/ds/tokens';
-import { INVOICER_API, ORG, seedLists, setPrStates } from './mock';
+import { INVOICER_API, ORG, runHeader, seedLists, setPrStates } from './mock';
 
 // Live PR state colours on Run detail (spec show-pr-status-colors). Covers BR-3 (each state's colour), BR-4 (draft gray,
 // closed red), BR-5 (issue icons unchanged, no request for an issue), BR-6 (colour fills in without a reload), BR-7
@@ -30,7 +30,6 @@ async function expectPrColour(icon: Locator, state: PrState | 'neutral'): Promis
 }
 
 const word = (s: PrState): string => s[0]?.toUpperCase() + s.slice(1);
-const topBar = (page: Page) => page.getByRole('banner');
 const runUrl = (n: number) => `/o/${ORG}/p/${INVOICER_API}/runs/${n}`;
 const MERGED_RUN = 62;
 
@@ -38,7 +37,7 @@ test('Run detail on a merged PR: top bar, Ticket card, chain steps and collapsed
   page,
 }) => {
   await page.goto(runUrl(MERGED_RUN));
-  const bar = topBar(page).getByLabel('Merged');
+  const bar = runHeader(page).getByLabel('Merged');
   await expect(bar).toBeVisible();
   const side = page.getByRole('complementary', { name: 'Run context' });
   const card = side.getByLabel('Merged');
@@ -64,7 +63,7 @@ for (const [run, number, state] of [
       ],
     });
     await page.goto(runUrl(run));
-    const icon = topBar(page).getByLabel(word(state));
+    const icon = runHeader(page).getByLabel(word(state));
     await expect(icon).toBeVisible();
     await expectPrColour(icon.locator('xpath=..'), state);
   });
@@ -77,15 +76,15 @@ test('Run detail on an issue run keeps the issue icon and sends no PR-state requ
   });
   await page.goto(runUrl(61));
   await expect(page.getByRole('complementary', { name: 'Run context' })).toBeVisible();
-  await expect(topBar(page).getByLabel(/^(Open|Draft|Merged|Closed)$/)).toHaveCount(0);
+  await expect(runHeader(page).getByLabel(/^(Open|Draft|Merged|Closed)$/)).toHaveCount(0);
   expect(asked).toEqual([]);
 });
 
 test('slow: Run detail shows neutral first, then purple without a reload', async ({ page }) => {
   await setPrStates(page, 'slow');
   await page.goto(runUrl(MERGED_RUN));
-  await expect(topBar(page).getByLabel('Merged')).toHaveCount(0);
-  await expect(topBar(page).getByLabel('Merged')).toBeVisible({ timeout: 10_000 });
+  await expect(runHeader(page).getByLabel('Merged')).toHaveCount(0);
+  await expect(runHeader(page).getByLabel('Merged')).toBeVisible({ timeout: 10_000 });
 });
 
 for (const scenario of ['error', 'pending'] as const) {

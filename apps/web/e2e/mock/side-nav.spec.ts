@@ -5,14 +5,18 @@ import type { TenantAdminScenario } from '../../src/mocks/msw/tenantAdminScenari
 import {
   IDLE_RUN,
   INVOICER_API,
+  NO_CREDENTIAL_RUN,
   ORG,
   OTHER_PROJECT,
+  PAUSED_RUN,
   SESSION_MOCK_NOW,
   SIDE_MENU_NAME,
+  TRANSCRIPT_TIMED_OUT_RUN,
   chooseAction,
   answerRequest,
   holdReads,
   release,
+  runHeader,
   setRead,
   seedAgents,
   seedLists,
@@ -1510,4 +1514,441 @@ test.describe('The project switcher', () => {
     await expect(projectMenu(page).getByRole('region', { name: 'Repository' })).toContainText('kim-hale');
     await expect(page.getByText('harbor-labs')).toHaveCount(0);
   });
+});
+
+/*
+ * The run page on the shell (spec 2026-11-25-sidebar-navigation-shell-design.md "E2E requirements": TC-7.3, TC-23.2,
+ * TC-38.x to TC-42.x, TC-44.1, TC-52.1, the run page step of TC-24.1 and Review Focus 5). The local halves are in
+ * e2e/local (Task 44). TC-41.4 follows the connection links on the Runs page, where the project's connection problem
+ * is shown, as MA TC-60.1 and TC-60.2 do.
+ */
+const runUrl = (n: number, project = P1) => `/o/${ORG}/p/${project}/runs/${n}`;
+const RUN_ACTION = /^(Finish run|Finish|Stop session|Cancel run|Resume|Close session)$/;
+const expandButton = (page: Page): Locator => page.getByRole('button', { name: 'Expand menu' });
+const collapseButton = (page: Page): Locator => page.getByRole('button', { name: 'Collapse menu' });
+const runsItem = (page: Page): Locator => projectMenu(page).getByRole('link', { name: /^Runs/ });
+
+/** A client-side navigation: the app's router follows the address and the page (and the mock store) stays loaded. */
+async function goClient(page: Page, path: string): Promise<void> {
+  await page.evaluate((to) => {
+    window.history.pushState({}, '', to);
+    window.dispatchEvent(new PopStateEvent('popstate'));
+  }, path);
+  await expect(page).toHaveURL(new RegExp(`${path.replace(/[?.]/g, '\\$&')}$`));
+}
+
+/** Opens a Runs page that lists run `n` (20 a page, newest first, 121 runs seeded) and presses the run's row link. */
+async function openRunFromList(page: Page, n: number): Promise<void> {
+  const listPage = Math.ceil((121 - n + 1) / 20);
+  await page.goto(`${runsUrl()}?page=${listPage}`);
+  await page.getByRole('link', { name: `Run ${n}`, exact: true }).click();
+  await expect(page).toHaveURL(new RegExp(`/runs/${n}$`));
+  await expect(page.getByRole('heading', { level: 1, name: `Run ${n}` })).toBeVisible();
+}
+/** Back to Runs through the "Runs" crumb of the top bar (a click, so the page and its shell state stay loaded). */
+async function backToRuns(page: Page): Promise<void> {
+  await page
+    .getByRole('banner')
+    .getByRole('navigation', { name: 'Breadcrumb' })
+    .getByRole('link', { name: 'Runs', exact: true })
+    .click();
+  await expect(page.getByRole('heading', { level: 1, name: 'Runs' })).toBeVisible();
+}
+
+test.describe('BR-38: the run page starts collapsed', () => {
+  for (const width of [1024, 1440]) {
+    test(`TC-38.1: at ${width} wide, opening a run from Runs shows a thin strip with Expand menu and no menu links`, async ({
+      page,
+    }) => {
+      await seedProjectSpace(page, { role: 'member' });
+      await page.setViewportSize({ width, height: 900 });
+      await openRunFromList(page, IDLE_RUN);
+      await expect(expandButton(page)).toBeVisible();
+      await expect(projectMenu(page).getByRole('link')).toHaveCount(0);
+    });
+  }
+
+  test('TC-38.2: pressing Expand menu on the run page shows the full project menu', async ({ page }) => {
+    await seedProjectSpace(page, { role: 'owner' });
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.goto(runUrl(IDLE_RUN));
+    await expandButton(page).click();
+    await expect
+      .poll(() => menuLabels(projectMenu(page)))
+      .toEqual(['All projects', 'Runs', ...CONFIGURE, ...ACCESS, 'Open repository']);
+  });
+
+  test('TC-38.3: after expanding on a run page and going back to Runs, each run opens collapsed', async ({ page }) => {
+    await seedProjectSpace(page, { role: 'owner' });
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.goto(runUrl(IDLE_RUN));
+    await expandButton(page).click();
+    await expect(collapseButton(page)).toBeVisible();
+    await goClient(page, runsUrl());
+    await expect(page.getByRole('heading', { level: 1, name: 'Runs' })).toBeVisible();
+    await goClient(page, runUrl(IDLE_RUN));
+    await expect(expandButton(page)).toBeVisible();
+    await goClient(page, runUrl(64));
+    await expect(page.getByRole('heading', { level: 1, name: 'Run 64' })).toBeVisible();
+    await expect(expandButton(page)).toBeVisible();
+  });
+
+  test('TC-38.4: a direct address of a run page at 1440 wide is collapsed from the start', async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.goto(runUrl(IDLE_RUN));
+    await expect(page.getByRole('heading', { level: 1, name: `Run ${IDLE_RUN}` })).toBeVisible();
+    await expect(expandButton(page)).toHaveAttribute('aria-expanded', 'false');
+    await expect(collapseButton(page)).toHaveCount(0);
+  });
+});
+
+test.describe('BR-39: collapse and expand', () => {
+  test.use({ viewport: { width: 1440, height: 900 } });
+
+  /** Collapse then expand the menu on the current page: a strip with only the button, then the same items and current mark. */
+  async function roundTrip(page: Page, menu: Locator): Promise<void> {
+    const labels = await menu.getByRole('link').allTextContents();
+    expect(labels.length).toBeGreaterThan(0);
+    const current = await menu.locator('[aria-current]').allTextContents();
+    await collapseButton(page).click();
+    await expect(expandButton(page)).toHaveAttribute('aria-expanded', 'false');
+    await expect(expandButton(page)).toBeFocused();
+    await expect(menu.getByRole('link')).toHaveCount(0);
+    await expandButton(page).click();
+    await expect(collapseButton(page)).toHaveAttribute('aria-expanded', 'true');
+    await expect(menu.getByRole('link')).toHaveText(labels);
+    await expect(menu.locator('[aria-current]')).toHaveText(current);
+  }
+
+  test('TC-39.1: on org Members the menu goes to a strip and back with the same items and current mark', async ({
+    page,
+  }) => {
+    await page.goto(`/o/${ORG}/settings/members`);
+    await expect(orgMenu(page).getByRole('link', { name: 'Members', exact: true })).toHaveAttribute(
+      'aria-current',
+      'page',
+    );
+    await roundTrip(page, orgMenu(page));
+  });
+
+  test('TC-39.2: on platform Organizations and on a platform org page each goes to the strip and back', async ({
+    page,
+  }) => {
+    await openPlatform(page, 'platformAdminOrgs', ORGS);
+    await expect(platformMenu(page).getByRole('link', { name: 'Organizations', exact: true })).toBeVisible();
+    await roundTrip(page, platformMenu(page));
+    await goClient(page, ORG_BASE);
+    const orgPageMenu = page.getByRole('navigation', { name: /^Platform org menu$|^Platform menu$/ });
+    await expect(orgPageMenu.getByRole('link', { name: 'Members' })).toBeVisible();
+    await roundTrip(page, orgPageMenu);
+  });
+
+  test('TC-39.3: on a project Desk page the menu goes to the strip and back (the /invitations half waits for Task 24)', async ({
+    page,
+  }) => {
+    await page.goto(deskUrl('rules'));
+    await expect(projectMenu(page).getByRole('link', { name: 'Routing rules' })).toHaveAttribute(
+      'aria-current',
+      'page',
+    );
+    await roundTrip(page, projectMenu(page));
+  });
+
+  // The mock terminal socket is not observable from the page, so the e2e proves "no reconnect" by the same terminal
+  // element, its output and a steady Live label; the connection count (one FakeWebSocket) is proved at the lowest layer,
+  // detail.route.test.tsx "BR-39", and in the local half (Task 44).
+  test('TC-39.4: on a live run, expanding then collapsing keeps the terminal and its output and shows no reconnect (the socket count: detail.route.test.tsx)', async ({
+    page,
+  }) => {
+    await page.goto(runUrl(IDLE_RUN));
+    const terminal = page.getByRole('group', { name: 'Claude Code terminal' });
+    await expect(terminal).toContainText('agent-desk fake terminal');
+    await expect(page.getByText('Live', { exact: true })).toBeVisible();
+    await terminal.evaluate((el) => el.setAttribute('data-keep', 'same'));
+    const trouble = page.getByText(/Connecting|Reconnecting|Connection to the terminal lost/);
+    await expandButton(page).click();
+    await expect(collapseButton(page)).toBeVisible();
+    await expect(trouble).toHaveCount(0);
+    await collapseButton(page).click();
+    await expect(expandButton(page)).toBeVisible();
+    await expect(trouble).toHaveCount(0);
+    await expect(terminal).toHaveAttribute('data-keep', 'same');
+    await expect(terminal).toContainText('agent-desk fake terminal');
+    await expect(page.getByText('Live', { exact: true })).toBeVisible();
+  });
+});
+
+test.describe('BR-40: the collapse choice lasts until a reload', () => {
+  test.use({ viewport: { width: 1440, height: 900 } });
+
+  test('TC-40.1: collapsed on org Projects, it stays collapsed on Members, a project page and Routing rules', async ({
+    page,
+  }) => {
+    await page.goto(`/o/${ORG}/projects`);
+    await collapseButton(page).click();
+    for (const path of [`/o/${ORG}/settings/members`, runsUrl(), deskUrl('rules')]) {
+      await goClient(page, path);
+      await expect(expandButton(page)).toBeVisible();
+      await expect(collapseButton(page)).toHaveCount(0);
+    }
+  });
+
+  test('TC-40.2: expanded after being collapsed, it stays expanded on two other non-run pages', async ({ page }) => {
+    await page.goto(`/o/${ORG}/projects`);
+    await collapseButton(page).click();
+    await expandButton(page).click();
+    for (const path of [`/o/${ORG}/settings/members`, deskUrl('rules')]) {
+      await goClient(page, path);
+      await expect(collapseButton(page)).toBeVisible();
+      await expect(expandButton(page)).toHaveCount(0);
+    }
+  });
+
+  test('TC-40.3: a run page starts collapsed and, left untouched, Runs has the menu expanded', async ({ page }) => {
+    await openRunFromList(page, IDLE_RUN);
+    await expect(expandButton(page)).toBeVisible();
+    await backToRuns(page);
+    await expect(collapseButton(page)).toBeVisible();
+  });
+
+  test('TC-40.4: collapsed on Runs, expanding on a run page does not change Runs, which stays collapsed', async ({
+    page,
+  }) => {
+    await page.goto(`${runsUrl()}?page=${Math.ceil((121 - IDLE_RUN + 1) / 20)}`);
+    await collapseButton(page).click();
+    await page.getByRole('link', { name: `Run ${IDLE_RUN}`, exact: true }).click();
+    await expect(page.getByRole('heading', { level: 1, name: `Run ${IDLE_RUN}` })).toBeVisible();
+    await expandButton(page).click();
+    await expect(collapseButton(page)).toBeVisible();
+    await backToRuns(page);
+    await expect(expandButton(page)).toBeVisible();
+  });
+
+  test('TC-40.5: collapsed on a non-run page, a reload starts it expanded', async ({ page }) => {
+    await page.goto(runsUrl());
+    await collapseButton(page).click();
+    await expect(expandButton(page)).toBeVisible();
+    await page.reload();
+    await expect(collapseButton(page)).toBeVisible();
+  });
+});
+
+test.describe('BR-41: the run page header', () => {
+  test.use({ viewport: { width: 1440, height: 900 } });
+
+  test('TC-41.1: the page header holds Run N, status, command, ticket, elapsed time and the actions; the top bar none of them', async ({
+    page,
+  }) => {
+    await seedProjectSpace(page, { role: 'owner' });
+    await page.goto(runUrl(IDLE_RUN));
+    const header = runHeader(page);
+    await expect(header.getByRole('heading', { level: 1, name: `Run ${IDLE_RUN}` })).toBeVisible();
+    await expect(header.getByText('Needs you', { exact: true })).toBeVisible();
+    await expect(header.getByText(/^\/?code-review$/)).toBeVisible();
+    await expect(header.getByText(/issue #\d+|PR #\d+/i)).toBeVisible();
+    await expect(header.getByText(/\d+:\d{2}/)).toBeVisible();
+    await expect(header.getByRole('button', { name: 'Stop session' })).toBeVisible();
+    await expect(header.getByRole('button', { name: 'Cancel run' })).toBeVisible();
+
+    const bar = page.getByRole('banner');
+    const crumbs = bar.getByRole('navigation', { name: 'Breadcrumb' });
+    await expect(crumbs.getByRole('link', { name: 'Runs', exact: true })).toHaveAttribute('href', runsUrl());
+    await expect(crumbs.getByText(`Run ${IDLE_RUN}`)).toHaveAttribute('aria-current', 'page');
+    await expect(bar.getByRole('link', { name: /Agent Desk/ })).toBeVisible();
+    await expect(bar.getByRole('button', { name: /^Switch project, currently/ })).toBeVisible();
+    await expect(bar.getByRole('button', { name: /^Notifications/ })).toBeVisible();
+    await expect(bar.getByRole('button', { name: /^Account menu for / })).toBeVisible();
+    await expect(bar.getByText('Needs you', { exact: true })).toHaveCount(0);
+    await expect(bar.getByRole('button', { name: RUN_ACTION })).toHaveCount(0);
+  });
+
+  test('TC-41.2: a paused run shows its status and ticket action in the header, none in the top bar', async ({
+    page,
+  }) => {
+    await page.goto(runUrl(PAUSED_RUN));
+    const header = runHeader(page);
+    await expect(header.getByText('Paused', { exact: true })).toBeVisible();
+    await expect(header.getByRole('link', { name: /^View (PR|issue)$/ })).toBeVisible();
+    const bar = page.getByRole('banner');
+    await expect(bar.getByText('Paused', { exact: true })).toHaveCount(0);
+    await expect(bar.getByRole('link', { name: /^View (PR|issue)$/ })).toHaveCount(0);
+  });
+
+  test('TC-41.3: the page still shows the name of the run agent', async ({ page }) => {
+    await page.goto(runUrl(IDLE_RUN));
+    const panel = page.getByRole('complementary', { name: 'Run context' });
+    // The Agent row holds the agent name and its model in one element: "Claude opus".
+    await expect(panel.getByText('Agent', { exact: true }).locator('xpath=following-sibling::*[1]')).toHaveText(
+      /^Claude\s+opus$/,
+    );
+  });
+
+  test('TC-41.4: "Connection details" and "Switch to polling" open the GitHub connection tab', async ({ page }) => {
+    const docsRuns = `/o/${ORG}/p/${ids.project.docsSite}/runs?filter=ignored`;
+    await page.goto(docsRuns);
+    await page.getByRole('link', { name: 'Connection details' }).click();
+    await expect(page).toHaveURL(/\/desk\/agent\?tab=github$/);
+    await expect(page.getByRole('tab', { name: 'GitHub connection', selected: true })).toBeVisible();
+    await page.goto(docsRuns);
+    await page.getByRole('link', { name: 'Switch to polling' }).click();
+    await expect(page).toHaveURL(/\/desk\/agent\?tab=github$/);
+    await expect(page.getByRole('tab', { name: 'GitHub connection', selected: true })).toBeVisible();
+  });
+
+  test('TC-41.5: "Change time limit" on a timed-out run opens the Limits tab', async ({ page }) => {
+    await page.goto(runUrl(TRANSCRIPT_TIMED_OUT_RUN));
+    await page.getByRole('link', { name: 'Change time limit' }).click();
+    await expect(page).toHaveURL(/\/desk\/agent\?tab=limits$/);
+    await expect(page.getByRole('tab', { name: 'Limits', selected: true })).toBeVisible();
+  });
+
+  test('TC-41.6: "Replace credential" opens the Agents tab with that run agent pane', async ({ page }) => {
+    await seedAgents(page, 'perAgentModels');
+    await page.goto(runUrl(NO_CREDENTIAL_RUN));
+    await page.getByRole('link', { name: 'Replace credential' }).click();
+    await expect(page).toHaveURL(new RegExp(`/desk/agent\\?agent=${agentListId(1)}$`));
+    await expect(page.getByRole('tab', { name: 'Agents', selected: true })).toBeVisible();
+    await expect(page.getByRole('complementary', { name: 'Edit agent' })).toBeVisible();
+  });
+});
+
+test.describe('BR-42: run actions by permission', () => {
+  test.use({ viewport: { width: 1440, height: 900 } });
+  const anyAction = (page: Page): Locator => page.getByRole('button', { name: RUN_ACTION });
+
+  test('TC-42.1: a viewer sees status and ticket in the header and no run action anywhere on the page', async ({
+    page,
+  }) => {
+    await seedProjectSpace(page, { role: 'viewer' });
+    await page.goto(runUrl(IDLE_RUN));
+    const header = runHeader(page);
+    await expect(header.getByText('Needs you', { exact: true })).toBeVisible();
+    await expect(header.getByText(/issue #\d+|PR #\d+/i)).toBeVisible();
+    await expect(anyAction(page)).toHaveCount(0);
+  });
+
+  test('TC-42.2: a member sees no run action on a live run owned by someone else', async ({ page }) => {
+    await seedShell(page, 'memberOthersRuns');
+    await page.goto(runUrl(IDLE_RUN));
+    await expect(runHeader(page).getByText('Needs you', { exact: true })).toBeVisible();
+    await expect(anyAction(page)).toHaveCount(0);
+  });
+
+  test('TC-42.3: a member sees the allowed actions in the header on their own live run', async ({ page }) => {
+    await seedShell(page, 'memberOwnsRuns');
+    await page.goto(runUrl(IDLE_RUN));
+    const header = runHeader(page);
+    await expect(header.getByRole('button', { name: 'Stop session' })).toBeVisible();
+    await expect(header.getByRole('button', { name: 'Cancel run' })).toBeVisible();
+  });
+
+  test("TC-42.4: an org admin sees the allowed actions on someone else's live run", async ({ page }) => {
+    await seedProjectSpace(page, { role: 'admin' });
+    await page.goto(runUrl(IDLE_RUN));
+    const header = runHeader(page);
+    await expect(header.getByRole('button', { name: 'Stop session' })).toBeVisible();
+    await expect(header.getByRole('button', { name: 'Cancel run' })).toBeVisible();
+  });
+
+  test('TC-42.5: a viewer, then a member on another run, see no Resume or Finish on a paused run', async ({ page }) => {
+    await seedProjectSpace(page, { role: 'viewer' });
+    await page.goto(runUrl(PAUSED_RUN));
+    await expect(runHeader(page).getByText('Paused', { exact: true })).toBeVisible();
+    await expect(page.getByRole('button', { name: /^(Resume|Finish)$/ })).toHaveCount(0);
+    await seedShell(page, 'memberOthersRuns');
+    await page.goto(runUrl(PAUSED_RUN));
+    await expect(runHeader(page).getByText('Paused', { exact: true })).toBeVisible();
+    await expect(page.getByRole('button', { name: /^(Resume|Finish)$/ })).toHaveCount(0);
+  });
+});
+
+test.describe('BR-44 on the run page', () => {
+  test.use({ viewport: { width: 1440, height: 900 } });
+
+  test('TC-44.1: a live run and a paused run have no "Full screen" control', async ({ page }) => {
+    await page.goto(runUrl(IDLE_RUN));
+    await expect(runHeader(page).getByRole('heading', { level: 1 })).toBeVisible();
+    await expect(page.getByText(/full screen/i)).toHaveCount(0);
+    await expect(page.getByRole('button', { name: /full screen/i })).toHaveCount(0);
+    await goClient(page, runUrl(PAUSED_RUN));
+    await expect(runHeader(page).getByText('Paused', { exact: true })).toBeVisible();
+    await expect(page.getByText(/full screen/i)).toHaveCount(0);
+    await expect(page.getByRole('button', { name: /full screen/i })).toHaveCount(0);
+  });
+});
+
+test.describe('BR-7, BR-23 and BR-24 on the run page', () => {
+  test.use({ viewport: { width: 1440, height: 900 } });
+
+  test('TC-7.3: expanded on a run page, Runs is current as the parent and no other item is', async ({ page }) => {
+    await page.goto(runUrl(IDLE_RUN));
+    await expandButton(page).click();
+    await expect(runsItem(page)).toHaveAttribute('aria-current', 'true');
+    await expect(projectMenu(page).locator('[aria-current]')).toHaveCount(1);
+  });
+
+  test('TC-23.2: a member, then a viewer, on a run page and expanded see "All projects", Runs and the repository block only', async ({
+    page,
+  }) => {
+    for (const role of ['member', 'viewer'] as const) {
+      await seedProjectSpace(page, { role });
+      await page.goto(runUrl(IDLE_RUN));
+      await expandButton(page).click();
+      const menu = projectMenu(page);
+      await expect(menu.getByRole('region', { name: 'Repository' })).toBeVisible();
+      await expect.poll(() => menuLabels(menu)).toEqual(['All projects', 'Runs', 'Open repository']);
+      await expect(menu.getByText('Configure', { exact: true })).toHaveCount(0);
+      await expect(menu.getByText('Access', { exact: true })).toHaveCount(0);
+    }
+  });
+
+  test('TC-24.1 step 3: admin of P1 and viewer of P2 on a P2 run page, expanded, sees Runs and the repository only', async ({
+    page,
+  }) => {
+    await seedShell(page, 'adminP1ViewerP2');
+    await page.goto(runsUrl(P1));
+    await goClient(page, runUrl(19, P2));
+    await expect(page.getByRole('heading', { level: 1, name: 'Run 19' })).toBeVisible();
+    await expandButton(page).click();
+    const menu = projectMenu(page);
+    await expect(menu.getByRole('link', { name: /^Runs/ })).toBeVisible();
+    await expect.poll(() => menuLabels(menu)).toEqual(['All projects', 'Runs', 'Open repository']);
+    await expect(menu.getByText('Configure', { exact: true })).toHaveCount(0);
+    await expect(menu.getByText('Access', { exact: true })).toHaveCount(0);
+  });
+});
+
+test('TC-52.1: picking P2 in the project switcher on a P1 run page opens the P2 Runs page', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto(runUrl(IDLE_RUN));
+  await expect(page.getByRole('heading', { level: 1, name: `Run ${IDLE_RUN}` })).toBeVisible();
+  await page.getByRole('button', { name: /^Switch project, currently/ }).click();
+  await page
+    .getByRole('dialog', { name: 'Projects' })
+    .getByRole('link', { name: /invoicer-web/ })
+    .click();
+  await expect(page).toHaveURL(new RegExp(`/o/${ORG}/p/${P2}/runs$`));
+  await expect(page.getByRole('heading', { level: 1, name: 'Runs' })).toBeVisible();
+});
+
+test('Review Focus 5: the Cancel run confirm survives a resize across 1024, Keep running closes it, the terminal is unchanged', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto(runUrl(IDLE_RUN));
+  const terminal = page.getByRole('group', { name: 'Claude Code terminal' });
+  await expect(terminal).toContainText('agent-desk fake terminal');
+  await terminal.evaluate((el) => el.setAttribute('data-keep', 'same'));
+  await runHeader(page).getByRole('button', { name: 'Cancel run' }).click();
+  const confirm = page.getByRole('dialog', { name: `Cancel run ${IDLE_RUN}?` });
+  await expect(confirm).toBeVisible();
+  for (const width of [1023, 1440]) {
+    await page.setViewportSize({ width, height: 900 });
+    await expect(confirm).toBeVisible();
+  }
+  await confirm.getByRole('button', { name: 'Keep running' }).click();
+  await expect(confirm).toHaveCount(0);
+  await expect(terminal).toHaveAttribute('data-keep', 'same');
+  await expect(terminal).toContainText('agent-desk fake terminal');
+  await expect(page.getByText(/Connection to the terminal lost|Reconnecting/)).toHaveCount(0);
 });

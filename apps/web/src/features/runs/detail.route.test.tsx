@@ -2,7 +2,7 @@ import { focusManager } from '@tanstack/react-query';
 import { act, cleanup, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { scrollbackText } from '@/mocks/dto/events';
-import { ids } from '@/mocks/dto/ids';
+import { agentListId, ids } from '@/mocks/dto/ids';
 import {
   FINISHED_AFTER_PAUSE_RUN,
   NOTHING_ENDED_RUN,
@@ -25,6 +25,7 @@ import { FakeEventSource } from '@/test/fakeEventSource';
 import { FakeWebSocket } from '@/test/fakeWebSocket';
 import { FakeXterm } from '@/test/fakeXterm';
 import { renderRoute } from '@/test/renderRoute';
+import { expectShellOwnedPage } from '@/test/shellAssert';
 
 const projectId = ids.project.invoicerApi;
 const base = `/o/alice/p/${projectId}`;
@@ -50,7 +51,18 @@ function holdAction(key: 'runs.finish' | 'runs.cancel') {
   return () => release();
 }
 
-const banner = () => screen.getByRole('banner');
+/** The top bar (a header inside main is the page header, not a banner landmark). */
+const banner = () => {
+  const bar = screen.getAllByRole('banner').find((b) => !b.closest('main'));
+  if (!bar) throw new Error('no top bar');
+  return bar;
+};
+/** The run's page header: title, status, ticket and the run actions. */
+const runHeader = () => {
+  const h = within(screen.getByRole('main')).getByRole('heading', { level: 1 }).closest('header');
+  if (!h) throw new Error('no page header');
+  return h;
+};
 
 /** The server accepts the action (202) but the run stays as it is (the worker ends it later). */
 function acceptWithoutEnding(key: 'runs.finish' | 'runs.cancel') {
@@ -105,8 +117,6 @@ describe('run detail route', () => {
   });
 
   describe('the run bar (BR-46, BR-47)', () => {
-    const orgButton = () => within(banner()).getByRole('button', { name: /^Switch scope/ });
-
     it("TC-46.1, TC-43.5: has crumbs only, org / project / Runs / Run 62 (TC-46.2: Runs links to the project's list), with no tabs and the bell", async () => {
       await renderRoute(`${base}/runs/62`);
       await screen.findByText('The agent is waiting for your answer');
@@ -129,33 +139,31 @@ describe('run detail route', () => {
       expect(other).toHaveAttribute('href', `/o/alice/p/${ids.project.invoicerWeb}/runs`);
     });
 
-    it('TC-47.4: the owner presses the org crumb, then Settings, and Members opens', async () => {
+    it('BR-17, TC-47.4: the owner expands the menu, presses All projects, and Members opens from the org menu', async () => {
       const { user, router } = await renderRoute(`${base}/runs/62`);
       await screen.findByText('The agent is waiting for your answer');
-      await user.click(orgButton());
-      await user.click(await screen.findByRole('link', { name: /^Org settings/ }));
-      await screen.findByRole('navigation', { name: 'Organization menu' });
-      expect(router.state.location.pathname).toBe('/o/alice/settings/members');
+      await user.click(screen.getByRole('button', { name: 'Expand menu' }));
+      await user.click(await screen.findByRole('link', { name: 'All projects' }));
+      const side = await screen.findByRole('navigation', { name: 'Organization menu' });
+      await user.click(within(side).getByRole('link', { name: 'Members' }));
+      await waitFor(() => expect(router.state.location.pathname).toBe('/o/alice/settings/members'));
     });
 
     it("TC-48.2: the logo opens the org's Projects page", async () => {
-      await renderRoute(`${base}/runs/62`);
+      const { user, router } = await renderRoute(`${base}/runs/62`);
       await screen.findByText('The agent is waiting for your answer');
-      expect(within(banner()).getByRole('link', { name: 'Agent Desk, all projects' })).toHaveAttribute(
-        'href',
-        '/o/alice/projects',
-      );
+      await user.click(within(banner()).getByRole('link', { name: 'Agent Desk, all projects' }));
+      await waitFor(() => expect(router.state.location.pathname).toBe('/o/alice/projects'));
     });
 
-    it('TC-47.2: a project admin presses the org crumb, then Settings, and only Invitations opens', async () => {
-      const { user, router } = await renderRoute(`/o/acme/p/${projectId}/runs/62`, {
+    it('BR-19, TC-47.2: a project admin reaches the org menu with Projects and Invitations only', async () => {
+      const { user } = await renderRoute(`/o/acme/p/${projectId}/runs/62`, {
         scenario: () => scenarios.onboarding('projectAdmin'),
       });
       await screen.findByText('The agent is waiting for your answer');
-      await user.click(orgButton());
-      await user.click(await screen.findByRole('link', { name: /^Org settings/ }));
+      await user.click(screen.getByRole('button', { name: 'Expand menu' }));
+      await user.click(await screen.findByRole('link', { name: 'All projects' }));
       const side = await screen.findByRole('navigation', { name: 'Organization menu' });
-      expect(router.state.location.pathname).toBe('/o/acme/settings/invitations');
       expect(
         within(side)
           .getAllByRole('link')
@@ -163,14 +171,16 @@ describe('run detail route', () => {
       ).toEqual(['Projects', 'Invitations']);
     });
 
-    it('BR-47: a viewer has no Settings in the org menu', async () => {
+    it('BR-18: a viewer reaches the org menu with Projects only', async () => {
       const { user } = await renderRoute(`/o/acme/p/${projectId}/runs/62`, {
         scenario: () => scenarios.onboarding('viewer'),
       });
       await screen.findByText('The agent is waiting for your answer');
-      await user.click(orgButton());
-      await screen.findByRole('link', { name: /^Projects/ });
-      expect(screen.queryByRole('link', { name: /^Org settings/ })).not.toBeInTheDocument();
+      await user.click(screen.getByRole('button', { name: 'Expand menu' }));
+      await user.click(await screen.findByRole('link', { name: 'All projects' }));
+      const side = await screen.findByRole('navigation', { name: 'Organization menu' });
+      expect(within(side).getAllByRole('link')).toHaveLength(1);
+      expect(within(side).getByRole('link', { name: 'Projects' })).toBeInTheDocument();
     });
   });
 
@@ -211,7 +221,7 @@ describe('run detail route', () => {
     const [topFinish] = await screen.findAllByRole('button', { name: 'Finish run' });
     if (!topFinish) throw new Error('no Finish button');
     await user.click(topFinish);
-    expect(await within(banner()).findByText('Finishing…')).toBeInTheDocument();
+    expect(await within(runHeader()).findByText('Finishing…')).toBeInTheDocument();
     await waitFor(() => expect(mockDb.requests('POST', `/api/runs/${runId(62)}/finish`)).toBe(1));
     // A second click while it is in flight sends nothing.
     for (const b of screen.getAllByRole('button', { name: 'Finish run' })) expect(b).toBeDisabled();
@@ -220,7 +230,7 @@ describe('run detail route', () => {
     dbRun(62).finishedAt = new Date().toISOString();
     release();
     expect(await screen.findByText(/^Succeeded in /)).toBeInTheDocument();
-    expect(within(banner()).queryByText('Finishing…')).not.toBeInTheDocument();
+    expect(within(runHeader()).queryByText('Finishing…')).not.toBeInTheDocument();
     expect(mockDb.requests('POST', `/api/runs/${runId(62)}/finish`)).toBe(1);
   });
 
@@ -232,7 +242,7 @@ describe('run detail route', () => {
     const [topFinish] = await screen.findAllByRole('button', { name: 'Finish run' });
     if (!topFinish) throw new Error('no Finish button');
     await user.click(topFinish);
-    await within(banner()).findByText('Finishing…');
+    await within(runHeader()).findByText('Finishing…');
     await router.navigate({ to: `${base}/runs` });
     expect(await screen.findByText('Finishing…')).toBeInTheDocument();
     release();
@@ -248,7 +258,7 @@ describe('run detail route', () => {
     const dialog = screen.getByRole('dialog', { name: 'Cancel run 61?' });
     await user.click(within(dialog).getByRole('button', { name: 'Cancel run' }));
     expect(await screen.findByRole('alert')).toHaveTextContent('Run already ended');
-    expect(within(banner()).queryByText('Cancelling…')).not.toBeInTheDocument();
+    expect(within(runHeader()).queryByText('Cancelling…')).not.toBeInTheDocument();
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Cancel run' })).toBeEnabled();
   });
@@ -327,7 +337,7 @@ describe('run detail route', () => {
 
     it('keeps "Finishing…" after the settle refetch, buttons held, no second POST', async () => {
       const { user } = await finishAccepted();
-      expect(within(banner()).getByText('Finishing…')).toBeInTheDocument();
+      expect(within(runHeader()).getByText('Finishing…')).toBeInTheDocument();
       expect(screen.getByText('The agent is waiting for your answer')).toBeInTheDocument();
       const buttons = screen.getAllByRole('button', { name: 'Finish run' });
       for (const b of buttons) expect(b).toBeDisabled();
@@ -342,7 +352,7 @@ describe('run detail route', () => {
       dbRun(62).finishedAt = new Date().toISOString();
       await act(() => queryClient.invalidateQueries());
       expect(await screen.findByText(/^Succeeded in /)).toBeInTheDocument();
-      expect(within(banner()).queryByText('Finishing…')).not.toBeInTheDocument();
+      expect(within(runHeader()).queryByText('Finishing…')).not.toBeInTheDocument();
       // The log is refetched with the run, so the stored scrollback of the final run can load.
       expect(mockDb.requests('GET', `/api/runs/${runId(62)}/log`)).toBeGreaterThan(1);
     });
@@ -358,7 +368,7 @@ describe('run detail route', () => {
         focusManager.setFocused(true);
       });
       await waitFor(() => expect(byNumberGets()).toBeGreaterThan(before));
-      await waitFor(() => expect(within(banner()).getByText('Finishing…')).toBeInTheDocument());
+      await waitFor(() => expect(within(runHeader()).getByText('Finishing…')).toBeInTheDocument());
       for (const b of screen.getAllByRole('button', { name: 'Finish run' })) expect(b).toBeDisabled();
       act(() => focusManager.setFocused(undefined));
     });
@@ -408,7 +418,7 @@ describe('run detail route, paused runs and kept sessions', () => {
 
   it('a paused run shows the note, how long it can be resumed, when it paused, Resume and Finish', async () => {
     await renderRoute(`${base}/runs/${PAUSED}`);
-    expect(await within(banner()).findByText('Paused')).toBeInTheDocument();
+    expect(await within(runHeader()).findByText('Paused')).toBeInTheDocument();
     expect(screen.getByText(/^Paused: waiting for your answer\. Can be resumed for \d+ days?\.$/)).toBeInTheDocument();
     expect(screen.getByText('Should the export include voided invoices?')).toBeInTheDocument();
     expect(screen.getByText(/^Paused .*, after 30 min with nobody attached$/)).toBeInTheDocument();
@@ -421,7 +431,7 @@ describe('run detail route, paused runs and kept sessions', () => {
   it('Resume posts once and the page then shows Queued', async () => {
     const { user } = await renderRoute(`${base}/runs/${PAUSED}`);
     await user.click(await screen.findByRole('button', { name: 'Resume' }));
-    expect(await within(banner()).findByText('Queued')).toBeInTheDocument();
+    expect(await within(runHeader()).findByText('Queued')).toBeInTheDocument();
     expect(resumePosts(PAUSED)).toBe(1);
     expect(screen.queryByRole('button', { name: 'Resume' })).not.toBeInTheDocument();
     expect(screen.queryByText(/Can be resumed for/)).not.toBeInTheDocument();
@@ -460,10 +470,10 @@ describe('run detail route, paused runs and kept sessions', () => {
     const { user } = await renderRoute(`${base}/runs/${KEPT}`);
     expect(await screen.findByText(/^Session kept until /)).toBeInTheDocument();
     expect(screen.getByText('Opened PR #148 with the CSV export and tests.')).toBeInTheDocument();
-    expect(within(banner()).getByText('Succeeded')).toBeInTheDocument();
+    expect(within(runHeader()).getByText('Succeeded')).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Reopen session' }));
     // The result stays: the pill says Succeeded with the session open, and the only action is Close session.
-    expect(await within(banner()).findByText('Succeeded · Session open')).toBeInTheDocument();
+    expect(await within(runHeader()).findByText('Succeeded · Session open')).toBeInTheDocument();
     expect(resumePosts(KEPT)).toBe(1);
     expect(screen.queryByRole('button', { name: 'Reopen session' })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Close session' })).toBeInTheDocument();
@@ -487,7 +497,7 @@ describe('run detail route, paused runs and kept sessions', () => {
     const close = await screen.findByRole('button', { name: 'Close session' });
     await user.click(close);
     await waitFor(() => expect(mockDb.requests('POST', `/api/runs/${runId(KEPT)}/close-session`)).toBe(1));
-    await waitFor(() => expect(within(banner()).queryByText('Succeeded · Session open')).not.toBeInTheDocument());
+    await waitFor(() => expect(within(runHeader()).queryByText('Succeeded · Session open')).not.toBeInTheDocument());
   });
 
   it('a 409 on Close session shows the server message in a toast', async () => {
@@ -522,7 +532,7 @@ describe('run detail route, paused runs and kept sessions', () => {
 
   it('an expired run shows the expired line and no action buttons', async () => {
     await renderRoute(`${base}/runs/${EXPIRED}`);
-    expect(await within(banner()).findByText('Expired')).toBeInTheDocument();
+    expect(await within(runHeader()).findByText('Expired')).toBeInTheDocument();
     expect(
       screen.getByText('Nobody resumed this run within 7 days. The saved session was deleted.'),
     ).toBeInTheDocument();
@@ -751,7 +761,7 @@ describe('run detail route, stop session and the saved Transcript', () => {
   };
   const transcriptCalls = (n: number) => mockDb.requests('GET', `/api/runs/${runId(n)}/transcript`);
   const posts = (n: number, action: string) => mockDb.requests('POST', `/api/runs/${runId(n)}/${action}`);
-  const topButton = (name: string) => within(banner()).getByRole('button', { name });
+  const topButton = (name: string) => within(runHeader()).getByRole('button', { name });
 
   it('a stopped run shows the Stopped notice and its Transcript, and never calls resume or opens a terminal socket', async () => {
     await open(STOPPED_RUN);
@@ -786,7 +796,7 @@ describe('run detail route, stop session and the saved Transcript', () => {
     await open(NOTHING_PAUSED_RUN);
     expect(await screen.findByText('No conversation was saved for this run.')).toBeInTheDocument();
     // The bar's indicator says Paused (not Paused, read-only).
-    expect(within(banner()).getByText('Paused')).toBeInTheDocument();
+    expect(within(runHeader()).getByText('Paused')).toBeInTheDocument();
     expect(screen.queryByText('Paused, read-only')).not.toBeInTheDocument();
   });
 
@@ -875,7 +885,7 @@ describe('run detail route, stop session and the saved Transcript', () => {
     emit('paused', 900);
     await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Stop the session?' })).not.toBeInTheDocument());
     emit('running', 901);
-    await within(banner()).findByRole('button', { name: 'Stop session' });
+    await within(runHeader()).findByRole('button', { name: 'Stop session' });
     expect(screen.queryByRole('dialog', { name: 'Stop the session?' })).not.toBeInTheDocument();
   });
 
@@ -891,7 +901,7 @@ describe('run detail route, stop session and the saved Transcript', () => {
     const release = holdAction('runs.finish');
     const { user } = await open(STOP_IDLE_RUN);
     await user.click((await screen.findAllByRole('button', { name: 'Finish run' }))[0] as HTMLElement);
-    await within(banner()).findByText('Finishing…');
+    await within(runHeader()).findByText('Finishing…');
     expect(topButton('Stop session')).toBeDisabled();
     release();
   });
@@ -1028,9 +1038,9 @@ describe('run detail route, PR states', () => {
     await renderRoute(`${base}/runs/62`);
     await screen.findByText('The agent is waiting for your answer');
     expect(screen.queryByLabelText('Merged')).not.toBeInTheDocument();
-    expect(within(banner()).getAllByText('PR #148').length).toBeGreaterThan(0);
+    expect(within(runHeader()).getAllByText('PR #148').length).toBeGreaterThan(0);
     release();
-    await waitFor(() => expect(within(banner()).getByLabelText('Merged')).toBeInTheDocument());
+    await waitFor(() => expect(within(runHeader()).getByLabelText('Merged')).toBeInTheDocument());
   });
 });
 
@@ -1094,10 +1104,111 @@ describe('run detail route, usage', () => {
     await renderRoute(`${base}/runs/62`, {
       scenario: () => scenarios.problem('runs.byNumber', { status: 500, title: 'Boom' }),
     });
-    await waitFor(() => expect(screen.queryByText(/^Run 62$/)).not.toBeInTheDocument());
+    await waitFor(() => expect(screen.queryByRole('heading', { level: 1, name: 'Run 62' })).not.toBeInTheDocument());
     expect(screen.queryByRole('region', { name: 'Usage' })).not.toBeInTheDocument();
     expect(screen.queryByText(/usage/i)).not.toBeInTheDocument();
     // The run's own error screen has the one Retry; usage adds none.
     expect(screen.getAllByRole('button', { name: 'Retry' })).toHaveLength(1);
+  });
+});
+
+describe('run detail route, in the app shell', () => {
+  const header = () => {
+    const h = within(screen.getByRole('main')).getByRole('heading', { level: 1 }).closest('header');
+    if (!h) throw new Error('no page header');
+    return h;
+  };
+  const loaded = () => screen.findByText('The agent is waiting for your answer');
+
+  it('BR-38: starts with the project menu collapsed to a strip with Expand menu', async () => {
+    await renderRoute(`${base}/runs/62`);
+    await loaded();
+    expectShellOwnedPage('Run 62', { menu: 'Project menu' });
+    expect(screen.getByRole('button', { name: 'Expand menu' })).toHaveAttribute('aria-expanded', 'false');
+  });
+
+  it('BR-39: expanding and collapsing keeps one terminal socket and the same terminal', async () => {
+    const { user } = await renderRoute(`${base}/runs/62`);
+    await waitFor(() => expect(FakeWebSocket.instances.length).toBeGreaterThan(0));
+    act(() => FakeWebSocket.latest().open());
+    const term = FakeXterm.instances.find((t) => !t.disposed && !t.options.disableStdin);
+    expect(term).toBeDefined();
+    await user.click(screen.getByRole('button', { name: 'Expand menu' }));
+    await user.click(await screen.findByRole('button', { name: 'Collapse menu' }));
+    await screen.findByRole('button', { name: 'Expand menu' });
+    expect(FakeWebSocket.instances).toHaveLength(1);
+    expect(FakeXterm.instances.filter((t) => !t.disposed && !t.options.disableStdin)).toEqual([term]);
+  });
+
+  it('TC-7.3: once expanded, Runs is current as the parent (aria-current true) and no other item is', async () => {
+    const { user } = await renderRoute(`${base}/runs/62`);
+    await loaded();
+    await user.click(screen.getByRole('button', { name: 'Expand menu' }));
+    const menu = await screen.findByRole('navigation', { name: 'Project menu' });
+    expect(within(menu).getByRole('link', { name: /^Runs/ })).toHaveAttribute('aria-current', 'true');
+    expect(
+      within(menu)
+        .getAllByRole('link')
+        .filter((a) => a.hasAttribute('aria-current')),
+    ).toHaveLength(1);
+  });
+
+  it('the title is "Run n · project · Agent Desk" and never holds ticket text', async () => {
+    await renderRoute(`${base}/runs/62`);
+    await loaded();
+    await waitFor(() => expect(document.title).toBe('Run 62 · invoicer-api · Agent Desk'));
+    const ticketTitle = dbRun(62).ticket.title;
+    expect(ticketTitle.length).toBeGreaterThan(0);
+    expect(document.title).not.toContain(ticketTitle);
+  });
+
+  it('BR-41: status, ticket and actions are in the page header, not the top bar', async () => {
+    await renderRoute(`${base}/runs/62`);
+    await loaded();
+    const bar = banner();
+    expect(within(header()).getByText('Needs you')).toBeInTheDocument();
+    expect(within(header()).getByText(/issue #|PR #/i)).toBeInTheDocument();
+    expect(within(header()).getByRole('button', { name: 'Finish run' })).toBeEnabled();
+    expect(within(header()).getByRole('button', { name: 'Cancel run' })).toBeEnabled();
+    expect(within(bar).queryByText('Needs you')).not.toBeInTheDocument();
+    expect(within(bar).queryByRole('button', { name: /Finish|Cancel run|Stop session/ })).not.toBeInTheDocument();
+    const crumbs = within(bar).getByRole('navigation', { name: 'Breadcrumb' });
+    expect(within(crumbs).getByRole('link', { name: 'Runs' })).toHaveAttribute('href', `${base}/runs`);
+    expect(within(crumbs).getByText('Run 62')).toHaveAttribute('aria-current', 'page');
+  });
+
+  it('BR-41: the page shows the name of the run agent', async () => {
+    await renderRoute(`${base}/runs/62`);
+    await loaded();
+    const panel = await screen.findByRole('complementary', { name: 'Run context' });
+    expect(within(panel).getByText(dbRun(62).agent.name)).toBeInTheDocument();
+  });
+
+  it('BR-41: "Change time limit" and "Replace credential" keep the multi-agent targets', async () => {
+    mockDb.addRuns(sessionRunFixtures, sessionEventFixtures);
+    await renderRoute(`${base}/runs/87`);
+    expect(await screen.findByRole('link', { name: 'Change time limit' })).toHaveAttribute(
+      'href',
+      `${base}/desk/agent?tab=limits`,
+    );
+    cleanup();
+    await renderRoute(`${base}/runs/121`);
+    expect(await screen.findByRole('link', { name: 'Replace credential' })).toHaveAttribute(
+      'href',
+      `${base}/desk/agent?agent=${agentListId(1)}`,
+    );
+  });
+
+  it('BR-41: "Connection details" and "Switch to polling" keep the GitHub connection target', async () => {
+    const docs = `/o/alice/p/${ids.project.docsSite}`;
+    await renderRoute(`${docs}/runs?filter=ignored`);
+    expect(await screen.findByRole('link', { name: 'Connection details' })).toHaveAttribute(
+      'href',
+      `${docs}/desk/agent?tab=github`,
+    );
+    expect(screen.getByRole('link', { name: 'Switch to polling' })).toHaveAttribute(
+      'href',
+      `${docs}/desk/agent?tab=github`,
+    );
   });
 });

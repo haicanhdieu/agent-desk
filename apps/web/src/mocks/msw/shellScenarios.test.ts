@@ -60,6 +60,8 @@ it('the key and every scenario name', () => {
     'markerTicket',
     'foreignOrg',
     'foreignInvite',
+    'memberOwnsRuns',
+    'memberOthersRuns',
   ]);
   expect(parseShellScenario('longNames')).toBe('longNames');
   expect(parseShellScenario('nope')).toBeUndefined();
@@ -271,6 +273,18 @@ describe('the defining facts', () => {
     // No other run carries it.
     const others = (await api.runs.list({ params: { projectId: P1 }, query: {} })).items.filter((r) => r.number !== 62);
     expect(others.some((r) => r.ticket.title.includes(MARKER))).toBe(false);
+  });
+
+  it('memberOwnsRuns: member of invoicer-api who owns its runs; memberOthersRuns: the same, the runs are someone else’s', async () => {
+    apply('memberOwnsRuns');
+    const own = await api.runs.byNumber({ params: { projectId: P1, number: 62 } });
+    expect(own.ownerUserId).toBe(ids.user.alice);
+    expect((await grants()).find((a) => a.roleKey === 'member')?.scope).toEqual({ type: 'project', projectId: P1 });
+    apply('memberOthersRuns');
+    const other = await api.runs.byNumber({ params: { projectId: P1, number: 62 } });
+    expect(other.ownerUserId).not.toBeNull();
+    expect(other.ownerUserId).not.toBe(ids.user.alice);
+    expect((await grants()).find((a) => a.roleKey === 'member')?.scope).toEqual({ type: 'project', projectId: P1 });
   });
 
   it('foreignOrg: an org and a project the user is not in, hidden from every list they can read', async () => {

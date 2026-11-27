@@ -42,6 +42,9 @@ const INACTIVE_BODY = `Nobody used this page for ${UNUSED_HOURS} hours, so the t
 const RunParam = z.string().regex(/^[1-9]\d{0,8}$/);
 
 export const Route = createFileRoute('/o/$org/p/$project/runs/$run')({
+  staticData: {
+    chrome: { mode: 'standard', scope: 'project', item: 'runs', parent: true, fill: true, startCollapsed: true },
+  },
   beforeLoad: ({ params }) => {
     if (!RunParam.safeParse(params.run).success) throw notFound();
   },

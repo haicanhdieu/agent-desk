@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { API, commentOnNewTicket, projectFor, runOf, waitForStatus } from './helpers';
+import { API, commentOnNewTicket, projectFor, runHeader, runOf, waitForStatus } from './helpers';
 
 /*
  * Reopen, Close session, Reopen again on the real localhost stack (the fake pod). Spec: ADR 0032, issue #203. A run the
@@ -13,10 +13,9 @@ test.beforeAll(async ({ request }) => {
   expect(ready?.ok(), `${API}/readyz is not ready: start the stack with \`pnpm dev\` at the repo root`).toBe(true);
 });
 
-const topBar = (page: Page) => page.getByRole('banner');
-const pill = (page: Page, label: string) => topBar(page).getByText(label, { exact: true });
+const pill = (page: Page, label: string) => runHeader(page).getByText(label, { exact: true });
 const reopenButton = (page: Page) => page.getByRole('button', { name: 'Reopen session' });
-const closeButton = (page: Page) => topBar(page).getByRole('button', { name: 'Close session' });
+const closeButton = (page: Page) => runHeader(page).getByRole('button', { name: 'Close session' });
 
 test('TC-1: a succeeded run can be reopened and closed repeatedly, and its result never changes', async ({ page }) => {
   const { handle, projectId } = await projectFor(page);
@@ -26,7 +25,7 @@ test('TC-1: a succeeded run can be reopened and closed repeatedly, and its resul
   await page.goto(`/o/${handle}/p/${projectId}/runs/${run.number}`);
 
   // A fresh Done run finishes with its disk kept: Reopen session is offered.
-  await topBar(page).getByRole('button', { name: 'Finish run' }).click();
+  await runHeader(page).getByRole('button', { name: 'Finish run' }).click();
   await expect(pill(page, 'Succeeded')).toBeVisible({ timeout: 60_000 });
   await expect(reopenButton(page)).toBeEnabled({ timeout: 30_000 });
 
@@ -35,7 +34,7 @@ test('TC-1: a succeeded run can be reopened and closed repeatedly, and its resul
     await expect(pill(page, 'Succeeded · Session open')).toBeVisible({ timeout: 60_000 });
     await expect(closeButton(page)).toBeEnabled({ timeout: 60_000 });
     for (const name of ['Finish run', 'Stop session', 'Cancel run']) {
-      await expect(topBar(page).getByRole('button', { name })).toHaveCount(0);
+      await expect(runHeader(page).getByRole('button', { name })).toHaveCount(0);
     }
     expect((await runOf(page, runId)).reopenedAt, `round ${round}`).not.toBeNull();
 

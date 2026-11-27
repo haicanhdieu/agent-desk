@@ -769,3 +769,8 @@ export async function openSideMenu(page: Page): Promise<Locator> {
   else if (await expand.isVisible()) await expand.click();
   return page.getByRole('navigation', { name: SIDE_MENU_NAME });
 }
+
+/** The page header of a run page (inside main): "Run N", the status, the ticket and the run actions. The top bar is `getByRole('banner')`. */
+export function runHeader(page: Page): Locator {
+  return page.getByRole('main').getByRole('heading', { level: 1 }).locator('xpath=ancestor::header[1]');
+}

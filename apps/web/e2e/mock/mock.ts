@@ -389,3 +389,8 @@ export async function chooseAction(page: Page, name: string): Promise<void> {
   await page.getByRole('button', { name: 'More actions' }).click();
   await page.getByRole('menuitem', { name }).click();
 }
+
+/** The page header of a run page (inside main): "Run N", the status, the ticket and the run actions. The top bar is `getByRole('banner')`. */
+export function runHeader(page: Page): Locator {
+  return page.getByRole('main').getByRole('heading', { level: 1 }).locator('xpath=ancestor::header[1]');
+}

@@ -23,6 +23,7 @@ import {
   setAutoResumeMax,
   setDefaultModel,
   signInAndCreateProject,
+  runHeader,
 } from './helpers';
 
 /*
@@ -160,7 +161,7 @@ async function startPausedRun(page: Page, handle: string, projectId: string) {
 /** Resume from the run's page and return the first log line of the new pod. */
 async function resumeAndReadLaunchLine(page: Page, handle: string, projectId: string, runId: string, number: number) {
   await page.goto(runUrl(handle, projectId, number));
-  await expect(page.getByRole('banner').getByText('Paused', { exact: true })).toBeVisible({ timeout: 15_000 });
+  await expect(runHeader(page).getByText('Paused', { exact: true })).toBeVisible({ timeout: 15_000 });
   await page.getByRole('button', { name: 'Resume' }).click();
   return firstLogLine(runId);
 }

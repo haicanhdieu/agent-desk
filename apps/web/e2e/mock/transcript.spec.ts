@@ -27,6 +27,7 @@ import {
   TRANSCRIPT_RICH_RUN,
   TRANSCRIPT_SLOW_RUN,
   TRANSCRIPT_TIMED_OUT_RUN,
+  runHeader,
 } from './mock';
 
 /*
@@ -48,8 +49,7 @@ async function open(page: Page, number: number): Promise<void> {
   await page.goto(runUrl(number));
 }
 
-const topBar = (page: Page) => page.getByRole('banner');
-const pill = (page: Page, label: string) => topBar(page).getByText(label, { exact: true });
+const pill = (page: Page, label: string) => runHeader(page).getByText(label, { exact: true });
 const area = (page: Page) => page.getByRole('region', { name: /^(Terminal|Transcript)$/ });
 const log = (page: Page) => page.getByRole('log', { name: 'Transcript of the agent conversation' });
 const liveTerminal = (page: Page) => page.getByRole('group', { name: 'Claude Code terminal' });
@@ -262,7 +262,7 @@ test.describe('BR-37: viewing never starts a pod', () => {
     await expect(log(page)).toBeVisible();
     await expect(pill(page, 'Paused')).toBeVisible();
     for (const state of ['Queued', 'Starting', 'Resuming']) {
-      await expect(topBar(page).getByText(state, { exact: true })).toHaveCount(0);
+      await expect(runHeader(page).getByText(state, { exact: true })).toHaveCount(0);
     }
     await expect(page.getByRole('heading', { name: /Starting the agent|Resuming the run/ })).toHaveCount(0);
   });

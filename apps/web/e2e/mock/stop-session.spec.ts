@@ -19,6 +19,7 @@ import {
   STOP_RUNNING_ENDING_RUN,
   STOP_RUNNING_RUN,
   TRANSCRIPT_FAILED_RUN,
+  runHeader,
 } from './mock';
 
 /*
@@ -37,15 +38,14 @@ async function open(page: Page, number: number): Promise<void> {
   await page.goto(runUrl(number));
 }
 
-const topBar = (page: Page) => page.getByRole('banner');
-const stopButton = (page: Page) => topBar(page).getByRole('button', { name: 'Stop session' });
+const stopButton = (page: Page) => runHeader(page).getByRole('button', { name: 'Stop session' });
 const terminalArea = (page: Page) => page.getByRole('region', { name: /^(Terminal|Transcript)$/ });
 const liveTerminal = (page: Page) => page.getByRole('group', { name: 'Claude Code terminal' });
-const pill = (page: Page, label: string) => topBar(page).getByText(label, { exact: true });
+const pill = (page: Page, label: string) => runHeader(page).getByText(label, { exact: true });
 
 /** The top bar's action buttons, in page order. */
 async function actionOrder(page: Page): Promise<string[]> {
-  const names = await topBar(page)
+  const names = await runHeader(page)
     .getByRole('button', { name: /^(Finish run|Finish|Stop session|Cancel run)$/ })
     .allTextContents();
   return names.map((n) => n.trim());
@@ -125,16 +125,16 @@ test.describe('BR-3: Stop session is disabled while another action is pending', 
   test('TC-3.1 Stop session is disabled while a Finish request is pending', async ({ page }) => {
     await open(page, STOP_IDLE_RUN);
     await expect(stopButton(page)).toBeEnabled();
-    await topBar(page).getByRole('button', { name: 'Finish run' }).click();
-    await expect(topBar(page).getByText('Finishing…')).toBeVisible();
+    await runHeader(page).getByRole('button', { name: 'Finish run' }).click();
+    await expect(runHeader(page).getByText('Finishing…')).toBeVisible();
     await expect(stopButton(page)).toBeDisabled();
   });
 
   test('TC-3.2 Stop session is disabled while a Cancel request is pending', async ({ page }) => {
     await open(page, STOP_RUNNING_RUN);
-    await topBar(page).getByRole('button', { name: 'Cancel run' }).click();
+    await runHeader(page).getByRole('button', { name: 'Cancel run' }).click();
     await page.getByRole('dialog').getByRole('button', { name: 'Cancel run' }).click();
-    await expect(topBar(page).getByText('Cancelling…')).toBeVisible();
+    await expect(runHeader(page).getByText('Cancelling…')).toBeVisible();
     await expect(stopButton(page)).toBeDisabled();
   });
 
@@ -228,12 +228,12 @@ test.describe('BR-17: Stopped notice', () => {
     await expect(notice).toHaveCount(1);
     await expect(notice.getByRole('button', { name: 'Resume' })).toBeVisible();
     await expect(pill(page, 'Paused')).toBeVisible();
-    await expect(topBar(page).getByRole('link', { name: 'View PR' })).toBeVisible();
+    await expect(runHeader(page).getByRole('link', { name: 'View PR' })).toBeVisible();
   });
 
   test('TC-17.2 a stopped run on an issue shows View issue and the Paused pill', async ({ page }) => {
     await open(page, STOPPED_ISSUE_RUN);
-    await expect(topBar(page).getByRole('link', { name: 'View issue' })).toBeVisible();
+    await expect(runHeader(page).getByRole('link', { name: 'View issue' })).toBeVisible();
     await expect(pill(page, 'Paused')).toBeVisible();
   });
 
@@ -284,7 +284,10 @@ test.describe('BR-19: stopped run in the run list', () => {
   const chip = (page: Page, label: string) => page.getByLabel('Filter by status').getByText(label, { exact: false });
 
   test('TC-19.1 the stopped run pill reads Paused in the run list', async ({ page }) => {
-    await openList(page);
+    await page.clock.install({ time: new Date(SESSION_MOCK_NOW) });
+    // The list shows 20 runs a page, newest first: run 77 is on the third page of the seeded list.
+    await page.goto(`${runsUrl}?page=3`);
+    // The All chip is the default view; pressing it keeps the step that showed All reveals the paused row.
     await chip(page, 'All').first().click();
     await expect(row(page).getByText('Paused', { exact: true })).toBeVisible();
   });

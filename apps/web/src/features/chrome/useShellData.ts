@@ -362,12 +362,12 @@ export function useShellData(input: ShellInput): ShellData {
     const label =
       chrome?.crumb ??
       (chrome?.mode === 'wizard' ? 'New project' : target.scope === 'personal' ? 'My invitations' : undefined);
-    if (pageState !== 'notFound' && !suspended && label !== undefined) {
+    if (pageState !== 'notFound' && !suspended) {
       const runs = projectId !== undefined && slug !== undefined ? projectPaths(slug, projectId).runs : undefined;
-      crumbs =
-        params.run !== undefined && runs !== undefined
-          ? [{ label: 'Runs', href: runs }, { label: `Run ${params.run}` }]
-          : [{ label }];
+      // A run page has no crumb of its own: its trail is the Runs link and "Run n".
+      if (params.run !== undefined && runs !== undefined)
+        crumbs = [{ label: 'Runs', href: runs }, { label: `Run ${params.run}` }];
+      else if (label !== undefined) crumbs = [{ label }];
     }
     if (target.scope === 'org' && member !== undefined && !suspended) titleScope = member.name;
     if (target.scope === 'project' && detail !== undefined) titleScope = detail.name;

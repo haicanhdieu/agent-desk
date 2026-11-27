@@ -24,8 +24,6 @@ const orgMenu = (page: Page): Locator => page.getByRole('navigation', { name: 'O
 const menuLink = (page: Page, name: string): Locator => orgMenu(page).getByRole('link', { name, exact: true });
 const FULL_MENU = ['Projects', 'Members', 'Invitations', 'Audit log', 'General'];
 const bar = (page: Page): Locator => page.getByRole('banner');
-const orgButton = (page: Page): Locator =>
-  page.getByRole('button', { name: 'Switch scope, currently organization Alice' });
 
 test.describe('BR-43: top-bar tabs per level', () => {
   test('TC-43.1: the owner on Projects sees Projects and the Settings items in the org menu, Projects current', async ({
@@ -104,12 +102,12 @@ test.describe('BR-46: run page crumbs', () => {
     await open(page, 'twoOwners', RUN);
     const crumbs = page.getByRole('navigation', { name: 'Breadcrumb' });
     await expect(crumbs).toBeVisible();
-    await expect(crumbs.getByRole('button').first()).toHaveAccessibleName('Switch scope, currently organization Alice');
+    // One org: the org crumb is its plain name (BR-47 of the shell spec); the run page's menu starts collapsed.
+    await expect(crumbs.getByText('Alice', { exact: true })).toBeVisible();
     await expect(crumbs.getByRole('button', { name: 'Switch project, currently invoicer-api' })).toBeVisible();
     await expect(crumbs.getByRole('link', { name: 'Runs', exact: true })).toBeVisible();
     await expect(crumbs.getByText(`Run ${SCRIPTED_RUN}`, { exact: true })).toHaveAttribute('aria-current', 'page');
     await expect(crumbs.locator('b[aria-current="page"], a, button')).toHaveText([
-      /^Alice/,
       /invoicer-api/,
       'Runs',
       `Run ${SCRIPTED_RUN}`,
@@ -132,15 +130,6 @@ test.describe('BR-46: run page crumbs', () => {
 });
 
 test.describe('BR-47: Settings in two clicks', () => {
-  async function settingsInTwoClicks(page: Page, landing: RegExp, subTab: string, only?: string): Promise<void> {
-    await orgButton(page).click();
-    await page.getByRole('dialog', { name: 'Scope' }).getByRole('link', { name: 'Org settings' }).click();
-    await expect(page).toHaveURL(landing);
-    await expect(page.getByRole('heading', { name: subTab, level: 1 })).toBeVisible();
-    await expect(menuLink(page, subTab)).toHaveAttribute('aria-current', 'page');
-    if (only !== undefined) await expect(orgMenu(page).getByRole('link')).toHaveText(['Projects', only]);
-  }
-
   // On the shell the org switcher holds scopes only (BR-45): from a project page the org Settings are "All projects"
   // in the project menu, then the Settings item in the org menu.
   async function settingsFromProject(page: Page, landing: RegExp, subTab: string, only?: string): Promise<void> {
@@ -169,7 +158,8 @@ test.describe('BR-47: Settings in two clicks', () => {
 
   test('TC-47.4: the owner on a run page reaches Members', async ({ page }) => {
     await open(page, 'twoOwners', RUN);
-    await settingsInTwoClicks(page, /\/settings\/members$/, 'Members');
+    await page.getByRole('button', { name: 'Expand menu' }).click();
+    await settingsFromProject(page, /\/settings\/members$/, 'Members');
   });
 });
 

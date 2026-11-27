@@ -12,6 +12,7 @@ import {
   touchPodFile,
   transcriptOf,
   waitForStatus,
+  runHeader,
 } from './helpers';
 
 /*
@@ -52,9 +53,8 @@ test.afterEach(async ({ page }) => {
   }
 });
 
-const topBar = (page: Page) => page.getByRole('banner');
-const pill = (page: Page, label: string) => topBar(page).getByText(label, { exact: true });
-const stopButton = (page: Page) => topBar(page).getByRole('button', { name: 'Stop session' });
+const pill = (page: Page, label: string) => runHeader(page).getByText(label, { exact: true });
+const stopButton = (page: Page) => runHeader(page).getByRole('button', { name: 'Stop session' });
 const area = (page: Page) => page.getByRole('region', { name: /^(Terminal|Transcript)$/ });
 const liveTerminal = (page: Page) => page.getByRole('group', { name: 'Claude Code terminal' });
 const stoppedHeadline = (page: Page) => page.getByText(/^Stopped: can be resumed for /);
@@ -62,7 +62,7 @@ const log = (page: Page) => page.getByRole('log', { name: 'Transcript of the age
 
 async function openRun(page: Page, s: Started): Promise<void> {
   await page.goto(`/o/${s.handle}/p/${s.projectId}/runs/${s.number}`);
-  await expect(topBar(page)).toBeVisible();
+  await expect(runHeader(page)).toBeVisible();
 }
 
 /** Starts a run that reaches `idle`, opens it and waits for its live terminal. */

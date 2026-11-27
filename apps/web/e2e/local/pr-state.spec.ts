@@ -1,6 +1,6 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
 import type { PrState } from '@agentdesk/contracts';
-import { API, addFakeTicket, commentOn, runOf, signInAndCreateProject } from './helpers';
+import { API, addFakeTicket, commentOn, runHeader, runOf, signInAndCreateProject } from './helpers';
 
 /*
  * Local end-to-end for live PR state colours against the real stack (spec
@@ -113,7 +113,7 @@ test('Run detail of a PR run shows its state on the top bar and the Ticket card'
   const { number } = await reviewOn(page, handle, projectId, pr);
 
   await page.goto(`${runsUrl(handle, projectId)}/${number}`);
-  const bar = page.getByRole('banner').getByLabel('Merged');
+  const bar = runHeader(page).getByLabel('Merged');
   await expect(bar).toBeVisible();
   await expectPrColour(bar.locator('xpath=..'), 'merged');
   const card = page.getByRole('complementary', { name: 'Run context' }).getByLabel('Merged').first();
