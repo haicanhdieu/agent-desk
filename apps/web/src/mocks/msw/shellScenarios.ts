@@ -1,7 +1,7 @@
 import type { SkillDto } from '@agentdesk/contracts';
 import { roleFixtures } from '../dto/access';
 import { agentsFixture } from '../dto/agents';
-import { ids } from '../dto/ids';
+import { agentListId, ids } from '../dto/ids';
 import { defaultTriggerState, mockDb, type InvitationRow, type MockState } from './db';
 import { applyOnboardingScenario } from './onboardingScenarios';
 
@@ -264,6 +264,28 @@ const seeders: Record<ShellScenario, () => void> = {
     state().setupScripts[P2] = [script(1, 'echo "setup of invoicer-web"')];
     state().skills[P1] = [skill('shared-skill', 'Text of the skill in invoicer-api.')];
     state().skills[P2] = [skill('shared-skill', 'Different text of the skill in invoicer-web.')];
+    // Different agents and limits, and a different trigger mode, so a value that crosses the switcher shows.
+    const agentOf = (projectId: string) => {
+      const found = state().agents.find((a) => a.projectId === projectId);
+      if (!found) throw new Error(`agent fixture of ${projectId} missing`);
+      return found;
+    };
+    Object.assign(agentOf(P1), { name: 'Claude - invoicer-api' });
+    Object.assign(agentOf(P2), { name: 'Claude - invoicer-web' });
+    // P1 also has a second agent that nothing uses, so it can be deleted (a project's only agent cannot).
+    state().agents.push({
+      ...structuredClone(agentOf(P1)),
+      id: agentListId(900),
+      name: 'Codex - invoicer-api',
+      isDefault: false,
+    });
+    // The limits are the project's own.
+    Object.assign(projectOf(P1), { timeoutSeconds: 86400, autoResumeMax: 5 });
+    Object.assign(projectOf(P2), { timeoutSeconds: 7200, autoResumeMax: 2 });
+    projectOf(P1).triggerMode = 'webhook';
+    projectOf(P2).triggerMode = 'polling';
+    projectOf(P1).pollIntervalSeconds = 300;
+    projectOf(P2).pollIntervalSeconds = 1800;
   },
   // Run 62's ticket title and its comment (the run's arguments) hold the marker and HTML-like text.
   markerTicket() {

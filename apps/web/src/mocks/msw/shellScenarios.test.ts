@@ -241,6 +241,26 @@ describe('the defining facts', () => {
     expect(s1.body).not.toBe(s2.body);
   });
 
+  it('distinctProjects: the two projects also have different agents, limits and trigger modes', async () => {
+    apply('distinctProjects');
+    const agentsOf = async (projectId: string) => (await api.agents.list({ params: { projectId } })).items;
+    const [a1, a2] = [await agentsOf(P1), await agentsOf(P2)];
+    expect(a1.length).toBeGreaterThan(0);
+    expect(a2.length).toBeGreaterThan(0);
+    expect(a1.map((a) => a.name)).not.toEqual(a2.map((a) => a.name));
+    // P1 has a second, deletable agent (the only agent of a project cannot be deleted).
+    expect(a1.map((a) => a.name)).toEqual(['Claude - invoicer-api', 'Codex - invoicer-api']);
+    expect(a1.filter((a) => a.isDefault)).toHaveLength(1);
+    expect(a2.map((a) => a.name)).toEqual(['Claude - invoicer-web']);
+    expect(a1.some((a) => a2.some((b) => b.id === a.id))).toBe(false);
+    const [p1, p2] = [await projectById(P1), await projectById(P2)];
+    expect(p1.timeoutSeconds).not.toBe(p2.timeoutSeconds);
+    expect(p1.autoResumeMax).not.toBe(p2.autoResumeMax);
+    expect(p1.triggerMode).not.toBe(p2.triggerMode);
+    expect(p2.triggerMode).toBe('polling');
+    expect(p1.pollIntervalSeconds).not.toBe(p2.pollIntervalSeconds);
+  });
+
   it('markerTicket: run 62 carries a unique marker and HTML-like text in its ticket title and its comment', async () => {
     apply('markerTicket');
     const run = await api.runs.byNumber({ params: { projectId: P1, number: 62 } });

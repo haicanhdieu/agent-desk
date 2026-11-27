@@ -24,5 +24,7 @@ function ProjectLayout() {
   const { org, project } = Route.useParams();
   // Run status changes in the project, for every project page (spec §5.2).
   useProjectEvents(org, project);
-  return <Outlet />;
+  // Keyed by the project id only, never by the search: switching project remounts the page, so nothing typed or
+  // opened for the old project (a draft, a dialog, a pane with a typed credential) survives; a search change keeps it.
+  return <Outlet key={project} />;
 }

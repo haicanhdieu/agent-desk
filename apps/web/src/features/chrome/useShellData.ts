@@ -14,6 +14,7 @@ import { platformCrumbs, type PlatformOrgCrumb } from '../platform/crumbs';
 import { platformOrgQuery } from '../platform/queries';
 import { toConnectionStatus, toProjectMenuItems } from '../projects/map';
 import { projectsQueries } from '../projects/queries';
+import { switchTargetHref } from '../projects/switchTarget';
 import { repoUrlOf } from '../runs/map';
 import {
   errorMenuScope,
@@ -324,7 +325,9 @@ export function useShellData(input: ShellInput): ShellData {
           ...(listQ.data !== undefined
             ? {
                 status: 'ready' as const,
-                items: toProjectMenuItems(listQ.data.items, projectId, (id) => projectPaths(tenantSlug, id).runs),
+                items: toProjectMenuItems(listQ.data.items, projectId, (id) =>
+                  switchTargetHref(tenantSlug, id, item, parent, access),
+                ),
               }
             : listQ.isError
               ? { status: 'error' as const, onRetry: () => void listQ.refetch() }

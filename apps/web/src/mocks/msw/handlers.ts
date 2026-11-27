@@ -749,10 +749,13 @@ const impl: Impl = {
   },
 
   'projects.list': ({ query }) => {
-    const { orgId } = session();
-    // As the API: creation order, ties broken by id.
+    const { user, orgId } = session();
+    // As the API: creation order, ties broken by id. A seat with a role per project (the shell scenarios) lists only
+    // its projects, as the API scopes lists with `visibleProjects`; the older single-role seats still list all.
+    const seat = db().memberships.find((m) => m.userId === user.id && m.orgId === orgId);
+    const reach = seat?.projectRoles === undefined ? undefined : seat.projectIds;
     const rows = db()
-      .projects.filter((p) => p.orgId === orgId)
+      .projects.filter((p) => p.orgId === orgId && (reach === undefined || reach.includes(p.id)))
       .sort((a, b) => (a.createdAt < b.createdAt ? -1 : a.createdAt > b.createdAt ? 1 : a.id < b.id ? -1 : 1));
     const page = slicePage(rows, query);
     return { ...page, items: page.items.map(toProjectDto) };

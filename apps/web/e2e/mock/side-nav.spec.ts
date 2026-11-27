@@ -1,5 +1,5 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
-import { ids } from '../../src/mocks/dto/ids';
+import { agentListId, ids } from '../../src/mocks/dto/ids';
 import type { PlatformScenario } from '../../src/mocks/msw/platformScenarios';
 import type { TenantAdminScenario } from '../../src/mocks/msw/tenantAdminScenarios';
 import {
@@ -10,7 +10,10 @@ import {
   SESSION_MOCK_NOW,
   SIDE_MENU_NAME,
   chooseAction,
+  answerRequest,
   holdReads,
+  release,
+  setRead,
   seedAgents,
   seedLists,
   seedPlatform,
@@ -1063,5 +1066,448 @@ test.describe('BR-29, BR-82: the bare project URL and the bare /desk URL', () =>
     await expect(page.getByRole('tab', { name: 'Limits', exact: true })).toHaveAttribute('aria-selected', 'true');
     await expect(page).toHaveURL(/\/desk\/agent\?tab=limits$/);
     await expect(runsH1(page)).toHaveCount(0);
+  });
+});
+
+/*
+ * BR-48 to BR-52, BR-54, BR-68: the project switcher keeps the page and drops drafts. Switching is client-side (the
+ * mock store lives in the page), so no case reloads between the two projects.
+ */
+test.describe('The project switcher', () => {
+  const switchButton = (page: Page): Locator => page.getByRole('button', { name: /^Switch project, currently/ });
+  const popover = (page: Page): Locator => page.getByRole('dialog', { name: 'Projects' });
+  const openSwitcher = async (page: Page): Promise<Locator> => {
+    await switchButton(page).click();
+    await expect(popover(page)).toBeVisible();
+    return popover(page);
+  };
+  const switchTo = async (page: Page, name: string): Promise<void> => {
+    const menu = await openSwitcher(page);
+    await menu.getByRole('link', { name: new RegExp(name) }).click();
+  };
+  const agentUrl = (project: string) => new RegExp(`/o/${ORG}/p/${project}/desk/agent$`);
+  const agentsTabSelected = (page: Page): Locator => page.getByRole('tab', { name: 'Agents', exact: true });
+  const forbidden = (page: Page): Locator => page.getByText("You don't have access");
+  const linkNames = async (menu: Locator): Promise<(string | undefined)[]> =>
+    (await menu.getByRole('link').allInnerTexts()).map((t) => t.replace(/\s*\d+ needs you\s*$/, '').trim());
+
+  test.describe('the list (BR-48, BR-49)', () => {
+    test.use({ viewport: { width: 1440, height: 900 } });
+
+    test('TC-48.1: the title, the projects with the current one checked, "1 needs you" and "All projects"', async ({
+      page,
+    }) => {
+      await seedLists(page, { runs: { total: 3 }, needsYou: 1 });
+      await page.goto(runsUrl(P1));
+      const menu = await openSwitcher(page);
+      await expect(menu.getByText('Switch project', { exact: true })).toBeVisible();
+      await expect(menu.getByRole('link', { name: /invoicer-api/ })).toHaveAttribute('aria-current', /.+/);
+      await expect(menu.getByRole('link', { name: /invoicer-web/ })).not.toHaveAttribute('aria-current', /.+/);
+      await expect(menu.getByRole('link', { name: /invoicer-api/ })).toContainText('1 needs you');
+      await expect(menu.getByRole('link', { name: 'All projects' })).toBeVisible();
+    });
+
+    test('TC-48.2: a person who sees only some projects sees only those, and no other name or count', async ({
+      page,
+    }) => {
+      await seedShell(page, 'adminP1ViewerP2');
+      await page.goto(runsUrl(P1));
+      const menu = await openSwitcher(page);
+      await expect.poll(() => linkNames(menu)).toEqual(['invoicer-api', 'invoicer-web', 'All projects']);
+      for (const hidden of ['docs-site', 'billing-jobs', 'storefront', 'Acme']) {
+        await expect(menu.getByText(hidden)).toHaveCount(0);
+      }
+    });
+
+    test('TC-48.3: a project with no run needing a person shows no count', async ({ page }) => {
+      await page.goto(runsUrl(P1));
+      const menu = await openSwitcher(page);
+      const row = menu.getByRole('link', { name: /invoicer-web/ });
+      await expect(row).toBeVisible();
+      await expect(row).not.toContainText('needs you');
+      await expect(row).not.toContainText('0');
+    });
+
+    for (const role of ['owner', 'admin'] as const) {
+      test(`TC-49.1: an org ${role} sees "New project" and it opens the wizard`, async ({ page }) => {
+        await seedProjectSpace(page, { role });
+        await page.goto(runsUrl(P1));
+        const menu = await openSwitcher(page);
+        await menu.getByRole('link', { name: 'New project' }).click();
+        await expect(page).toHaveURL(new RegExp(`/o/${ORG}/projects/new/`));
+      });
+    }
+
+    for (const role of ['member', 'viewer', 'projectAdmin'] as const) {
+      test(`TC-49.2: a ${role} sees the list and "All projects" but no "New project"`, async ({ page }) => {
+        await seedProjectSpace(page, { role });
+        await page.goto(runsUrl(P1));
+        const menu = await openSwitcher(page);
+        await expect(menu.getByRole('link', { name: /invoicer-api/ })).toBeVisible();
+        await expect(menu.getByRole('link', { name: 'All projects' })).toBeVisible();
+        await expect(menu.getByRole('link', { name: 'New project' })).toHaveCount(0);
+      });
+    }
+  });
+
+  test.describe('All projects (BR-50)', () => {
+    test('TC-50.1: an org member on Runs picks "All projects" and the Projects page opens', async ({ page }) => {
+      await seedProjectSpace(page, { role: 'member' });
+      await page.goto(runsUrl(P1));
+      const menu = await openSwitcher(page);
+      await menu.getByRole('link', { name: 'All projects' }).click();
+      await expect(page).toHaveURL(new RegExp(`/o/${ORG}/projects$`));
+    });
+
+    test('TC-50.2: an org owner on Routing rules picks "All projects" and the Projects page opens', async ({
+      page,
+    }) => {
+      await seedProjectSpace(page, { role: 'owner' });
+      await page.goto(deskUrl('rules'));
+      const menu = await openSwitcher(page);
+      await menu.getByRole('link', { name: 'All projects' }).click();
+      await expect(page).toHaveURL(new RegExp(`/o/${ORG}/projects$`));
+    });
+  });
+
+  test.describe('the same page of the other project (BR-51)', () => {
+    test('TC-51.1: from Skills with a skill in the address, P2 Skills opens with none of P1 query', async ({
+      page,
+    }) => {
+      await seedProjectSpace(page, { role: 'owner' });
+      await page.goto(`${deskUrl('skills')}?skill=code-review`);
+      await expect(page).toHaveURL(/skill=code-review/);
+      await switchTo(page, 'invoicer-web');
+      await expect(page).toHaveURL(new RegExp(`/o/${ORG}/p/${P2}/desk/skills$`));
+      await expect(page.getByRole('heading', { name: 'Skills', level: 1 })).toBeVisible();
+    });
+
+    test('TC-51.2: an admin of P1 and viewer of P2 on P1 Routing rules lands on P2 Runs, with no forbidden state', async ({
+      page,
+    }) => {
+      await seedShell(page, 'adminP1ViewerP2');
+      await page.goto(deskUrl('rules'));
+      await expect(page.getByRole('heading', { name: 'Routing rules', level: 1 })).toBeVisible();
+      await switchTo(page, 'invoicer-web');
+      await expect(page).toHaveURL(new RegExp(`/o/${ORG}/p/${P2}/runs$`));
+      await expect(page.getByRole('heading', { name: 'Runs', level: 1 })).toBeVisible();
+      await expect(forbidden(page)).toHaveCount(0);
+    });
+
+    test('TC-51.3: from Runs with a filter in the address, P2 Runs opens without P1 query', async ({ page }) => {
+      await seedProjectSpace(page, { role: 'member' });
+      await page.goto(`${runsUrl(P1)}?filter=ended`);
+      await expect(page).toHaveURL(/filter=ended/);
+      await switchTo(page, 'invoicer-web');
+      await expect(page).toHaveURL(new RegExp(`/o/${ORG}/p/${P2}/runs(\\?.*)?$`));
+      await expect(page).not.toHaveURL(/filter=ended/);
+      await expect(page.getByRole('heading', { name: 'Runs', level: 1 })).toBeVisible();
+    });
+
+    test('TC-51.4: from the project Members page, P2 Members opens', async ({ page }) => {
+      await seedProjectSpace(page, { role: 'owner' });
+      await page.goto(deskUrl('members'));
+      await expect(page.getByRole('heading', { name: 'Members', level: 1 })).toBeVisible();
+      await switchTo(page, 'invoicer-web');
+      await expect(page).toHaveURL(new RegExp(`/o/${ORG}/p/${P2}/desk/members$`));
+      await expect(page.getByRole('heading', { name: 'Members', level: 1 })).toBeVisible();
+    });
+
+    test('TC-51.5: from GitHub connection, Limits and Danger zone, P2 opens on the Agents tab with no tab in the address', async ({
+      page,
+    }) => {
+      await page.goto(deskUrl('agent'));
+      for (const tab of ['GitHub connection', 'Limits', 'Danger zone']) {
+        await page
+          .getByRole('tablist', { name: 'Agent and project settings' })
+          .getByRole('tab', { name: tab, exact: true })
+          .click();
+        await expect(page).toHaveURL(/tab=/);
+        await switchTo(page, 'invoicer-web');
+        await expect(page).toHaveURL(agentUrl(P2));
+        await expect(agentsTabSelected(page)).toHaveAttribute('aria-selected', 'true');
+        await switchTo(page, 'invoicer-api');
+        await expect(page).toHaveURL(agentUrl(P1));
+      }
+    });
+
+    test('TC-51.6: from the second page of Agents with an edit pane open, P2 opens on the first page with no pane', async ({
+      page,
+    }) => {
+      await seedAgents(page, 'manyAgents');
+      await page.goto(`${deskUrl('agent')}?page=2`);
+      await page.getByRole('button', { name: /^Edit/ }).first().click();
+      await expect(page).toHaveURL(/agent=[0-9a-f-]{36}/);
+      await expect(page).toHaveURL(/page=2/);
+      await switchTo(page, 'invoicer-web');
+      await expect(page).toHaveURL(agentUrl(P2));
+      await expect(agentsTabSelected(page)).toHaveAttribute('aria-selected', 'true');
+      await expect(page.getByRole('heading', { level: 2, name: 'Edit agent' })).toHaveCount(0);
+    });
+
+    test('TC-51.7: an admin of P1 and viewer of P2 on an Agent & settings tab lands on P2 Runs, with no forbidden state', async ({
+      page,
+    }) => {
+      await seedShell(page, 'adminP1ViewerP2');
+      await page.goto(`${deskUrl('agent')}?tab=limits`);
+      await expect(page.getByRole('tab', { name: 'Limits', exact: true })).toHaveAttribute('aria-selected', 'true');
+      await switchTo(page, 'invoicer-web');
+      await expect(page).toHaveURL(new RegExp(`/o/${ORG}/p/${P2}/runs$`));
+      await expect(page.getByRole('heading', { name: 'Runs', level: 1 })).toBeVisible();
+      await expect(forbidden(page)).toHaveCount(0);
+    });
+  });
+
+  test.describe('loading, error and empty (BR-54)', () => {
+    test('TC-54.1: while the list is held the loading state shows and "All projects" is still offered', async ({
+      page,
+    }) => {
+      await answerRequest(page, { method: 'GET', path: '^/api/projects$', times: 1, hold: true });
+      await page.goto(runsUrl(P1));
+      const menu = await openSwitcher(page);
+      await expect(menu.getByRole('status')).toHaveText('Loading projects');
+      await expect(menu.getByRole('link', { name: 'All projects' })).toBeVisible();
+    });
+
+    test('TC-54.2: a failed list shows "Could not load your projects." with Retry and the footer; Retry shows the projects', async ({
+      page,
+    }) => {
+      await holdReads(page, { projectList: 'fail' });
+      await seedProjectSpace(page, { role: 'owner' });
+      await page.goto(runsUrl(P1));
+      const menu = await openSwitcher(page);
+      await expect(menu.getByText('Could not load your projects.')).toBeVisible({ timeout: 15_000 });
+      await expect(menu.getByRole('link', { name: 'All projects' })).toBeVisible();
+      await expect(menu.getByRole('link', { name: 'New project' })).toBeVisible();
+      await setRead(page, 'projectList');
+      await menu.getByRole('button', { name: 'Retry' }).click();
+      await expect(menu.getByRole('link', { name: /invoicer-web/ })).toBeVisible();
+    });
+
+    test('TC-54.3: an empty list shows "No projects yet." with the footer links', async ({ page }) => {
+      await page.addInitScript(() => {
+        const original = window.fetch.bind(window);
+        window.fetch = async (input, init) => {
+          const req = input instanceof Request ? input : undefined;
+          const method = (init?.method ?? req?.method ?? 'GET').toUpperCase();
+          const url = new URL(req ? req.url : String(input), window.location.href);
+          if (method === 'GET' && url.pathname === '/api/projects') {
+            return new Response(JSON.stringify({ items: [], page: 1, pageSize: 100, total: 0 }), {
+              status: 200,
+              headers: { 'content-type': 'application/json' },
+            });
+          }
+          return original(input, init);
+        };
+      });
+      await seedProjectSpace(page, { role: 'owner' });
+      await page.goto(runsUrl(P1));
+      const menu = await openSwitcher(page);
+      await expect(menu.getByText('No projects yet.')).toBeVisible();
+      await expect(menu.getByRole('link', { name: 'All projects' })).toBeVisible();
+      await expect(menu.getByRole('link', { name: 'New project' })).toBeVisible();
+    });
+  });
+
+  test.describe('drafts do not cross projects (BR-68)', () => {
+    test.use({ viewport: { width: 1440, height: 900 } });
+    const P1_SCRIPT = 'echo "setup of invoicer-api"';
+    const P2_SCRIPT = 'echo "setup of invoicer-web"';
+    const MARKER = 'P1-UNSAVED-MARKER';
+
+    test('TC-68.1, TC-68.5: an unsaved setup line stays on P1 only; back on P1 the saved script shows and nothing is asked', async ({
+      page,
+    }) => {
+      let asked = 0;
+      page.on('dialog', () => (asked += 1));
+      await seedShell(page, 'distinctProjects');
+      await page.goto(deskUrl('setup'));
+      const editor = page.getByRole('textbox', { name: 'Setup script' });
+      await expect(editor).toHaveValue(P1_SCRIPT);
+      await editor.click();
+      await page.keyboard.press('Control+End');
+      await page.keyboard.type(`\n${MARKER}`);
+      await expect(editor).toHaveValue(`${P1_SCRIPT}\n${MARKER}`);
+
+      await switchTo(page, 'invoicer-web');
+      await expect(page).toHaveURL(new RegExp(`/o/${ORG}/p/${P2}/desk/setup$`));
+      await expect(editor).toHaveValue(P2_SCRIPT);
+      await expect(page.getByText(MARKER)).toHaveCount(0);
+      await expect(page.getByText('Unsaved changes')).toHaveCount(0);
+
+      await switchTo(page, 'invoicer-api');
+      await expect(editor).toHaveValue(P1_SCRIPT);
+      await expect(page.getByText('Unsaved changes')).toHaveCount(0);
+      expect(asked).toBe(0);
+    });
+
+    test('TC-68.2: unsaved skill edits on P1 do not show on P2, which has its own saved text', async ({ page }) => {
+      await seedShell(page, 'distinctProjects');
+      await page.goto(`${deskUrl('skills')}?skill=shared-skill`);
+      const source = page.getByLabel('SKILL.md source');
+      await expect(source).toHaveValue(/Text of the skill in invoicer-api/);
+      await source.pressSequentially('\nP1-SKILL-DRAFT');
+      await expect(page.getByText('Unsaved changes')).toBeVisible();
+      await switchTo(page, 'invoicer-web');
+      await expect(page).toHaveURL(new RegExp(`/o/${ORG}/p/${P2}/desk/skills$`));
+      await expect(source).toHaveValue(/Different text of the skill in invoicer-web/);
+      await expect(source).not.toHaveValue(/P1-SKILL-DRAFT/);
+      await expect(page.getByText('Unsaved changes')).toHaveCount(0);
+    });
+
+    test('TC-68.3: Back to P2 Members shows no dialog and nothing prefilled', async ({ page }) => {
+      await seedProjectSpace(page, { role: 'owner' });
+      await page.goto(deskUrl('members', P2));
+      await expect(page.getByRole('heading', { name: 'Members', level: 1 })).toBeVisible();
+      await switchTo(page, 'invoicer-api');
+      await expect(page).toHaveURL(new RegExp(`/o/${ORG}/p/${P1}/desk/members$`));
+      await page.getByRole('button', { name: 'Add member' }).first().click();
+      const dialog = page.getByRole('dialog', { name: /Add member to/ });
+      await expect(dialog).toBeVisible();
+      await dialog.getByRole('combobox').fill('ben');
+      await page.goBack();
+      await expect(page).toHaveURL(new RegExp(`/o/${ORG}/p/${P2}/desk/members$`));
+      await expect(page.getByRole('heading', { name: 'Members', level: 1 })).toBeVisible();
+      await expect(page.getByRole('dialog')).toHaveCount(0);
+      await expect(page.getByRole('combobox')).toHaveCount(0);
+    });
+
+    test('TC-68.4: an unsaved trigger pick on P1 is gone on P2, which shows only its saved trigger choice', async ({
+      page,
+    }) => {
+      // P1's trigger save never answers, so the pick stays unsaved.
+      await answerRequest(page, { method: 'PATCH', path: `^/api/projects/${P1}$`, times: 1, hold: true });
+      await seedShell(page, 'distinctProjects');
+      await page.goto(`${deskUrl('agent')}?tab=github`);
+      await expect(page.getByRole('radio', { name: 'Webhook' })).toBeChecked();
+      await page.getByRole('radio', { name: 'Polling' }).click();
+      await expect(page.getByRole('radio', { name: 'Polling' })).toBeChecked();
+      await expect(page.getByRole('radio', { name: '5 min', exact: true })).toBeChecked();
+
+      await switchTo(page, 'invoicer-web');
+      await expect(page).toHaveURL(agentUrl(P2));
+      await expect(agentsTabSelected(page)).toHaveAttribute('aria-selected', 'true');
+      await expect(page.getByRole('heading', { level: 2, name: /Add agent|Edit agent/ })).toHaveCount(0);
+      await page.getByRole('tab', { name: 'GitHub connection', exact: true }).click();
+      await expect(page.getByRole('radio', { name: 'Polling' })).toBeChecked();
+      await expect(page.getByRole('radio', { name: '30 min', exact: true })).toBeChecked();
+      await expect(page.getByRole('radio', { name: '5 min', exact: true })).not.toBeChecked();
+    });
+
+    test('TC-68.6: a token typed in the add pane on P1 is gone on P2 and shows nowhere', async ({ page }) => {
+      await seedShell(page, 'distinctProjects');
+      await page.goto(deskUrl('agent'));
+      await page.getByRole('button', { name: 'Add agent' }).click();
+      await page.getByRole('radio', { name: 'Claude Code' }).click();
+      await page.getByRole('textbox', { name: 'Subscription token' }).fill('sk-fake-canary-0068');
+      await expect(page.getByRole('textbox', { name: 'Subscription token' })).toHaveValue('sk-fake-canary-0068');
+
+      await switchTo(page, 'invoicer-web');
+      await expect(page).toHaveURL(agentUrl(P2));
+      await expect(agentsTabSelected(page)).toHaveAttribute('aria-selected', 'true');
+      await expect(page.getByRole('heading', { level: 2, name: 'Add agent' })).toHaveCount(0);
+      await page.getByRole('button', { name: 'Add agent' }).click();
+      await page.getByRole('radio', { name: 'Claude Code' }).click();
+      await expect(page.getByRole('textbox', { name: 'Subscription token' })).toHaveValue('');
+      expect(await page.content()).not.toContain('sk-fake-canary-0068');
+    });
+
+    test('TC-68.7: an unsaved name on a P1 edit pane is gone on P2, whose Edit pane shows P2 saved values', async ({
+      page,
+    }) => {
+      await seedShell(page, 'distinctProjects');
+      await page.goto(`${deskUrl('agent')}?agent=${ids.agent.invoicerApi}`);
+      await expect(page.getByRole('heading', { level: 2, name: 'Edit agent' })).toBeVisible();
+      await page.getByRole('textbox', { name: 'Name', exact: true }).fill('P1 unsaved name');
+
+      await switchTo(page, 'invoicer-web');
+      await expect(page).toHaveURL(agentUrl(P2));
+      await expect(page.getByRole('heading', { level: 2, name: 'Edit agent' })).toHaveCount(0);
+      await page.getByRole('button', { name: 'Edit Claude - invoicer-web' }).click();
+      await expect(page.getByRole('heading', { level: 2, name: 'Edit agent' })).toBeVisible();
+      await expect(page.getByRole('textbox', { name: 'Name', exact: true })).toHaveValue('Claude - invoicer-web');
+      await expect(page.getByText('P1 unsaved name')).toHaveCount(0);
+    });
+
+    test('TC-68.8: an unsaved Limits value on P1 is gone on P2, whose Limits tab shows P2 saved values', async ({
+      page,
+    }) => {
+      await seedShell(page, 'distinctProjects');
+      await page.goto(`${deskUrl('agent')}?tab=limits`);
+      const timeout = page.getByRole('textbox', { name: 'Run time limit' });
+      await expect(timeout).toHaveValue('24');
+      await timeout.fill('5');
+      await switchTo(page, 'invoicer-web');
+      await expect(page).toHaveURL(agentUrl(P2));
+      await expect(agentsTabSelected(page)).toHaveAttribute('aria-selected', 'true');
+      await page.getByRole('tab', { name: 'Limits', exact: true }).click();
+      await expect(timeout).toHaveValue('2');
+    });
+
+    test('TC-68.9: an unsaved agent pick in the rule pane of P1 is gone on P2, whose pane offers only P2 agents', async ({
+      page,
+    }) => {
+      await seedShell(page, 'distinctProjects');
+      await page.goto(`${deskUrl('rules')}?rule=new`);
+      const select = page.getByRole('combobox', { name: 'With agent' });
+      await expect(select.locator('option')).toHaveCount(3);
+      await select.selectOption({ label: 'Codex - invoicer-api' });
+      await expect(select).toHaveValue(agentListId(900));
+
+      await switchTo(page, 'invoicer-web');
+      await expect(page).toHaveURL(new RegExp(`/o/${ORG}/p/${P2}/desk/rules$`));
+      await expect(page.getByRole('complementary')).toHaveCount(0);
+      await page.getByRole('button', { name: 'New rule' }).click();
+      await expect(page.getByRole('complementary', { name: 'New rule' })).toBeVisible();
+      await expect(select.locator('option')).toHaveText([
+        'Project default (Claude - invoicer-web)',
+        'Claude - invoicer-web',
+      ]);
+      await expect(select).toHaveValue('');
+    });
+
+    test('TC-68.10: Back and Forward over the switch show no delete dialog and no P1 agent on P2', async ({ page }) => {
+      await seedShell(page, 'distinctProjects');
+      await page.goto(deskUrl('agent', P2));
+      await expect(page.getByText('Claude - invoicer-web', { exact: true })).toBeVisible();
+      await switchTo(page, 'invoicer-api');
+      await expect(page).toHaveURL(agentUrl(P1));
+      await page.getByRole('button', { name: 'Actions for Codex - invoicer-api', exact: true }).click();
+      await page.getByRole('button', { name: 'Delete', exact: true }).click();
+      await expect(page.getByRole('dialog', { name: 'Delete agent Codex - invoicer-api?' })).toBeVisible();
+
+      await page.goBack();
+      await expect(page).toHaveURL(agentUrl(P2));
+      await expect(agentsTabSelected(page)).toHaveAttribute('aria-selected', 'true');
+      await expect(page.getByRole('dialog')).toHaveCount(0);
+      await expect(page.getByText('Codex - invoicer-api')).toHaveCount(0);
+
+      await page.goForward();
+      await expect(page).toHaveURL(agentUrl(P1));
+      await expect(agentsTabSelected(page)).toHaveAttribute('aria-selected', 'true');
+      await expect(page.getByRole('dialog')).toHaveCount(0);
+      await expect(page.getByText('Codex - invoicer-api', { exact: true })).toBeVisible();
+    });
+  });
+
+  test('Review Focus 4: P2 then P3 chosen before the project read is released shows only P3', async ({ page }) => {
+    await seedShell(page, 'distinctProjects');
+    await page.goto(runsUrl(P1));
+    await expect(page.getByRole('heading', { name: 'Runs', level: 1 })).toBeVisible();
+    // Open the list once (so it is cached), then hold the project read and switch twice before it is released.
+    await openSwitcher(page);
+    await expect(popover(page).getByRole('link', { name: /docs-site/ })).toBeVisible();
+    await page.keyboard.press('Escape');
+    await setRead(page, 'projectDetail', 'hold');
+    await switchTo(page, 'invoicer-web');
+    await switchTo(page, 'docs-site');
+    await release(page, 'projectDetail');
+    await expect(page).toHaveURL(new RegExp(`/o/${ORG}/p/${ids.project.docsSite}/runs$`));
+    await expect(switchButton(page)).toHaveAccessibleName(/currently docs-site/);
+    await expect(page.getByText('invoicer-web')).toHaveCount(0);
+    await expect(page.getByText('invoicer-api')).toHaveCount(0);
+    // P3's own repository line shows; P2's owner (harbor-labs, as P1's) and repository name are nowhere.
+    await expect(projectMenu(page).getByRole('region', { name: 'Repository' })).toContainText('kim-hale');
+    await expect(page.getByText('harbor-labs')).toHaveCount(0);
   });
 });
