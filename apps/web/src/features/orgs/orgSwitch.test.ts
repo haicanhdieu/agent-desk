@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest';
-import { toOrgSwitch } from './orgSwitch';
+import { describe, expect, it, vi } from 'vitest';
+import { toOrgSwitch, toOrgSwitchList } from './orgSwitch';
 
 const orgs = [
   { id: 'o1', slug: 'acme', name: 'Acme', status: 'active' as const },
@@ -30,5 +30,28 @@ describe('toOrgSwitch: suspended orgs (BR-48)', () => {
     const data = toOrgSwitch(list, 'beta', false);
     expect(data.orgs.map((o) => o.suspended ?? false)).toEqual([false, true]);
     expect(data.current?.suspended).toBe(true);
+  });
+});
+
+describe('toOrgSwitchList: the org list states', () => {
+  it('no data and no error is loading, with no orgs', () => {
+    expect(toOrgSwitchList({ isError: false, refetch: vi.fn() })).toEqual({ orgs: [], list: { status: 'loading' } });
+  });
+
+  it('no data and an error is the error state, whose retry refetches', () => {
+    const refetch = vi.fn();
+    const { orgs: none, list } = toOrgSwitchList({ isError: true, refetch });
+    expect(none).toEqual([]);
+    expect(list?.status).toBe('error');
+    if (list?.status === 'error') list.onRetry();
+    expect(refetch).toHaveBeenCalledTimes(1);
+  });
+
+  it('data is ready: the orgs and no list state', () => {
+    expect(toOrgSwitchList({ data: orgs, isError: false, refetch: vi.fn() })).toEqual({ orgs });
+  });
+
+  it('a failed refetch with data keeps the list', () => {
+    expect(toOrgSwitchList({ data: orgs, isError: true, refetch: vi.fn() })).toEqual({ orgs });
   });
 });
