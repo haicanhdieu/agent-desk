@@ -135,6 +135,13 @@ export const DeskSkills: Story = {
   render: () => <DeskSkillsScreen {...skillsProps} />,
 };
 
+export const DeskSkillsHistoryUnavailable: Story = {
+  name: 'Skills, no repository history',
+  decorators: artboard(900),
+  globals: viewport(1440, 900),
+  render: () => <DeskSkillsScreen {...skillsProps} historyHref={undefined} />,
+};
+
 export const DeskSkillsSetupWarning: Story = {
   name: 'Skills, setup warning',
   decorators: artboard(900),

@@ -26,7 +26,7 @@ export function browserRepoUrl(cloneUrl: string): string | null {
   try {
     const url = new URL(cloneUrl);
     if (url.protocol !== 'https:' || url.username !== '' || url.password !== '') return null;
-    const path = url.pathname.replace(/\.git$/, '').replace(/\/+$/, '');
+    const path = url.pathname.replace(/\/+$/, '').replace(/\.git$/, '');
     if (path === '' || path === '/') return null;
     url.pathname = path;
     url.search = '';

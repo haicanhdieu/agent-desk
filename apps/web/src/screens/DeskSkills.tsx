@@ -161,7 +161,13 @@ function SkillEditor({
             History
           </Button>
         ) : (
-          <Button variant="ghost" size="sm" icon="external" disabled>
+          <Button
+            variant="ghost"
+            size="sm"
+            icon="external"
+            disabled
+            title="History is unavailable until the connected repository and its default branch are known"
+          >
             History
           </Button>
         )}

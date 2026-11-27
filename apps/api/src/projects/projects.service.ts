@@ -116,6 +116,7 @@ interface Counts {
 /** Where a person can open the connected repository, from the code connection that grants access to it. */
 interface RepoLink {
   repoUrl: string | null;
+  skillFileBaseUrl: string | null;
   codeProvider: Provider | null;
 }
 
@@ -167,12 +168,21 @@ export class ProjectsService {
     for (const row of rows) {
       const conn = byId.get(row.codeConnectionId);
       if (!conn) {
-        links.set(row.id, { repoUrl: null, codeProvider: null });
+        links.set(row.id, { repoUrl: null, skillFileBaseUrl: null, codeProvider: null });
         continue;
       }
       const codeProvider = Provider.parse(conn.provider);
-      const cloneUrl = this.registry.codeHost(codeProvider).repoUrl(toAdapterProject(row, conn.externalId));
-      links.set(row.id, { codeProvider, repoUrl: browserRepoUrl(cloneUrl) });
+      const project = toAdapterProject(row, conn.externalId);
+      const cloneUrl = this.registry.codeHost(codeProvider).repoUrl(project);
+      links.set(row.id, {
+        codeProvider,
+        repoUrl: browserRepoUrl(cloneUrl),
+        // No recorded branch means no trustworthy destination; never guess `main`.
+        skillFileBaseUrl:
+          row.defaultBranch === null
+            ? null
+            : this.registry.codeHost(codeProvider).fileUrlBase(project, row.defaultBranch),
+      });
     }
     return links;
   }
@@ -183,6 +193,7 @@ export class ProjectsService {
       name: row.name,
       repoPath: row.repoPath,
       repoUrl: repo.repoUrl,
+      skillFileBaseUrl: repo.skillFileBaseUrl,
       defaultBranch: row.defaultBranch,
       codeProvider: repo.codeProvider,
       codeConnectionId: row.codeConnectionId,
@@ -206,7 +217,11 @@ export class ProjectsService {
   private async dtoOf(tx: Tx, row: ProjectRow): Promise<ProjectDto> {
     const counts = await this.countsFor(tx, [row.id]);
     const links = await this.repoLinks(tx, [row]);
-    return this.toDto(row, counts.get(row.id), links.get(row.id) ?? { repoUrl: null, codeProvider: null });
+    return this.toDto(
+      row,
+      counts.get(row.id),
+      links.get(row.id) ?? { repoUrl: null, skillFileBaseUrl: null, codeProvider: null },
+    );
   }
 
   private async load(tx: Tx, projectId: string, lock = false): Promise<ProjectRow> {
@@ -257,7 +272,13 @@ export class ProjectsService {
       );
       const links = await this.repoLinks(tx, rows);
       return toPage(
-        rows.map((r) => this.toDto(r, counts.get(r.id), links.get(r.id) ?? { repoUrl: null, codeProvider: null })),
+        rows.map((r) =>
+          this.toDto(
+            r,
+            counts.get(r.id),
+            links.get(r.id) ?? { repoUrl: null, skillFileBaseUrl: null, codeProvider: null },
+          ),
+        ),
         total,
         q,
       );

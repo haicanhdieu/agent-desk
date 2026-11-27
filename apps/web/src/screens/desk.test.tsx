@@ -197,6 +197,13 @@ describe('DeskSkills', () => {
     expect(link).toHaveAttribute('rel', 'noopener noreferrer');
   });
 
+  it('disables History with an explanation when the file URL is unknown', () => {
+    render(<DeskSkills frame={deskFrame} skills={skills} activeName="code-build" />);
+    const button = screen.getByRole('button', { name: 'History' });
+    expect(button).toBeDisabled();
+    expect(button).toHaveAttribute('title', expect.stringContaining('connected repository'));
+  });
+
   const submission = {
     action: 'save',
     sourceBranch: 'agent-desk/skill-update-code-build-x1',

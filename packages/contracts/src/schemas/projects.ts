@@ -20,6 +20,8 @@ export const ProjectDto = z.object({
   repoPath: z.string(),
   /** The connected repository's home URL in a browser; null when the provider gave no safe URL. */
   repoUrl: z.string().url().nullable(),
+  /** Provider-built URL prefix ending at the default branch's file path, to which a skill path is appended; null when unknown. */
+  skillFileBaseUrl: z.string().url().nullable(),
   /** The repo's default branch as recorded when the project was created; null for projects that predate it. */
   defaultBranch: z.string().nullable(),
   /** Provider of the code connection that grants access to the repo; null when the connection is missing. */

@@ -345,6 +345,7 @@ describe('fake code host', () => {
     const tok = await host.mintWorkspaceToken(project);
     expect(tok.expiresAt.getTime()).toBeGreaterThan(clock.now().getTime());
     expect(host.repoUrl(project)).toBe('https://fake.invalid/dev/demo.git');
+    expect(host.fileUrlBase(project, 'main')).toBe('https://fake.invalid/dev/demo/-/blob/main/');
     expect(host.gitCredentialUsername()).toBe('x-access-token');
     expect(host.cliTokenEnvName()).toBe('GH_TOKEN');
     expect(host.checkoutRef({ kind: 'pr', number: 7 })).toBe('refs/pull/7/head');

@@ -18,7 +18,7 @@ import { useNow } from '@/app/useNow';
 import { useToast } from '@/ds';
 import { requireProjectPermission } from '@/features/access/guards';
 import { projectPaths, useDeskFrame } from '@/features/desk/frame';
-import { rulesUsing, skillFileUrl, toSkill } from '@/features/desk/map';
+import { rulesUsing, skillFileHref, toSkill } from '@/features/desk/map';
 import { isStaleSkill, useCommitSkill, useDeleteSkill } from '@/features/desk/mutations';
 import { deskQueries } from '@/features/desk/queries';
 import { useSkillFolders } from '@/features/desk/skillFolders';
@@ -108,18 +108,10 @@ function DeskSkillsPage() {
   // `isPending` only shows after a render; this blocks a second click that lands before it.
   const committing = useRef(false);
 
+  // The open skill may be off the current page: its detail, not the page's list, is the source of its file path.
+  const activeDetail = detail ? toSkill(detail, rules, now) : undefined;
   const skills = list.map((s) => toSkill(s.name === activeName && detail ? detail : s, rules, now));
-  const active = skills.find((s) => s.name === activeName);
-  const historyHref =
-    active &&
-    skillFileUrl(
-      {
-        url: projectDto.repoUrl,
-        provider: projectDto.codeProvider,
-        defaultBranch: projectDto.defaultBranch,
-      },
-      active.path,
-    );
+  const historyHref = activeDetail ? skillFileHref(projectDto.skillFileBaseUrl, activeDetail.path) : undefined;
   const paths = projectPaths(org, projectId);
   const skillHref = (name: string) => {
     const page = pageToSearch(current);
@@ -197,7 +189,7 @@ function DeskSkillsPage() {
       frame={frame}
       skills={skills}
       activeName={activeName}
-      active={detail ? toSkill(detail, rules, now) : undefined}
+      active={activeDetail}
       pagination={pagination}
       editorKey={editorKey}
       folders={folders}

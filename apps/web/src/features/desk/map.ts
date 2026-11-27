@@ -2,7 +2,6 @@ import {
   AGENT_KIND_CAPABILITIES,
   type AgentConnectionDto,
   type AgentDto,
-  type Provider,
   type RuleDto,
   type SkillSummaryDto,
 } from '@agentdesk/contracts';
@@ -42,39 +41,24 @@ export function toSkill(dto: SkillSummaryDto & { body?: string }, rules: RuleDto
   };
 }
 
-/** Where a provider shows a file at a ref. New providers must choose a segment here rather than inherit a wrong URL. */
-const FILE_AT_REF: Record<Provider, string> = { github: 'blob', fake: 'blob' };
-
-/** The connected repository as the skills page needs it to link to a file. */
-export interface SkillFileRepo {
-  /** The repository's home URL in a browser; null when the provider gave none. */
-  url: string | null;
-  /** Provider of the connection that grants access; null when the connection is missing. */
-  provider: Provider | null;
-  /** The branch where skills live; null for projects created before it was recorded. */
-  defaultBranch: string | null;
-}
-
 /**
- * The browser URL of one skill file on the connected repository's default branch. No host is invented here: the home
- * URL comes from the connection's adapter, and each provider declares how a file at a ref is addressed. Untrusted path
- * segments and the branch are encoded individually; no link when the repo or provider is unknown.
+ * The browser URL of one skill file. The API supplies the provider-specific prefix, already ending at the project's
+ * default branch; the web app only appends the selected skill's path. No host or path scheme is invented here, and an
+ * unsafe or credential-carrying prefix never becomes a link.
  */
-export function skillFileUrl(repo: SkillFileRepo, skillPath: string): string | undefined {
-  if (repo.url === null || repo.provider === null) return undefined;
+export function skillFileHref(baseUrl: string | null | undefined, skillPath: string): string | undefined {
+  if (baseUrl === null || baseUrl === undefined) return undefined;
   let url: URL;
   try {
-    url = new URL(repo.url);
+    url = new URL(baseUrl);
   } catch {
     return undefined;
   }
-  if (url.protocol !== 'https:' && url.protocol !== 'http:') return undefined;
+  if ((url.protocol !== 'https:' && url.protocol !== 'http:') || url.username !== '' || url.password !== '')
+    return undefined;
   const segments = skillPath.split('/').filter((s) => s !== '' && s !== '.' && s !== '..');
   if (segments.length === 0) return undefined;
-  const suffix = [FILE_AT_REF[repo.provider], repo.defaultBranch ?? 'main', ...segments]
-    .map(encodeURIComponent)
-    .join('/');
-  url.pathname = `${url.pathname.replace(/\/+$/, '')}/${suffix}`;
+  url.pathname = `${url.pathname.replace(/\/+$/, '')}/${segments.map(encodeURIComponent).join('/')}`;
   url.search = '';
   url.hash = '';
   return url.toString();

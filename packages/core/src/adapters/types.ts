@@ -134,6 +134,8 @@ export interface CodeHostAdapter {
   mintWorkspaceToken(project: AdapterProject): Promise<{ token: string; expiresAt: Date }>;
   /** The repo's clone URL. Carries no credential: the run pod reads the workspace token from a mounted file (ADR 0021). */
   repoUrl(project: AdapterProject): string;
+  /** Browser URL prefix for a file at `ref`, ending with `/`; null when there is no safe browser URL. Provider-specific file addressing stays here. */
+  fileUrlBase(project: AdapterProject, ref: string): string | null;
   /** Username git sends with the workspace token (for GitHub, `x-access-token`). */
   gitCredentialUsername(): string;
   /** Name of the env var the code host's CLI reads its token from (for GitHub, `GH_TOKEN`); the runner's CLI wrapper exports it from the token file. */
