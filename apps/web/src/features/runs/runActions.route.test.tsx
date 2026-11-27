@@ -85,28 +85,15 @@ describe('run detail actions', () => {
     await open(`${base}/runs/${PAUSED}`, 'member', { [PAUSED]: ALICE });
     expect(await screen.findByRole('button', { name: 'Resume' })).toBeInTheDocument();
   });
-});
 
-describe('needs-you page', () => {
-  it('a viewer sees the paused run and no Resume button', async () => {
-    await open(`${base}/needs-you`, 'viewer', { [PAUSED]: ALICE });
-    expect(await screen.findByText(/Run 64 is paused/)).toBeInTheDocument();
+  it("a member sees no Resume on the detail page of someone else's paused run", async () => {
+    await open(`${base}/runs/${PAUSED}`, 'member', { [PAUSED]: OTHER });
+    expect(await screen.findByRole('link', { name: 'View issue' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Resume' })).not.toBeInTheDocument();
   });
 
-  it('a member sees Resume only on their own paused run', async () => {
-    await open(`${base}/needs-you`, 'member', { [PAUSED]: OTHER });
-    expect(await screen.findByText(/Run 64 is paused/)).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Resume' })).not.toBeInTheDocument();
-  });
-
-  it('a member sees Resume on their own paused run', async () => {
-    await open(`${base}/needs-you`, 'member', { [PAUSED]: ALICE });
-    expect(await screen.findByRole('button', { name: 'Resume' })).toBeInTheDocument();
-  });
-
-  it("an admin sees Resume on someone else's paused run", async () => {
-    await open(`${base}/needs-you`, 'orgAdmin', { [PAUSED]: OTHER });
+  it("an admin sees Resume on the detail page of someone else's paused run", async () => {
+    await open(`${base}/runs/${PAUSED}`, 'orgAdmin', { [PAUSED]: OTHER });
     expect(await screen.findByRole('button', { name: 'Resume' })).toBeInTheDocument();
   });
 });

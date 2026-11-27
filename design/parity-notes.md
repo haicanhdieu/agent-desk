@@ -21,7 +21,7 @@ All 24 pairs were reviewed (side by side; boards with under 1% pixel difference 
 ## Remaining differences per board
 
 - Main, SignIn, ProjectsEmpty, Projects, Setup2, RunReconnect: no visible difference.
-- NeedsYou: the project list card is about 9px taller (the "webhooks" warning row is about 5px taller than the prototype's), which pushes the lower row of cards down by about 10px. Not fixed.
+- NeedsYou: the project list card is about 9px taller (the "webhooks" warning row is about 5px taller than the prototype's), which pushes the lower row of cards down by about 10px. Not fixed. (Obsolete: the NeedsYou boards and the needs-you page were removed, BR-30.)
 - Runs, RunsProblems: the table block sits about 2px lower (header row height); otherwise identical.
 - Setup1: radio cards and the banner below are 1 to 2px taller each, 4px cumulative. Not fixed.
 - Setup3, SetupReady: 1 to 2px vertical drift only.
@@ -88,7 +88,7 @@ Added after the pass above, so `parity.mjs` then found 26 boards (30 with worksp
   "... or switch this project to polling, which needs no public URL."
 - DeskAgent (now 1440x1320): "Trigger mode" row with a Webhook / Polling segmented control and "Last webhook" renamed "Last event"
   ("issue_comment, 2 min ago, accepted (webhook)").
-- NeedsYou: unchanged; its "webhooks" warning in the switcher is still the webhook-mode warning.
+- NeedsYou: unchanged; its "webhooks" warning in the switcher is still the webhook-mode warning. (Obsolete: the NeedsYou boards and the needs-you page were removed, BR-30.)
 
 ## Workspace setup and plugins (prototype states, now in Storybook)
 
@@ -237,7 +237,7 @@ Spec: `docs/superpowers/specs/2026-11-22-org-tenant-admin-design.md` (UI and Sto
 added, so `parity.mjs` finds 149: ProjectsChecklistDoneSettings, ProjectsEmptyChecklistSettings.
 
 - Projects, ProjectsEmpty, Setup1, Setup1Polling, Setup1PollingOk, Setup2, SetupWorkspace, Setup3, Setup4, SetupReady,
-  Runs, RunsProblems, NeedsYou, every RunDetail board (RunStarting to RunRunningAutoResume) and every Desk board: intentional: Option A app bar. The
+  Runs, RunsProblems, every RunDetail board (RunStarting to RunRunningAutoResume) and every Desk board: intentional: Option A app bar. The
   story header is the new app bar (org crumb and menu, Projects and Settings tabs or the project tabs); the board still
   draws the older header and is not redrawn. The project-level stories change in Task 21.
 - Projects and ProjectsEmpty stories no longer show the "Invitations" header button (Option A, BR-49); the older boards
@@ -283,15 +283,15 @@ the Option A bar and the side menu, so they have no header drift (Forbidden has 
 ## Org tenant admin: Runs, run detail, needs-you and Desk under the app bar
 
 Spec: `docs/superpowers/specs/2026-11-22-org-tenant-admin-design.md` (UI and Storybook). No board added (`parity.mjs` still
-finds the same boards as before). Every story of Runs, RunsProblems, NeedsYou, run detail and Desk now draws the new bar, so the header differs from
+finds the same boards as before). Every story of Runs, RunsProblems, run detail and Desk now draws the new bar, so the header differs from
 the boards on purpose: project level (Runs, RunsProblems, Desk) shows the org crumb and menu, the project crumb, the Runs tab
 with the needs-you count, the Desk tab and the account menu; run detail shows org / project / Runs / Run N with no bell;
-NeedsYou shows the org bar (Projects and Settings tabs, none current). The content below the header must still match.
+NeedsYou shows the org bar (Projects and Settings tabs, none current). The content below the header must still match. (Obsolete: the NeedsYou boards and the needs-you page were removed, BR-30.)
 
 - `RunsPage`, `RunDetail` and `DeskFrame` take optional `org` and `account`; `RunDetail` also takes `run` (the Runs link and the
-  Run N label); `NeedsYou`'s `topBar` takes optional `org` and `account`. Without them the legacy bar draws (routes keep it until
+  Run N label); `NeedsYou`'s `topBar` takes optional `org` and `account`. Without them the legacy bar draws (routes keep it until (Obsolete: the NeedsYou boards and the needs-you page were removed, BR-30.)
   Task 26).
-- The example tab strip inside the NeedsYou page is a nav named "Runs and Desk tabs, example", so the page has one "Main" nav.
+- The example tab strip inside the NeedsYou page is a nav named "Runs and Desk tabs, example", so the page has one "Main" nav. (Obsolete: the NeedsYou boards and the needs-you page were removed, BR-30.)
 - Storybook and `parity.mjs` were not run in the runner pod (no Chromium). The pixel pairs of these boards are unchecked: none is
   claimed to match.
 
@@ -739,3 +739,7 @@ Boards registered (14, canvas order 441 to 454): InvitationAcceptSideMenu, Invit
 - Agent call: `OrgSuspended` needs no code change: it already draws one centred `main` and no bar. Its new boards only show it in a shell with no menu (switcher kept, or the plain org name for a lone org).
 - Agent call: the Route* boards render the route's `main` by hand in the stories, because the boundary components are wired into the shell by Task 35.
 - The invitation routes are not yet wrapped in the shell (later tasks), so no live page changes and no new e2e spec is added; the existing mock specs are run.
+
+## Needs-you page removed (BR-30)
+
+The `NeedsYou`, `NeedsYouEmpty` and `NeedsYouPaged` boards (and the `NeedsYouPaused` state story) are removed with the page; the earlier NeedsYou notes above are obsolete. `RunsNeedsYouNotFound` is registered in their place (the old address shows "Page not found" with the project menu). The full PARITY run takes hours under the 4 GiB cap, so only this pair, `RunsNotFoundSideMenu` and `Main` were rendered: the pair draws the same project menu and the same not-found card, but the story heading is smaller than the board's 28px h1 and the menu rows sit 2px lower, exactly as in `RunsNotFoundSideMenu` (same stand-in markup). Not fixed. `scripts/parity.mjs` had a misplaced parenthesis around the Run detail usage boards that made it throw before any board; fixed here.

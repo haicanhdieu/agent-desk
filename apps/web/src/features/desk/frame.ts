@@ -16,7 +16,6 @@ export function projectPaths(org: string, projectId: string) {
   return {
     projects: `${orgPath}/projects`,
     runs: `${projectPath}/runs`,
-    needsYou: `${projectPath}/needs-you`,
     skills: `${projectPath}/desk/skills`,
     rules: `${projectPath}/desk/rules`,
     agent: `${projectPath}/desk/agent`,

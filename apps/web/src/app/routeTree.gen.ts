@@ -38,7 +38,6 @@ import { Route as PlatformOrgsOrgIdInvitationsRouteImport } from './routes/platf
 import { Route as PlatformOrgsOrgIdMembersRouteImport } from './routes/platform.orgs.$orgId.members';
 import { Route as PlatformOrgsOrgIdProjectsRouteImport } from './routes/platform.orgs.$orgId.projects';
 import { Route as OOrgPProjectIndexRouteImport } from './routes/o.$org.p.$project.index';
-import { Route as OOrgPProjectNeedsYouRouteImport } from './routes/o.$org.p.$project.needs-you';
 import { Route as OOrgProjectsNewStepRouteImport } from './routes/o.$org.projects.new.$step';
 import { Route as OOrgPProjectDeskIndexRouteImport } from './routes/o.$org.p.$project.desk.index';
 import { Route as OOrgPProjectDeskAgentRouteImport } from './routes/o.$org.p.$project.desk.agent';
@@ -198,11 +197,6 @@ const OOrgPProjectIndexRoute = OOrgPProjectIndexRouteImport.update({
   path: '/',
   getParentRoute: () => OOrgPProjectRoute,
 } as any);
-const OOrgPProjectNeedsYouRoute = OOrgPProjectNeedsYouRouteImport.update({
-  id: '/needs-you',
-  path: '/needs-you',
-  getParentRoute: () => OOrgPProjectRoute,
-} as any);
 const OOrgProjectsNewStepRoute = OOrgProjectsNewStepRouteImport.update({
   id: '/projects/new/$step',
   path: '/projects/new/$step',
@@ -283,7 +277,6 @@ export interface FileRoutesByFullPath {
   '/o/$org/projects/': typeof OOrgProjectsIndexRoute;
   '/o/$org/settings/': typeof OOrgSettingsIndexRoute;
   '/platform/orgs/$orgId/': typeof PlatformOrgsOrgIdIndexRoute;
-  '/o/$org/p/$project/needs-you': typeof OOrgPProjectNeedsYouRoute;
   '/o/$org/projects/new/$step': typeof OOrgProjectsNewStepRoute;
   '/o/$org/p/$project/': typeof OOrgPProjectIndexRoute;
   '/o/$org/p/$project/desk/agent': typeof OOrgPProjectDeskAgentRoute;
@@ -320,7 +313,6 @@ export interface FileRoutesByTo {
   '/o/$org/projects': typeof OOrgProjectsIndexRoute;
   '/o/$org/settings': typeof OOrgSettingsIndexRoute;
   '/platform/orgs/$orgId': typeof PlatformOrgsOrgIdIndexRoute;
-  '/o/$org/p/$project/needs-you': typeof OOrgPProjectNeedsYouRoute;
   '/o/$org/projects/new/$step': typeof OOrgProjectsNewStepRoute;
   '/o/$org/p/$project': typeof OOrgPProjectIndexRoute;
   '/o/$org/p/$project/desk/agent': typeof OOrgPProjectDeskAgentRoute;
@@ -363,7 +355,6 @@ export interface FileRoutesById {
   '/o/$org/projects/': typeof OOrgProjectsIndexRoute;
   '/o/$org/settings/': typeof OOrgSettingsIndexRoute;
   '/platform/orgs/$orgId/': typeof PlatformOrgsOrgIdIndexRoute;
-  '/o/$org/p/$project/needs-you': typeof OOrgPProjectNeedsYouRoute;
   '/o/$org/projects/new/$step': typeof OOrgProjectsNewStepRoute;
   '/o/$org/p/$project/': typeof OOrgPProjectIndexRoute;
   '/o/$org/p/$project/desk/agent': typeof OOrgPProjectDeskAgentRoute;
@@ -407,7 +398,6 @@ export interface FileRouteTypes {
     | '/o/$org/projects/'
     | '/o/$org/settings/'
     | '/platform/orgs/$orgId/'
-    | '/o/$org/p/$project/needs-you'
     | '/o/$org/projects/new/$step'
     | '/o/$org/p/$project/'
     | '/o/$org/p/$project/desk/agent'
@@ -444,7 +434,6 @@ export interface FileRouteTypes {
     | '/o/$org/projects'
     | '/o/$org/settings'
     | '/platform/orgs/$orgId'
-    | '/o/$org/p/$project/needs-you'
     | '/o/$org/projects/new/$step'
     | '/o/$org/p/$project'
     | '/o/$org/p/$project/desk/agent'
@@ -486,7 +475,6 @@ export interface FileRouteTypes {
     | '/o/$org/projects/'
     | '/o/$org/settings/'
     | '/platform/orgs/$orgId/'
-    | '/o/$org/p/$project/needs-you'
     | '/o/$org/projects/new/$step'
     | '/o/$org/p/$project/'
     | '/o/$org/p/$project/desk/agent'
@@ -716,13 +704,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof OOrgPProjectIndexRouteImport;
       parentRoute: typeof OOrgPProjectRoute;
     };
-    '/o/$org/p/$project/needs-you': {
-      id: '/o/$org/p/$project/needs-you';
-      path: '/needs-you';
-      fullPath: '/o/$org/p/$project/needs-you';
-      preLoaderRoute: typeof OOrgPProjectNeedsYouRouteImport;
-      parentRoute: typeof OOrgPProjectRoute;
-    };
     '/o/$org/projects/new/$step': {
       id: '/o/$org/projects/new/$step';
       path: '/projects/new/$step';
@@ -856,7 +837,6 @@ const OOrgSettingsRouteWithChildren = OOrgSettingsRoute._addFileChildren(
 );
 
 interface OOrgPProjectRouteChildren {
-  OOrgPProjectNeedsYouRoute: typeof OOrgPProjectNeedsYouRoute;
   OOrgPProjectIndexRoute: typeof OOrgPProjectIndexRoute;
   OOrgPProjectDeskAgentRoute: typeof OOrgPProjectDeskAgentRoute;
   OOrgPProjectDeskAuditRoute: typeof OOrgPProjectDeskAuditRoute;
@@ -870,7 +850,6 @@ interface OOrgPProjectRouteChildren {
 }
 
 const OOrgPProjectRouteChildren: OOrgPProjectRouteChildren = {
-  OOrgPProjectNeedsYouRoute: OOrgPProjectNeedsYouRoute,
   OOrgPProjectIndexRoute: OOrgPProjectIndexRoute,
   OOrgPProjectDeskAgentRoute: OOrgPProjectDeskAgentRoute,
   OOrgPProjectDeskAuditRoute: OOrgPProjectDeskAuditRoute,

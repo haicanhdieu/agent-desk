@@ -148,7 +148,7 @@ The proposal's question 1 (is "Settings two clicks from inside a project" accept
 | `#/o/<suspended org>/...` | Every URL of a suspended org shows "This organization is suspended"; the switcher marks it "Suspended" | OrgSuspended* |
 | `#/o/<org>/projects` | Projects list, banners, checklist, scope switch | Projects*, ProjectsShell* |
 | `#/o/<org>/projects/new/1..4`, `ready`, `workspace` | New project setup. Step 2 is the live "Add agent" step (provider picker, nothing preselected); the other steps are board snapshots. The stepper reads "Add agent" on every step, and after step 2 it names the agent you set up ("<provider>, <model>") | Setup* |
-| `#/o/<org>/needs-you` | Needs you outside the run page (under the org bar) | NeedsYou* |
+| `#/o/<org>/needs-you` | Needs you outside the run page (under the org bar). Removed with the needs-you page (BR-30); see RunsNeedsYouNotFound | NeedsYou* (removed) |
 | `#/o/<org>/p/<project>/runs` | Runs (grouped, flat, problems, linked) | Runs*, RunsShell |
 | `#/o/<org>/p/<project>/runs/<n>` | Run page (starting, running, idle, stopped, failed, ...) | Run* |
 | `#/o/<org>/p/<project>/runs?s=RunsUsage` | Run token usage and estimated cost (run-token-usage-cost spec): the Runs list with the Usage column; click Run 60, 55, 57 or 61 to open the run page with its Usage section (Runs crumb returns to this list). The detail note ends with its "Prices as of" date (a date range on RunSucceededUsagePriceRange, none when there is no cost) before "Your provider bill may differ." On every run usage board, Show / Hide on the Usage section and on its Models table collapses and expands them. Scenario group "Token usage and cost" on the Runs and Run screens lists every state | RunsUsage, RunsPageLoadingUsage, RunSucceededUsage* (incl. RunSucceededUsagePriceRange), RunRunningUsage* |
@@ -434,9 +434,9 @@ Choices the multi-agent-configs spec leaves open (also listed in the planning re
 | `MyInvitationsEmptyPlatformAdminMenu` | `#/invitations?s=MyInvitationsEmptyPlatformAdminMenu` | Board snapshot, live header and navigation | Live: as Platform admin open #/invitations and the "No organization" menu |
 | `MyInvitationsError` | `#/invitations?s=MyInvitationsError` | Board snapshot, live header and navigation | Board snapshot (static) |
 | `MyInvitationsLoading` | `#/invitations?s=MyInvitationsLoading` | Board snapshot, live header and navigation | Board snapshot (static) |
-| `NeedsYou` | `#/o/harbor-labs/needs-you` | Board snapshot, under the live org bar (new) | Static board (not stateful in this prototype) |
-| `NeedsYouEmpty` | `#/o/harbor-labs/needs-you?s=NeedsYouEmpty` | Board snapshot, under the live org bar (new) | Static board (not stateful in this prototype) |
-| `NeedsYouPaged` | `#/o/harbor-labs/needs-you?s=NeedsYouPaged` | Board snapshot, under the live org bar (new) | Static board (not stateful in this prototype) |
+| `NeedsYou` | `#/o/harbor-labs/needs-you` | Board snapshot, under the live org bar (new) | Removed with the needs-you page (BR-30); history only |
+| `NeedsYouEmpty` | `#/o/harbor-labs/needs-you?s=NeedsYouEmpty` | Board snapshot, under the live org bar (new) | Removed with the needs-you page (BR-30); history only |
+| `NeedsYouPaged` | `#/o/harbor-labs/needs-you?s=NeedsYouPaged` | Board snapshot, under the live org bar (new) | Removed with the needs-you page (BR-30); history only |
 | `OrgAudit` | `#/o/harbor-labs/settings/audit` | Live screen | Live: Settings > Audit log |
 | `OrgAuditEmpty` | `#/o/harbor-labs/settings/audit?s=OrgAuditEmpty` | Board snapshot, live header and navigation | Live: switch to Northwind (empty audit) |
 | `OrgAuditError` | `#/o/harbor-labs/settings/audit?s=OrgAuditError` | Board snapshot, live header and navigation | Scenario selector: Error |

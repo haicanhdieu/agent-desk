@@ -18,14 +18,6 @@
    "title": "Agent Desk PoC UI \u2014 index",
    "expand": "fill"
   },
-  "NeedsYou.dc.html": {
-   "x": 1520,
-   "y": 0,
-   "w": 1440,
-   "h": 740,
-   "title": "Needs you \u2014 surfaces outside the run page",
-   "expand": "fill"
-  },
   "SignIn.dc.html": {
    "x": 0,
    "y": 1280,
@@ -392,22 +384,6 @@
    "w": 1440,
    "h": 960,
    "title": "Runs \u2014 ignored commands, empty",
-   "expand": "fill"
-  },
-  "NeedsYouPaged.dc.html": {
-   "x": 10640,
-   "y": 9160,
-   "w": 1440,
-   "h": 740,
-   "title": "Needs you \u2014 run cards, page 2 of 2",
-   "expand": "fill"
-  },
-  "NeedsYouEmpty.dc.html": {
-   "x": 12160,
-   "y": 9160,
-   "w": 1440,
-   "h": 740,
-   "title": "Needs you \u2014 empty",
    "expand": "fill"
   },
   "RouteLoading.dc.html": {
@@ -3410,6 +3386,14 @@
    "title": "Project out of scope: not found with the organization menu",
    "expand": "fill"
   },
+  "RunsNeedsYouNotFound.dc.html": {
+   "x": 16720,
+   "y": 96560,
+   "w": 1440,
+   "h": 900,
+   "title": "Removed needs-you address: not found with the project menu",
+   "expand": "fill"
+  },
   "DeskRulesForbiddenSideMenu.dc.html": {
    "x": 7600,
    "y": 96560,
@@ -3645,7 +3629,6 @@
  },
  "order": [
   "Main.dc.html",
-  "NeedsYou.dc.html",
   "SignIn.dc.html",
   "ProjectsEmpty.dc.html",
   "Projects.dc.html",
@@ -3785,8 +3768,6 @@
   "RunsPagedLinkedPrOnly.dc.html",
   "RunsPagedLinkedIssueOnly.dc.html",
   "RunsPageLoadingLinked.dc.html",
-  "NeedsYouPaged.dc.html",
-  "NeedsYouEmpty.dc.html",
   "RouteLoading.dc.html",
   "RouteError.dc.html",
   "ProjectsPaged.dc.html",
@@ -4069,6 +4050,7 @@
   "RunsSideProjectSwitcherLoading.dc.html",
   "RunsSideProjectSwitcherNoCreate.dc.html",
   "RunsNotFoundSideMenu.dc.html",
+  "RunsNeedsYouNotFound.dc.html",
   "DeskRulesForbiddenSideMenu.dc.html",
   "DeskSkillsSideMenu.dc.html",
   "DeskSetupSideMenu.dc.html",

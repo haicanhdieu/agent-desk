@@ -741,9 +741,9 @@ describe('runs route', () => {
       expect(screen.getByLabelText('Rows per page')).toHaveValue('50');
     });
 
-    it('needs you: while page 2 is held, the control still reads "Showing 1–20" with Page 1 current; then the new range', async () => {
+    it('Runs needs-you filter: while page 2 is held, the control still reads "Showing 1–20" with Page 1 current; then the new range', async () => {
       seedRuns(21, { from: 62, status: 'idle' });
-      const { user } = await renderRoute(`${base}/needs-you`);
+      const { user } = await renderRoute(`${base}/runs?filter=needs_you`);
       await screen.findByRole('navigation', { name: 'Pagination' });
       const page2Body = await (
         await fetch(`http://localhost:3000${runsApi}?filter=needs_you&page=2&pageSize=20`)
@@ -761,7 +761,7 @@ describe('runs route', () => {
       );
       await user.click(pageButton(2));
       await waitFor(() => expect(nav()).toHaveAttribute('aria-busy', 'true'));
-      expect(screen.getAllByRole('link', { name: /^Open run \d+ in Agent Desk$/ })).toHaveLength(20);
+      expect(runNumbers()).toHaveLength(20);
       expect(nav()).toHaveTextContent('Showing 1–20 of 21');
       expect(pageButton(1)).toHaveAttribute('aria-current', 'page');
       release();
@@ -770,17 +770,14 @@ describe('runs route', () => {
       expect(pageButton(2)).toHaveAttribute('aria-current', 'page');
     });
 
-    it('needs you: 21 runs show 20 cards; Page 2 shows 1 card and "Showing 21–21 of 21"; the tab badge stays at 21', async () => {
+    it('Runs needs-you filter: 21 runs show 20 rows; Page 2 shows 1 row and "Showing 21–21 of 21"', async () => {
       seedRuns(21, { from: 62, status: 'idle' });
-      const { user } = await renderRoute(`${base}/needs-you`);
+      const { user } = await renderRoute(`${base}/runs?filter=needs_you`);
       await screen.findByRole('navigation', { name: 'Pagination' });
-      const cards = () => screen.getAllByRole('link', { name: /^Open run \d+ in Agent Desk$/ });
-      expect(cards()).toHaveLength(20);
-      expect(screen.getByText('(21) Needs you, invoicer-api')).toBeInTheDocument();
+      expect(runNumbers()).toHaveLength(20);
       await user.click(pageButton(2));
-      await waitFor(() => expect(cards()).toHaveLength(1));
+      await waitFor(() => expect(runNumbers()).toHaveLength(1));
       expect(nav()).toHaveTextContent('Showing 21–21 of 21');
-      expect(screen.getByText('(21) Needs you, invoicer-api')).toBeInTheDocument();
     });
   });
 
@@ -874,87 +871,14 @@ describe('runs route', () => {
   });
 });
 
-describe('needs-you route', () => {
-  it('TC-43.7: the needs-you page shows the org bar with no tab current, the logo going to the org projects', async () => {
-    await renderRoute(`${base}/needs-you`);
-    await screen.findByRole('link', { name: 'Open run 62 in Agent Desk' });
-    const bar = screen.getByRole('banner');
-    const tabs = within(bar).getByRole('navigation', { name: 'Organization sections' });
-    expect(within(tabs).getByRole('link', { name: 'Projects' })).toHaveAttribute('href', '/o/alice/projects');
-    expect(within(tabs).queryByRole('link', { current: 'page' })).not.toBeInTheDocument();
-    expect(within(tabs).queryByRole('link', { name: /^Runs/ })).not.toBeInTheDocument();
-    expect(within(bar).queryByRole('button', { name: /^Switch project/ })).not.toBeInTheDocument();
-    expect(within(bar).getAllByRole('link', { name: /Agent Desk/ })[0]).toHaveAttribute('href', '/o/alice/projects');
-    expect(screen.getAllByRole('navigation', { name: 'Organization sections' })).toHaveLength(1);
-  });
-
-  it('lists idle runs linking to /runs/<number>', async () => {
-    const queries = captureRunListQueries();
-    await renderRoute(`${base}/needs-you`);
-    const link = await screen.findByRole('link', { name: 'Open run 62 in Agent Desk' });
-    expect(link).toHaveAttribute('href', `${base}/runs/62`);
-    expect(screen.getByText('Run 62 needs you')).toBeInTheDocument();
-    expect(screen.getByText('(2) Needs you, invoicer-api')).toBeInTheDocument();
-    expect(queries.some((q) => new URLSearchParams(q).get('filter') === 'needs_you')).toBe(true);
-  });
-
-  it('lists every idle run', async () => {
-    mockDb.state.runs = mockDb.state.runs.map((r) => (r.number === 61 ? { ...r, status: 'idle' } : r));
-    await renderRoute(`${base}/needs-you`);
-    expect(await screen.findByRole('link', { name: 'Open run 61 in Agent Desk' })).toHaveAttribute(
-      'href',
-      `${base}/runs/61`,
-    );
-    expect(screen.getByRole('link', { name: 'Open run 62 in Agent Desk' })).toHaveAttribute('href', `${base}/runs/62`);
-  });
-
-  it('lists a paused run with the Paused badge and a Resume button that resumes it', async () => {
-    const { user } = await renderRoute(`${base}/needs-you`);
-    expect(await screen.findByRole('link', { name: 'Open run 64 in Agent Desk' })).toHaveAttribute(
-      'href',
-      `${base}/runs/64`,
-    );
-    expect(screen.getByTitle('status: paused')).toHaveTextContent('Paused');
-    expect(screen.getByText('Run 64 is paused and can be resumed.')).toBeInTheDocument();
-    // The idle run has no Resume.
-    expect(screen.getAllByRole('button', { name: 'Resume' })).toHaveLength(1);
-    await user.click(screen.getByRole('button', { name: 'Resume' }));
-    await waitFor(() => expect(mockDb.requests('POST', `/api/runs/${ids.run(1, 64)}/resume`)).toBe(1));
-    await waitFor(() =>
-      expect(screen.queryByRole('link', { name: 'Open run 64 in Agent Desk' })).not.toBeInTheDocument(),
-    );
-  });
-
-  it('an idle run that was paused earlier lists from its idle time, not the old pause time', async () => {
-    const stale = '2026-11-01T03:07:00.000Z';
-    mockDb.state.runs = mockDb.state.runs.map((r) => (r.number === 62 ? { ...r, pausedAt: stale } : r));
-    const idleSince = mockDb.state.runs.find((r) => r.number === 62)?.idleSince;
-    expect(idleSince).toBeTruthy();
-    await renderRoute(`${base}/needs-you`);
-    await screen.findByRole('link', { name: 'Open run 62 in Agent Desk' });
-    const hhmm = (iso: string) => {
-      const d = new Date(iso);
-      return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
-    };
-    expect(hhmm(stale)).not.toBe(hhmm(idleSince ?? ''));
-    expect(screen.getByText(new RegExp(`edited ${hhmm(idleSince ?? '')}`))).toBeInTheDocument();
-    expect(screen.queryByText(new RegExp(`edited ${hhmm(stale)}`))).not.toBeInTheDocument();
-  });
-
-  it('a Resume that the server refuses shows its message', async () => {
-    const { user } = await renderRoute(`${base}/needs-you`, {
-      scenario: () => scenarios.problem('runs.resume', { status: 409, title: 'This run is already being resumed' }),
-    });
-    await user.click(await screen.findByRole('button', { name: 'Resume' }));
-    expect(await screen.findByRole('alert')).toHaveTextContent('This run is already being resumed');
-    expect(screen.getByRole('button', { name: 'Resume' })).toBeEnabled();
-  });
-
-  it('says so when no run needs you', async () => {
-    mockDb.state.runs = mockDb.state.runs.filter((r) => r.status !== 'idle' && r.status !== 'paused');
-    await renderRoute(`${base}/needs-you`);
-    expect(await screen.findAllByText('No runs need you right now.')).not.toHaveLength(0);
-    expect(screen.queryByRole('link', { name: /^Open run/ })).not.toBeInTheDocument();
+describe('old needs-you address', () => {
+  it('TC-30.1: shows "Page not found" with the project menu, no redirect and no needs-you list', async () => {
+    const { router } = await renderRoute(`${base}/needs-you`);
+    expect(await screen.findByRole('heading', { name: 'Page not found' })).toBeInTheDocument();
+    expect(router.state.location.pathname).toBe(`${base}/needs-you`);
+    expect(screen.getByRole('navigation', { name: 'Project menu' })).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: /^Open run \d+ in Agent Desk$/ })).not.toBeInTheDocument();
+    expect(screen.queryByText('No runs need you right now.')).not.toBeInTheDocument();
   });
 });
 

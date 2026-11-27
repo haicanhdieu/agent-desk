@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
-import { ProjectNav, ProjectStrip } from './ProjectNav';
+import { ProjectNav } from './ProjectNav';
 
 const meta = {
   title: 'Components/ProjectNav',
@@ -19,6 +19,3 @@ export const Tabs: Story = { args: { active: 'runs', needsYou: 1, deskHref: '#de
 export const Quiet: Story = { args: { active: 'desk', deskHref: '#desk' } };
 /** A member or viewer: no Settings tab. */
 export const NoDesk: Story = { args: { active: 'runs', needsYou: 1 } };
-export const Strip: Story = {
-  render: () => <ProjectStrip project="invoicer-api" active="runs" needsYou={1} />,
-};

@@ -15,7 +15,7 @@ import { INVOICER_API, ORG, seedLists, seedOnboarding } from './mock';
 const PROJECT = `/o/${ORG}/p/${INVOICER_API}`;
 const PROJECTS = `/o/${ORG}/projects`;
 const RUNS = `${PROJECT}/runs`;
-const NEEDS_YOU = `${PROJECT}/needs-you`;
+const NEEDS_YOU = `${RUNS}?filter=needs_you`;
 const RULES = `${PROJECT}/desk/rules`;
 const SKILLS = `${PROJECT}/desk/skills`;
 const SETUP = `${PROJECT}/desk/setup`;
@@ -34,7 +34,7 @@ const chip = (page: Page, label: string) =>
 const projectRows = (page: Page) => page.getByRole('table').locator('tbody tr');
 const projectNames = (page: Page) => page.getByRole('table').locator('tbody tr td:first-child a');
 const ignoredRows = (page: Page) => page.getByRole('link', { name: /^Comment on / });
-const needsYouCards = (page: Page) => page.getByRole('link', { name: /^Open run \d+ in Agent Desk$/ });
+const needsYouCards = (page: Page) => page.getByRole('link', { name: /^Run \d+$/ });
 const ruleRows = (page: Page) => page.getByRole('button', { name: /^Edit rule \// });
 const skillItems = (page: Page) => page.getByRole('navigation', { name: 'Skills' }).getByRole('listitem');
 const versionItems = (page: Page) => page.getByRole('list', { name: 'Setup script versions' }).getByRole('listitem');
@@ -178,7 +178,7 @@ test.describe('Across lists', () => {
     { screen: 'Projects', path: PROJECTS, lists: { projects: 26 }, route: 'projects.list' },
     { screen: 'Desk Rules', path: RULES, lists: { rules: 24 }, route: 'rules.list' },
     { screen: 'Desk Skills', path: SKILLS, lists: { skills: 22 }, route: 'skills.list' },
-    { screen: 'Needs you', path: NEEDS_YOU, lists: { needsYou: 21 }, route: 'runs.list' },
+    { screen: 'Runs needs-you filter', path: NEEDS_YOU, lists: { needsYou: 21 }, route: 'runs.list' },
   ] as const;
   for (const { screen, path, lists, route } of held) {
     test(`TC-17.2: ${screen} shows the busy status area while its response is held back`, async ({ page }) => {
@@ -187,9 +187,9 @@ test.describe('Across lists', () => {
       await expect(loadingArea(page)).toBeVisible();
       await expect(loadingArea(page)).toHaveAttribute('aria-busy', 'true');
       await expect(nav(page)).toHaveCount(0);
-      await expect(
-        page.getByText(/No (routing rules|skills|runs need you) yet|No runs need you right now/),
-      ).toHaveCount(0);
+      await expect(page.getByText(/No (routing rules|skills|runs need you) yet|No runs match this filter/)).toHaveCount(
+        0,
+      );
       await expect(projectRows(page)).toHaveCount(0);
       await expect(ruleRows(page)).toHaveCount(0);
       await expect(needsYouCards(page)).toHaveCount(0);
@@ -249,11 +249,13 @@ test.describe('Ignored', () => {
   });
 });
 
-test.describe('Needs you', () => {
-  test('TC-11.3: no run needing attention shows "No runs need you right now." and no control', async ({ page }) => {
+test.describe('Runs, needs-you filter', () => {
+  test('TC-11.3: no run needing attention shows "No runs match this filter" on the Runs needs-you filter and no control', async ({
+    page,
+  }) => {
     await seedLists(page, { needsYou: 0 });
     await page.goto(NEEDS_YOU);
-    await expect(page.getByText('No runs need you right now.').first()).toBeVisible();
+    await expect(page.getByText('No runs match this filter')).toBeVisible();
     await expect(needsYouCards(page)).toHaveCount(0);
     await expect(nav(page)).toHaveCount(0);
   });
@@ -269,16 +271,15 @@ test.describe('Needs you', () => {
     await expect(rangeOf(page)).toHaveText('Showing 21–21 of 21');
   });
 
-  test('TC-27.2: the tab badge and the title count show 21 on every page', async ({ page }) => {
+  test('TC-27.2: the Runs item of the project menu shows 21 needs you on every page', async ({ page }) => {
     await seedLists(page, { needsYou: 21 });
     await page.goto(NEEDS_YOU);
+    const runsItem = page.getByRole('navigation', { name: 'Project menu' }).getByRole('link', { name: /^Runs/ });
     await expect(needsYouCards(page)).toHaveCount(20);
-    await expect(page.getByTitle('21 runs need you').first()).toBeVisible();
-    await expect(page.getByText('(21) Needs you, invoicer-api')).toBeVisible();
+    await expect(runsItem).toHaveAccessibleName(/21 needs you/);
     await pageButton(page, 2).click();
     await expect(needsYouCards(page)).toHaveCount(1);
-    await expect(page.getByTitle('21 runs need you').first()).toBeVisible();
-    await expect(page.getByText('(21) Needs you, invoicer-api')).toBeVisible();
+    await expect(runsItem).toHaveAccessibleName(/21 needs you/);
   });
 
   test('TC-27.3: 20 runs need attention show 20 cards and no control', async ({ page }) => {
@@ -505,10 +506,10 @@ test.describe('Whole-set readers', () => {
     });
   }
 
-  test('TC-32.4: Needs you lists all 26 projects', async ({ page }) => {
+  test('TC-32.4: the Runs needs-you filter lists all 26 projects in the project switcher menu', async ({ page }) => {
     await seedLists(page, { projects: 26 });
     await page.goto(NEEDS_YOU);
-    await expect(page.getByRole('main').locator('a[href$="/needs-you"]')).toHaveCount(26);
+    await expect(await switcherLinks(page)).toHaveCount(26);
   });
 
   async function pickerOptions(page: Page): Promise<string[]> {

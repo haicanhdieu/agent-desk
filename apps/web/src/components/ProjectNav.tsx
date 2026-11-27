@@ -1,5 +1,4 @@
 import { AppLink, CountBadge, Icon } from '@/ds';
-import { ProjectSwitch } from './ProjectSwitch';
 import styles from './Chrome.module.css';
 
 export interface ProjectNavProps {
@@ -47,15 +46,5 @@ export function ProjectNav({
         </AppLink>
       )}
     </nav>
-  );
-}
-
-/** Project switch plus tabs on a bare top-bar strip (no brand, no right-hand actions). */
-export function ProjectStrip({ project, active, needsYou }: ProjectNavProps & { project: string }) {
-  return (
-    <div className={`${styles.top} ${styles.stripBare}`}>
-      <ProjectSwitch project={project} />
-      <ProjectNav active={active} needsYou={needsYou} label="Runs and Settings tabs, example" />
-    </div>
   );
 }

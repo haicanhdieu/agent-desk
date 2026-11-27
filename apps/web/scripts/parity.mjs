@@ -28,7 +28,6 @@ const slug = (s) =>
     .toLowerCase();
 const stories = {
   Main: ['Screens/Overview', 'Main'],
-  NeedsYou: ['Screens/Runs', 'NeedsYou'],
   SignIn: ['Screens/Entry', 'SignIn'],
   ProjectsEmpty: ['Screens/Entry', 'ProjectsEmpty'],
   Projects: ['Screens/Entry', 'Projects'],
@@ -71,8 +70,6 @@ const stories = {
   RunsPagedLinkedPrOnly: ['Screens/Runs', 'RunsPagedLinkedPrOnly'],
   RunsPagedLinkedIssueOnly: ['Screens/Runs', 'RunsPagedLinkedIssueOnly'],
   RunsPageLoadingLinked: ['Screens/Runs', 'RunsPageLoadingLinked'],
-  NeedsYouPaged: ['Screens/Runs', 'NeedsYouPaged'],
-  NeedsYouEmpty: ['Screens/Runs', 'NeedsYouNone'],
   RouteLoading: ['Screens/Runs', 'RouteLoading'],
   RouteError: ['Screens/Runs', 'RouteError'],
   ProjectsPaged: ['Screens/Entry', 'ProjectsPaged'],
@@ -316,24 +313,24 @@ const stories = {
       'StoppedAutoResumeFailedGaveUp',
       'RunningAutoResume',
     ].map((s) => [`Run${s}`, ['Screens/Run detail', `Run${s}`]]),
-    // The usage boards of Run detail: RunRunningUsage, RunRunningUsageReconnecting, RunSucceededUsage, RunSucceededUsageCollapsed, RunSucceededUsageModelsCollapsed, RunSucceededUsageMultiModel, RunSucceededUsageUnpriced, RunSucceededUsagePartial, RunSucceededUsageNonePriced, RunSucceededUsageReasoning, RunSucceededUsageZero, RunSucceededUsageNone, RunSucceededUsagePriceRange.
-    ...Object.fromEntries(
-      [
-        'RunRunningUsage',
-        'RunRunningUsageReconnecting',
-        'RunSucceededUsage',
-        'RunSucceededUsageCollapsed',
-        'RunSucceededUsageModelsCollapsed',
-        'RunSucceededUsageMultiModel',
-        'RunSucceededUsageUnpriced',
-        'RunSucceededUsagePartial',
-        'RunSucceededUsageNonePriced',
-        'RunSucceededUsageReasoning',
-        'RunSucceededUsageZero',
-        'RunSucceededUsageNone',
-        'RunSucceededUsagePriceRange',
-      ].map((n) => [n, ['Screens/Run detail', n]]),
-    ),
+  ),
+  // The usage boards of Run detail: RunRunningUsage, RunRunningUsageReconnecting, RunSucceededUsage, RunSucceededUsageCollapsed, RunSucceededUsageModelsCollapsed, RunSucceededUsageMultiModel, RunSucceededUsageUnpriced, RunSucceededUsagePartial, RunSucceededUsageNonePriced, RunSucceededUsageReasoning, RunSucceededUsageZero, RunSucceededUsageNone, RunSucceededUsagePriceRange.
+  ...Object.fromEntries(
+    [
+      'RunRunningUsage',
+      'RunRunningUsageReconnecting',
+      'RunSucceededUsage',
+      'RunSucceededUsageCollapsed',
+      'RunSucceededUsageModelsCollapsed',
+      'RunSucceededUsageMultiModel',
+      'RunSucceededUsageUnpriced',
+      'RunSucceededUsagePartial',
+      'RunSucceededUsageNonePriced',
+      'RunSucceededUsageReasoning',
+      'RunSucceededUsageZero',
+      'RunSucceededUsageNone',
+      'RunSucceededUsagePriceRange',
+    ].map((n) => [n, ['Screens/Run detail', n]]),
   ),
   ...Object.fromEntries(
     [
@@ -465,6 +462,7 @@ const stories = {
   RunsSideProjectSwitcherLoading: ['Screens/Runs', 'RunsSideProjectSwitcherLoading'],
   RunsSideProjectSwitcherNoCreate: ['Screens/Runs', 'RunsSideProjectSwitcherNoCreate'],
   RunsNotFoundSideMenu: ['Screens/Runs', 'RunsNotFoundSideMenu'],
+  RunsNeedsYouNotFound: ['Screens/Runs', 'RunsNeedsYouNotFound'],
   DeskRulesForbiddenSideMenu: ['Screens/Desk', 'DeskRulesForbiddenSideMenu'],
   DeskSkillsSideMenu: ['Screens/Desk', 'DeskSkillsSideMenu'],
   DeskSetupSideMenu: ['Screens/Desk', 'DeskSetupSideMenu'],

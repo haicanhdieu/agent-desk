@@ -16,12 +16,10 @@ import {
   linkedGroups,
   orgSwitchFixtures,
   pagedIgnored,
-  pagedNeedsYou,
   pagedRuns,
   projectSwitchFixtures,
   prStateRuns,
   projects,
-  runDetails,
   runs,
   ticketGroups,
   tickets,
@@ -30,7 +28,6 @@ import {
   user,
 } from '@/mocks';
 import type { TicketGroup } from '@/mocks/types';
-import { NeedsYou as NeedsYouScreen } from './NeedsYou';
 import { Runs as RunsScreen } from './Runs';
 import { RunsProblems as RunsProblemsScreen, type RunsProblemsWarning } from './RunsProblems';
 import { RunsPage, type RunsFilter } from './RunsPage';
@@ -40,7 +37,7 @@ import { Button } from '@/ds';
 import styles from './Screens.module.css';
 import { viewport } from './viewports';
 
-// Artboards come from canvas.json: Runs 1440x1000, RunsProblems 1440x960, NeedsYou 1440x740.
+// Artboards come from canvas.json: Runs 1440x1000, RunsProblems 1440x960.
 const meta = {
   title: 'Screens/Runs',
   parameters: { layout: 'fullscreen' },
@@ -186,59 +183,11 @@ export const RunsProblemsPolling: Story = {
   ),
 };
 
-export const NeedsYou: Story = {
-  name: 'Where needs you shows up',
-  decorators: artboard(740),
-  globals: viewport(1440, 740),
-  render: () => (
-    <NeedsYouScreen project={project} projects={projects.slice(0, 3)} canResume={() => true} topBar={{ user, org }} />
-  ),
-};
-
 export const RunsProblemsEmpty: Story = {
   name: 'Runs, problems, nothing ignored',
   decorators: artboard(960),
   globals: viewport(1440, 960),
   render: () => <RunsProblemsScreen {...common} counts={{ ...counts, ignored: 0 }} ignored={[]} warnings={[]} />,
-};
-
-export const NeedsYouNone: Story = {
-  name: 'Where needs you shows up, no idle run',
-  decorators: artboard(740),
-  globals: viewport(1440, 740),
-  render: () => (
-    <NeedsYouScreen
-      project={{ ...project, needsYou: 0 }}
-      projects={projects.slice(0, 3)}
-      runs={[]}
-      topBar={{ user, org }}
-    />
-  ),
-};
-
-/** A paused run beside the idle one: the Paused badge and a Resume button. */
-export const NeedsYouPaused: Story = {
-  name: 'Where needs you shows up, a paused run',
-  decorators: artboard(740),
-  globals: viewport(1440, 740),
-  render: () => (
-    <NeedsYouScreen
-      project={project}
-      projects={projects.slice(0, 3)}
-      topBar={{ user, org }}
-      runs={[
-        {
-          run: { ...runDetails.RunPaused.run },
-          href: '/runs/64',
-          idleAt: '14:24',
-          endsAt: '14:54',
-        },
-        ...runs.filter((r) => r.id === 62).map((run) => ({ run, href: '/runs/62', idleAt: '14:13', endsAt: '14:43' })),
-      ]}
-      onResume={() => {}}
-      canResume={() => true}
-    />
-  ),
 };
 
 const noop = () => undefined;
@@ -489,23 +438,6 @@ export const RunsProblemsPaged: Story = {
   ),
 };
 
-/** Page 2 of 2 of 21 runs waiting for a person: the last page holds one card. */
-export const NeedsYouPaged: Story = {
-  name: 'Needs you, run cards, page 2 of 2',
-  decorators: artboard(740),
-  globals: viewport(1440, 740),
-  render: () => (
-    <NeedsYouScreen
-      canResume={() => true}
-      topBar={{ user, org }}
-      project={{ ...project, needsYou: 21 }}
-      projects={projects.slice(0, 3).map((p) => (p.id === project.id ? { ...p, needsYou: 21 } : p))}
-      runs={pagedNeedsYou(21).slice(20)}
-      pagination={pagination(2, 21)}
-    />
-  ),
-};
-
 /** Any paged list on first load: the route skeleton in the Runs frame. */
 export const RouteLoading: Story = {
   name: 'Any paged list, first load',
@@ -728,5 +660,26 @@ export const RunsNotFoundSideMenu: Story = {
         />
       </main>
     </OrgShellFrame>
+  ),
+};
+
+/** The old needs-you address: the page is gone, so the project menu stays and the page says not found. */
+export const RunsNeedsYouNotFound: Story = {
+  name: 'Runs, removed needs-you address: not found',
+  globals: viewport(1440, 900),
+  render: () => (
+    <ProjectShellFrame page={null} state="notFound">
+      <main className={styles.shellMain}>
+        <EmptyState
+          title="Page not found"
+          body="This page does not exist, or it belongs to an organization you are not in."
+          action={
+            <Button variant="primary" href="#projects">
+              Go to projects
+            </Button>
+          }
+        />
+      </main>
+    </ProjectShellFrame>
   ),
 };

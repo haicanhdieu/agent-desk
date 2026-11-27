@@ -24,7 +24,6 @@ import type { TicketGroup } from '@/mocks/types';
 import { filterGroups, Runs, type RunsFilter } from './Runs';
 import { RunsPage } from './RunsPage';
 import { RunsProblems } from './RunsProblems';
-import { NeedsYou } from './NeedsYou';
 import { ProjectShellFrame } from './projectShellFrame';
 import { expectShellOwnedPage, headerActions } from '@/test/shellAssert';
 
@@ -368,36 +367,6 @@ describe('RunsProblems', () => {
   });
 });
 
-describe('NeedsYou', () => {
-  it('renders four captioned surfaces in one main', () => {
-    render(<NeedsYou project={project} projects={projects} />);
-    expect(screen.getAllByRole('main')).toHaveLength(1);
-    expect(screen.getByRole('heading', { level: 1, name: 'Where "needs you" shows up' })).toBeInTheDocument();
-    expect(screen.getAllByRole('figure')).toHaveLength(4);
-    expect(screen.getByText('(1) Needs you, invoicer-api')).toBeInTheDocument();
-    expect(screen.getByText('Run 62 needs you')).toBeInTheDocument();
-    expect(screen.getByText(/ends on its own after 30 minutes with no one attached/)).toBeInTheDocument();
-    expect(screen.getByText(/ends on its own at 14:43 if nobody opens it/)).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Open run 62 in Agent Desk' })).toHaveAttribute('href', '/runs/62');
-  });
-
-  it('lists the given idle runs with their hrefs, or says none need you', () => {
-    const run = runs.find((r) => r.id === 62)!;
-    const { unmount } = render(
-      <NeedsYou
-        project={project}
-        projects={projects}
-        runs={[{ run, href: '/p/x/runs/62', idleAt: '14:13', endsAt: '14:43' }]}
-      />,
-    );
-    expect(screen.getByRole('link', { name: 'Open run 62 in Agent Desk' })).toHaveAttribute('href', '/p/x/runs/62');
-    unmount();
-    render(<NeedsYou project={project} projects={projects} runs={[]} />);
-    expect(screen.getAllByText('No runs need you right now.')).toHaveLength(2);
-    expect(screen.queryByRole('link', { name: /^Open run/ })).not.toBeInTheDocument();
-  });
-});
-
 describe('RunsProblems empty', () => {
   it('shows an empty state when nothing was ignored', () => {
     render(<RunsProblems {...base} filter="ignored" warnings={[]} ignored={[]} />);
@@ -443,27 +412,6 @@ describe('pagination on the run screens', () => {
     const nav = screen.getByRole('navigation', { name: 'Pagination' });
     expect(table).toHaveAttribute('aria-busy', 'true');
     expect(table.compareDocumentPosition(nav) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-  });
-
-  it('NeedsYou draws the control under the cards', () => {
-    const run = runs.find((r) => r.id === 62)!;
-    render(
-      <NeedsYou
-        project={project}
-        projects={projects}
-        runs={[{ run, href: '/runs/62', idleAt: '14:13', endsAt: '14:43' }]}
-        pagination={pagination(21, true)}
-      />,
-    );
-    const nav = screen.getByRole('navigation', { name: 'Pagination' });
-    const card = screen.getByRole('link', { name: 'Open run 62 in Agent Desk' });
-    expect(card.compareDocumentPosition(nav) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(card.closest('[aria-busy="true"]')).not.toBeNull();
-  });
-
-  it('NeedsYou draws no control when the list is empty', () => {
-    render(<NeedsYou project={project} projects={projects} runs={[]} pagination={pagination(21, true)} />);
-    expect(screen.queryByRole('navigation', { name: 'Pagination' })).not.toBeInTheDocument();
   });
 });
 
@@ -569,23 +517,6 @@ describe('Runs under the app bar (BR-43)', () => {
     expect(within(bar).queryByRole('button', { name: /organization/i })).toBeNull();
     expect(within(bar).queryByText(project.org)).toBeNull();
     expect(within(bar).getByRole('button', { name: /^Switch project/ })).toBeInTheDocument();
-  });
-
-  it('NeedsYou with topBar.org renders the org bar: Projects tab, no tab current, no project crumb', () => {
-    render(<NeedsYou project={project} projects={projects} topBar={{ user, org }} />);
-    const bar = screen.getByRole('banner');
-    expect(within(bar).getByRole('button', { name: /^Switch scope, currently organization Acme/ })).toBeInTheDocument();
-    const tabs = within(bar).getByRole('navigation', { name: 'Organization sections' });
-    expect(within(tabs).getByRole('link', { name: 'Projects' })).toBeInTheDocument();
-    expect(within(tabs).queryByRole('link', { current: 'page' })).toBeNull();
-    expect(within(tabs).queryByRole('link', { name: /^Runs/ })).toBeNull();
-    expect(within(bar).getByRole('button', { name: 'Notifications (coming soon)' })).toBeInTheDocument();
-  });
-
-  it('NeedsYou has one Main nav: the example strip in the page is labelled apart from the bar', () => {
-    render(<NeedsYou project={project} projects={projects} topBar={{ user, org }} />);
-    expect(screen.getAllByRole('navigation', { name: 'Organization sections' })).toHaveLength(1);
-    expect(screen.getByRole('navigation', { name: 'Runs and Settings tabs, example' })).toBeInTheDocument();
   });
 });
 

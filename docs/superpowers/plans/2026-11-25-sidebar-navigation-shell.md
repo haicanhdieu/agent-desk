@@ -1427,13 +1427,13 @@ export function useShellData(input: ShellInput): ShellData;
 
 - Produces: `projectPaths` has no `needsYou`. `screens/Overview.tsx` stays, as the multi-agent work leaves it; only its link to the deleted `NeedsYou` board goes. `ProjectStrip` goes now; `ProjectNav` stays until Task 39 because the old top bar uses it. The needs-you counts, banner and Runs filter stay.
 
-- [ ] **Step 0: Multi-agent gate.** Run both checks in "Multi-agent gate". If either fails, stop: write no code and report which check failed.
-- [ ] **Step 1: Move the access tests first.** The four Resume gate cases of the `needs-you page` block in `runActions.route.test.tsx` become run-detail cases: viewer (no Resume), member on own run (Resume), member on another's run (none), admin on another's run (Resume). Run them before deleting anything. Expected: PASS against run detail; if one fails, stop and ask.
-- [ ] **Step 2: Write the failing test:** `/o/<org>/p/<project>/needs-you` shows "Page not found" with the project menu, no redirect.
-- [ ] **Step 3: Delete** and regenerate `routeTree.gen.ts`. Rewrite the other users: `top-bar` TC-43.7, the `top-bar-sticky` row, `lists-paging` TC-11.3, TC-27.x and TC-32.4 (move the paging cases to Runs `?filter=needs_you` when `runs-paging.spec.ts` does not already cover them), and any role assertion in `runs.route.test.tsx`. Remove or mark obsolete the NeedsYou notes in `design/parity-notes.md`.
-- [ ] **Step 4: Boards:** remove `NeedsYou`, `NeedsYouEmpty`, `NeedsYouPaged` and the `NeedsYouPaused` state story from the lists with their stories; register `RunsNeedsYouNotFound` (REG; expected count 452); regenerate with `build-boards.mjs`.
-- [ ] **Step 5: Add** "TC-30.1" and "TC-30.2" to `side-nav.spec.ts`. Run VITEST, MOCK `side-nav top-bar top-bar-sticky lists-paging runs-paging`, PARITY. Expected: PASS.
-- [ ] **Step 6: Commit** `feat(web): remove the needs-you page`.
+- [x] **Step 0: Multi-agent gate.** Run both checks in "Multi-agent gate". If either fails, stop: write no code and report which check failed.
+- [x] **Step 1: Move the access tests first.** The four Resume gate cases of the `needs-you page` block in `runActions.route.test.tsx` become run-detail cases: viewer (no Resume), member on own run (Resume), member on another's run (none), admin on another's run (Resume). Run them before deleting anything. Expected: PASS against run detail; if one fails, stop and ask.
+- [x] **Step 2: Write the failing test:** `/o/<org>/p/<project>/needs-you` shows "Page not found" with the project menu, no redirect.
+- [x] **Step 3: Delete** and regenerate `routeTree.gen.ts`. Rewrite the other users: `top-bar` TC-43.7, the `top-bar-sticky` row, `lists-paging` TC-11.3, TC-27.x and TC-32.4 (move the paging cases to Runs `?filter=needs_you` when `runs-paging.spec.ts` does not already cover them), and any role assertion in `runs.route.test.tsx`. Remove or mark obsolete the NeedsYou notes in `design/parity-notes.md`.
+- [x] **Step 4: Boards:** remove `NeedsYou`, `NeedsYouEmpty`, `NeedsYouPaged` and the `NeedsYouPaused` state story from the lists with their stories; register `RunsNeedsYouNotFound` (REG; expected count 452); regenerate with `build-boards.mjs`.
+- [x] **Step 5: Add** "TC-30.1" and "TC-30.2" to `side-nav.spec.ts`. Run VITEST, MOCK `side-nav top-bar top-bar-sticky lists-paging runs-paging`, PARITY. Expected: PASS. (Note: VITEST and MOCK passed; full PARITY was not run, only a partial render of `RunsNeedsYouNotFound`, `RunsNotFoundSideMenu` and `Main`, because the full run takes hours under the 4 GiB cap.)
+- [x] **Step 6: Commit** `feat(web): remove the needs-you page`.
 
 ### Task 39: Remove the old navigation and make the shell the only chrome (after the multi-agent gate)
 

@@ -732,6 +732,32 @@ test.describe('BR-25: the needs you badge', () => {
   });
 });
 
+test.describe('BR-30: the old needs-you address', () => {
+  const needsYouUrl = (project = P1) => `/o/${ORG}/p/${project}/needs-you`;
+
+  test('TC-30.1: an org member sees "Page not found" with the project menu, the address stays and no needs-you list shows', async ({
+    page,
+  }) => {
+    await page.goto(needsYouUrl());
+    await expect(page.getByRole('main').getByRole('heading', { name: 'Page not found' })).toBeVisible();
+    await expect(projectMenu(page)).toBeVisible();
+    await expect(page).toHaveURL(new RegExp(`/o/${ORG}/p/${P1}/needs-you$`));
+    await expect(page.getByText('No runs need you right now.')).toHaveCount(0);
+    await expect(page.getByRole('link', { name: /^Open run \d+ in Agent Desk$/ })).toHaveCount(0);
+  });
+
+  test('TC-30.2: a person with no access to the project sees "Page not found" with the org menu and no project name', async ({
+    page,
+  }) => {
+    await seedProjectSpace(page, { role: 'projectAdmin' });
+    await page.goto(needsYouUrl(P2));
+    await expect(page.getByRole('main').getByRole('heading', { name: 'Page not found' })).toBeVisible();
+    await expect(orgMenu(page)).toBeVisible();
+    await expect(projectMenu(page)).toHaveCount(0);
+    await expect(page.getByText('invoicer-web')).toHaveCount(0);
+  });
+});
+
 test.describe('BR-26: the repository block', () => {
   const block = (page: Page): Locator => projectMenu(page).getByRole('region', { name: 'Repository' });
 

@@ -31,7 +31,6 @@ const groups: { heading: string; items: { board: BoardName; label: string }[] }[
     items: [
       { board: 'Runs', label: 'Runs list, project home' },
       { board: 'RunsProblems', label: 'Runs list with health warnings and ignored commands' },
-      { board: 'NeedsYou', label: 'How "needs you" reaches you outside the app' },
     ],
   },
   {

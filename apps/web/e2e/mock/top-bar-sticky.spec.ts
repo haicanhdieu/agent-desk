@@ -7,7 +7,6 @@ import { INVOICER_API, ORG } from './mock';
 const pages: { name: string; path: string }[] = [
   { name: 'Projects', path: `/o/${ORG}/projects` },
   { name: 'Runs', path: `/o/${ORG}/p/${INVOICER_API}/runs` },
-  { name: 'Needs you', path: `/o/${ORG}/p/${INVOICER_API}/needs-you` },
 ];
 
 // Short enough that every page needs scrolling; the phone width covers the narrow layouts.

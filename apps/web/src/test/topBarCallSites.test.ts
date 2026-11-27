@@ -9,7 +9,6 @@ export const TOP_BAR_CALL_SITES: Record<string, number> = {
   'screens/DeskFrame.tsx': 1,
   'screens/InvitationAccept.tsx': 1,
   'screens/MyInvitations.tsx': 1,
-  'screens/NeedsYou.tsx': 1,
   'screens/Projects.tsx': 1,
   'screens/ProjectsEmpty.tsx': 1,
   'screens/RunDetail.tsx': 1,

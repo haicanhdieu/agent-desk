@@ -79,11 +79,12 @@ test.describe('BR-43: top-bar tabs per level', () => {
     await expect(mainNav(page)).toHaveCount(0);
   });
 
-  test('TC-43.7: the needs-you page shows the org bar with no tab active', async ({ page }) => {
+  test('TC-43.7: the old needs-you address is "Page not found" with no organization tabs in the bar', async ({
+    page,
+  }) => {
     await open(page, 'twoOwners', `${PROJECT}/needs-you`);
-    await expect(tab(page, 'Projects')).toBeVisible();
-    await expect(tab(page, 'Org settings')).toBeVisible();
-    await expect(mainNav(page).locator('[aria-current]')).toHaveCount(0);
+    await expect(page.getByRole('main').getByRole('heading', { name: 'Page not found' })).toBeVisible();
+    await expect(mainNav(page)).toHaveCount(0);
   });
 
   test('TC-43.8: the Create organization page shows no organization tabs', async ({ page }) => {

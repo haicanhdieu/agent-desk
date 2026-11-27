@@ -18,7 +18,6 @@ const platform = 'Screens/Platform';
 /** The boards of design/prototype/project/canvas.json, in canvas order. */
 export const boardStories = {
   Main: { title: 'Screens/Overview', exportName: 'Main' },
-  NeedsYou: { title: runs, exportName: 'NeedsYou' },
   SignIn: { title: entry, exportName: 'SignIn' },
   ProjectsEmpty: { title: entry, exportName: 'ProjectsEmpty' },
   Projects: { title: entry, exportName: 'Projects' },
@@ -158,8 +157,6 @@ export const boardStories = {
   RunsPagedLinkedPrOnly: { title: runs, exportName: 'RunsPagedLinkedPrOnly' },
   RunsPagedLinkedIssueOnly: { title: runs, exportName: 'RunsPagedLinkedIssueOnly' },
   RunsPageLoadingLinked: { title: runs, exportName: 'RunsPageLoadingLinked' },
-  NeedsYouPaged: { title: runs, exportName: 'NeedsYouPaged' },
-  NeedsYouEmpty: { title: runs, exportName: 'NeedsYouNone' },
   RouteLoading: { title: runs, exportName: 'RouteLoading' },
   RouteError: { title: runs, exportName: 'RouteError' },
   ProjectsPaged: { title: 'Screens/Entry', exportName: 'ProjectsPaged' },
@@ -445,6 +442,7 @@ export const boardStories = {
   RunsSideProjectSwitcherLoading: { title: runs, exportName: 'RunsSideProjectSwitcherLoading' },
   RunsSideProjectSwitcherNoCreate: { title: runs, exportName: 'RunsSideProjectSwitcherNoCreate' },
   RunsNotFoundSideMenu: { title: runs, exportName: 'RunsNotFoundSideMenu' },
+  RunsNeedsYouNotFound: { title: runs, exportName: 'RunsNeedsYouNotFound' },
   DeskRulesForbiddenSideMenu: { title: desk, exportName: 'DeskRulesForbiddenSideMenu' },
   DeskSkillsSideMenu: { title: desk, exportName: 'DeskSkillsSideMenu' },
   DeskSetupSideMenu: { title: desk, exportName: 'DeskSetupSideMenu' },
@@ -502,7 +500,6 @@ export const stateStories = {
   RunsSearchEmpty: { title: runs, exportName: 'RunsSearchEmpty', board: 'Runs' },
   RunsSearchLoading: { title: runs, exportName: 'RunsSearchLoading', board: 'Runs' },
   RunsProblemsPolling: { title: runs, exportName: 'RunsProblemsPolling', board: 'RunsProblems' },
-  NeedsYouPaused: { title: runs, exportName: 'NeedsYouPaused', board: 'NeedsYou' },
   RunPaused: { title: detail, exportName: 'RunPaused', board: 'RunIdle' },
   RunPausedResuming: { title: detail, exportName: 'RunPausedResuming', board: 'RunIdle' },
   RunResumeFailed: { title: detail, exportName: 'RunResumeFailed', board: 'RunIdle' },
