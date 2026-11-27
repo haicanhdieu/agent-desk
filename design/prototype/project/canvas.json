@@ -255,7 +255,7 @@
    "y": 7780,
    "w": 1440,
    "h": 900,
-   "title": "Desk \u2014 skills editor",
+   "title": "Skills, editor",
    "expand": "fill"
   },
   "DeskSkillDelete.dc.html": {
@@ -263,7 +263,7 @@
    "y": 7780,
    "w": 1440,
    "h": 900,
-   "title": "Desk \u2014 delete skill confirmation",
+   "title": "Skills, delete skill confirmation",
    "expand": "fill"
   },
   "DeskRulesAgent.dc.html": {
@@ -271,7 +271,7 @@
    "y": 7780,
    "w": 1440,
    "h": 900,
-   "title": "Desk \u2014 routing rules, agent picked (model resets to Default model)",
+   "title": "Routing rules, agent picked (model resets to Default model)",
    "expand": "fill"
   },
   "SetupWorkspace.dc.html": {
@@ -295,7 +295,7 @@
    "y": 7780,
    "w": 1440,
    "h": 900,
-   "title": "Desk \u2014 workspace setup",
+   "title": "Workspace setup",
    "expand": "fill"
   },
   "DeskSetupTest.dc.html": {
@@ -303,7 +303,7 @@
    "y": 7780,
    "w": 1440,
    "h": 900,
-   "title": "Desk \u2014 workspace setup, test failed, terminal open",
+   "title": "Workspace setup, test failed, terminal open",
    "expand": "fill"
   },
   "RunPrompt.dc.html": {
@@ -319,7 +319,7 @@
    "y": 7780,
    "w": 1440,
    "h": 900,
-   "title": "Desk \u2014 routing rules, the rule\u2019s agent was deleted",
+   "title": "Routing rules, the rule\u2019s agent was deleted",
    "expand": "fill"
   },
   "DeskRulesAgentLoading.dc.html": {
@@ -327,7 +327,7 @@
    "y": 7780,
    "w": 1440,
    "h": 900,
-   "title": "Desk \u2014 routing rules, agent list loading",
+   "title": "Routing rules, agent list loading",
    "expand": "fill"
   },
   "DeskRulesAgentLocked.dc.html": {
@@ -335,7 +335,7 @@
    "y": 7780,
    "w": 1440,
    "h": 900,
-   "title": "Desk \u2014 routing rules, no permission to list agents (locked select)",
+   "title": "Routing rules, no permission to list agents (locked select)",
    "expand": "fill"
   },
   "Pagination.dc.html": {
@@ -439,7 +439,7 @@
    "y": 10400,
    "w": 1440,
    "h": 900,
-   "title": "Desk \u2014 routing rules, agent names and a rule whose agent has no credential",
+   "title": "Routing rules, agent names and a rule whose agent has no credential",
    "expand": "fill"
   },
   "DeskSkillsPaged.dc.html": {
@@ -447,7 +447,7 @@
    "y": 10400,
    "w": 1440,
    "h": 900,
-   "title": "Desk \u2014 skills, page 2 of 2",
+   "title": "Skills, page 2 of 2",
    "expand": "fill"
   },
   "DeskSkillsEmpty.dc.html": {
@@ -455,7 +455,7 @@
    "y": 10400,
    "w": 1440,
    "h": 900,
-   "title": "Desk \u2014 skills, empty",
+   "title": "Skills, empty",
    "expand": "fill"
   },
   "DeskSetupPaged.dc.html": {
@@ -463,7 +463,7 @@
    "y": 10400,
    "w": 1440,
    "h": 900,
-   "title": "Desk \u2014 setup, version history page 2 of 2",
+   "title": "Workspace setup, version history page 2 of 2",
    "expand": "fill"
   },
   "DeskSetupVersionsLoading.dc.html": {
@@ -471,7 +471,7 @@
    "y": 10400,
    "w": 1440,
    "h": 900,
-   "title": "Desk \u2014 setup, version history loading",
+   "title": "Workspace setup, version history loading",
    "expand": "fill"
   },
   "DeskSetupVersionsError.dc.html": {
@@ -479,7 +479,7 @@
    "y": 10400,
    "w": 1440,
    "h": 900,
-   "title": "Desk \u2014 setup, version history failed to load",
+   "title": "Workspace setup, version history failed to load",
    "expand": "fill"
   },
   "DeskSetupVersionsEmpty.dc.html": {
@@ -487,7 +487,7 @@
    "y": 10400,
    "w": 1440,
    "h": 900,
-   "title": "Desk \u2014 setup, version history empty",
+   "title": "Workspace setup, no versions yet",
    "expand": "fill"
   },
   "RunStoppedPodLost.dc.html": {
@@ -1519,7 +1519,7 @@
    "y": 46640,
    "w": 1440,
    "h": 900,
-   "title": "Desk \u2014 audit log, newest first",
+   "title": "Audit log (project), org owner: newest first; member changes, invitations with email and project names (one with more than 3), generic, deleted user",
    "expand": "fill"
   },
   "DeskAuditLoading.dc.html": {
@@ -1527,7 +1527,7 @@
    "y": 46640,
    "w": 1440,
    "h": 900,
-   "title": "Desk \u2014 audit log, loading",
+   "title": "Audit log (project), loading",
    "expand": "fill"
   },
   "DeskAuditEmpty.dc.html": {
@@ -1535,7 +1535,7 @@
    "y": 46640,
    "w": 1440,
    "h": 900,
-   "title": "Desk \u2014 audit log, empty",
+   "title": "Audit log (project), empty",
    "expand": "fill"
   },
   "DeskAuditError.dc.html": {
@@ -1543,7 +1543,7 @@
    "y": 46640,
    "w": 1440,
    "h": 900,
-   "title": "Desk \u2014 audit log, failed to load",
+   "title": "Audit log (project), failed to load",
    "expand": "fill"
   },
   "DeskAuditPaged.dc.html": {
@@ -1551,7 +1551,7 @@
    "y": 46640,
    "w": 1440,
    "h": 900,
-   "title": "Desk \u2014 audit log, page 2 of 2",
+   "title": "Audit log (project), page 2 of 2, older and backfilled entries",
    "expand": "fill"
   },
   "DeskAuditInvitationNoEmail.dc.html": {
@@ -1559,7 +1559,7 @@
    "y": 46640,
    "w": 1440,
    "h": 900,
-   "title": "Desk \u2014 audit log, invitation entries without the email",
+   "title": "Audit log (project), project admin of only some listed projects: invitation entries without the email, naming only the visible projects",
    "expand": "fill"
   },
   "DeskAuditInvitationExpired.dc.html": {
@@ -1567,7 +1567,7 @@
    "y": 46640,
    "w": 1440,
    "h": 900,
-   "title": "Desk \u2014 audit log, expired invitation entries",
+   "title": "Audit log (project), expired invitation entries, with and without the email (project admin); Who is the person whose new invitation expired the old one",
    "expand": "fill"
   },
   "OrgAuditInvitationProjects.dc.html": {
@@ -1591,7 +1591,7 @@
    "y": 47920,
    "w": 1440,
    "h": 900,
-   "title": "Desk \u2014 members, you, several roles, a long name",
+   "title": "Members (project), project admin: project roles only, own row has no actions, several roles, long name",
    "expand": "fill"
   },
   "DeskMembersLoading.dc.html": {
@@ -1599,7 +1599,7 @@
    "y": 47920,
    "w": 1440,
    "h": 900,
-   "title": "Desk \u2014 members, loading",
+   "title": "Members (project), loading",
    "expand": "fill"
   },
   "DeskMembersEmpty.dc.html": {
@@ -1607,7 +1607,7 @@
    "y": 47920,
    "w": 1440,
    "h": 900,
-   "title": "Desk \u2014 members, empty",
+   "title": "Members (project), empty: no one has a role on this project (org owner)",
    "expand": "fill"
   },
   "DeskMembersError.dc.html": {
@@ -1615,7 +1615,7 @@
    "y": 47920,
    "w": 1440,
    "h": 900,
-   "title": "Desk \u2014 members, failed to load",
+   "title": "Members (project), failed to load",
    "expand": "fill"
   },
   "DeskMembersPaged.dc.html": {
@@ -1623,7 +1623,7 @@
    "y": 49200,
    "w": 1440,
    "h": 900,
-   "title": "Desk \u2014 members, page 2 of 2",
+   "title": "Members (project), page 2 of 2",
    "expand": "fill"
   },
   "DeskMembersForbidden.dc.html": {
@@ -1631,7 +1631,7 @@
    "y": 49200,
    "w": 1440,
    "h": 900,
-   "title": "Desk \u2014 members URL opened by a member or viewer: no access",
+   "title": "Members URL opened by a member or viewer: no access, the project menu holds Runs only",
    "expand": "fill"
   },
   "DeskMembersRowMenu.dc.html": {
@@ -1639,7 +1639,7 @@
    "y": 49200,
    "w": 1440,
    "h": 900,
-   "title": "Desk \u2014 members, row menu on another person",
+   "title": "Members (project), row menu on another member",
    "expand": "fill"
   },
   "DeskMembersBusy.dc.html": {
@@ -1647,7 +1647,7 @@
    "y": 49200,
    "w": 1440,
    "h": 900,
-   "title": "Desk \u2014 members, a row action in flight",
+   "title": "Members (project), request in flight: row menu disabled",
    "expand": "fill"
   },
   "DeskMembersAdd.dc.html": {
@@ -1655,7 +1655,7 @@
    "y": 50480,
    "w": 1440,
    "h": 900,
-   "title": "Desk \u2014 members, add dialog, Person and Role empty",
+   "title": "Members (project), add dialog: Person and Role empty, no role preselected",
    "expand": "fill"
   },
   "DeskMembersAddSearch.dc.html": {
@@ -1663,7 +1663,7 @@
    "y": 50480,
    "w": 1440,
    "h": 900,
-   "title": "Desk \u2014 members, add dialog, server search, 20 of 23 loaded",
+   "title": "Members (project), add dialog: server search open, 20 of 23 loaded, more load on scroll",
    "expand": "fill"
   },
   "DeskMembersAddNoMatch.dc.html": {
@@ -1671,7 +1671,7 @@
    "y": 50480,
    "w": 1440,
    "h": 900,
-   "title": "Desk \u2014 members, add dialog, no match",
+   "title": "Members (project), add dialog: no member matches the search",
    "expand": "fill"
   },
   "DeskMembersAddAllAdded.dc.html": {
@@ -1679,7 +1679,7 @@
    "y": 50480,
    "w": 1440,
    "h": 900,
-   "title": "Desk \u2014 members, add dialog, everyone already has a role",
+   "title": "Members (project), add dialog: everyone in the organization already has a role here",
    "expand": "fill"
   },
   "DeskMembersAddFieldErrors.dc.html": {
@@ -1687,7 +1687,7 @@
    "y": 51760,
    "w": 1440,
    "h": 900,
-   "title": "Desk \u2014 members, add dialog, field errors",
+   "title": "Members (project), add dialog: submitted with no person and no role",
    "expand": "fill"
   },
   "DeskMembersAddSaving.dc.html": {
@@ -1695,7 +1695,7 @@
    "y": 51760,
    "w": 1440,
    "h": 900,
-   "title": "Desk \u2014 members, add dialog, saving",
+   "title": "Members (project), add dialog: saving",
    "expand": "fill"
   },
   "DeskMembersAddFormError.dc.html": {
@@ -1703,7 +1703,7 @@
    "y": 51760,
    "w": 1440,
    "h": 900,
-   "title": "Desk \u2014 members, add dialog, server error",
+   "title": "Members (project), add dialog: server error, input kept",
    "expand": "fill"
   },
   "DeskMembersAddAlreadyOnProject.dc.html": {
@@ -1711,7 +1711,7 @@
    "y": 51760,
    "w": 1440,
    "h": 900,
-   "title": "Desk \u2014 members, add dialog, already has a role",
+   "title": "Members (project), add dialog: 409, the person got a role meanwhile; Person cleared, role kept",
    "expand": "fill"
   },
   "DeskMembersAdded.dc.html": {
@@ -1719,7 +1719,7 @@
    "y": 53040,
    "w": 1440,
    "h": 900,
-   "title": "Desk \u2014 members, added, list refetched, toast",
+   "title": "Members (project), added: list refetched, toast",
    "expand": "fill"
   },
   "DeskMembersInvite.dc.html": {
@@ -1727,7 +1727,7 @@
    "y": 53040,
    "w": 1440,
    "h": 900,
-   "title": "Desk \u2014 members, invite dialog, this project fixed, project roles only",
+   "title": "Members (project), Invite people: the existing invite dialog, this project fixed, project roles only",
    "expand": "fill"
   },
   "DeskMembersInviteCreated.dc.html": {
@@ -1735,7 +1735,7 @@
    "y": 53040,
    "w": 1440,
    "h": 900,
-   "title": "Desk \u2014 members, invite dialog, invitation created",
+   "title": "Members (project), Invite people: invitation created",
    "expand": "fill"
   },
   "DeskMembersChangeRole.dc.html": {
@@ -1743,7 +1743,7 @@
    "y": 53040,
    "w": 1440,
    "h": 900,
-   "title": "Desk \u2014 members, change role dialog, current role preselected",
+   "title": "Members (project), change role dialog: Admin, Member, Viewer; current role preselected",
    "expand": "fill"
   },
   "DeskMembersChangeRoleSaving.dc.html": {
@@ -1751,7 +1751,7 @@
    "y": 54320,
    "w": 1440,
    "h": 900,
-   "title": "Desk \u2014 members, change role dialog, saving",
+   "title": "Members (project), change role dialog: saving",
    "expand": "fill"
   },
   "DeskMembersChangeRoleError.dc.html": {
@@ -1759,7 +1759,7 @@
    "y": 54320,
    "w": 1440,
    "h": 900,
-   "title": "Desk \u2014 members, change role dialog, refused (403)",
+   "title": "Members (project), change role dialog: refused (403), Banner in the dialog",
    "expand": "fill"
   },
   "DeskMembersRoleChanged.dc.html": {
@@ -1767,7 +1767,7 @@
    "y": 54320,
    "w": 1440,
    "h": 900,
-   "title": "Desk \u2014 members, role changed, list refetched, toast",
+   "title": "Members (project), role changed: list refetched, toast",
    "expand": "fill"
   },
   "DeskMembersRemoveConfirm.dc.html": {
@@ -1775,7 +1775,7 @@
    "y": 54320,
    "w": 1440,
    "h": 900,
-   "title": "Desk \u2014 members, remove from project confirmation",
+   "title": "Members (project), remove from project confirmation",
    "expand": "fill"
   },
   "DeskMembersRemoving.dc.html": {
@@ -1783,7 +1783,7 @@
    "y": 55600,
    "w": 1440,
    "h": 900,
-   "title": "Desk \u2014 members, removing",
+   "title": "Members (project), removing",
    "expand": "fill"
   },
   "DeskMembersRemoved.dc.html": {
@@ -1791,7 +1791,7 @@
    "y": 55600,
    "w": 1440,
    "h": 900,
-   "title": "Desk \u2014 members, removed, list refetched, toast",
+   "title": "Members (project), removed: list refetched, toast, focus on the heading",
    "expand": "fill"
   },
   "DeskMembersGone.dc.html": {
@@ -1799,7 +1799,7 @@
    "y": 55600,
    "w": 1440,
    "h": 900,
-   "title": "Desk \u2014 members, member removed meanwhile, error toast",
+   "title": "Members (project), member removed meanwhile: dialog closed, list refetched, error toast",
    "expand": "fill"
   },
   "PlatformAdmins.dc.html": {
@@ -2095,7 +2095,7 @@
    "y": 67120,
    "w": 1440,
    "h": 900,
-   "title": "Desk \u2014 workspace setup, environment",
+   "title": "Workspace setup, environment",
    "expand": "fill"
   },
   "DeskSetupEnvironmentEmpty.dc.html": {
@@ -2103,7 +2103,7 @@
    "y": 67120,
    "w": 1440,
    "h": 900,
-   "title": "Desk \u2014 workspace setup, environment, no entries yet",
+   "title": "Workspace setup, environment, no entries yet",
    "expand": "fill"
   },
   "DeskSetupEnvironmentLoading.dc.html": {
@@ -2111,7 +2111,7 @@
    "y": 67120,
    "w": 1440,
    "h": 900,
-   "title": "Desk \u2014 workspace setup, environment, loading",
+   "title": "Workspace setup, environment, loading",
    "expand": "fill"
   },
   "DeskSetupEnvironmentError.dc.html": {
@@ -2119,7 +2119,7 @@
    "y": 67120,
    "w": 1440,
    "h": 900,
-   "title": "Desk \u2014 workspace setup, environment, variables failed to load",
+   "title": "Workspace setup, environment, variables failed to load",
    "expand": "fill"
   },
   "DeskSetupEnvironmentAdding.dc.html": {
@@ -2127,7 +2127,7 @@
    "y": 67120,
    "w": 1440,
    "h": 900,
-   "title": "Desk \u2014 workspace setup, environment, adding a variable",
+   "title": "Workspace setup, environment, adding a variable",
    "expand": "fill"
   },
   "DeskSetupEnvironmentAddSecret.dc.html": {
@@ -2135,7 +2135,7 @@
    "y": 68400,
    "w": 1440,
    "h": 900,
-   "title": "Desk \u2014 workspace setup, environment, adding a secret",
+   "title": "Workspace setup, environment, adding a secret",
    "expand": "fill"
   },
   "DeskSetupEnvironmentEditing.dc.html": {
@@ -2143,7 +2143,7 @@
    "y": 68400,
    "w": 1440,
    "h": 900,
-   "title": "Desk \u2014 workspace setup, environment, editing a variable",
+   "title": "Workspace setup, environment, editing a variable",
    "expand": "fill"
   },
   "DeskSetupEnvironmentSaving.dc.html": {
@@ -2151,7 +2151,7 @@
    "y": 68400,
    "w": 1440,
    "h": 900,
-   "title": "Desk \u2014 workspace setup, environment, saving a variable",
+   "title": "Workspace setup, environment, saving a variable",
    "expand": "fill"
   },
   "DeskSetupEnvironmentSecretReplace.dc.html": {
@@ -2159,7 +2159,7 @@
    "y": 68400,
    "w": 1440,
    "h": 900,
-   "title": "Desk \u2014 workspace setup, environment, replacing a secret",
+   "title": "Workspace setup, environment, replacing a secret",
    "expand": "fill"
   },
   "DeskSetupEnvironmentRemove.dc.html": {
@@ -2167,7 +2167,7 @@
    "y": 68400,
    "w": 1440,
    "h": 900,
-   "title": "Desk \u2014 workspace setup, environment, remove a variable",
+   "title": "Workspace setup, environment, remove a variable",
    "expand": "fill"
   },
   "DeskSetupEnvironmentFieldErrors.dc.html": {
@@ -2175,7 +2175,7 @@
    "y": 69680,
    "w": 1440,
    "h": 900,
-   "title": "Desk \u2014 workspace setup, environment, reserved name and short secret",
+   "title": "Workspace setup, environment, reserved name and short secret",
    "expand": "fill"
   },
   "DeskSetupEnvironmentNameTaken.dc.html": {
@@ -2183,7 +2183,7 @@
    "y": 69680,
    "w": 1440,
    "h": 900,
-   "title": "Desk \u2014 workspace setup, environment, name already exists",
+   "title": "Workspace setup, environment, name already exists",
    "expand": "fill"
   },
   "DeskSetupEnvironmentLimit.dc.html": {
@@ -2191,7 +2191,7 @@
    "y": 69680,
    "w": 1440,
    "h": 900,
-   "title": "Desk \u2014 workspace setup, environment, limit reached",
+   "title": "Workspace setup, environment, limit reached",
    "expand": "fill"
   },
   "DeskSetupEnvironmentSaveError.dc.html": {
@@ -2199,7 +2199,7 @@
    "y": 69680,
    "w": 1440,
    "h": 900,
-   "title": "Desk \u2014 workspace setup, environment, save failed",
+   "title": "Workspace setup, environment, save failed",
    "expand": "fill"
   },
   "DeskSetupEnvironmentGone.dc.html": {
@@ -2207,7 +2207,7 @@
    "y": 69680,
    "w": 1440,
    "h": 900,
-   "title": "Desk \u2014 workspace setup, environment, entry no longer exists",
+   "title": "Workspace setup, environment, entry no longer exists",
    "expand": "fill"
   },
   "DeskSetupEnvironmentPaged.dc.html": {
@@ -2215,7 +2215,7 @@
    "y": 70960,
    "w": 1440,
    "h": 900,
-   "title": "Desk \u2014 workspace setup, environment, both lists on page 2",
+   "title": "Workspace setup, environment, both lists on page 2",
    "expand": "fill"
   },
   "DeskSetupEnvironmentAdded.dc.html": {
@@ -2223,7 +2223,7 @@
    "y": 70960,
    "w": 1440,
    "h": 900,
-   "title": "Desk \u2014 workspace setup, environment, added to another page",
+   "title": "Workspace setup, environment, added to another page",
    "expand": "fill"
   },
   "DeskSetupEnvironmentReadOnly.dc.html": {
@@ -2231,7 +2231,7 @@
    "y": 70960,
    "w": 1440,
    "h": 900,
-   "title": "Desk \u2014 workspace setup, environment, read-only",
+   "title": "Workspace setup, environment, read-only",
    "expand": "fill"
   },
   "DeskSetupEnvironmentSecretsReadOnly.dc.html": {
@@ -2239,7 +2239,7 @@
    "y": 70960,
    "w": 1440,
    "h": 900,
-   "title": "Desk \u2014 workspace setup, environment, secrets read-only",
+   "title": "Workspace setup, environment, secrets read-only",
    "expand": "fill"
   },
   "DeskSetupEnvironmentTesting.dc.html": {
@@ -2247,7 +2247,7 @@
    "y": 70960,
    "w": 1440,
    "h": 900,
-   "title": "Desk \u2014 workspace setup, environment, while a test runs",
+   "title": "Workspace setup, environment, while a test runs",
    "expand": "fill"
   },
   "PlatformOrgEdit.dc.html": {
@@ -2743,7 +2743,7 @@
    "y": 83760,
    "w": 1440,
    "h": 900,
-   "title": "Desk \u2014 agents, Agents tab",
+   "title": "Agent and settings, Agents tab",
    "expand": "fill"
   },
   "DeskAgentListEmpty.dc.html": {
@@ -2751,7 +2751,7 @@
    "y": 83760,
    "w": 1440,
    "h": 900,
-   "title": "Desk \u2014 agents, no agents yet",
+   "title": "Agent and settings, Agents tab, no agents yet",
    "expand": "fill"
   },
   "DeskAgentListError.dc.html": {
@@ -2759,7 +2759,7 @@
    "y": 83760,
    "w": 1440,
    "h": 900,
-   "title": "Desk \u2014 agents, list could not load (other tabs unaffected)",
+   "title": "Agent and settings, Agents tab, list could not load (other tabs unaffected)",
    "expand": "fill"
   },
   "DeskAgentListLoading.dc.html": {
@@ -2767,7 +2767,7 @@
    "y": 83760,
    "w": 1440,
    "h": 900,
-   "title": "Desk \u2014 agents, list loading",
+   "title": "Agent and settings, Agents tab, list loading",
    "expand": "fill"
   },
   "DeskAgentListPaged.dc.html": {
@@ -2775,7 +2775,7 @@
    "y": 83760,
    "w": 1440,
    "h": 900,
-   "title": "Desk \u2014 agents, second page of the list",
+   "title": "Agent and settings, Agents tab, second page of the list",
    "expand": "fill"
   },
   "DeskAgentListProjectAdmin.dc.html": {
@@ -2783,7 +2783,7 @@
    "y": 83760,
    "w": 1440,
    "h": 900,
-   "title": "Desk \u2014 agents, project admin sees three tabs and no Danger zone",
+   "title": "Agent and settings, Agents tab, project admin sees three tabs and no Danger zone",
    "expand": "fill"
   },
   "DeskAgentListReadOnly.dc.html": {
@@ -2791,7 +2791,7 @@
    "y": 83760,
    "w": 1440,
    "h": 900,
-   "title": "Desk \u2014 agents, read-only view",
+   "title": "Agent and settings, Agents tab, read-only view",
    "expand": "fill"
   },
   "DeskAgentListTesting.dc.html": {
@@ -2799,7 +2799,7 @@
    "y": 83760,
    "w": 1440,
    "h": 900,
-   "title": "Desk \u2014 agents, testing one row",
+   "title": "Agent and settings, Agents tab, testing one row",
    "expand": "fill"
   },
   "DeskAgentRowMenu.dc.html": {
@@ -2807,7 +2807,7 @@
    "y": 85040,
    "w": 1440,
    "h": 900,
-   "title": "Desk \u2014 agents, row menu open",
+   "title": "Agent and settings, Agents tab, row menu open",
    "expand": "fill"
   },
   "DeskAgentTestFailed.dc.html": {
@@ -2815,7 +2815,7 @@
    "y": 85040,
    "w": 1440,
    "h": 900,
-   "title": "Desk \u2014 agents, test connection failed",
+   "title": "Agent and settings, Agents tab, test connection failed",
    "expand": "fill"
   },
   "DeskAgentDefaultChanged.dc.html": {
@@ -2823,7 +2823,7 @@
    "y": 85040,
    "w": 1440,
    "h": 900,
-   "title": "Desk \u2014 agents, default changed",
+   "title": "Agent and settings, Agents tab, default changed",
    "expand": "fill"
   },
   "DeskAgentAdd.dc.html": {
@@ -2831,7 +2831,7 @@
    "y": 85040,
    "w": 1440,
    "h": 900,
-   "title": "Desk \u2014 agents, add agent, no provider picked yet",
+   "title": "Agent and settings, Agents tab, add agent, no provider picked yet",
    "expand": "fill"
   },
   "DeskAgentAddForm.dc.html": {
@@ -2839,7 +2839,7 @@
    "y": 85040,
    "w": 1440,
    "h": 900,
-   "title": "Desk \u2014 agents, add agent, Claude Code",
+   "title": "Agent and settings, Agents tab, add agent, Claude Code",
    "expand": "fill"
   },
   "DeskAgentAddCodex.dc.html": {
@@ -2847,7 +2847,7 @@
    "y": 85040,
    "w": 1440,
    "h": 900,
-   "title": "Desk \u2014 agents, add agent, OpenAI Codex (sign-in file, no API address)",
+   "title": "Agent and settings, Agents tab, add agent, OpenAI Codex (sign-in file, no API address)",
    "expand": "fill"
   },
   "DeskAgentAddOpenCode.dc.html": {
@@ -2855,7 +2855,7 @@
    "y": 85040,
    "w": 1440,
    "h": 900,
-   "title": "Desk \u2014 agents, add agent, OpenCode (works without signing in; credentials file or own endpoint and key)",
+   "title": "Agent and settings, Agents tab, add agent, OpenCode (works without signing in; credentials file or own endpoint and key)",
    "expand": "fill"
   },
   "DeskAgentAddFieldErrors.dc.html": {
@@ -2863,7 +2863,7 @@
    "y": 85040,
    "w": 1440,
    "h": 900,
-   "title": "Desk \u2014 agents, add agent, field errors",
+   "title": "Agent and settings, Agents tab, add agent, field errors",
    "expand": "fill"
   },
   "DeskAgentAddPartial.dc.html": {
@@ -2871,7 +2871,7 @@
    "y": 86320,
    "w": 1440,
    "h": 900,
-   "title": "Desk \u2014 agents, agent saved, credential not saved",
+   "title": "Agent and settings, Agents tab, agent saved, credential not saved",
    "expand": "fill"
   },
   "DeskAgentAddSaving.dc.html": {
@@ -2879,7 +2879,7 @@
    "y": 86320,
    "w": 1440,
    "h": 900,
-   "title": "Desk \u2014 agents, add agent, saving the credential",
+   "title": "Agent and settings, Agents tab, add agent, saving the credential",
    "expand": "fill"
   },
   "DeskAgentEdit.dc.html": {
@@ -2887,7 +2887,7 @@
    "y": 86320,
    "w": 1440,
    "h": 900,
-   "title": "Desk \u2014 agents, edit the default agent",
+   "title": "Agent and settings, Agents tab, edit the default agent",
    "expand": "fill"
   },
   "DeskAgentEditWork.dc.html": {
@@ -2895,7 +2895,7 @@
    "y": 86320,
    "w": 1440,
    "h": 900,
-   "title": "Desk \u2014 agents, edit a second Claude agent (own address, own credential)",
+   "title": "Agent and settings, Agents tab, edit a second Claude agent (own address, own credential)",
    "expand": "fill"
   },
   "DeskAgentEditCodex.dc.html": {
@@ -2903,7 +2903,7 @@
    "y": 86320,
    "w": 1440,
    "h": 900,
-   "title": "Desk \u2014 agents, edit a Codex agent (no address, no max turns)",
+   "title": "Agent and settings, Agents tab, edit a Codex agent (no address, no max turns)",
    "expand": "fill"
   },
   "DeskAgentEditOpenCode.dc.html": {
@@ -2911,7 +2911,7 @@
    "y": 86320,
    "w": 1440,
    "h": 900,
-   "title": "Desk \u2014 agents, edit an OpenCode agent (credentials file replaced by an API endpoint and key)",
+   "title": "Agent and settings, Agents tab, edit an OpenCode agent (credentials file replaced by an API endpoint and key)",
    "expand": "fill"
   },
   "DeskAgentEditAddressChanged.dc.html": {
@@ -2919,7 +2919,7 @@
    "y": 86320,
    "w": 1440,
    "h": 900,
-   "title": "Desk \u2014 agents, API address changed, credential needed again",
+   "title": "Agent and settings, Agents tab, API address changed, credential needed again",
    "expand": "fill"
   },
   "DeskAgentEditReplace.dc.html": {
@@ -2927,7 +2927,7 @@
    "y": 86320,
    "w": 1440,
    "h": 900,
-   "title": "Desk \u2014 agents, replace the credential",
+   "title": "Agent and settings, Agents tab, replace the credential",
    "expand": "fill"
   },
   "DeskAgentEditNoCredential.dc.html": {
@@ -2935,7 +2935,7 @@
    "y": 87600,
    "w": 1440,
    "h": 900,
-   "title": "Desk \u2014 agents, edit an agent with no credential yet",
+   "title": "Agent and settings, Agents tab, edit an agent with no credential yet",
    "expand": "fill"
   },
   "DeskAgentEditSaving.dc.html": {
@@ -2943,7 +2943,7 @@
    "y": 87600,
    "w": 1440,
    "h": 900,
-   "title": "Desk \u2014 agents, edit, saving",
+   "title": "Agent and settings, Agents tab, edit, saving",
    "expand": "fill"
   },
   "DeskAgentEditGone.dc.html": {
@@ -2951,7 +2951,7 @@
    "y": 87600,
    "w": 1440,
    "h": 900,
-   "title": "Desk \u2014 agents, edit, the agent was deleted meanwhile",
+   "title": "Agent and settings, Agents tab, edit, the agent was deleted meanwhile",
    "expand": "fill"
   },
   "DeskAgentEditModelFallback.dc.html": {
@@ -2959,7 +2959,7 @@
    "y": 87600,
    "w": 1440,
    "h": 900,
-   "title": "Desk \u2014 agents, edit, model list could not load, typed model",
+   "title": "Agent and settings, Agents tab, edit, model list could not load, typed model",
    "expand": "fill"
   },
   "DeskAgentEditModelLoading.dc.html": {
@@ -2967,7 +2967,7 @@
    "y": 87600,
    "w": 1440,
    "h": 900,
-   "title": "Desk \u2014 agents, edit, model list loading",
+   "title": "Agent and settings, Agents tab, edit, model list loading",
    "expand": "fill"
   },
   "DeskAgentDelete.dc.html": {
@@ -2975,7 +2975,7 @@
    "y": 87600,
    "w": 1440,
    "h": 900,
-   "title": "Desk \u2014 agents, delete confirm",
+   "title": "Agent and settings, Agents tab, delete confirm",
    "expand": "fill"
   },
   "DeskAgentDeleteBlocked.dc.html": {
@@ -2983,7 +2983,7 @@
    "y": 87600,
    "w": 1440,
    "h": 900,
-   "title": "Desk \u2014 agents, delete refused: a rule uses it",
+   "title": "Agent and settings, Agents tab, delete refused: a rule uses it",
    "expand": "fill"
   },
   "DeskAgentDeleteBlockedRuns.dc.html": {
@@ -2991,7 +2991,7 @@
    "y": 87600,
    "w": 1440,
    "h": 900,
-   "title": "Desk \u2014 agents, delete refused: a run is still open",
+   "title": "Agent and settings, Agents tab, delete refused: a run is still open",
    "expand": "fill"
   },
   "DeskAgentDeleteError.dc.html": {
@@ -2999,7 +2999,7 @@
    "y": 88880,
    "w": 1440,
    "h": 900,
-   "title": "Desk \u2014 agents, delete failed",
+   "title": "Agent and settings, Agents tab, delete failed",
    "expand": "fill"
   },
   "DeskAgentDeleting.dc.html": {
@@ -3007,7 +3007,7 @@
    "y": 88880,
    "w": 1440,
    "h": 900,
-   "title": "Desk \u2014 agents, deleting",
+   "title": "Agent and settings, Agents tab, deleting",
    "expand": "fill"
   },
   "DeskAgentGitHub.dc.html": {
@@ -3015,7 +3015,7 @@
    "y": 88880,
    "w": 1440,
    "h": 900,
-   "title": "Desk \u2014 GitHub connection tab",
+   "title": "Agent and settings, GitHub connection tab",
    "expand": "fill"
   },
   "DeskAgentGitHubPolling.dc.html": {
@@ -3023,7 +3023,7 @@
    "y": 88880,
    "w": 1440,
    "h": 900,
-   "title": "Desk \u2014 GitHub connection tab, polling",
+   "title": "Agent and settings, GitHub connection tab, polling",
    "expand": "fill"
   },
   "DeskAgentGitHubCheckingNow.dc.html": {
@@ -3031,7 +3031,7 @@
    "y": 88880,
    "w": 1440,
    "h": 900,
-   "title": "Desk \u2014 GitHub connection tab, checking now",
+   "title": "Agent and settings, GitHub connection tab, checking now",
    "expand": "fill"
   },
   "DeskAgentGitHubCheckRefused.dc.html": {
@@ -3039,7 +3039,7 @@
    "y": 88880,
    "w": 1440,
    "h": 900,
-   "title": "Desk \u2014 GitHub connection tab, check refused",
+   "title": "Agent and settings, GitHub connection tab, check refused",
    "expand": "fill"
   },
   "DeskAgentGitHubTriggerError.dc.html": {
@@ -3047,7 +3047,7 @@
    "y": 88880,
    "w": 1440,
    "h": 900,
-   "title": "Desk \u2014 GitHub connection tab, saving the trigger mode failed",
+   "title": "Agent and settings, GitHub connection tab, saving the trigger mode failed",
    "expand": "fill"
   },
   "DeskAgentGitHubLoading.dc.html": {
@@ -3055,7 +3055,7 @@
    "y": 88880,
    "w": 1440,
    "h": 900,
-   "title": "Desk \u2014 GitHub connection tab, loading",
+   "title": "Agent and settings, GitHub connection tab, loading",
    "expand": "fill"
   },
   "DeskAgentGitHubError.dc.html": {
@@ -3063,7 +3063,7 @@
    "y": 90160,
    "w": 1440,
    "h": 900,
-   "title": "Desk \u2014 GitHub connection tab, could not load",
+   "title": "Agent and settings, GitHub connection tab, could not load",
    "expand": "fill"
   },
   "DeskAgentLimits.dc.html": {
@@ -3071,7 +3071,7 @@
    "y": 90160,
    "w": 1440,
    "h": 900,
-   "title": "Desk \u2014 Limits tab, project-wide",
+   "title": "Agent and settings, Limits tab, project-wide",
    "expand": "fill"
   },
   "DeskAgentLimitsSaving.dc.html": {
@@ -3079,7 +3079,7 @@
    "y": 90160,
    "w": 1440,
    "h": 900,
-   "title": "Desk \u2014 Limits tab, saving",
+   "title": "Agent and settings, Limits tab, saving",
    "expand": "fill"
   },
   "DeskAgentLimitsFieldErrors.dc.html": {
@@ -3087,7 +3087,7 @@
    "y": 90160,
    "w": 1440,
    "h": 900,
-   "title": "Desk \u2014 Limits tab, field errors",
+   "title": "Agent and settings, Limits tab, field errors",
    "expand": "fill"
   },
   "DeskAgentLimitsError.dc.html": {
@@ -3095,7 +3095,7 @@
    "y": 90160,
    "w": 1440,
    "h": 900,
-   "title": "Desk \u2014 Limits tab, the save failed",
+   "title": "Agent and settings, Limits tab, the save failed",
    "expand": "fill"
   },
   "DeskAgentLimitsReadOnly.dc.html": {
@@ -3103,7 +3103,7 @@
    "y": 90160,
    "w": 1440,
    "h": 900,
-   "title": "Desk \u2014 Limits tab, read-only",
+   "title": "Agent and settings, Limits tab, read-only",
    "expand": "fill"
   }
  },
