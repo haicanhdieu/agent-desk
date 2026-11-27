@@ -3,6 +3,8 @@ import { Banner, Button, Icon } from '@/ds';
 import {
   AppShell,
   EmptyState,
+  PageHeader,
+  useShellOwnsChrome,
   type ModelList,
   GuardsCard,
   Pagination,
@@ -16,7 +18,7 @@ import {
 } from '@/components';
 import type { Rule } from '@/mocks/types';
 import styles from './Screens.module.css';
-import { DeskFrame, type DeskFrameData } from './DeskFrame';
+import { DeskFrame, SetupWarningBanner, type DeskFrameData } from './DeskFrame';
 
 export interface DeskRulesProps {
   /** Top bar and Desk navigation data. */
@@ -223,74 +225,95 @@ export function DeskRules({
   onDelete,
 }: DeskRulesProps) {
   const editing = rules.find((r) => r.id === editingId);
+  const owned = useShellOwnsChrome();
+  const helpLine = 'A comment whose first line is a command starts a run when it matches a rule. One rule per command.';
+  const newRule = (
+    <Button variant="primary" icon="plus" onClick={onCreate}>
+      New rule
+    </Button>
+  );
+  const column = (
+    <div className={`${styles.rulesCol}${owned ? ` ${styles.shellSplitCol}` : ''}`}>
+      {owned ? (
+        <PageHeader
+          title="Routing rules"
+          meta={<span className={styles.helpLine13}>{helpLine}</span>}
+          actions={newRule}
+        />
+      ) : (
+        <div className={`${styles.split} ${styles.rulesHead}`}>
+          <div className={styles.stack6}>
+            <h1>Routing rules</h1>
+            <p className={`muted ${styles.helpLine13}`}>{helpLine}</p>
+          </div>
+          {newRule}
+        </div>
+      )}
+      <div className={styles.rulesScroll} role="region" aria-label="Rules list" tabIndex={0}>
+        {owned && frame.warning && <SetupWarningBanner warning={frame.warning} />}
+        {rules.length === 0 ? (
+          <EmptyState
+            title="No routing rules yet"
+            headingLevel={2}
+            body="A rule maps a command in a comment, like /code-build, to a skill. Add one to let comments start runs."
+            action={owned ? undefined : newRule}
+          />
+        ) : (
+          <div className={styles.ruleList}>
+            {rules.map((r) => (
+              <RuleRow
+                key={r.id}
+                rule={r}
+                stats={r.stats}
+                warning={r.warning}
+                selected={r.id === editingId}
+                onToggle={(next) => onToggle?.(r.id, next)}
+                onSelect={() => onEdit?.(r.id)}
+                onDelete={onDelete && (() => onDelete(r.id))}
+              />
+            ))}
+          </div>
+        )}
+        <GuardsCard
+          maxRunsPerTicket={maxRunsPerTicket}
+          changeHref={guardLinks?.change ?? '/desk/agent'}
+          ignoredHref={guardLinks?.ignored ?? '/runs'}
+        />
+      </div>
+      {rules.length > 0 && pagination && (
+        <div className={styles.rulesFoot}>
+          <Pagination {...pagination} />
+        </div>
+      )}
+    </div>
+  );
+  const pane =
+    form ??
+    (editing && (
+      <LocalRulePane
+        key={editing.id}
+        rule={editing}
+        skills={skills}
+        promptPreview={promptPreview}
+        modelField={modelField}
+        onClose={() => onClose?.()}
+        onSave={(d) => onSave?.(editing.id, d)}
+        onDelete={() => onDelete?.(editing.id)}
+      />
+    ));
+  if (owned) {
+    return (
+      <main className={styles.shellSplitMain}>
+        {column}
+        {pane}
+      </main>
+    );
+  }
   const page = (
     <DeskFrame active="rules" {...frame}>
       <main className={styles.rulesMain}>
-        <div className={styles.rulesCol}>
-          <div className={`${styles.split} ${styles.rulesHead}`}>
-            <div className={styles.stack6}>
-              <h1>Routing rules</h1>
-              <p className={`muted ${styles.helpLine13}`}>
-                A comment whose first line is a command starts a run when it matches a rule. One rule per command.
-              </p>
-            </div>
-            <Button variant="primary" icon="plus" onClick={onCreate}>
-              New rule
-            </Button>
-          </div>
-          <div className={styles.rulesScroll} role="region" aria-label="Rules list" tabIndex={0}>
-            {rules.length === 0 ? (
-              <EmptyState
-                title="No routing rules yet"
-                headingLevel={2}
-                body="A rule maps a command in a comment, like /code-build, to a skill. Add one to let comments start runs."
-                action={
-                  <Button variant="primary" icon="plus" onClick={onCreate}>
-                    New rule
-                  </Button>
-                }
-              />
-            ) : (
-              <div className={styles.ruleList}>
-                {rules.map((r) => (
-                  <RuleRow
-                    key={r.id}
-                    rule={r}
-                    stats={r.stats}
-                    warning={r.warning}
-                    selected={r.id === editingId}
-                    onToggle={(next) => onToggle?.(r.id, next)}
-                    onSelect={() => onEdit?.(r.id)}
-                    onDelete={onDelete && (() => onDelete(r.id))}
-                  />
-                ))}
-              </div>
-            )}
-            <GuardsCard
-              maxRunsPerTicket={maxRunsPerTicket}
-              changeHref={guardLinks?.change ?? '/desk/agent'}
-              ignoredHref={guardLinks?.ignored ?? '/runs'}
-            />
-          </div>
-          {rules.length > 0 && pagination && (
-            <div className={styles.rulesFoot}>
-              <Pagination {...pagination} />
-            </div>
-          )}
-        </div>
-        {form ??
-          (editing && (
-            <LocalRulePane
-              key={editing.id}
-              rule={editing}
-              skills={skills}
-              promptPreview={promptPreview}
-              modelField={modelField}
-              onClose={() => onClose?.()}
-              onSave={(d) => onSave?.(editing.id, d)}
-              onDelete={() => onDelete?.(editing.id)}
-            />
-          ))}
+        {column}
+        {pane}
       </main>
     </DeskFrame>
   );

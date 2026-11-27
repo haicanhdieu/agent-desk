@@ -565,7 +565,8 @@ describe('DeskAgent', () => {
       expect(terms.slice(0, 3)).toEqual(['Repository', 'Trigger mode', 'Last event']);
       expect(screen.getByRole('radio', { name: 'Webhook' })).toHaveAttribute('aria-checked', 'true');
       expect(screen.queryByRole('radiogroup', { name: 'Check every' })).toBeNull();
-      expect(screen.getByRole('button', { name: 'Send test ping' })).toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: 'Send test ping' })).toBeNull();
+      expect(screen.queryByRole('link', { name: /Manage installation/ })).toBeNull();
       expect(screen.getByText('Connected')).toBeInTheDocument();
     });
 
@@ -868,5 +869,106 @@ describe('DeskSkills in the shell', () => {
     render(<DeskSkills frame={deskFrame} skills={skills} activeName="code-build" />);
     expect(screen.queryByRole('link', { name: 'History' })).toBeNull();
     expect(screen.queryByRole('button', { name: 'History' })).toBeNull();
+  });
+});
+
+describe('DeskAgent and DeskRules in the shell', () => {
+  const warning = { title: 'Workspace setup needs attention', detail: 'The last test failed.', href: '#setup' };
+  const warned = { ...deskFrame, warning };
+  const pane = {
+    mode: 'edit' as const,
+    kinds: agentKindViews,
+    providers: [],
+    agent: agentPaneAgents[0],
+    modelList: toModelList({ status: 'success', data: agentModelsFixtures.live }, null),
+    onClose: vi.fn(),
+  };
+  const agentInShell = (props: Partial<React.ComponentProps<typeof DeskAgent>> = {}) =>
+    render(
+      <ProjectShellFrame page="agents" fill>
+        <DeskAgent {...base} {...props} />
+      </ProjectShellFrame>,
+    );
+  const rulesInShell = (props: Partial<React.ComponentProps<typeof DeskRules>> = {}) =>
+    render(
+      <ProjectShellFrame page="rules" fill>
+        <DeskRules frame={deskFrame} rules={rules} skills={skillNames} maxRunsPerTicket={10} {...props} />
+      </ProjectShellFrame>,
+    );
+  const menu = 'Project menu';
+  const column = () => screen.getByRole('heading', { level: 1 }).closest('header')!.parentElement!;
+  const actionRow = () =>
+    screen.getByRole('region', { name: 'GitHub connection' }).querySelector('[class*="deskActions"]');
+
+  it.each(['agents', 'github', 'limits', 'danger'] as const)(
+    'the %s tab has one h1, the header and tab strip outside the scroll area, and the setup warning first in it',
+    (tab) => {
+      agentInShell({ tab, frame: warned, onDeleteProject: vi.fn() });
+      const main = expectShellOwnedPage('Agent & settings', { menu });
+      const header = screen.getByRole('heading', { level: 1 }).closest('header')!;
+      expect(within(header).queryByText(warning.title)).toBeNull();
+      const strip = screen.getByRole('tablist').parentElement!;
+      expect(header.nextElementSibling).toBe(strip);
+      const scroll = within(screen.getByRole('tabpanel')).getAllByRole('region', {
+        name: /^(Agents list|GitHub connection|Limits|Danger zone)$/,
+      })[0]!;
+      expect(scroll.contains(header)).toBe(false);
+      expect(scroll.contains(strip)).toBe(false);
+      expect(scroll.firstElementChild).toContainElement(screen.getByText(warning.title));
+      expect(within(main).getAllByText(warning.title)).toHaveLength(1);
+    },
+  );
+
+  it.each(['add', 'edit'] as const)('with the %s pane open the pane is beside the main column', (mode) => {
+    agentInShell({ pane: { ...pane, mode, agent: mode === 'edit' ? pane.agent : undefined } });
+    const main = expectShellOwnedPage('Agent & settings', { menu });
+    const side = within(main).getByRole('complementary');
+    expect(column().contains(side)).toBe(false);
+  });
+
+  it('a project admin has three tabs', () => {
+    agentInShell();
+    expect(screen.getAllByRole('tab').map((t) => t.textContent)).toEqual(['Agents', 'GitHub connection', 'Limits']);
+  });
+
+  it('BR-44: the GitHub tab has no Send test ping, Manage installation or empty action row', () => {
+    agentInShell({ tab: 'github' });
+    expect(screen.getByText('Trigger mode')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Send test ping' })).toBeNull();
+    expect(screen.queryByRole('link', { name: /Manage installation/ })).toBeNull();
+    expect(actionRow()).toBeNull();
+  });
+
+  it('BR-44: polling keeps Check now', () => {
+    agentInShell({ tab: 'github', connection: connections.pollingRevoked });
+    expect(screen.getByRole('button', { name: 'Check now' })).toBeInTheDocument();
+  });
+
+  it('BR-44: webhooks have no button and no action row outside the shell either', () => {
+    render(<DeskAgent {...base} tab="github" />);
+    expect(screen.queryByRole('button', { name: 'Send test ping' })).toBeNull();
+    expect(screen.queryByRole('link', { name: /Manage installation/ })).toBeNull();
+    expect(actionRow()).toBeNull();
+  });
+
+  it('Routing rules: one h1 with the help line and New rule in the header, the warning first in the scroll area', () => {
+    rulesInShell({ frame: warned });
+    const main = expectShellOwnedPage('Routing rules', { menu });
+    const header = screen.getByRole('heading', { level: 1 }).closest('header')!;
+    expect(within(header).getByText(/A comment whose first line is a command/)).toBeInTheDocument();
+    expect(within(headerActions(main)).getByRole('button', { name: 'New rule' })).toBeInTheDocument();
+    expect(within(header).queryByText(warning.title)).toBeNull();
+    const scroll = screen.getByRole('region', { name: 'Rules list' });
+    expect(scroll.firstElementChild).toContainElement(screen.getByText(warning.title));
+    expect(within(main).getAllByText(warning.title)).toHaveLength(1);
+  });
+
+  it('Routing rules: empty has one New rule button, and an open pane is beside the column', () => {
+    const { unmount } = rulesInShell({ rules: [] });
+    expect(screen.getAllByRole('button', { name: 'New rule' })).toHaveLength(1);
+    unmount();
+    rulesInShell({ editingId: rules[0]!.id });
+    const side = within(screen.getByRole('main')).getByRole('complementary');
+    expect(column().contains(side)).toBe(false);
   });
 });

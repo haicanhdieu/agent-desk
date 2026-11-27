@@ -195,6 +195,8 @@ test('TC-61.3: the error banner of a refused save stays pinned with Save limits 
   const banner = page.getByRole('alert').filter({ hasText: 'Limits cannot be saved right now. Try again.' });
   await expect(banner).toBeVisible();
   await expectColumnFits(page);
+  // Web fonts change text metrics when they finish loading: take the baseline boxes only after that.
+  await expect.poll(() => page.evaluate(async () => (await document.fonts.ready).status)).toBe('loaded');
   // Let the layout settle after the banner appears (the Save button's box stops moving).
   let last = -1;
   await expect
@@ -275,7 +277,7 @@ test.describe('TC-61.6: a 240 px window keeps a scroll area of at least 120 px a
     {
       tab: 'GitHub connection',
       area: 'GitHub connection',
-      last: (page) => page.getByRole('button', { name: 'Send test ping' }),
+      last: (page) => page.getByRole('region', { name: 'GitHub connection' }).locator('dd').last(),
     },
     { tab: 'Danger zone', area: 'Danger zone', last: (page) => page.getByRole('button', { name: 'Delete project' }) },
   ];

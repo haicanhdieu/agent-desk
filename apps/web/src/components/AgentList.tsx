@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import { Button, Icon, Banner, Skeleton } from '@/ds';
 import type { AgentRowView } from '@/mocks/types';
 import { AgentRow } from './AgentRow';
@@ -22,6 +23,8 @@ export interface AgentListProps {
   /** The row whose connection test runs. */
   testingId?: string;
   readOnly?: boolean;
+  /** The first item of the scroll area (the setup warning in the shell). */
+  lead?: ReactNode;
 }
 
 const SKELETON_ROWS = 3;
@@ -41,6 +44,7 @@ export function AgentList({
   busyId,
   testingId,
   readOnly,
+  lead,
 }: AgentListProps) {
   const addAgent = (
     <Button variant="primary" icon="plus" onClick={onAdd}>
@@ -60,6 +64,7 @@ export function AgentList({
         {!readOnly && state !== 'empty' && addAgent}
       </header>
       <div className={styles.scroll} role="region" aria-label="Agents list" tabIndex={0}>
+        {lead}
         {state === 'loading' && (
           <div role="status" aria-label="Loading agents" aria-busy="true">
             <ul className={styles.rows}>

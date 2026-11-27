@@ -701,3 +701,10 @@ Boards registered (3, canvas order 425 to 428): DeskRulesForbiddenSideMenu, Desk
 - Agent call: the skill "History" link is removed in both branches, as the task says. The header "New skill" button has no handler yet, as the list's button had none.
 - Agent call: `DeskRulesForbiddenSideMenu` is the forbidden notice inside `ProjectShellFrame` (the text of the Members forbidden board), since `app/` is not presentational.
 - Members and Audit log get no new board: they use the existing screen tests in the shell.
+
+## Sidebar navigation shell: Agent & settings and Routing rules screens in the shell (Task 56)
+
+Boards registered (3, canvas order 429 to 431): DeskRulesSideMenu, DeskRulesSideMenuSetupWarning, DeskAgentSideMenu. They continue the canvas row at y 96560 (x 12160 to 15200). PARITY (Storybook build and the side-by-side render) was not run in this session (4 GiB memory cap), so these 3 pairs are unchecked.
+
+- Agent call: in the shell `DeskAgent` and `DeskRules` draw one `main` themselves (not through `DeskFrame`): a column (`PageHeader`, tab strip, scroll area) and, beside it, the side pane. The setup warning is passed as `lead` to the first item of each tab's scroll area (`AgentList`, `PanelScroll`, the rules list).
+- Agent call: BR-44: "Manage installation on GitHub" and "Send test ping" are removed in both branches; the action row now exists only in polling mode, for "Check now".

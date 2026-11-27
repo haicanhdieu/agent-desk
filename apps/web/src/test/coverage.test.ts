@@ -20,8 +20,8 @@ const boardModules = [
 ];
 
 describe('storybook coverage of prototype boards', () => {
-  it('lists exactly the 428 boards of canvas.json, in order', () => {
-    expect(order).toHaveLength(428);
+  it('lists exactly the 431 boards of canvas.json, in order', () => {
+    expect(order).toHaveLength(431);
     expect(Object.keys(boardStories)).toEqual(order);
   });
 

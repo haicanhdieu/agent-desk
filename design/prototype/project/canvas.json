@@ -3433,6 +3433,30 @@
    "h": 900,
    "title": "Workspace setup in the shell: project menu, page header and editor",
    "expand": "fill"
+  },
+  "DeskRulesSideMenu.dc.html": {
+   "x": 12160,
+   "y": 96560,
+   "w": 1440,
+   "h": 900,
+   "title": "Routing rules in the shell: project menu, page header and rule list",
+   "expand": "fill"
+  },
+  "DeskRulesSideMenuSetupWarning.dc.html": {
+   "x": 13680,
+   "y": 96560,
+   "w": 1440,
+   "h": 900,
+   "title": "Routing rules in the shell: setup warning first in the list",
+   "expand": "fill"
+  },
+  "DeskAgentSideMenu.dc.html": {
+   "x": 15200,
+   "y": 96560,
+   "w": 1440,
+   "h": 900,
+   "title": "Agent and settings in the shell: project menu, page header, tab strip and agent list",
+   "expand": "fill"
   }
  },
  "order": [
@@ -3863,7 +3887,10 @@
   "RunsNotFoundSideMenu.dc.html",
   "DeskRulesForbiddenSideMenu.dc.html",
   "DeskSkillsSideMenu.dc.html",
-  "DeskSetupSideMenu.dc.html"
+  "DeskSetupSideMenu.dc.html",
+  "DeskRulesSideMenu.dc.html",
+  "DeskRulesSideMenuSetupWarning.dc.html",
+  "DeskAgentSideMenu.dc.html"
  ],
  "notes": {
   "t-intro": {

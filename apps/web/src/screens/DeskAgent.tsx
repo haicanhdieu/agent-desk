@@ -1,10 +1,18 @@
 import { useState, type ReactNode } from 'react';
 import { TabPanel, Tabs } from '@/ds';
-import { AppShell, type AgentListProps, type AgentPaneProps, type DeleteAgentDialogProps } from '@/components';
+import {
+  AgentPane,
+  AppShell,
+  PageHeader,
+  useShellOwnsChrome,
+  type AgentListProps,
+  type AgentPaneProps,
+  type DeleteAgentDialogProps,
+} from '@/components';
 import { DEFAULT_POLL_INTERVAL } from '@/mocks/connection';
 import type { ConnectionStatus, PollInterval, TriggerMode } from '@/mocks/types';
 import styles from './Screens.module.css';
-import { DeskFrame, type DeskFrameData } from './DeskFrame';
+import { DeskFrame, SetupWarningBanner, type DeskFrameData } from './DeskFrame';
 import {
   AgentsPanel,
   DangerPanel,
@@ -142,54 +150,78 @@ export function DeskAgent({
     onTriggerChange?.(next);
   };
 
+  const owned = useShellOwnsChrome();
+  const lead = frame.warning ? <SetupWarningBanner warning={frame.warning} /> : undefined;
+  const strip = (
+    <div className={styles.agentTabs}>
+      <Tabs tabs={tabs} value={active} onChange={changeTab} label="Agent and project settings" idPrefix={TAB_PREFIX} />
+    </div>
+  );
+  const panels = (shell: boolean) => (
+    <>
+      <TabPanel value="agents" active={active} idPrefix={TAB_PREFIX}>
+        <AgentsPanel
+          list={agents}
+          pane={shell ? undefined : pane}
+          deleteDialog={deleteDialog}
+          lead={shell ? lead : undefined}
+        />
+      </TabPanel>
+      <TabPanel value="github" active={active} idPrefix={TAB_PREFIX}>
+        <GitHubPanel
+          state={githubState}
+          error={githubError}
+          onRetry={onRetryGithub}
+          items={github}
+          mode={mode}
+          interval={interval}
+          onTriggerChange={pick}
+          triggerError={triggerError}
+          onCheckNow={onCheckNow}
+          checkingNow={checkingNow}
+          checkNowError={checkNowError}
+          lead={shell ? lead : undefined}
+        />
+      </TabPanel>
+      <TabPanel value="limits" active={active} idPrefix={TAB_PREFIX}>
+        <LimitsTab
+          limits={limits}
+          onSave={onSaveLimits}
+          errors={limitsErrors}
+          error={limitsError}
+          saving={savingLimits}
+          readOnly={limitsReadOnly}
+          lead={shell ? lead : undefined}
+        />
+      </TabPanel>
+      {onDeleteProject && (
+        <TabPanel value="danger" active={active} idPrefix={TAB_PREFIX}>
+          <DangerPanel onDeleteProject={onDeleteProject} lead={shell ? lead : undefined} />
+        </TabPanel>
+      )}
+    </>
+  );
+  if (owned) {
+    // The shell draws the bar and the menu: one main holding the column (header, tabs, panel) and the side pane.
+    return (
+      <main className={styles.shellSplitMain}>
+        <div className={`${styles.agentSettingsMain} ${styles.shellSplitCol}`}>
+          <PageHeader title="Agent & settings" />
+          {strip}
+          {panels(true)}
+        </div>
+        {active === 'agents' && pane && <AgentPane key={`${pane.mode}-${pane.agent?.id ?? 'new'}`} {...pane} />}
+      </main>
+    );
+  }
   const page = (
     <DeskFrame active="agent" {...frame} connection={connection ?? frame.connection}>
       <main className={styles.agentSettingsMain}>
         <div className={styles.agentHead}>
           <h1>Agent &amp; settings</h1>
         </div>
-        <div className={styles.agentTabs}>
-          <Tabs
-            tabs={tabs}
-            value={active}
-            onChange={changeTab}
-            label="Agent and project settings"
-            idPrefix={TAB_PREFIX}
-          />
-        </div>
-        <TabPanel value="agents" active={active} idPrefix={TAB_PREFIX}>
-          <AgentsPanel list={agents} pane={pane} deleteDialog={deleteDialog} />
-        </TabPanel>
-        <TabPanel value="github" active={active} idPrefix={TAB_PREFIX}>
-          <GitHubPanel
-            state={githubState}
-            error={githubError}
-            onRetry={onRetryGithub}
-            items={github}
-            mode={mode}
-            interval={interval}
-            onTriggerChange={pick}
-            triggerError={triggerError}
-            onCheckNow={onCheckNow}
-            checkingNow={checkingNow}
-            checkNowError={checkNowError}
-          />
-        </TabPanel>
-        <TabPanel value="limits" active={active} idPrefix={TAB_PREFIX}>
-          <LimitsTab
-            limits={limits}
-            onSave={onSaveLimits}
-            errors={limitsErrors}
-            error={limitsError}
-            saving={savingLimits}
-            readOnly={limitsReadOnly}
-          />
-        </TabPanel>
-        {onDeleteProject && (
-          <TabPanel value="danger" active={active} idPrefix={TAB_PREFIX}>
-            <DangerPanel onDeleteProject={onDeleteProject} />
-          </TabPanel>
-        )}
+        {strip}
+        {panels(false)}
       </main>
     </DeskFrame>
   );

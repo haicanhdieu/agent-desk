@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
-import type { ComponentProps, ReactElement } from 'react';
+import type { ComponentProps, ReactElement, ReactNode } from 'react';
 import { fn, userEvent, within } from 'storybook/test';
 import {
   AddProjectMemberDialog,
@@ -89,6 +89,20 @@ const meta = {
 } satisfies Meta;
 export default meta;
 type Story = StoryObj<typeof meta>;
+
+/** The project shell around the Routing rules board: the page draws only its own header and body. */
+const RulesShell = ({ children }: { children: ReactNode }) => (
+  <ProjectShellFrame page="rules" fill crumbs={[{ label: 'Routing rules' }]}>
+    {children}
+  </ProjectShellFrame>
+);
+
+/** The project shell around an Agent & settings board. */
+const AgentShell = ({ children }: { children: ReactNode }) => (
+  <ProjectShellFrame page="agents" fill crumbs={[{ label: 'Agent & settings' }]}>
+    {children}
+  </ProjectShellFrame>
+);
 
 const artboard = (height: number): NonNullable<Story['decorators']> => [
   (S) => (
@@ -357,29 +371,29 @@ const agentRuleDraft = (patch: Partial<RuleDraft>): RuleDraft => ({
 });
 
 const rulesAgentBoard = (pane: Partial<ComponentProps<typeof RulePane>> & { value: RuleDraft }): Story => ({
-  decorators: artboard(900),
-  globals: viewport(1440, 900),
   render: () => (
-    <DeskRulesScreen
-      frame={deskFrame}
-      rules={agentRules}
-      skills={skills.map((s) => s.name)}
-      editingId="r6"
-      maxRunsPerTicket={agentSettings.maxRunsPerTicket}
-      form={
-        <RulePane
-          title="Edit rule"
-          skills={skills.map((s) => s.name)}
-          modelField={modelField}
-          promptPreview={promptReady}
-          onChange={() => undefined}
-          onClose={() => undefined}
-          onSave={() => undefined}
-          onDelete={() => undefined}
-          {...pane}
-        />
-      }
-    />
+    <RulesShell>
+      <DeskRulesScreen
+        frame={deskFrame}
+        rules={agentRules}
+        skills={skills.map((s) => s.name)}
+        editingId="r6"
+        maxRunsPerTicket={agentSettings.maxRunsPerTicket}
+        form={
+          <RulePane
+            title="Edit rule"
+            skills={skills.map((s) => s.name)}
+            modelField={modelField}
+            promptPreview={promptReady}
+            onChange={() => undefined}
+            onClose={() => undefined}
+            onSave={() => undefined}
+            onDelete={() => undefined}
+            {...pane}
+          />
+        }
+      />
+    </RulesShell>
   ),
 });
 
@@ -437,14 +451,16 @@ export const DeskRulesAgentFitsViewport: Story = {
   ],
   globals: viewport(1440, 900),
   render: () => (
-    <DeskRulesScreen
-      frame={deskFrame}
-      height="viewport"
-      rules={pagedRules(20)}
-      skills={skills.map((s) => s.name)}
-      maxRunsPerTicket={agentSettings.maxRunsPerTicket}
-      pagination={pagination(1, 24)}
-    />
+    <RulesShell>
+      <DeskRulesScreen
+        frame={deskFrame}
+        height="viewport"
+        rules={pagedRules(20)}
+        skills={skills.map((s) => s.name)}
+        maxRunsPerTicket={agentSettings.maxRunsPerTicket}
+        pagination={pagination(1, 24)}
+      />
+    </RulesShell>
   ),
 };
 
@@ -453,130 +469,130 @@ const promptReady = { state: 'ready', systemLines: promptSystemLines } as const;
 /** Editing a custom prompt rule: the prompt, its counter and the read-only lines Agent Desk adds. */
 export const DeskRulesAgentPrompt: Story = {
   name: 'Routing rules, custom prompt',
-  decorators: artboard(1080),
-  globals: viewport(1440, 1080),
   render: () => (
-    <DeskRulesScreen
-      frame={deskFrame}
-      rules={rules}
-      skills={skills.map((s) => s.name)}
-      editingId="r6"
-      maxRunsPerTicket={agentSettings.maxRunsPerTicket}
-      promptPreview={promptReady}
-      modelField={modelField}
-    />
+    <RulesShell>
+      <DeskRulesScreen
+        frame={deskFrame}
+        rules={rules}
+        skills={skills.map((s) => s.name)}
+        editingId="r6"
+        maxRunsPerTicket={agentSettings.maxRunsPerTicket}
+        promptPreview={promptReady}
+        modelField={modelField}
+      />
+    </RulesShell>
   ),
 };
 
 /** New custom prompt rule: nothing typed yet, the system lines still loading. */
 export const DeskRulesAgentPromptNew: Story = {
   name: 'Routing rules, new custom prompt',
-  decorators: artboard(1080),
-  globals: viewport(1440, 1080),
   render: () => (
-    <DeskRulesScreen
-      frame={deskFrame}
-      rules={rules}
-      skills={skills.map((s) => s.name)}
-      maxRunsPerTicket={agentSettings.maxRunsPerTicket}
-      form={
-        <RulePane
-          title="New rule"
-          value={{
-            command: 'release-notes',
-            target: 'pr',
-            labels: [],
-            skill: '',
-            kind: 'prompt',
-            prompt: '',
-            agentId: 'agent-claude',
-            agentLabel: 'Claude',
-            enabled: true,
-          }}
-          skills={skills.map((s) => s.name)}
-          modelField={modelField}
-          promptPreview={{ state: 'loading' }}
-          onChange={() => undefined}
-          onClose={() => undefined}
-          onSave={() => undefined}
-        />
-      }
-    />
+    <RulesShell>
+      <DeskRulesScreen
+        frame={deskFrame}
+        rules={rules}
+        skills={skills.map((s) => s.name)}
+        maxRunsPerTicket={agentSettings.maxRunsPerTicket}
+        form={
+          <RulePane
+            title="New rule"
+            value={{
+              command: 'release-notes',
+              target: 'pr',
+              labels: [],
+              skill: '',
+              kind: 'prompt',
+              prompt: '',
+              agentId: 'agent-claude',
+              agentLabel: 'Claude',
+              enabled: true,
+            }}
+            skills={skills.map((s) => s.name)}
+            modelField={modelField}
+            promptPreview={{ state: 'loading' }}
+            onChange={() => undefined}
+            onClose={() => undefined}
+            onSave={() => undefined}
+          />
+        }
+      />
+    </RulesShell>
   ),
 };
 
 /** Prompt over the limit, and the system lines failed to load. */
 export const DeskRulesAgentPromptError: Story = {
   name: 'Routing rules, custom prompt errors',
-  decorators: artboard(1080),
-  globals: viewport(1440, 1080),
   render: () => (
-    <DeskRulesScreen
-      frame={deskFrame}
-      rules={rules}
-      skills={skills.map((s) => s.name)}
-      editingId="r6"
-      maxRunsPerTicket={agentSettings.maxRunsPerTicket}
-      form={
-        <RulePane
-          title="Edit rule"
-          value={{
-            command: 'triage',
-            target: 'issue',
-            labels: [],
-            skill: '',
-            kind: 'prompt',
-            prompt: `${TRIAGE_PROMPT}\n${'Check every linked issue as well. '.repeat(120)}`,
-            agentId: 'agent-claude',
-            agentLabel: 'Claude',
-            enabled: true,
-          }}
-          skills={skills.map((s) => s.name)}
-          modelField={modelField}
-          promptPreview={{ state: 'error', onRetry: () => undefined }}
-          errors={{ prompt: 'Keep the prompt to 4000 characters or fewer.' }}
-          onChange={() => undefined}
-          onClose={() => undefined}
-          onSave={() => undefined}
-          onDelete={() => undefined}
-        />
-      }
-    />
+    <RulesShell>
+      <DeskRulesScreen
+        frame={deskFrame}
+        rules={rules}
+        skills={skills.map((s) => s.name)}
+        editingId="r6"
+        maxRunsPerTicket={agentSettings.maxRunsPerTicket}
+        form={
+          <RulePane
+            title="Edit rule"
+            value={{
+              command: 'triage',
+              target: 'issue',
+              labels: [],
+              skill: '',
+              kind: 'prompt',
+              prompt: `${TRIAGE_PROMPT}\n${'Check every linked issue as well. '.repeat(120)}`,
+              agentId: 'agent-claude',
+              agentLabel: 'Claude',
+              enabled: true,
+            }}
+            skills={skills.map((s) => s.name)}
+            modelField={modelField}
+            promptPreview={{ state: 'error', onRetry: () => undefined }}
+            errors={{ prompt: 'Keep the prompt to 4000 characters or fewer.' }}
+            onChange={() => undefined}
+            onClose={() => undefined}
+            onSave={() => undefined}
+            onDelete={() => undefined}
+          />
+        }
+      />
+    </RulesShell>
   ),
 };
 
 /** New rule pane after a save the server refused: a duplicate command (409 with pointer /command). */
 export const DeskRulesAgentNewRuleError: Story = {
   name: 'Routing rules, new rule refused',
-  decorators: artboard(900),
-  globals: viewport(1440, 900),
   render: () => (
-    <DeskRulesScreen
-      frame={deskFrame}
-      rules={rules}
-      skills={skills.map((s) => s.name)}
-      maxRunsPerTicket={agentSettings.maxRunsPerTicket}
-      form={
-        <RulePane
-          title="New rule"
-          value={{
-            command: 'code-build',
-            target: 'pr',
-            labels: [],
-            skill: 'code-build',
-            agentId: 'agent-claude',
-            agentLabel: 'Claude',
-            enabled: true,
-          }}
-          skills={skills.map((s) => s.name)}
-          modelField={modelField}
-          errors={{ command: 'A rule for /code-build already exists in this project.' }}
-          onChange={() => undefined}
-          onClose={() => undefined}
-          onSave={() => undefined}
-        />
-      }
-    />
+    <RulesShell>
+      <DeskRulesScreen
+        frame={deskFrame}
+        rules={rules}
+        skills={skills.map((s) => s.name)}
+        maxRunsPerTicket={agentSettings.maxRunsPerTicket}
+        form={
+          <RulePane
+            title="New rule"
+            value={{
+              command: 'code-build',
+              target: 'pr',
+              labels: [],
+              skill: 'code-build',
+              agentId: 'agent-claude',
+              agentLabel: 'Claude',
+              enabled: true,
+            }}
+            skills={skills.map((s) => s.name)}
+            modelField={modelField}
+            errors={{ command: 'A rule for /code-build already exists in this project.' }}
+            onChange={() => undefined}
+            onClose={() => undefined}
+            onSave={() => undefined}
+          />
+        }
+      />
+    </RulesShell>
   ),
 };
 
@@ -682,10 +698,10 @@ const pickRadio = (c: Canvas, name: string) => userEvent.click(c.getByRole('radi
 /** An Agent & settings board: the Agents tab unless the board says otherwise. One 1440x900 artboard; the panel scrolls. */
 const agentBoard = (name: string, props: Partial<DeskAgentProps>, play?: Story['play']): Story => ({
   name,
-  decorators: artboard(900),
-  globals: viewport(1440, 900),
   render: () => (
-    <DeskAgentScreen frame={deskFrame} limits={agentLimits} github={agentGithub} agents={agentList()} {...props} />
+    <AgentShell>
+      <DeskAgentScreen frame={deskFrame} limits={agentLimits} github={agentGithub} agents={agentList()} {...props} />
+    </AgentShell>
   ),
   play,
 });
@@ -902,14 +918,16 @@ export const DeskAgentListFitsViewport: Story = {
   ],
   globals: viewport(1440, 900),
   render: () => (
-    <DeskAgentScreen
-      frame={deskFrame}
-      height="viewport"
-      limits={agentLimits}
-      github={agentGithub}
-      tab="agents"
-      agents={agentList({ rows: manyAgents(20).map(agentRowView), pagination: paging(45) })}
-    />
+    <AgentShell>
+      <DeskAgentScreen
+        frame={deskFrame}
+        height="viewport"
+        limits={agentLimits}
+        github={agentGithub}
+        tab="agents"
+        agents={agentList({ rows: manyAgents(20).map(agentRowView), pagination: paging(45) })}
+      />
+    </AgentShell>
   ),
 };
 
@@ -1029,32 +1047,32 @@ const pagination = (page: number, total: number): PaginationProps => ({
 /** Page 2 of 2 of 24 routing rules: the control sits between the list and the guards card. */
 export const DeskRulesAgentPaged: Story = {
   name: 'Routing rules, page 2 of 2',
-  decorators: artboard(900),
-  globals: viewport(1440, 900),
   render: () => (
-    <DeskRulesScreen
-      frame={deskFrame}
-      rules={pagedRules(24).slice(20)}
-      skills={skills.map((s) => s.name)}
-      maxRunsPerTicket={agentSettings.maxRunsPerTicket}
-      pagination={pagination(2, 24)}
-    />
+    <RulesShell>
+      <DeskRulesScreen
+        frame={deskFrame}
+        rules={pagedRules(24).slice(20)}
+        skills={skills.map((s) => s.name)}
+        maxRunsPerTicket={agentSettings.maxRunsPerTicket}
+        pagination={pagination(2, 24)}
+      />
+    </RulesShell>
   ),
 };
 
 /** No routing rules: the empty state, no control. */
 export const DeskRulesAgentEmpty: Story = {
   name: 'Routing rules, empty',
-  decorators: artboard(900),
-  globals: viewport(1440, 900),
   render: () => (
-    <DeskRulesScreen
-      frame={deskFrame}
-      rules={[]}
-      skills={skills.map((s) => s.name)}
-      maxRunsPerTicket={agentSettings.maxRunsPerTicket}
-      pagination={pagination(1, 0)}
-    />
+    <RulesShell>
+      <DeskRulesScreen
+        frame={deskFrame}
+        rules={[]}
+        skills={skills.map((s) => s.name)}
+        maxRunsPerTicket={agentSettings.maxRunsPerTicket}
+        pagination={pagination(1, 0)}
+      />
+    </RulesShell>
   ),
 };
 
@@ -1717,6 +1735,49 @@ export const DeskRulesForbiddenSideMenu: Story = deskShellStory({
           <p className="muted">Ask an owner of this organization to give you access.</p>
         </div>
       </main>
+    </ProjectShellFrame>
+  ),
+});
+
+const rulesShellProps = {
+  rules: agentRules,
+  skills: skills.map((s) => s.name),
+  maxRunsPerTicket: agentSettings.maxRunsPerTicket,
+};
+
+export const DeskRulesSideMenu: Story = deskShellStory({
+  name: 'Routing rules, side menu',
+  render: () => (
+    <ProjectShellFrame page="rules" fill crumbs={[{ label: 'Routing rules' }]}>
+      <DeskRulesScreen frame={deskFrame} {...rulesShellProps} />
+    </ProjectShellFrame>
+  ),
+});
+
+export const DeskRulesSideMenuSetupWarning: Story = deskShellStory({
+  name: 'Routing rules, side menu, setup warning',
+  render: () => (
+    <ProjectShellFrame page="rules" fill crumbs={[{ label: 'Routing rules' }]}>
+      <DeskRulesScreen
+        frame={{
+          ...deskFrame,
+          warning: {
+            title: 'The setup script changed since the last passing test',
+            detail: 'Runs use the saved script as it is. Test it again to be sure it still works.',
+            href: '#',
+          },
+        }}
+        {...rulesShellProps}
+      />
+    </ProjectShellFrame>
+  ),
+});
+
+export const DeskAgentSideMenu: Story = deskShellStory({
+  name: 'Agent & settings, side menu',
+  render: () => (
+    <ProjectShellFrame page="agents" fill crumbs={[{ label: 'Agent & settings' }]}>
+      <DeskAgentScreen frame={deskFrame} tab="agents" limits={agentLimits} github={agentGithub} agents={agentList()} />
     </ProjectShellFrame>
   ),
 });

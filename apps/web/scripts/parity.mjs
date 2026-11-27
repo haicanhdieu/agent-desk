@@ -468,6 +468,9 @@ const stories = {
   DeskRulesForbiddenSideMenu: ['Screens/Desk', 'DeskRulesForbiddenSideMenu'],
   DeskSkillsSideMenu: ['Screens/Desk', 'DeskSkillsSideMenu'],
   DeskSetupSideMenu: ['Screens/Desk', 'DeskSetupSideMenu'],
+  DeskRulesSideMenu: ['Screens/Desk', 'DeskRulesSideMenu'],
+  DeskRulesSideMenuSetupWarning: ['Screens/Desk', 'DeskRulesSideMenuSetupWarning'],
+  DeskAgentSideMenu: ['Screens/Desk', 'DeskAgentSideMenu'],
 };
 
 const types = {
