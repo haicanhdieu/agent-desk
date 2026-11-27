@@ -555,10 +555,10 @@ Add an `it.each` over `tenantAccessFixtures` (owner, admin, projectAdmin, member
 - Consumes: approved boards `OrgMembersSideMenu`, `OrgMembersSideMenuCollapsed`, `OrgMembersSideMenuLoading`, `OrgMembersSideMenuError`, `OrgInvitationsSettingsSideMenuProjectAdmin`, `OrgAuditForbiddenSideMenu`, `OrgSuspendedNoMenu`, `OrgSuspendedPlainName`.
 - Produces: the about 77 `Org*` canvas boards Tasks 18 and 24 match.
 
-- [ ] **Step 0: Multi-agent gate.** Run both checks in "Multi-agent gate". If either fails, stop: write no code and report which check failed.
-- [ ] **Step 1: Redraw** the `Org*` boards listed in `canvas.json` (files starting `Org`): shell as in the approved boards, "Organization menu" with Projects and "Settings" in the order Members, Invitations, Audit log, General, one 22px page header.
-- [ ] **Step 2: Regenerate** with `build-boards.mjs`, run the Task 6 grep over `Org*.dc.html` (prints nothing) and VITEST `src/test/coverage.test.ts`.
-- [ ] **Step 3: Commit** `docs(design): redraw organization boards in the new shell` (board-only note in the PR).
+- [x] **Step 0: Multi-agent gate.** Run both checks in "Multi-agent gate". If either fails, stop: write no code and report which check failed.
+- [x] **Step 1: Redraw** the `Org*` boards listed in `canvas.json` (files starting `Org`): shell as in the approved boards, "Organization menu" with Projects and "Settings" in the order Members, Invitations, Audit log, General, one 22px page header.
+- [x] **Step 2: Regenerate** with `build-boards.mjs`, run the Task 6 grep over `Org*.dc.html` (prints nothing) and VITEST `src/test/coverage.test.ts`.
+- [x] **Step 3: Commit** `docs(design): redraw organization boards in the new shell` (board-only note in the PR).
 
 ### Task 8: Redraw the platform boards (after the multi-agent gate)
 
