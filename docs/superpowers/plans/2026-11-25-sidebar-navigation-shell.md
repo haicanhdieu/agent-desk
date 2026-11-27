@@ -1254,13 +1254,13 @@ export function useShellData(input: ShellInput): ShellData;
 
 - Produces: both routes `beforeLoad: throw redirect({ to: '/o/$org/p/$project/runs', params, replace: true })`; no permission guard, no loader, no screen.
 
-- [ ] **Step 0: Multi-agent gate.** Run both checks in "Multi-agent gate". If either fails, stop: write no code and report which check failed.
-- [ ] **Step 1: Write the failing test** (allowed lowest role, out of scope, other org, for both URLs, `/desk` with and without a trailing slash): owner, admin, project admin, member and viewer land on Runs; the redirect itself requests no Desk data; Back returns to the page before; an unknown, other-org or out-of-scope project is Not found without its name; each of the six `/desk/<page>` routes still opens its own page; `/desk/<x>` unknown and a top-level `/desk` stay Not found; `/desk/agent?tab=limits` keeps its search, opens "Limits" and does not redirect to Runs (BR-82).
-- [ ] **Step 2: Run** VITEST `src/features/desk/bareRedirect.route.test.tsx`. Expected: FAIL (Not found).
-- [ ] **Step 3: Add** the two route files and regenerate `routeTree.gen.ts` with `pnpm --filter @agentdesk/web exec vite build --mode mock`.
-- [ ] **Step 4: Add** mock e2e "TC-29.1", "TC-29.2", "TC-29.3", "TC-82.1", "TC-82.2", "TC-82.3", "TC-82.4", "TC-82.5", "TC-82.6". (Local halves and TC-29.4: Task 44.)
-- [ ] **Step 5: Run** the test and MOCK `side-nav`. Expected: PASS.
-- [ ] **Step 6: Commit** `feat(web): redirect bare project and desk URLs to runs`.
+- [x] **Step 0: Multi-agent gate.** Run both checks in "Multi-agent gate". If either fails, stop: write no code and report which check failed.
+- [x] **Step 1: Write the failing test** (allowed lowest role, out of scope, other org, for both URLs, `/desk` with and without a trailing slash): owner, admin, project admin, member and viewer land on Runs; the redirect itself requests no Desk data; Back returns to the page before; an unknown, other-org or out-of-scope project is Not found without its name; each of the six `/desk/<page>` routes still opens its own page; `/desk/<x>` unknown and a top-level `/desk` stay Not found; `/desk/agent?tab=limits` keeps its search, opens "Limits" and does not redirect to Runs (BR-82).
+- [x] **Step 2: Run** VITEST `src/features/desk/bareRedirect.route.test.tsx`. Expected: FAIL (Not found).
+- [x] **Step 3: Add** the two route files and regenerate `routeTree.gen.ts` with `pnpm --filter @agentdesk/web exec vite build --mode mock`.
+- [x] **Step 4: Add** mock e2e "TC-29.1", "TC-29.2", "TC-29.3", "TC-82.1", "TC-82.2", "TC-82.3", "TC-82.4", "TC-82.5", "TC-82.6". (Local halves and TC-29.4: Task 44.)
+- [x] **Step 5: Run** the test and MOCK `side-nav`. Expected: PASS.
+- [x] **Step 6: Commit** `feat(web): redirect bare project and desk URLs to runs`.
 
 ### Task 32: Switching project keeps the page and drops drafts (BR-48 to BR-52, BR-54, BR-68) (after the multi-agent gate)
 

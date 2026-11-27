@@ -976,3 +976,92 @@ test.describe('Review Focus 3: long names do not widen the page', () => {
     }
   });
 });
+
+test.describe('BR-29, BR-82: the bare project URL and the bare /desk URL', () => {
+  const bareUrl = (project = P1) => `/o/${ORG}/p/${project}`;
+  const bareDesk = (project = P1) => `${bareUrl(project)}/desk`;
+  const runsH1 = (page: Page): Locator => page.getByRole('heading', { name: 'Runs', level: 1 });
+  const notFound = (page: Page): Locator => page.getByRole('heading', { name: 'Page not found' });
+
+  test('TC-29.1: the bare project URL opens that project Runs page', async ({ page }) => {
+    await seedProjectSpace(page, { role: 'viewer' });
+    await page.goto(bareUrl());
+    await expect(page).toHaveURL(new RegExp(`/o/${ORG}/p/${P1}/runs$`));
+    await expect(runsH1(page)).toBeVisible();
+  });
+
+  test('TC-29.2: an admin of P1 only opening P2 sees Page not found without P2 named', async ({ page }) => {
+    await seedProjectSpace(page, { role: 'projectAdmin' });
+    await page.goto(bareUrl(P2));
+    await expect(notFound(page)).toBeVisible();
+    await expect(page.getByText('invoicer-web')).toHaveCount(0);
+  });
+
+  test('TC-29.3: a well-formed project id that does not exist shows Page not found', async ({ page }) => {
+    await seedProjectSpace(page, { role: 'member' });
+    await page.goto(bareUrl('0badc0de-0000-4000-8000-00000000abcd'));
+    await expect(notFound(page)).toBeVisible();
+  });
+
+  for (const role of ['owner', 'admin', 'projectAdmin', 'member', 'viewer'] as const) {
+    test(`TC-82.1: a ${role} opening /desk lands on Runs with no forbidden state`, async ({ page }) => {
+      await seedProjectSpace(page, { role });
+      await page.goto(bareDesk());
+      await expect(page).toHaveURL(new RegExp(`/o/${ORG}/p/${P1}/runs$`));
+      await expect(runsH1(page)).toBeVisible();
+      await expect(page.getByRole('heading', { name: "You don't have access" })).toHaveCount(0);
+    });
+  }
+
+  test('TC-82.2: Back after the /desk redirect returns to the earlier page and stays', async ({ page }) => {
+    await seedProjectSpace(page, { role: 'owner' });
+    for (const url of [bareDesk(), `${bareDesk()}/`]) {
+      await page.goto(`/o/${ORG}/projects`);
+      await expect(page.getByRole('heading', { name: 'Projects', level: 1 })).toBeVisible();
+      await page.goto(url);
+      await expect(runsH1(page)).toBeVisible();
+      await page.goBack();
+      await expect(page).toHaveURL(new RegExp(`/o/${ORG}/projects$`));
+      await expect(page.getByRole('heading', { name: 'Projects', level: 1 })).toBeVisible();
+      await expect(runsH1(page)).toHaveCount(0);
+    }
+  });
+
+  test('TC-82.3: an admin of P1 only opening P2 /desk sees Page not found and the org menu', async ({ page }) => {
+    await seedProjectSpace(page, { role: 'projectAdmin' });
+    await page.goto(bareDesk(P2));
+    await expect(notFound(page)).toBeVisible();
+    await expect(page.getByText('invoicer-web')).toHaveCount(0);
+    await expect(orgMenu(page)).toBeVisible();
+    await expect(projectMenu(page)).toHaveCount(0);
+  });
+
+  test('TC-82.4: another org project /desk under either slug shows Page not found, not named', async ({ page }) => {
+    await seedShell(page, 'foreignOrg');
+    for (const org of [ORG, 'zephyr-foreign']) {
+      await page.goto(`/o/${org}/p/a0000000-0000-4000-8000-000000000006/desk`);
+      await expect(notFound(page)).toBeVisible();
+      await expect(page.getByText('zephyr-secret-ledger')).toHaveCount(0);
+    }
+  });
+
+  test('TC-82.5: unknown project and /desk/nope are not found; /desk/rules opens Routing rules', async ({ page }) => {
+    await seedProjectSpace(page, { role: 'owner' });
+    await page.goto(bareDesk('0badc0de-0000-4000-8000-00000000abcd'));
+    await expect(notFound(page)).toBeVisible();
+    await page.goto(deskUrl('rules'));
+    await expect(page.getByRole('heading', { name: 'Routing rules', level: 1 })).toBeVisible();
+    await expect(runsH1(page)).toHaveCount(0);
+    await page.goto(deskUrl('nope'));
+    await expect(notFound(page)).toBeVisible();
+  });
+
+  test('TC-82.6: /desk/agent?tab=limits keeps its search, opens Limits and not Runs', async ({ page }) => {
+    await seedProjectSpace(page, { role: 'owner' });
+    await page.goto(`${deskUrl('agent')}?tab=limits`);
+    await expect(page.getByRole('heading', { name: 'Agent & settings', level: 1 })).toBeVisible();
+    await expect(page.getByRole('tab', { name: 'Limits', exact: true })).toHaveAttribute('aria-selected', 'true');
+    await expect(page).toHaveURL(/\/desk\/agent\?tab=limits$/);
+    await expect(runsH1(page)).toHaveCount(0);
+  });
+});
