@@ -11,7 +11,7 @@ export interface DialogProps {
   width?: number;
 }
 
-/** Modal dialog. The scrim is absolutely positioned in the nearest positioned ancestor (not portalled). */
+/** Modal dialog. The scrim is fixed to the viewport (not portalled). */
 export function Dialog({ open, title, onClose, children, footer, width = 520 }: DialogProps) {
   const ref = useRef<HTMLDivElement>(null);
   const titleId = useId();

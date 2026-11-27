@@ -43,6 +43,7 @@ export type IconName =
   | 'info'
   | 'grid'
   | 'sliders'
+  | 'menu'
   | 'users';
 
 /** Stroke glyph contents, 24 viewBox. Path data copied from the prototype boards. */
@@ -243,4 +244,5 @@ export const iconPaths: Record<IconName, ReactNode> = {
       <circle cx="18" cy="18" r="2" />
     </>
   ),
+  menu: <path d="M4 7h16M4 12h16M4 17h16" />,
 };

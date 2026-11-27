@@ -107,7 +107,7 @@
 }
 
 .overlay {
-  position: absolute;
+  position: fixed;
   inset: 0;
   /* Above the sticky top bar (z-index 1), so a dialog dims it too. */
   z-index: 2;
@@ -156,4 +156,25 @@
   flex-direction: column;
   gap: 10px;
   z-index: 5;
+}
+@media (max-width: 639px) {
+  .dialog {
+    width: 100% !important;
+  }
+  .pop {
+    /* Callers position and size a popover inline; below 640px the gutters win. Fixed, so the gutters are
+       measured from the viewport and not from the caller's small positioned wrapper. */
+    position: fixed;
+    left: 16px !important;
+    right: 16px !important;
+    width: auto !important;
+    max-width: calc(100vw - 32px);
+    max-height: calc(100vh - 32px);
+    overflow-y: auto;
+  }
+  /* A wrapper-relative top (calc(100% + 8px)) means nothing against the viewport: keep the in-flow position.
+     Popovers with an inline transform (the terminal notices: top 30%, translateX(-50%)) keep their own top. */
+  .pop:not([style*='position: fixed']):not([style*='transform']) {
+    top: auto !important;
+  }
 }

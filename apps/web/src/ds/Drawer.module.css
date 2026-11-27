@@ -1,0 +1,21 @@
+.root {
+  position: fixed;
+  inset: 0;
+  z-index: 3;
+}
+.scrim {
+  position: absolute;
+  inset: 0;
+  background: var(--scrim);
+}
+.panel {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 280px;
+  max-width: 100%;
+  overflow-y: auto;
+  background: var(--panel);
+  box-shadow: var(--shadow-dialog);
+}

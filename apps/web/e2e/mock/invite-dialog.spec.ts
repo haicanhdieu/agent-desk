@@ -235,3 +235,41 @@ test.describe('BR-29: role and scope options per inviter', () => {
     await expect(dialog(page).getByRole('checkbox', { name: 'invoicer-web' })).toHaveCount(0);
   });
 });
+
+test.describe('sidebar Task 11: the dialog fits a phone', () => {
+  test.use({ viewport: { width: 390, height: 844 }, hasTouch: true });
+
+  test('sidebar Task 11: the Invite people dialog stays inside a 390px viewport at full width after the page is scrolled', async ({
+    page,
+  }) => {
+    await open(page, 'owner');
+    await loadedRows(page);
+    await page.evaluate(() => document.fonts.ready);
+    // The page may scroll inside the app shell, so scroll every element that overflows, and the window too.
+    const scrolled = await page.evaluate(() => {
+      window.scrollTo(0, document.documentElement.scrollHeight);
+      let max = window.scrollY;
+      for (const el of Array.from(document.querySelectorAll<HTMLElement>('body *'))) {
+        if (el.scrollHeight > el.clientHeight && getComputedStyle(el).overflowY !== 'visible') {
+          el.scrollTop = el.scrollHeight;
+          max = Math.max(max, el.scrollTop);
+        }
+      }
+      return max;
+    });
+    expect(scrolled).toBeGreaterThan(0);
+    await openDialog(page);
+    // The dialog's own width (520) is wider than the phone, so a narrower inline width is what shows the
+    // phone rule: below 640px a dialog is full width whatever width its caller asked for.
+    await dialog(page).evaluate((el) => {
+      el.style.width = '320px';
+    });
+    const box = await dialog(page).boundingBox();
+    if (!box) throw new Error('the dialog has no box');
+    expect(box.x).toBeGreaterThanOrEqual(-1);
+    expect(box.y).toBeGreaterThanOrEqual(-1);
+    expect(box.x + box.width).toBeLessThanOrEqual(390 + 1);
+    expect(box.y + box.height).toBeLessThanOrEqual(844 + 1);
+    expect(Math.abs(box.width - 390)).toBeLessThanOrEqual(1);
+  });
+});

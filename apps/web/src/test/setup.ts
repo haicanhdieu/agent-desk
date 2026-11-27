@@ -3,6 +3,7 @@ import { afterAll, afterEach, beforeAll, vi } from 'vitest';
 import { resetSignOutGuard } from '@/features/auth/signOut';
 import { mockDb } from '@/mocks/msw/db';
 import { server } from '@/mocks/msw/node';
+import { installFakeMatchMedia, resetViewportWidth } from './fakeMatchMedia';
 import { FakeEventSource } from './fakeEventSource';
 import { FakeWebSocket } from './fakeWebSocket';
 import { FakeMermaid } from './fakeMermaid';
@@ -45,6 +46,9 @@ Object.defineProperty(globalThis, 'IntersectionObserver', {
 // jsdom has no scrolling; the router's scroll handling calls it on every navigation.
 window.scrollTo = () => undefined;
 
+// jsdom has no matchMedia: `useMediaQuery` reads the width set with `setViewportWidth` (default 1440).
+installFakeMatchMedia();
+
 // jsdom has no EventSource: the realtime hooks get the test double (tests drive it through `FakeEventSource`).
 Object.defineProperty(globalThis, 'EventSource', { value: FakeEventSource, configurable: true, writable: true });
 
@@ -60,6 +64,7 @@ afterEach(() => {
   server.resetHandlers();
   mockDb.reset();
   resetSignOutGuard();
+  resetViewportWidth();
   FakeEventSource.reset();
   FakeWebSocket.reset();
   FakeXterm.reset();

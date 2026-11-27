@@ -66,3 +66,33 @@ test('the top bar brand is the horizontal logo lockup, with the name drawn insid
   await expect(brand.locator('svg[viewBox="0 0 480 120"]')).toBeVisible();
   await expect(brand.locator('svg text')).toHaveText(['Agent Desk']);
 });
+
+test.describe('sidebar Task 11: the popover fits a phone', () => {
+  test.use({ viewport: { width: 390, height: 844 }, hasTouch: true });
+
+  test('sidebar Task 11: the account menu stays inside a 390px viewport with gutters of at least 16px', async ({
+    page,
+  }) => {
+    await page.goto(`/o/${ORG}/projects`);
+    await expect(avatar(page)).toBeVisible();
+    await page.evaluate(() => document.fonts.ready);
+    await avatar(page).click();
+    await expect(menu(page)).toBeVisible();
+    const box = await menu(page).boundingBox();
+    if (!box) throw new Error('the account menu has no box');
+    expect(box.x).toBeGreaterThanOrEqual(16 - 1);
+    expect(390 - (box.x + box.width)).toBeGreaterThanOrEqual(16 - 1);
+    expect(box.y).toBeGreaterThanOrEqual(-1);
+    expect(box.y + box.height).toBeLessThanOrEqual(844 + 1);
+    // Not collapsed: the menu spans the viewport minus the gutters, and Logout is reachable.
+    expect(box.width).toBeGreaterThanOrEqual(240);
+    const logout = menu(page).getByRole('menuitem', { name: 'Logout' });
+    await expect(logout).toBeVisible();
+    const item = await logout.boundingBox();
+    if (!item) throw new Error('Logout has no box');
+    expect(item.x).toBeGreaterThanOrEqual(0);
+    expect(item.y).toBeGreaterThanOrEqual(0);
+    expect(item.x + item.width).toBeLessThanOrEqual(390);
+    expect(item.y + item.height).toBeLessThanOrEqual(844);
+  });
+});

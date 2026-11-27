@@ -637,11 +637,11 @@ Add an `it.each` over `tenantAccessFixtures` (owner, admin, projectAdmin, member
 
 - Produces: `Drawer(props: { open: boolean; label: string; onClose(): void; children: ReactNode }): JSX.Element | null`; `useMediaQuery(query: string): boolean`; `BELOW_DESKTOP = '(max-width: 1023px)'`, `PHONE = '(max-width: 639px)'`; `IconName` adds `'menu'`; `setViewportWidth(px: number): void` from `fakeMatchMedia.ts` (installed by `setup.ts`, default 1440, fires `change`); viewport `390x844` in `artboards`.
 
-- [ ] **Step 1: Write failing tests.** Drawer: closed renders nothing; open is `role="dialog"` with `aria-modal="true"` and the name `label`; focus is trapped (Tab from the last wraps to the first); Escape and a press on the scrim call `onClose` once; on close, focus returns to the element focused before opening. `useMediaQuery` follows `setViewportWidth(1023)` and `(1024)`. Dialog: the overlay has the class whose CSS is `position: fixed`. Icon: `menu` renders.
-- [ ] **Step 2: Run** VITEST on the three files. Expected: FAIL.
-- [ ] **Step 3: Implement** on `useFocusTrap(ref, { active, restoreFocus: true, trap: true, onEscape })`; width 280px, `--scrim`, `--panel`, `--shadow-dialog`. Change `.overlay` to `position: fixed`; below 640px `.dialog` is full width and `.pop` spans the viewport minus 16px gutters and scrolls inside. Add the `Drawer` stories (open, closed) and the icon.
-- [ ] **Step 4: Run** the tests and VITEST `src/test/stories.smoke.test.tsx src/test/cssModules.test.ts`. Expected: PASS.
-- [ ] **Step 5: Commit** `feat(web): add drawer, menu icon and breakpoint hook`.
+- [x] **Step 1: Write failing tests.** Drawer: closed renders nothing; open is `role="dialog"` with `aria-modal="true"` and the name `label`; focus is trapped (Tab from the last wraps to the first); Escape and a press on the scrim call `onClose` once; on close, focus returns to the element focused before opening. `useMediaQuery` follows `setViewportWidth(1023)` and `(1024)`. Dialog: the overlay has the class whose CSS is `position: fixed`. Icon: `menu` renders.
+- [x] **Step 2: Run** VITEST on the three files. Expected: FAIL.
+- [x] **Step 3: Implement** on `useFocusTrap(ref, { active, restoreFocus: true, trap: true, onEscape })`; width 280px, `--scrim`, `--panel`, `--shadow-dialog`. Change `.overlay` to `position: fixed`; below 640px `.dialog` is full width and `.pop` spans the viewport minus 16px gutters and scrolls inside. Add the `Drawer` stories (open, closed) and the icon.
+- [x] **Step 4: Run** the tests and VITEST `src/test/stories.smoke.test.tsx src/test/cssModules.test.ts`. Expected: PASS.
+- [x] **Step 5: Commit** `feat(web): add drawer, menu icon and breakpoint hook`.
 
 ### Task 12: SubNav with groups, badge, states and the repository block
 
