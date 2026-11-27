@@ -6,7 +6,9 @@ import {
   MemberRow,
   memberColumns,
   Pagination,
+  PageHeader,
   RouteLoadError,
+  useShellOwnsChrome,
   type PaginationProps,
 } from '@/components';
 import type { MemberRowView } from '@/mocks/types';
@@ -48,6 +50,7 @@ export function OrgMembers({
   removeConfirm,
   children,
 }: OrgMembersProps) {
+  const owned = useShellOwnsChrome();
   const tableRef = useRef<HTMLDivElement>(null);
   const opened = useRef(false);
   const menuRow = state.kind === 'ready' ? openMenuUserId : undefined;
@@ -119,7 +122,7 @@ export function OrgMembers({
 
   return (
     <>
-      <main className={styles.listMain}>
+      <main className={owned ? styles.shellMain : styles.listMain}>
         {state.kind === 'loading' && (
           <div className={styles.membersLoading} aria-busy="true" role="status" aria-label="Loading">
             <span aria-hidden="true">
@@ -137,9 +140,13 @@ export function OrgMembers({
         )}
         {state.kind === 'ready' && (
           <>
-            <div className={styles.listHead}>
-              <h1 tabIndex={-1}>Members</h1>
-            </div>
+            {owned ? (
+              <PageHeader title="Members" />
+            ) : (
+              <div className={styles.listHead}>
+                <h1 tabIndex={-1}>Members</h1>
+              </div>
+            )}
             <div ref={tableRef}>
               <DataTable columns={memberColumns} busy={state.pagination?.busy}>
                 {state.rows.map((row) => (

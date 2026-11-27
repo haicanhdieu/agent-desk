@@ -13,6 +13,8 @@ import { OrgInvitations, type OrgInvitationsProps } from './OrgInvitations';
 import { MyInvitations, type MyInvitationsState } from './MyInvitations';
 import { CreateOrg, type CreateOrgState, type CreateOrgValues } from './CreateOrg';
 import { OrgSettingsFrame } from './orgSettingsFrame';
+import { OrgShellFrame } from './orgShellFrame';
+import { expectShellOwnedPage, headerActions } from '@/test/shellAssert';
 
 const settingsOrg = { ...orgSwitchFixtures.oneOrgSettings, orgHref: () => '/o/acme/projects', createHref: '/orgs/new' };
 
@@ -885,5 +887,46 @@ describe('OrgInvitations inside the settings layout', () => {
   it('BR-43: the invitation page shows the org bar with no tab active', () => {
     render(<InvitationAccept {...accept({ kind: 'revoked' })} org={settingsOrg} />);
     noTabActive();
+  });
+});
+
+describe('OrgInvitations in the shell', () => {
+  const inShell = (over: Partial<OrgInvitationsProps> = {}, viewer: 'owner' | 'projectAdmin' = 'owner') =>
+    render(
+      <OrgShellFrame viewer={viewer} page="invitations">
+        <OrgInvitations {...listProps(over)} />
+      </OrgShellFrame>,
+    );
+
+  it('ready draws one main with the h1 Invitations and Invite people in the header actions', async () => {
+    const onInvite = vi.fn();
+    inShell({ onInvite });
+    const main = expectShellOwnedPage('Invitations');
+    await userEvent.click(within(headerActions(main)).getByRole('button', { name: 'Invite people' }));
+    expect(onInvite).toHaveBeenCalledTimes(1);
+    expect(within(main).getByRole('group', { name: 'Filter by status' })).toBeInTheDocument();
+  });
+
+  it('a project admin sees only the Invitations item in the Settings group of the menu', () => {
+    inShell({}, 'projectAdmin');
+    expectShellOwnedPage('Invitations');
+    const menu = screen.getByRole('navigation', { name: 'Organization menu' });
+    expect(within(menu).getByRole('link', { name: 'Invitations' })).toHaveAttribute('aria-current', 'page');
+    expect(within(menu).queryByRole('link', { name: 'Members' })).toBeNull();
+  });
+
+  it('loading keeps one main and no h1', () => {
+    inShell({ state: { kind: 'loading' } });
+    expectShellOwnedPage(null);
+  });
+
+  it('error keeps one main and no h1', () => {
+    inShell({ state: { kind: 'error', onRetry: vi.fn() } });
+    expectShellOwnedPage(null);
+  });
+
+  it('forbidden keeps one main with the no-access h1', () => {
+    inShell({ state: { kind: 'forbidden' } });
+    expectShellOwnedPage("You don't have access", { pageHeader: false });
   });
 });

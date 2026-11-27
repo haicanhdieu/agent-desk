@@ -1,6 +1,6 @@
 import { useEffect, useId, useRef } from 'react';
 import { Banner, Button, Field, Icon, PrefixInput, TextInput, Toast, ToastRegion } from '@/ds';
-import { SettingsSection, SlugChangeConfirm } from '@/components';
+import { PageHeader, SettingsSection, SlugChangeConfirm, useShellOwnsChrome } from '@/components';
 import styles from './Screens.module.css';
 
 interface FieldProps {
@@ -36,6 +36,7 @@ export function OrgGeneral({
   slugConfirm,
   notice,
 }: OrgGeneralProps) {
+  const owned = useShellOwnsChrome();
   const formRef = useRef<HTMLFormElement>(null);
   const prefixId = useId();
   const nameError = name.error;
@@ -43,6 +44,12 @@ export function OrgGeneral({
   useEffect(() => {
     if (nameError || slugError) formRef.current?.querySelector<HTMLInputElement>('input[aria-invalid="true"]')?.focus();
   }, [nameError, slugError]);
+
+  const errorBanner = formError && (
+    <Banner tone="err" icon={<Icon name="warning" size={18} />} title={formError.title} live="assertive" centered>
+      {formError.requestId && <span className={styles.requestId}>Request ID: {formError.requestId}</span>}
+    </Banner>
+  );
 
   if (state.kind === 'forbidden') {
     return (
@@ -57,13 +64,9 @@ export function OrgGeneral({
 
   return (
     <>
-      <main className={styles.generalMain}>
-        <h1 tabIndex={-1}>General</h1>
-        {formError && (
-          <Banner tone="err" icon={<Icon name="warning" size={18} />} title={formError.title} live="assertive" centered>
-            {formError.requestId && <span className={styles.requestId}>Request ID: {formError.requestId}</span>}
-          </Banner>
-        )}
+      <main className={owned ? styles.shellMain : styles.generalMain}>
+        {owned ? <PageHeader title="General" banner={errorBanner} /> : <h1 tabIndex={-1}>General</h1>}
+        {!owned && errorBanner}
         <form
           ref={formRef}
           noValidate

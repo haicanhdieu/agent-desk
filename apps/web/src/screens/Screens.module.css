@@ -88,6 +88,16 @@
   font-size: var(--fs-13);
 }
 
+/* a page inside the shell: the shell draws the bar and the menu, the page draws only its header and body */
+.shellMain {
+  flex: 1;
+  min-width: 0;
+  padding: 24px 32px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
 /* projects list */
 .listMain {
   flex: 1;

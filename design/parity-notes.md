@@ -665,3 +665,13 @@ Board added: SignInProofOfConcept (so `parity.mjs` finds one more board). Storyb
 - PlatformOrgProjects boards: Name is the first column, then Id (BR-71).
 - InvitationAccept boards: the details card has 16px padding (BR-70).
 - Setup3: Preview is a button that opens a dialog (BR-74).
+
+## Sidebar navigation shell: organization screens in the shell (Task 18)
+
+Boards registered (16, canvas order 388 to 404): ProjectsSideMenu, ProjectsMemberSideMenu, ProjectsSideMenuPlatformAdmin, ProjectsSideOneOrg, ProjectsSideSwitcherOpen, ProjectsSideSwitcherLoading, ProjectsSideSwitcherError, ProjectsSideSwitcherOneOrgHeld, ProjectsSideAccountMenu, ProjectsResumeSetup, OrgMembersSideMenu, OrgMembersSideMenuCollapsed, OrgMembersSideMenuError, OrgMembersSideMenuLoading, OrgInvitationsSettingsSideMenuProjectAdmin, OrgAuditForbiddenSideMenu. They sit in a new canvas row at y 91440 and 92720 (8 per row). Only these 16 pairs were rendered side by side (`parity.mjs` itself fails on the base commit: its `Object.fromEntries` call spreads a second argument, so a copy limited to these boards was run).
+
+- Collapse chevron: the board puts it at the right of the menu's first row; `SubNav` (Task 12) puts it at the left. Not changed here.
+- Content padding is 32px as drawn; the gap between the h1 and the intro line is tighter than the board (the shared `PageHeader` spacing).
+- Row actions: the Projects board draws "Agent & settings" as a text button in each row; the app puts it in the row's menu. Same as before this change.
+- Members and the other tables: the stories use the shared fixtures, so names and rows differ from the board's sample data.
+- Agent call: `ProjectsSideSwitcherOneOrgHeld` reaches its state in a `play` step (the list loads, then arrives with one org while the switcher is open), as the person's own click is needed.

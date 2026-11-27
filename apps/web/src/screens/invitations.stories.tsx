@@ -36,6 +36,7 @@ import {
 import { CreateOrg as CreateOrgScreen, type CreateOrgState, type CreateOrgValues } from './CreateOrg';
 import { OrgSettingsFrame } from './orgSettingsFrame';
 import { PlatformFrame } from './platformFrame';
+import { OrgShellFrame } from './orgShellFrame';
 import { viewport } from './viewports';
 
 const noop = () => undefined;
@@ -67,11 +68,15 @@ const meta = {
   parameters: { layout: 'fullscreen' },
   globals: viewport(1440, 900),
   decorators: [
-    (S) => (
-      <AppShell height={900} topBar={null}>
+    // A story with `parameters.shell` brings its own ShellFrame; the others sit in the old bare frame.
+    (S, { parameters }) =>
+      parameters.shell ? (
         <S />
-      </AppShell>
-    ),
+      ) : (
+        <AppShell height={900} topBar={null}>
+          <S />
+        </AppShell>
+      ),
   ],
 } satisfies Meta;
 export default meta;
@@ -570,4 +575,23 @@ export const CreateOrgSlugEdited: Story = {
 export const CreateOrgSlugTaken: Story = {
   name: 'Create organization, URL taken',
   render: () => createOrg(createForm(northwind, { errors: { slug: 'This URL is taken. Try another.' } })),
+};
+
+/** A project admin's organization menu: Projects and, under Settings, only Invitations. */
+export const OrgInvitationsSettingsSideMenuProjectAdmin: Story = {
+  name: 'Organization invitations, menu for an admin of projects only',
+  parameters: { shell: true },
+  render: () => (
+    <OrgShellFrame viewer="projectAdmin" page="invitations" crumbs={[{ label: 'Invitations' }]}>
+      <OrgInvitationsScreen
+        filter="pending"
+        onFilterChange={() => undefined}
+        state={{ kind: 'ready', rows: orgInvitationRows, busyRowId: null }}
+        onInvite={() => undefined}
+        onCopy={() => undefined}
+        onResend={() => undefined}
+        onRevoke={() => undefined}
+      />
+    </OrgShellFrame>
+  ),
 };

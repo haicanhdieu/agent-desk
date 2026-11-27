@@ -405,6 +405,25 @@ export const boardStories = {
   PlatformOrgInvitationsInvite: { title: platform, exportName: 'PlatformOrgInvitationsInvite' },
   PlatformOrgInvitationsResending: { title: platform, exportName: 'PlatformOrgInvitationsResending' },
   PlatformOrgInvitationsCopyFailed: { title: platform, exportName: 'PlatformOrgInvitationsCopyFailed' },
+  ProjectsSideMenu: { title: entry, exportName: 'ProjectsSideMenu' },
+  ProjectsMemberSideMenu: { title: entry, exportName: 'ProjectsMemberSideMenu' },
+  ProjectsSideMenuPlatformAdmin: { title: entry, exportName: 'ProjectsSideMenuPlatformAdmin' },
+  ProjectsSideOneOrg: { title: entry, exportName: 'ProjectsSideOneOrg' },
+  ProjectsSideSwitcherOpen: { title: entry, exportName: 'ProjectsSideSwitcherOpen' },
+  ProjectsSideSwitcherLoading: { title: entry, exportName: 'ProjectsSideSwitcherLoading' },
+  ProjectsSideSwitcherError: { title: entry, exportName: 'ProjectsSideSwitcherError' },
+  ProjectsSideSwitcherOneOrgHeld: { title: entry, exportName: 'ProjectsSideSwitcherOneOrgHeld' },
+  ProjectsSideAccountMenu: { title: entry, exportName: 'ProjectsSideAccountMenu' },
+  ProjectsResumeSetup: { title: entry, exportName: 'ProjectsResumeSetup' },
+  OrgMembersSideMenu: { title: orgSettings, exportName: 'OrgMembersSideMenu' },
+  OrgMembersSideMenuCollapsed: { title: orgSettings, exportName: 'OrgMembersSideMenuCollapsed' },
+  OrgMembersSideMenuError: { title: orgSettings, exportName: 'OrgMembersSideMenuError' },
+  OrgMembersSideMenuLoading: { title: orgSettings, exportName: 'OrgMembersSideMenuLoading' },
+  OrgInvitationsSettingsSideMenuProjectAdmin: {
+    title: invitations,
+    exportName: 'OrgInvitationsSettingsSideMenuProjectAdmin',
+  },
+  OrgAuditForbiddenSideMenu: { title: orgSettings, exportName: 'OrgAuditForbiddenSideMenu' },
 } as const satisfies Record<string, BoardStory>;
 
 export type BoardName = keyof typeof boardStories;

@@ -428,6 +428,22 @@ const stories = {
       'SetupTest',
     ].map((s) => [`Desk${s}`, ['Screens/Desk', `Desk${s}`]]),
   ),
+  ProjectsSideMenu: ['Screens/Entry', 'ProjectsSideMenu'],
+  ProjectsMemberSideMenu: ['Screens/Entry', 'ProjectsMemberSideMenu'],
+  ProjectsSideMenuPlatformAdmin: ['Screens/Entry', 'ProjectsSideMenuPlatformAdmin'],
+  ProjectsSideOneOrg: ['Screens/Entry', 'ProjectsSideOneOrg'],
+  ProjectsSideSwitcherOpen: ['Screens/Entry', 'ProjectsSideSwitcherOpen'],
+  ProjectsSideSwitcherLoading: ['Screens/Entry', 'ProjectsSideSwitcherLoading'],
+  ProjectsSideSwitcherError: ['Screens/Entry', 'ProjectsSideSwitcherError'],
+  ProjectsSideSwitcherOneOrgHeld: ['Screens/Entry', 'ProjectsSideSwitcherOneOrgHeld'],
+  ProjectsSideAccountMenu: ['Screens/Entry', 'ProjectsSideAccountMenu'],
+  ProjectsResumeSetup: ['Screens/Entry', 'ProjectsResumeSetup'],
+  OrgMembersSideMenu: ['Screens/OrgSettings', 'OrgMembersSideMenu'],
+  OrgMembersSideMenuCollapsed: ['Screens/OrgSettings', 'OrgMembersSideMenuCollapsed'],
+  OrgMembersSideMenuError: ['Screens/OrgSettings', 'OrgMembersSideMenuError'],
+  OrgMembersSideMenuLoading: ['Screens/OrgSettings', 'OrgMembersSideMenuLoading'],
+  OrgInvitationsSettingsSideMenuProjectAdmin: ['Screens/Invitations', 'OrgInvitationsSettingsSideMenuProjectAdmin'],
+  OrgAuditForbiddenSideMenu: ['Screens/OrgSettings', 'OrgAuditForbiddenSideMenu'],
 };
 
 const types = {

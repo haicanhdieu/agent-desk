@@ -18,6 +18,7 @@ import { OrgAudit as OrgAuditScreen, type OrgAuditProps } from './OrgAudit';
 import { OrgGeneral as OrgGeneralScreen, type OrgGeneralProps } from './OrgGeneral';
 import { OrgMembers as OrgMembersScreen, type OrgMembersProps } from './OrgMembers';
 import { OrgSettingsFrame } from './orgSettingsFrame';
+import { OrgShellFrame } from './orgShellFrame';
 import { viewport } from './viewports';
 
 const noop = () => undefined;
@@ -27,11 +28,15 @@ const meta = {
   parameters: { layout: 'fullscreen' },
   globals: viewport(1440, 900),
   decorators: [
-    (S) => (
-      <AppShell height={900} topBar={null}>
+    // A story with `parameters.shell` brings its own ShellFrame; the others sit in the old bare frame.
+    (S, { parameters }) =>
+      parameters.shell ? (
         <S />
-      </AppShell>
-    ),
+      ) : (
+        <AppShell height={900} topBar={null}>
+          <S />
+        </AppShell>
+      ),
   ],
 } satisfies Meta;
 export default meta;
@@ -434,3 +439,37 @@ export const OrgAuditInvitationNoEmail: Story = {
   name: 'Audit log, an expired invitation entry without the email',
   render: () => audit({ kind: 'ready', rows: [...auditRows.slice(0, 5), auditRowWith('An invitation expired')] }),
 };
+
+// The org Settings pages in the one shell: the "Organization menu" with Members, Invitations, Audit log and General.
+const shellStory = (story: Story): Story => ({ ...story, parameters: { ...story.parameters, shell: true } });
+const membersCrumbs = [{ label: 'Members' }];
+const membersInShell = (state: OrgMembersProps['state'], frame: Partial<Parameters<typeof OrgShellFrame>[0]> = {}) => (
+  <OrgShellFrame viewer="owner" page="members" crumbs={membersCrumbs} {...frame}>
+    <OrgMembersScreen state={state} onChangeRole={noop} onRemove={noop} />
+  </OrgShellFrame>
+);
+
+export const OrgMembersSideMenu: Story = shellStory({
+  name: 'Organization members, side menu (owner)',
+  render: () => membersInShell(ready(ownerRows)),
+});
+export const OrgMembersSideMenuCollapsed: Story = shellStory({
+  name: 'Organization members, menu collapsed',
+  render: () => membersInShell(ready(ownerRows), { collapsed: true }),
+});
+export const OrgMembersSideMenuError: Story = shellStory({
+  name: 'Organization members, menu could not load',
+  render: () => membersInShell(ready(ownerRows), { viewer: 'error' }),
+});
+export const OrgMembersSideMenuLoading: Story = shellStory({
+  name: 'Organization members, menu loading',
+  render: () => membersInShell(ready(ownerRows), { viewer: 'loading' }),
+});
+export const OrgAuditForbiddenSideMenu: Story = shellStory({
+  name: 'No access, organization menu',
+  render: () => (
+    <OrgShellFrame viewer="projectAdmin" page={null} state="forbidden">
+      <OrgAuditScreen state={{ kind: 'forbidden' }} />
+    </OrgShellFrame>
+  ),
+});

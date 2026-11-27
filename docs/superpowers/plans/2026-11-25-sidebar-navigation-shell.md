@@ -848,13 +848,13 @@ Fill mode (spec "Page fit inside the shell"): the root is the given height and d
 - Consumes: `ShellFrame`, `PageHeader`, `SubNavProps`, `RepoBlock`, switcher states.
 - Produces: `shellMenus.ts` fixtures `orgMenuFixtures` (owner, member, projectAdmin, platformAdmin, loading, error), reused by Tasks 19 to 24 which add their own scopes in their story files' `@/mocks` modules.
 
-- [ ] **Step 0: Multi-agent gate.** Run both checks in "Multi-agent gate". If either fails, stop: write no code and report which check failed.
-- [ ] **Step 1: Write failing screen tests** per the pattern for the six screens.
-- [ ] **Step 2: Run** VITEST on the five test files. Expected: FAIL.
-- [ ] **Step 3: Implement** the owned branch of each screen (Projects keeps its intro as header meta; `ProjectsEmpty` starts from the multi-agent version, "Add an agent").
-- [ ] **Step 4: Move** the org boards' stories onto `ShellFrame` and register `ProjectsSideMenu`, `ProjectsMemberSideMenu`, `ProjectsSideMenuPlatformAdmin`, `ProjectsSideOneOrg`, `ProjectsSideSwitcherOpen`, `ProjectsSideSwitcherLoading`, `ProjectsSideSwitcherError`, `ProjectsSideSwitcherOneOrgHeld`, `ProjectsSideAccountMenu`, `ProjectsResumeSetup`, `OrgMembersSideMenu`, `OrgMembersSideMenuCollapsed`, `OrgMembersSideMenuError`, `OrgMembersSideMenuLoading`, `OrgInvitationsSettingsSideMenuProjectAdmin`, `OrgAuditForbiddenSideMenu` (REG; expected count 404).
-- [ ] **Step 5: Run** the tests, `src/test/coverage.test.ts`, the smoke test and PARITY for the touched boards. Expected: PASS.
-- [ ] **Step 6: Commit** `feat(web): organization screens and stories in the new shell`.
+- [x] **Step 0: Multi-agent gate.** Run both checks in "Multi-agent gate". If either fails, stop: write no code and report which check failed.
+- [x] **Step 1: Write failing screen tests** per the pattern for the six screens.
+- [x] **Step 2: Run** VITEST on the five test files. Expected: FAIL.
+- [x] **Step 3: Implement** the owned branch of each screen (Projects keeps its intro as header meta; `ProjectsEmpty` starts from the multi-agent version, "Add an agent").
+- [x] **Step 4: Move** the org boards' stories onto `ShellFrame` and register `ProjectsSideMenu`, `ProjectsMemberSideMenu`, `ProjectsSideMenuPlatformAdmin`, `ProjectsSideOneOrg`, `ProjectsSideSwitcherOpen`, `ProjectsSideSwitcherLoading`, `ProjectsSideSwitcherError`, `ProjectsSideSwitcherOneOrgHeld`, `ProjectsSideAccountMenu`, `ProjectsResumeSetup`, `OrgMembersSideMenu`, `OrgMembersSideMenuCollapsed`, `OrgMembersSideMenuError`, `OrgMembersSideMenuLoading`, `OrgInvitationsSettingsSideMenuProjectAdmin`, `OrgAuditForbiddenSideMenu` (REG; expected count 404).
+- [x] **Step 5: Run** the tests, `src/test/coverage.test.ts`, the smoke test and PARITY for the touched boards. Expected: PASS.
+- [x] **Step 6: Commit** `feat(web): organization screens and stories in the new shell`.
 
 ### Task 19: Platform screens in the shell (after the multi-agent gate)
 

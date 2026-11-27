@@ -3,7 +3,9 @@ import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { ChangeRoleDialog } from '@/components';
 import { memberRows, roleCards } from '@/mocks';
+import { expectShellOwnedPage } from '@/test/shellAssert';
 import { OrgMembers, type OrgMembersProps } from './OrgMembers';
+import { OrgShellFrame } from './orgShellFrame';
 
 const props = (over: Partial<OrgMembersProps> = {}): OrgMembersProps => ({
   state: { kind: 'ready', rows: memberRows.owner, busyUserId: null },
@@ -242,5 +244,35 @@ describe('OrgMembers remove confirm', () => {
       />,
     );
     expect(screen.getByRole('dialog', { name: 'Change access for Cleo Martin' })).toBeInTheDocument();
+  });
+});
+
+describe('OrgMembers in the shell', () => {
+  const inShell = (p: OrgMembersProps) =>
+    render(
+      <OrgShellFrame viewer="owner" page="members">
+        <OrgMembers {...p} />
+      </OrgShellFrame>,
+    );
+
+  it('ready draws one main with the h1 Members and the table, no chrome of its own', () => {
+    inShell(props());
+    const main = expectShellOwnedPage('Members');
+    expect(within(main).getByRole('table')).toBeInTheDocument();
+  });
+
+  it('loading keeps one main and has no h1', () => {
+    inShell(props({ state: { kind: 'loading' } }));
+    expectShellOwnedPage(null);
+  });
+
+  it('error keeps one main and no h1', () => {
+    inShell(props({ state: { kind: 'error', onRetry: vi.fn() } }));
+    expectShellOwnedPage(null);
+  });
+
+  it('forbidden keeps one main with the no-access h1', () => {
+    inShell(props({ state: { kind: 'forbidden' } }));
+    expectShellOwnedPage("You don't have access", { pageHeader: false });
   });
 });

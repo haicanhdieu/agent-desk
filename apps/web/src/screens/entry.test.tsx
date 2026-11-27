@@ -7,6 +7,8 @@ import { SignIn, SignInNoInvitationError } from './SignIn';
 import { ProjectsEmpty } from './ProjectsEmpty';
 import { Projects } from './Projects';
 import { OrgSuspended } from './OrgSuspended';
+import { OrgShellFrame } from './orgShellFrame';
+import { expectShellOwnedPage, headerActions } from '@/test/shellAssert';
 
 describe('SignIn', () => {
   it('BR-76: says Proof of concept and nothing about a single user per project', () => {
@@ -384,5 +386,61 @@ describe('OrgSuspended', () => {
     ).toBeInTheDocument();
     expect(screen.queryByText(/reason/i)).not.toBeInTheDocument();
     expect(screen.queryByRole('link')).not.toBeInTheDocument();
+  });
+});
+
+describe('Projects and ProjectsEmpty in the shell', () => {
+  const inShell = (ui: ReactElement, viewer: 'owner' | 'member' = 'owner') =>
+    render(
+      <OrgShellFrame viewer={viewer} page="projects">
+        {ui}
+      </OrgShellFrame>,
+    );
+
+  it('Projects draws one main with the h1, the intro as header meta and New project in the header actions', () => {
+    inShell(<Projects user={user} projects={projects} newHref="/new" canCreate />);
+    const main = expectShellOwnedPage('Projects');
+    expect(within(headerActions(main)).getByRole('link', { name: 'New project' })).toHaveAttribute('href', '/new');
+    expect(
+      within(main).getByText('After sign-in you land on this list. It is one click away on the logo.'),
+    ).toBeInTheDocument();
+    expect(within(main).getByRole('table')).toBeInTheDocument();
+  });
+
+  it('Projects without create rights has no header actions', () => {
+    inShell(<Projects user={user} projects={projects} newHref="/new" />, 'member');
+    const main = expectShellOwnedPage('Projects');
+    expect(main.querySelector('[data-page-header-actions]')).toBeNull();
+    expect(within(main).queryByRole('link', { name: 'New project' })).toBeNull();
+  });
+
+  it('the pending-invitations banner follows the h1 inside the page header', () => {
+    inShell(
+      <Projects
+        user={user}
+        projects={projects}
+        newHref="/new"
+        invitationsBanner={{ count: 1, href: '/invitations' }}
+      />,
+    );
+    const main = expectShellOwnedPage('Projects');
+    const banner = within(main).getByText('You have 1 pending invitation.');
+    expect(
+      screen.getByRole('heading', { level: 1 }).compareDocumentPosition(banner) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+  });
+
+  it('ProjectsEmpty with create rights keeps the h1, the four steps and Create project, with no chrome of its own', () => {
+    inShell(<ProjectsEmpty user={user} createHref="/new" canCreate />);
+    const main = expectShellOwnedPage('Create your first project');
+    expect(within(main).getAllByRole('listitem')).toHaveLength(4);
+    expect(within(main).getByText('Add an agent')).toBeInTheDocument();
+    expect(within(main).getByRole('link', { name: 'Create project' })).toHaveAttribute('href', '/new');
+  });
+
+  it('ProjectsEmpty without create rights names who creates projects', () => {
+    inShell(<ProjectsEmpty user={user} createHref="/new" canCreate={false} />, 'member');
+    const main = expectShellOwnedPage('No projects yet', { pageHeader: false });
+    expect(within(main).getByText('An owner or admin of this organization creates projects.')).toBeInTheDocument();
   });
 });

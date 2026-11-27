@@ -1,12 +1,14 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
-import { userEvent, within } from 'storybook/test';
-import { AppShell, NO_PAGE_CRUMBS, RouteSkeleton, TopBar, type OrgSwitchProps } from '@/components';
+import { useEffect, useState } from 'react';
+import { userEvent, waitFor, within } from 'storybook/test';
+import { AppShell, NO_PAGE_CRUMBS, RouteLoadError, RouteSkeleton, TopBar, type OrgSwitchProps } from '@/components';
 import { checklistSteps, pagedProjects, projects, user } from '@/mocks';
 import type { Actor, OrgOption, Project } from '@/mocks/types';
 import { SignIn as SignInScreen, SignInNoInvitationError } from './SignIn';
 import { ProjectsEmpty as ProjectsEmptyScreen } from './ProjectsEmpty';
 import { Projects as ProjectsScreen } from './Projects';
 import { OrgSuspended as OrgSuspendedScreen } from './OrgSuspended';
+import { OrgShellFrame } from './orgShellFrame';
 import { viewport } from './viewports';
 import styles from './Screens.module.css';
 
@@ -60,11 +62,15 @@ const meta = {
   parameters: { layout: 'fullscreen' },
   globals: viewport(1440, 900),
   decorators: [
-    (S) => (
-      <AppShell height={900} topBar={null}>
+    // A story with `parameters.shell` brings its own ShellFrame; the others sit in the old bare frame.
+    (S, { parameters }) =>
+      parameters.shell ? (
         <S />
-      </AppShell>
-    ),
+      ) : (
+        <AppShell height={900} topBar={null}>
+          <S />
+        </AppShell>
+      ),
   ],
 } satisfies Meta;
 export default meta;
@@ -348,3 +354,145 @@ export const OrgSuspendedPlatformAdmin: Story = {
   render: () => suspended(opsAdmin, { ...orgOf(suspendedOrg, [suspendedOrg], true), platformHref: '/platform/orgs' }),
   play: openSwitch,
 };
+
+// The organization screens in the one shell: the page draws only its header and body, the shell draws the bar and the
+// "Organization menu".
+const projectsCrumbs = [{ label: 'Projects' }];
+const severalOrgs = orgOf(harbor, [harbor, northwind, riverside]);
+const shellStory = (story: Story): Story => ({ ...story, parameters: { ...story.parameters, shell: true } });
+const projectsPage = (o: { canCreate?: boolean; resume?: boolean } = {}) => (
+  <ProjectsScreen
+    user={user}
+    projects={projects}
+    newHref="#"
+    canCreate={o.canCreate ?? true}
+    settingsHref={() => '#settings'}
+    switchToPollingHref={() => '#polling'}
+    {...(o.resume && { resumeHref: (p: Project) => (p.id === projects[0]?.id ? '#resume' : undefined) })}
+  />
+);
+
+export const ProjectsSideMenu: Story = shellStory({
+  name: 'Projects, organization menu (owner)',
+  render: () => (
+    <OrgShellFrame viewer="owner" page="projects" org={severalOrgs} crumbs={projectsCrumbs}>
+      {projectsPage()}
+    </OrgShellFrame>
+  ),
+});
+export const ProjectsMemberSideMenu: Story = shellStory({
+  name: 'Projects, organization menu (member or viewer)',
+  render: () => (
+    <OrgShellFrame viewer="member" page="projects" user={sam} crumbs={projectsCrumbs}>
+      {projectsPage({ canCreate: false })}
+    </OrgShellFrame>
+  ),
+});
+export const ProjectsSideMenuPlatformAdmin: Story = shellStory({
+  name: 'Projects, menu with Manage in Platform (platform admin)',
+  render: () => (
+    <OrgShellFrame
+      viewer="platformAdmin"
+      page="projects"
+      user={opsAdmin}
+      org={{ ...orgOf(harbor, [harbor], true), platformHref: '/platform/orgs' }}
+      crumbs={projectsCrumbs}
+    >
+      {projectsPage()}
+    </OrgShellFrame>
+  ),
+});
+export const ProjectsSideOneOrg: Story = shellStory({
+  name: 'One organization: plain organization name',
+  render: () => (
+    <OrgShellFrame viewer="owner" page="projects" org={loneHarbor} crumbs={projectsCrumbs}>
+      {projectsPage()}
+    </OrgShellFrame>
+  ),
+});
+export const ProjectsSideSwitcherOpen: Story = shellStory({
+  name: 'Organization switcher open',
+  render: () => (
+    <OrgShellFrame viewer="owner" page="projects" org={severalOrgs} crumbs={projectsCrumbs}>
+      {projectsPage()}
+    </OrgShellFrame>
+  ),
+  play: openSwitch,
+});
+/** The org list is still loading: the content waits, the menu holds only Projects, the switcher says "Organization". */
+export const ProjectsSideSwitcherLoading: Story = shellStory({
+  name: 'Organization switcher, list loading',
+  render: () => (
+    <OrgShellFrame
+      viewer="member"
+      page="projects"
+      org={{ ...severalOrgs, current: null, orgs: [], list: { status: 'loading' } }}
+      crumbs={projectsCrumbs}
+    >
+      <main className={styles.shellMain} aria-busy="true">
+        <RouteSkeleton />
+      </main>
+    </OrgShellFrame>
+  ),
+  play: openSwitch,
+});
+export const ProjectsSideSwitcherError: Story = shellStory({
+  name: 'Organization switcher, list could not load',
+  render: () => (
+    <OrgShellFrame
+      viewer="error"
+      page="projects"
+      org={{ ...severalOrgs, current: null, orgs: [], list: { status: 'error', onRetry: noop } }}
+      crumbs={projectsCrumbs}
+    >
+      <main className={styles.shellMain}>
+        <RouteLoadError title="Internal server error" onRetry={noop} />
+      </main>
+    </OrgShellFrame>
+  ),
+  play: openSwitch,
+});
+
+/** Opened while the list loads, then the list arrives with one org: the switcher stays a button until it is closed. */
+function HeldOneOrg() {
+  const [loaded, setLoaded] = useState(false);
+  useEffect(() => {
+    const t = setTimeout(() => setLoaded(true), 50);
+    return () => clearTimeout(t);
+  }, []);
+  const org: OrgSwitchProps = loaded
+    ? loneHarbor
+    : { ...loneHarbor, current: null, orgs: [], list: { status: 'loading' } };
+  return (
+    <OrgShellFrame viewer="member" page="projects" org={org} user={sam} crumbs={projectsCrumbs}>
+      {projectsPage({ canCreate: false })}
+    </OrgShellFrame>
+  );
+}
+export const ProjectsSideSwitcherOneOrgHeld: Story = shellStory({
+  name: 'Organization switcher held open with one organization',
+  render: () => <HeldOneOrg />,
+  play: async (ctx) => {
+    await openSwitch(ctx);
+    await waitFor(() => within(ctx.canvasElement).getByRole('link', { name: /Harbor Labs/ }));
+  },
+});
+export const ProjectsSideAccountMenu: Story = shellStory({
+  name: 'Account menu with My invitations',
+  render: () => (
+    <OrgShellFrame viewer="owner" page="projects" org={severalOrgs} crumbs={projectsCrumbs}>
+      {projectsPage()}
+    </OrgShellFrame>
+  ),
+  play: async ({ canvasElement }) => {
+    await userEvent.click(within(canvasElement).getByRole('button', { name: /^Account menu for/ }));
+  },
+});
+export const ProjectsResumeSetup: Story = shellStory({
+  name: 'Projects, a row with Resume setup',
+  render: () => (
+    <OrgShellFrame viewer="owner" page="projects" org={severalOrgs} crumbs={projectsCrumbs}>
+      {projectsPage({ resume: true })}
+    </OrgShellFrame>
+  ),
+});

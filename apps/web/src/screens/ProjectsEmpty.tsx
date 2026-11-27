@@ -1,8 +1,10 @@
 import { Button } from '@/ds';
 import {
   OnboardingChecklist,
+  PageHeader,
   StepCardGrid,
   TopBar,
+  useShellOwnsChrome,
   type OnboardingChecklistState,
   type OrgSwitchProps,
 } from '@/components';
@@ -22,6 +24,9 @@ export interface ProjectsEmptyProps {
   canCreate?: boolean;
 }
 
+const createLead =
+  'A project connects one GitHub repository. Setup takes about five minutes, and you finish ready to trigger a run from an issue comment.';
+
 const steps = [
   { title: 'Connect a repo', body: 'Install the GitHub App on one repository.' },
   { title: 'Add an agent', body: 'Choose the agent you work with and add its credential.' },
@@ -37,10 +42,14 @@ export function ProjectsEmpty({
   invitationsBanner,
   canCreate = false,
 }: ProjectsEmptyProps) {
+  const owned = useShellOwnsChrome();
+  const bar = !owned && (
+    <TopBar variant="global" crumbs={[{ label: 'Projects' }]} user={user} org={org} tabs="org" active="projects" />
+  );
   if (!canCreate) {
     return (
       <>
-        <TopBar variant="global" crumbs={[{ label: 'Projects' }]} user={user} org={org} tabs="org" active="projects" />
+        {bar}
         <main className={styles.emptyNotice}>
           <div className={styles.emptyNoticeCol}>
             {invitationsBanner && <InvitationsBanner {...invitationsBanner} />}
@@ -51,28 +60,42 @@ export function ProjectsEmpty({
       </>
     );
   }
+  const body = (
+    <>
+      {checklist ? <OnboardingChecklist state={checklist} /> : <StepCardGrid steps={steps} />}
+      <div className={styles.emptyActions}>
+        <Button variant="primary" size="lg" icon="plus" href={createHref}>
+          Create project
+        </Button>
+        <span className={`faint ${styles.emptyNote}`}>
+          You can delete a project at any time. Nothing is written to the repo until you save a skill.
+        </span>
+      </div>
+    </>
+  );
+  if (owned) {
+    return (
+      <main className={styles.shellMain}>
+        <PageHeader
+          title="Create your first project"
+          meta={<span className="muted">{createLead}</span>}
+          banner={invitationsBanner && <InvitationsBanner {...invitationsBanner} />}
+        />
+        {body}
+      </main>
+    );
+  }
   return (
     <>
-      <TopBar variant="global" crumbs={[{ label: 'Projects' }]} user={user} org={org} tabs="org" active="projects" />
+      {bar}
       <main className={styles.emptyMain}>
         <div className={styles.emptyCol}>
           {invitationsBanner && <InvitationsBanner {...invitationsBanner} />}
           <div className={styles.emptyHead}>
             <h1>Create your first project</h1>
-            <p className="muted">
-              A project connects one GitHub repository. Setup takes about five minutes, and you finish ready to trigger
-              a run from an issue comment.
-            </p>
+            <p className="muted">{createLead}</p>
           </div>
-          {checklist ? <OnboardingChecklist state={checklist} /> : <StepCardGrid steps={steps} />}
-          <div className={styles.emptyActions}>
-            <Button variant="primary" size="lg" icon="plus" href={createHref}>
-              Create project
-            </Button>
-            <span className={`faint ${styles.emptyNote}`}>
-              You can delete a project at any time. Nothing is written to the repo until you save a skill.
-            </span>
-          </div>
+          {body}
         </div>
       </main>
     </>

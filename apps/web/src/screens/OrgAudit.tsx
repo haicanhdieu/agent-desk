@@ -5,7 +5,9 @@ import {
   DataTable,
   EmptyState,
   Pagination,
+  PageHeader,
   RouteLoadError,
+  useShellOwnsChrome,
   type PaginationProps,
 } from '@/components';
 import type { AuditRowView } from '@/mocks/types';
@@ -21,6 +23,7 @@ export interface OrgAuditProps {
 
 /** The org's Audit log page: when, who and what for each entry, paging, and the states around it. All text, never HTML. */
 export function OrgAudit({ state }: OrgAuditProps) {
+  const owned = useShellOwnsChrome();
   if (state.kind === 'forbidden') {
     return (
       <main className={styles.emptyNotice}>
@@ -33,7 +36,7 @@ export function OrgAudit({ state }: OrgAuditProps) {
   }
 
   return (
-    <main className={styles.listMain}>
+    <main className={owned ? styles.shellMain : styles.listMain}>
       {state.kind === 'loading' && (
         <div className={styles.membersLoading} aria-busy="true" role="status" aria-label="Loading">
           <span aria-hidden="true">
@@ -51,9 +54,13 @@ export function OrgAudit({ state }: OrgAuditProps) {
       )}
       {state.kind === 'ready' && (
         <>
-          <div className={styles.listHead}>
-            <h1 tabIndex={-1}>Audit log</h1>
-          </div>
+          {owned ? (
+            <PageHeader title="Audit log" />
+          ) : (
+            <div className={styles.listHead}>
+              <h1 tabIndex={-1}>Audit log</h1>
+            </div>
+          )}
           <DataTable columns={auditColumns} busy={state.pagination?.busy}>
             {state.rows.map((row) => (
               <AuditRow key={row.id} row={row} />

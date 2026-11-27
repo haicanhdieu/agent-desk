@@ -3113,6 +3113,134 @@
    "h": 900,
    "title": "Agent and settings, Limits tab, read-only",
    "expand": "fill"
+  },
+  "ProjectsSideMenu.dc.html": {
+   "x": 0,
+   "y": 91440,
+   "w": 1440,
+   "h": 900,
+   "title": "Projects, organization menu (owner)",
+   "expand": "fill"
+  },
+  "ProjectsMemberSideMenu.dc.html": {
+   "x": 1520,
+   "y": 91440,
+   "w": 1440,
+   "h": 900,
+   "title": "Projects, organization menu (member or viewer)",
+   "expand": "fill"
+  },
+  "ProjectsSideMenuPlatformAdmin.dc.html": {
+   "x": 3040,
+   "y": 91440,
+   "w": 1440,
+   "h": 900,
+   "title": "Projects, menu with Manage in Platform (platform admin)",
+   "expand": "fill"
+  },
+  "ProjectsSideOneOrg.dc.html": {
+   "x": 4560,
+   "y": 91440,
+   "w": 1440,
+   "h": 900,
+   "title": "One organization: plain organization name",
+   "expand": "fill"
+  },
+  "ProjectsSideSwitcherOpen.dc.html": {
+   "x": 6080,
+   "y": 91440,
+   "w": 1440,
+   "h": 900,
+   "title": "Organization switcher open",
+   "expand": "fill"
+  },
+  "ProjectsSideSwitcherLoading.dc.html": {
+   "x": 7600,
+   "y": 91440,
+   "w": 1440,
+   "h": 900,
+   "title": "Organization switcher, list loading",
+   "expand": "fill"
+  },
+  "ProjectsSideSwitcherError.dc.html": {
+   "x": 9120,
+   "y": 91440,
+   "w": 1440,
+   "h": 900,
+   "title": "Organization switcher, list could not load",
+   "expand": "fill"
+  },
+  "ProjectsSideSwitcherOneOrgHeld.dc.html": {
+   "x": 10640,
+   "y": 91440,
+   "w": 1440,
+   "h": 900,
+   "title": "Organization switcher held open with one organization",
+   "expand": "fill"
+  },
+  "ProjectsSideAccountMenu.dc.html": {
+   "x": 0,
+   "y": 92720,
+   "w": 1440,
+   "h": 900,
+   "title": "Account menu with My invitations",
+   "expand": "fill"
+  },
+  "ProjectsResumeSetup.dc.html": {
+   "x": 1520,
+   "y": 92720,
+   "w": 1440,
+   "h": 900,
+   "title": "Projects, a row with Resume setup",
+   "expand": "fill"
+  },
+  "OrgMembersSideMenu.dc.html": {
+   "x": 3040,
+   "y": 92720,
+   "w": 1440,
+   "h": 900,
+   "title": "Organization members, side menu (owner)",
+   "expand": "fill"
+  },
+  "OrgMembersSideMenuCollapsed.dc.html": {
+   "x": 4560,
+   "y": 92720,
+   "w": 1440,
+   "h": 900,
+   "title": "Organization members, menu collapsed",
+   "expand": "fill"
+  },
+  "OrgMembersSideMenuError.dc.html": {
+   "x": 6080,
+   "y": 92720,
+   "w": 1440,
+   "h": 900,
+   "title": "Organization members, menu could not load",
+   "expand": "fill"
+  },
+  "OrgMembersSideMenuLoading.dc.html": {
+   "x": 7600,
+   "y": 92720,
+   "w": 1440,
+   "h": 900,
+   "title": "Organization members, menu loading",
+   "expand": "fill"
+  },
+  "OrgInvitationsSettingsSideMenuProjectAdmin.dc.html": {
+   "x": 9120,
+   "y": 92720,
+   "w": 1440,
+   "h": 900,
+   "title": "Organization invitations, menu for an admin of projects only",
+   "expand": "fill"
+  },
+  "OrgAuditForbiddenSideMenu.dc.html": {
+   "x": 10640,
+   "y": 92720,
+   "w": 1440,
+   "h": 900,
+   "title": "No access, organization menu",
+   "expand": "fill"
   }
  },
  "order": [
@@ -3503,7 +3631,23 @@
   "PlatformOrgInvitationsPaged.dc.html",
   "PlatformOrgInvitationsInvite.dc.html",
   "PlatformOrgInvitationsResending.dc.html",
-  "PlatformOrgInvitationsCopyFailed.dc.html"
+  "PlatformOrgInvitationsCopyFailed.dc.html",
+  "ProjectsSideMenu.dc.html",
+  "ProjectsMemberSideMenu.dc.html",
+  "ProjectsSideMenuPlatformAdmin.dc.html",
+  "ProjectsSideOneOrg.dc.html",
+  "ProjectsSideSwitcherOpen.dc.html",
+  "ProjectsSideSwitcherLoading.dc.html",
+  "ProjectsSideSwitcherError.dc.html",
+  "ProjectsSideSwitcherOneOrgHeld.dc.html",
+  "ProjectsSideAccountMenu.dc.html",
+  "ProjectsResumeSetup.dc.html",
+  "OrgMembersSideMenu.dc.html",
+  "OrgMembersSideMenuCollapsed.dc.html",
+  "OrgMembersSideMenuError.dc.html",
+  "OrgMembersSideMenuLoading.dc.html",
+  "OrgInvitationsSettingsSideMenuProjectAdmin.dc.html",
+  "OrgAuditForbiddenSideMenu.dc.html"
  ],
  "notes": {
   "t-intro": {

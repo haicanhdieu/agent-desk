@@ -3,9 +3,11 @@ import { Button, Dialog } from '@/ds';
 import {
   DataTable,
   OnboardingChecklist,
+  PageHeader,
   Pagination,
   ProjectRow,
   TopBar,
+  useShellOwnsChrome,
   type OnboardingChecklistState,
   type OrgSwitchProps,
   type PaginationProps,
@@ -42,6 +44,8 @@ export interface ProjectsProps {
   onDeleteProject?: (project: Project) => void;
 }
 
+const intro = 'After sign-in you land on this list. It is one click away on the logo.';
+
 const columns = [
   { key: 'project', header: 'Project' },
   { key: 'github', header: 'GitHub' },
@@ -67,6 +71,7 @@ export function Projects({
   canCreate = false,
   onDeleteProject,
 }: ProjectsProps) {
+  const owned = useShellOwnsChrome();
   const [confirming, setConfirming] = useState<Project>();
   if (projects.length === 0)
     return (
@@ -79,24 +84,34 @@ export function Projects({
         canCreate={canCreate}
       />
     );
+  const newProject = canCreate ? (
+    <Button variant="primary" icon="plus" href={newHref}>
+      New project
+    </Button>
+  ) : undefined;
   return (
     <>
-      <TopBar variant="global" crumbs={[{ label: 'Projects' }]} user={user} org={org} tabs="org" active="projects" />
-      <main className={styles.listMain}>
-        {invitationsBanner && <InvitationsBanner {...invitationsBanner} />}
-        <div className={styles.listHead}>
-          <h1>Projects</h1>
-          {canCreate && (
-            <div className={styles.listActions}>
-              <Button variant="primary" icon="plus" href={newHref}>
-                New project
-              </Button>
+      {!owned && (
+        <TopBar variant="global" crumbs={[{ label: 'Projects' }]} user={user} org={org} tabs="org" active="projects" />
+      )}
+      <main className={owned ? styles.shellMain : styles.listMain}>
+        {owned ? (
+          <PageHeader
+            title="Projects"
+            meta={<span className="muted">{intro}</span>}
+            actions={newProject}
+            banner={invitationsBanner && <InvitationsBanner {...invitationsBanner} />}
+          />
+        ) : (
+          <>
+            {invitationsBanner && <InvitationsBanner {...invitationsBanner} />}
+            <div className={styles.listHead}>
+              <h1>Projects</h1>
+              {newProject && <div className={styles.listActions}>{newProject}</div>}
             </div>
-          )}
-        </div>
-        <p className={`muted ${styles.listIntro}`}>
-          After sign-in you land on this list. It is one click away on the logo.
-        </p>
+            <p className={`muted ${styles.listIntro}`}>{intro}</p>
+          </>
+        )}
         {checklist && <OnboardingChecklist state={checklist} />}
         <DataTable columns={columns} busy={pagination?.busy}>
           {projects.map((p) => (

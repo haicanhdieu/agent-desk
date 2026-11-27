@@ -111,6 +111,7 @@ export {
   projectAuditRowsExpired,
 } from './projectMembers';
 export { orgSettingsFixtures } from './orgSettings';
+export { orgMenuFixtures, withOrgMenuActive, type OrgMenuPage } from './shellMenus';
 export { checklistSteps, pendingInvitationsCount } from './onboarding';
 export {
   invitationCards,

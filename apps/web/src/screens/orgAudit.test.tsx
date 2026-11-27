@@ -1,7 +1,10 @@
+import type { ReactElement } from 'react';
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { auditRows, pagedAuditLastPage, platformSuspendAuditRows } from '@/mocks';
+import { expectShellOwnedPage } from '@/test/shellAssert';
 import { OrgAudit, type OrgAuditProps } from './OrgAudit';
+import { OrgShellFrame } from './orgShellFrame';
 
 const ready = (over: Partial<Extract<OrgAuditProps['state'], { kind: 'ready' }>> = {}): OrgAuditProps => ({
   state: { kind: 'ready', rows: auditRows, ...over },
@@ -91,5 +94,48 @@ describe('OrgAudit platform suspend rows', () => {
     expect(within(reactivated).getByText('Platform admin')).toBeInTheDocument();
     expect(within(suspended).getByText('Platform admin')).toBeInTheDocument();
     expect(screen.queryByText(/reason/i)).not.toBeInTheDocument();
+  });
+});
+
+describe('OrgAudit in the shell', () => {
+  const inShell = (ui: ReactElement) =>
+    render(
+      <OrgShellFrame viewer="owner" page="audit">
+        {ui}
+      </OrgShellFrame>,
+    );
+
+  it('ready draws one main with the h1 Audit log and no chrome of its own', () => {
+    inShell(<OrgAudit {...ready()} />);
+    const main = expectShellOwnedPage('Audit log');
+    expect(
+      within(main)
+        .getAllByRole('columnheader')
+        .map((h) => h.textContent),
+    ).toEqual(['When', 'Who', 'What']);
+  });
+
+  it('loading keeps one main and has no h1', () => {
+    inShell(<OrgAudit state={{ kind: 'loading' }} />);
+    expectShellOwnedPage(null);
+    expect(screen.getByRole('status', { name: 'Loading' })).toBeInTheDocument();
+  });
+
+  it('error keeps one main, no h1, and Retry', () => {
+    inShell(<OrgAudit state={{ kind: 'error', onRetry: vi.fn() }} />);
+    expectShellOwnedPage(null);
+    expect(screen.getByRole('button', { name: 'Retry' })).toBeInTheDocument();
+  });
+
+  it('forbidden keeps one main with the no-access h1 and the menu without an active item', () => {
+    render(
+      <OrgShellFrame viewer="projectAdmin" page={null}>
+        <OrgAudit state={{ kind: 'forbidden' }} />
+      </OrgShellFrame>,
+    );
+    expectShellOwnedPage("You don't have access", { pageHeader: false });
+    expect(
+      within(screen.getByRole('navigation', { name: 'Organization menu' })).queryByRole('link', { current: 'page' }),
+    ).toBeNull();
   });
 });
