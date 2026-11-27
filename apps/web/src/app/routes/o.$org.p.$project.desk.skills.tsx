@@ -32,6 +32,7 @@ const openSkill = (pageNames: string[], allNames: string[] | undefined, wanted: 
   wanted !== undefined && (pageNames.includes(wanted) || allNames?.includes(wanted)) ? wanted : pageNames[0];
 
 export const Route = createFileRoute('/o/$org/p/$project/desk/skills')({
+  staticData: { chrome: { mode: 'standard', scope: 'project', item: 'skills', crumb: 'Skills', fill: true } },
   validateSearch: (search) => SkillsSearch.parse(search),
   loaderDeps: ({ search }) => ({ page: pageOfSearch(search), skill: search.skill }),
   // Desk config is for roles that hold `skill:read` on this project; the guard runs before any loader.

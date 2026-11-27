@@ -837,7 +837,12 @@ const impl: Impl = {
     });
     return toProjectDto(row);
   },
-  'projects.get': ({ params }) => toProjectDto(projectRow(params.projectId)),
+  // A project the caller's seat does not reach is a 404, as from the API: the shell reads it on every project page and
+  // shows no name when it answers 404. (The Projects list is not scoped in the mock, so the connection read stays open.)
+  'projects.get': ({ params }) => {
+    projectInScope(params.projectId);
+    return toProjectDto(projectRow(params.projectId));
+  },
   'projects.update': ({ params, body }) => {
     const row = projectRow(params.projectId);
     Object.assign(row, Object.fromEntries(Object.entries(body).filter(([, v]) => v !== undefined)));
@@ -1152,9 +1157,10 @@ const impl: Impl = {
           query.q,
         ),
       )
-      .sort((a, b) => b.number - a.number)
-      .map((r) => withTicketRunCount(withAgentIdleEnd(r)));
-    return slicePage(matching, query);
+      .sort((a, b) => b.number - a.number);
+    // Only the page is mapped: counting the runs of each ticket for every run would be quadratic in the project's runs.
+    const page = slicePage(matching, query);
+    return { ...page, items: page.items.map((r) => withTicketRunCount(withAgentIdleEnd(r))) };
   },
   // Before byNumber, as in the API: `stats` is not a run number.
   'runs.stats': ({ params, query }) => {

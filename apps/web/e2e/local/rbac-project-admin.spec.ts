@@ -704,14 +704,11 @@ test.describe('BR-26: an org viewer who is also admin on P1', () => {
     const g = await newG();
     let x: Actor | undefined;
     try {
-      x = await freshOrgMember(cast, 'viewer', { type: 'org' });
+      // BR-7: the picker offers only people with no org-wide role and no role on P1, so the person added is one with a role on P2 only.
+      x = await freshOrgMember(cast, 'member', { type: 'project', projectId: cast.p2 });
       const page = g.page;
       await page.goto(`/o/${cast.slug}/p/${cast.p1}/runs`);
-      await page
-        .getByRole('navigation', { name: 'Project sections' })
-        .getByRole('link', { name: 'Project settings' })
-        .click();
-      const side = page.getByRole('navigation', { name: 'Desk' });
+      const side = page.getByRole('navigation', { name: 'Project menu' });
       await side.getByRole('link', { name: 'Members' }).click();
       await expect(page.getByRole('heading', { level: 1, name: 'Members' })).toBeVisible();
       await page.getByRole('button', { name: 'Add member' }).first().click();
@@ -744,7 +741,7 @@ test.describe('BR-26: an org viewer who is also admin on P1', () => {
     const g = await newG();
     try {
       const page = g.page;
-      const main = page.getByRole('navigation', { name: 'Project sections' });
+      const main = page.getByRole('navigation', { name: 'Project menu' });
       const runsUrl = `/o/${cast.slug}/p/${cast.p2}/runs`;
       const run = await runOf(page, cast.rp2);
       // Control: the owner O sees the write controls on P2's active run, so their absence for G is a real difference.
@@ -755,7 +752,8 @@ test.describe('BR-26: an org viewer who is also admin on P1', () => {
       // G reads P2 (its run is listed and opens) but has no write control and no Settings tab.
       await page.goto(runsUrl);
       await expect(page.locator(`a[href="${runsUrl}/${run.number}"]`).first()).toBeVisible();
-      await expect(main.getByRole('link', { name: 'Project settings' })).toHaveCount(0);
+      await expect(main.getByRole('link', { name: /^Runs/ })).toBeVisible();
+      await expect(main.getByRole('link', { name: 'Routing rules' })).toHaveCount(0);
       await expect(page.getByRole('button', { name: 'Finish run' })).toHaveCount(0);
       await page.goto(`${runsUrl}/${run.number}`);
       await expect(page.getByText('Triggered by')).toBeVisible();

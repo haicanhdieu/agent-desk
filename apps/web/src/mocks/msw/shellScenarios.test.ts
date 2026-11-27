@@ -52,6 +52,7 @@ it('the key and every scenario name', () => {
     'connectionWarn',
     'connectionError',
     'noDefaultBranch',
+    'developBranch',
     'longNames',
     'auditOnly',
     'orgUpdateOnly',
@@ -199,6 +200,15 @@ describe('the defining facts', () => {
   it('noDefaultBranch: invoicer-api has no recorded default branch', async () => {
     apply('noDefaultBranch');
     expect((await projectById(P1)).defaultBranch).toBeNull();
+    expect((await projectById(P2)).defaultBranch).toBe('main');
+  });
+
+  it('developBranch: invoicer-api records develop as its default branch and its connection is OK', async () => {
+    apply('developBranch');
+    expect((await projectById(P1)).defaultBranch).toBe('develop');
+    const project = await projectById(P1);
+    const connection = await api.projects.connection({ params: { projectId: P1 } });
+    expect(toConnectionStatus(connection, project, new Date())).toMatchObject({ tone: 'ok', text: 'Connected' });
     expect((await projectById(P2)).defaultBranch).toBe('main');
   });
 

@@ -75,7 +75,7 @@ test('an idle run screen shows the End idle runs after the agent was saved with,
   await expect(page.getByText('Limits saved')).toBeVisible();
 
   // Client-side navigation keeps the mock store (a reload would reseed it).
-  await page.getByRole('navigation', { name: 'Project sections' }).getByRole('link', { name: /^Runs/ }).click();
+  await page.getByRole('navigation', { name: 'Project menu' }).getByRole('link', { name: /^Runs/ }).click();
   await expect(page.getByText(/ends on its own after 10 minutes with nobody attached/)).toBeVisible();
   // The board can list several idle runs: every idle note must show the saved 10m, none a fixed 30m.
   // The idle runs are listed under Needs you; the first page of the default view holds none of them.

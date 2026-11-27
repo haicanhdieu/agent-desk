@@ -300,3 +300,55 @@ test.describe('TC-61.6: a 240 px window keeps a scroll area of at least 120 px a
     });
   }
 });
+
+/** The Project menu's own scroll area: the menu or the first descendant that scrolls vertically. */
+async function menuScroller(page: Page) {
+  const menu = page.getByRole('navigation', { name: 'Project menu' });
+  await expect(menu).toBeVisible();
+  const handle = await menu.evaluateHandle((el) => {
+    const scrolls = (n: HTMLElement) => ['auto', 'scroll'].includes(getComputedStyle(n).overflowY);
+    const all = [el as HTMLElement, ...Array.from(el.querySelectorAll<HTMLElement>('*'))];
+    return all.find((n) => scrolls(n) && n.scrollHeight > n.clientHeight) ?? null;
+  });
+  const found = handle.asElement();
+  if (!found) throw new Error('the Project menu has no scrolling area that overflows');
+  return found;
+}
+
+// TC-6.4 (sidebar spec, page fit with the shell): at 1280x420 and at the 240 px window the page does not scroll,
+// scrolling the side menu moves no heading, tab strip, pager or footer, and the 120 px scroll area holds.
+for (const height of [420, 240]) {
+  test(`sidebar TC-6.4: scrolling the Project menu at 1280x${height} moves no heading, tab strip, pager or footer`, async ({
+    page,
+  }) => {
+    await open(page, height);
+    await expect(panel(page, 'Agents list')).toBeVisible();
+    await expectPageFits(page);
+    const h0 = await box(heading(page));
+    const t0 = await box(tab(page, 'Agents'));
+    const area0 = await box(panel(page, 'Agents list'));
+    expect(area0.height).toBeGreaterThanOrEqual(120);
+    const p0 = await box(pager(page));
+
+    const scroller = await menuScroller(page);
+    await scroller.evaluate((el) => el.scrollTo(0, 5000));
+    expect(await scroller.evaluate((el) => el.scrollTop)).toBeGreaterThan(0);
+    expect(await page.evaluate(() => window.scrollY)).toBe(0);
+    await expectPageFits(page);
+    expect(await box(heading(page))).toEqual(h0);
+    expect(await box(tab(page, 'Agents'))).toEqual(t0);
+    expect((await box(panel(page, 'Agents list'))).height).toBe(area0.height);
+    expect(await box(pager(page))).toEqual(p0);
+    if (height === 420) expect(p0.y + p0.height).toBeLessThanOrEqual(height);
+
+    // The Limits tab's pinned footer ("Save limits") stays too.
+    await tab(page, 'Limits').click();
+    const save = page.getByRole('button', { name: 'Save limits' });
+    await expect(save).toBeVisible();
+    const save0 = await box(save);
+    await (await menuScroller(page)).evaluate((el) => el.scrollTo(0, 0));
+    await (await menuScroller(page)).evaluate((el) => el.scrollTo(0, 5000));
+    expect(await box(save)).toEqual(save0);
+    await expectPageFits(page);
+  });
+}

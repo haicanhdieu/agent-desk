@@ -487,7 +487,8 @@ test.describe('Whole-set readers', () => {
     await page.getByRole('button', { name: /^Switch project, currently / }).click();
     const menu = page.getByRole('dialog', { name: 'Projects' });
     await expect(menu).toBeVisible();
-    return menu.getByRole('link');
+    // The switcher's footer holds "All projects" and "New project" (shell spec BR-48); the count is of the projects.
+    return menu.getByRole('link').filter({ hasNotText: /^(All projects|New project)$/ });
   };
 
   for (const [tc, total, listed] of [

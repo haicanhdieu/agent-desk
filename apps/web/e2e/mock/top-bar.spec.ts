@@ -49,12 +49,15 @@ test.describe('BR-43: top-bar tabs per level', () => {
     await expect(orgMenu(page).getByText('Settings', { exact: true })).toHaveCount(0);
   });
 
-  test('TC-43.4: the owner on a project page sees the tabs Runs and Settings', async ({ page }) => {
+  test('TC-43.4: the owner on a project page sees the Project menu with Runs and no section tabs in the bar', async ({
+    page,
+  }) => {
     await open(page, 'twoOwners', `${PROJECT}/runs`);
-    await expect(page.getByRole('navigation', { name: 'Project sections' }).getByRole('link')).toHaveText([
-      /^Runs/,
-      'Project settings',
-    ]);
+    await expect(
+      page.getByRole('navigation', { name: 'Project menu' }).getByRole('link', { name: /^Runs/ }),
+    ).toBeVisible();
+    await expect(page.getByRole('navigation', { name: 'Project sections' })).toHaveCount(0);
+    await expect(bar(page).getByRole('link', { name: 'Project settings' })).toHaveCount(0);
     await expect(tab(page, 'Projects')).toHaveCount(0);
   });
 
@@ -138,19 +141,30 @@ test.describe('BR-47: Settings in two clicks', () => {
     if (only !== undefined) await expect(orgMenu(page).getByRole('link')).toHaveText(['Projects', only]);
   }
 
+  // On the shell the org switcher holds scopes only (BR-45): from a project page the org Settings are "All projects"
+  // in the project menu, then the Settings item in the org menu.
+  async function settingsFromProject(page: Page, landing: RegExp, subTab: string, only?: string): Promise<void> {
+    await page.getByRole('navigation', { name: 'Project menu' }).getByRole('link', { name: 'All projects' }).click();
+    await menuLink(page, subTab).click();
+    await expect(page).toHaveURL(landing);
+    await expect(page.getByRole('heading', { name: subTab, level: 1 })).toBeVisible();
+    await expect(menuLink(page, subTab)).toHaveAttribute('aria-current', 'page');
+    if (only !== undefined) await expect(orgMenu(page).getByRole('link')).toHaveText(['Projects', only]);
+  }
+
   test('TC-47.1: the owner on a project Runs page reaches Members', async ({ page }) => {
     await open(page, 'twoOwners', `${PROJECT}/runs`);
-    await settingsInTwoClicks(page, /\/settings\/members$/, 'Members');
+    await settingsFromProject(page, /\/settings\/members$/, 'Members');
   });
 
   test('TC-47.2: a project admin on a Runs page reaches Invitations', async ({ page }) => {
     await open(page, 'projectAdmin', `${PROJECT}/runs`);
-    await settingsInTwoClicks(page, /\/settings\/invitations$/, 'Invitations', 'Invitations');
+    await settingsFromProject(page, /\/settings\/invitations$/, 'Invitations', 'Invitations');
   });
 
   test('TC-47.3: the owner on a Desk page reaches Members', async ({ page }) => {
     await open(page, 'twoOwners', `${PROJECT}/desk/agent`);
-    await settingsInTwoClicks(page, /\/settings\/members$/, 'Members');
+    await settingsFromProject(page, /\/settings\/members$/, 'Members');
   });
 
   test('TC-47.4: the owner on a run page reaches Members', async ({ page }) => {

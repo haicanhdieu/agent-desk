@@ -77,6 +77,12 @@ describe('project switcher with many projects', () => {
     ];
   }
 
+  // The menu's footer holds "All projects" and "New project" (shell spec BR-48); the count is of the projects.
+  const projectLinks = (menu: HTMLElement) =>
+    within(menu)
+      .getAllByRole('link')
+      .filter((a) => !/^(All projects|New project)$/.test(a.textContent ?? ''));
+
   it('lists all 26 projects with one request for 100 rows', async () => {
     seed(26);
     const { user } = await renderRoute(`${base}/runs`);
@@ -84,7 +90,7 @@ describe('project switcher with many projects', () => {
     await user.click(switcher());
     const menu = await screen.findByRole('dialog', { name: 'Projects' });
     await within(menu).findAllByRole('link');
-    expect(within(menu).getAllByRole('link')).toHaveLength(26);
+    expect(projectLinks(menu)).toHaveLength(26);
     expect(mockDb.requests('GET', '/api/projects')).toBe(1);
   });
 
@@ -95,6 +101,6 @@ describe('project switcher with many projects', () => {
     await user.click(switcher());
     const menu = await screen.findByRole('dialog', { name: 'Projects' });
     await within(menu).findAllByRole('link');
-    expect(within(menu).getAllByRole('link')).toHaveLength(100);
+    expect(projectLinks(menu)).toHaveLength(100);
   });
 });

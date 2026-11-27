@@ -42,7 +42,7 @@
 /* The one scroll area of the Agents tab: the heading above and the Pagination below stay put. */
 .scroll {
   flex: 1 1 auto;
-  min-height: 40px; /* a short window still shows the pinned pager; the rows get what is left */
+  min-height: 120px; /* the scroll area keeps 120 px at any height; a shorter window scrolls the column (see `.agentSettingsMain`) */
   contain: size; /* only the minimum counts toward the panel's minimum height, not the rows */
   overflow-y: auto;
   display: flex;

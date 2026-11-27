@@ -108,6 +108,7 @@ function SkillEditor({
   onDelete,
   onCommit,
   onDiscard,
+  onKeepView,
 }: {
   skill: Skill;
   dirty: boolean;
@@ -122,6 +123,8 @@ function SkillEditor({
   onDelete?(name: string): void;
   onCommit?(body: string, message: string): void;
   onDiscard?(): void;
+  /** Discard remounts the editor for a new draft: the parent keeps the view it was on. */
+  onKeepView?(view: View): void;
 }) {
   const [view, setView] = useState<View>(initialView);
   const [value, setValue] = useState(initialDraft ?? skill.body);
@@ -187,6 +190,7 @@ function SkillEditor({
         pending={committing}
         onDiscard={() => {
           setValue(skill.body);
+          onKeepView?.(view);
           onDiscard?.();
         }}
         onCommit={() => onCommit?.(value, message)}
@@ -270,6 +274,10 @@ export function DeskSkills({
   const active = activeSkill ?? skills.find((s) => s.name === activeName) ?? skills[0];
   const branchLabel = defaultBranch ?? 'the default branch';
   const owned = useShellOwnsChrome();
+  // A Discard starts a new draft (a new editor): it opens on the view the person was on.
+  const [kept, setKept] = useState<{ name: string; view: View }>();
+  // Another skill ends it: coming back to this one starts on the default view again.
+  if (kept !== undefined && active !== undefined && kept.name !== active.name) setKept(undefined);
   const Body = owned ? 'div' : 'main';
   const doomed = deleting ? skills.find((s) => s.name === deleting) : undefined;
   const page = (
@@ -279,7 +287,7 @@ export function DeskSkills({
         {...frame}
         {...(owned && {
           title: 'Skills',
-          meta: `${folders ? folders.map((f) => `${f}/`).join(' or ') : '.claude/skills/'} on ${branchLabel}`,
+          meta: `${folders ? folders.map((f) => `${f}/`).join(' or ') : 'Skill folders'} on ${branchLabel}`,
           actions: (
             <Button variant="primary" icon="plus">
               New skill
@@ -311,7 +319,8 @@ export function DeskSkills({
                 skill={active}
                 dirty={dirty}
                 changedLines={changedLines}
-                view={view}
+                view={kept?.name === active.name ? kept.view : view}
+                onKeepView={(v) => setKept({ name: active.name, view: v })}
                 initialDraft={initialDraft}
                 preview={preview}
                 commitMessage={commitMessage}

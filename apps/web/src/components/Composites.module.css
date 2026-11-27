@@ -384,6 +384,9 @@
   display: flex;
   flex-direction: column;
   gap: 6px;
+  /* The nav takes the column's height, not its content's, so the list inside it (.skillItems) scrolls. */
+  flex-shrink: 1;
+  min-height: 0;
 }
 .skillItems {
   margin: 0;

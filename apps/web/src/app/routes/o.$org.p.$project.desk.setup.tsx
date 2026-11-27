@@ -39,6 +39,7 @@ const SetupSearch = PageSearch.extend({
 });
 
 export const Route = createFileRoute('/o/$org/p/$project/desk/setup')({
+  staticData: { chrome: { mode: 'standard', scope: 'project', item: 'setup', crumb: 'Workspace setup', fill: true } },
   validateSearch: (search) => SetupSearch.parse(search),
   // Desk config is for roles that hold `setup:read` on this project; the guard runs before any loader.
   beforeLoad: ({ context: { queryClient }, params }) =>

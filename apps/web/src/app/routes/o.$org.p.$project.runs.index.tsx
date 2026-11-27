@@ -48,6 +48,7 @@ const RunsSearch = z.object({ ...PageSearch.shape, ...RunsView.shape });
 type RunsSearch = z.infer<typeof RunsSearch>;
 
 export const Route = createFileRoute('/o/$org/p/$project/runs/')({
+  staticData: { chrome: { mode: 'standard', scope: 'project', item: 'runs', crumb: 'Runs' } },
   validateSearch: (search): RunsSearch => RunsSearch.parse(search),
   beforeLoad: ({ params: { org, project }, search, cause }) => {
     // Coming to the page (a link, a reload) with no choice in the URL brings back the last filter and search seen here.

@@ -31,6 +31,7 @@ import { useNow } from '@/app/useNow';
 import { DeskMembers, type DeskMembersProps } from '@/screens';
 
 export const Route = createFileRoute('/o/$org/p/$project/desk/members')({
+  staticData: { chrome: { mode: 'standard', scope: 'project', item: 'projectMembers', crumb: 'Members' } },
   // The page needs `assignment:read` on this project; the guard runs before any loader, so a refused route fetches nothing.
   beforeLoad: ({ context: { queryClient }, params }) =>
     requireProjectPermission(queryClient, params.org, 'assignment:read', params.project),

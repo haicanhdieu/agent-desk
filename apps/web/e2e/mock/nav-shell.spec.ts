@@ -63,11 +63,12 @@ test.describe('breadcrumb and title', () => {
     await expect(page).toHaveTitle('Runs · invoicer-api · Agent Desk');
   });
 
-  test('a Desk page reads Project settings / Skills', async ({ page }) => {
+  test('a Desk page reads Skills, with no "Project settings" crumb (BR-10)', async ({ page }) => {
     await seedOnboarding(page, 'owner');
     await page.goto(`/o/acme/p/${INVOICER_API}/desk/skills`);
-    await expect(crumbs(page).getByText('Project settings', { exact: true })).toBeVisible();
-    await expect(crumbs(page).locator('b[aria-current="page"]')).toHaveText('Skills');
+    await expect(crumbs(page).locator('[aria-current="page"]')).toHaveText('Skills');
+    await expect(crumbs(page).getByText('Project settings', { exact: true })).toHaveCount(0);
+    await expect(page).toHaveTitle('Skills · invoicer-api · Agent Desk');
   });
 
   test('a platform org members page reads Organizations / <org> / Members and every crumb but the last is a link', async ({
@@ -85,7 +86,7 @@ test.describe('breadcrumb and title', () => {
 });
 
 test.describe('tab names', () => {
-  test('the org menu reads Projects and the four Settings items, the project tabs Runs and Project settings', async ({
+  test('the org menu reads Projects and the four Settings items, the project menu Runs and its Configure items, with no section tabs', async ({
     page,
   }) => {
     await seedOnboarding(page, 'owner');
@@ -96,10 +97,12 @@ test.describe('tab names', () => {
     await expect(orgMenu.getByRole('link', { name: 'Settings', exact: true })).toHaveCount(0);
 
     await page.goto(`/o/acme/p/${INVOICER_API}/runs`);
-    const projectTabs = page.getByRole('navigation', { name: 'Project sections' });
-    await expect(projectTabs.getByRole('link', { name: /^Runs/ })).toBeVisible();
-    await expect(projectTabs.getByRole('link', { name: 'Project settings', exact: true })).toBeVisible();
-    await expect(projectTabs.getByRole('link', { name: 'Settings', exact: true })).toHaveCount(0);
+    const projectMenu = page.getByRole('navigation', { name: 'Project menu' });
+    await expect(projectMenu.getByRole('link', { name: /^Runs/ })).toBeVisible();
+    await expect(projectMenu.getByRole('link', { name: 'Routing rules', exact: true })).toBeVisible();
+    await expect(projectMenu.getByRole('link', { name: 'Project settings', exact: true })).toHaveCount(0);
+    await expect(projectMenu.getByRole('link', { name: 'Settings', exact: true })).toHaveCount(0);
+    await expect(page.getByRole('navigation', { name: 'Project sections' })).toHaveCount(0);
   });
 });
 

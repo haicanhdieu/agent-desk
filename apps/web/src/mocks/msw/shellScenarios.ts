@@ -27,6 +27,7 @@ export const SHELL_SCENARIOS = [
   'connectionWarn',
   'connectionError',
   'noDefaultBranch',
+  'developBranch',
   'longNames',
   'auditOnly',
   'orgUpdateOnly',
@@ -231,6 +232,17 @@ const seeders: Record<ShellScenario, () => void> = {
   noDefaultBranch() {
     applyOnboardingScenario('singleOrg');
     projectOf(P1).defaultBranch = null;
+  },
+  // The default branch is develop and the connection is OK (a webhook arrived a minute ago).
+  developBranch() {
+    applyOnboardingScenario('singleOrg');
+    projectOf(P1).defaultBranch = 'develop';
+    const trigger = defaultTriggerState();
+    trigger.webhook = {
+      lastEventAt: new Date(Date.now() - 60_000).toISOString(),
+      lastEventAction: 'issue_comment.created',
+    };
+    state().triggers[P1] = trigger;
   },
   longNames() {
     applyOnboardingScenario('singleOrg');

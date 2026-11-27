@@ -636,11 +636,11 @@ test('TC-10.1: O invites B again as Viewer; B accepts and is listed with Viewer,
     await b.page.goto(runsUrl(w));
     await b.page.reload();
     await expect(b.page).toHaveURL(new RegExp(`/o/${w.org.slug}/p/${w.projectId}/runs$`));
-    await expect(b.page.getByRole('navigation', { name: 'Project sections' })).toBeVisible();
+    await expect(b.page.getByRole('navigation', { name: 'Project menu' })).toBeVisible();
     await expect(
       b.page
-        .getByRole('navigation', { name: 'Project sections' })
-        .getByRole('link', { name: 'Project settings', exact: true }),
+        .getByRole('navigation', { name: 'Project menu' })
+        .getByRole('link', { name: 'Routing rules', exact: true }),
     ).toHaveCount(0);
     const access = AccessDto.parse(await ok(await b.api.get('/api/me/access'), 200, 'B access'));
     const permissions = access.assignments.flatMap((a) => a.permissions.map((p) => p.permission));

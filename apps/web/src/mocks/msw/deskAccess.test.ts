@@ -1,6 +1,8 @@
 import { ApiError, createApi } from '@agentdesk/contracts/client';
 import { describe, expect, it } from 'vitest';
 import { ids } from '../dto/ids';
+import { mockDb } from './db';
+import { applyProjectSpace } from './projectSpaceScenarios';
 import { scenarios } from './scenarios';
 
 // The mock API answers like the API guard for a role without a permission (issue 216): 403 before anything is read.
@@ -86,5 +88,15 @@ describe('the mock API guard on the project environment routes', () => {
     scenarios.onboarding(seat);
     expect(await status(envList('plain'))).toBe(200);
     for (const call of envWrites()) expect(await status(call())).toBe(200);
+  });
+});
+
+describe('the mock API scope of a project the caller has no seat on', () => {
+  const other = { projectId: ids.project.invoicerWeb };
+
+  it('answers 404 to a project admin of one project for the detail of another', async () => {
+    applyProjectSpace(mockDb, { role: 'projectAdmin' });
+    expect(await status(api.projects.get({ params }))).toBe(200);
+    expect(await status(api.projects.get({ params: other }))).toBe(404);
   });
 });

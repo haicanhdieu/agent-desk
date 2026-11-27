@@ -60,14 +60,12 @@ for (const role of ['member', 'viewer'] as const) {
       expect(seen.filter((p) => p.startsWith('/api/connections'))).toEqual([]);
     });
 
-    test('has no Settings tab on the runs page and no Desk data is requested there', async ({ page }) => {
+    test('has no configuration item on the runs page and no Desk data is requested there', async ({ page }) => {
       const seen = await open(page, role, `/o/acme/p/${P1}/runs`);
-      await expect(
-        page.getByRole('navigation', { name: 'Project sections' }).getByRole('link', { name: /^Runs/ }),
-      ).toBeVisible();
-      await expect(
-        page.getByRole('navigation', { name: 'Project sections' }).getByRole('link', { name: 'Project settings' }),
-      ).toHaveCount(0);
+      const menu = page.getByRole('navigation', { name: 'Project menu' });
+      await expect(menu.getByRole('link', { name: /^Runs/ })).toBeVisible();
+      await expect(menu.getByRole('link', { name: 'Routing rules' })).toHaveCount(0);
+      await expect(menu.getByRole('link', { name: 'Agent & settings' })).toHaveCount(0);
       expect(seen.filter((p) => DESK_DATA.test(p))).toEqual([]);
     });
 
@@ -93,7 +91,7 @@ test.describe('an admin', () => {
     test(`opens the Desk ${tab} page by direct URL`, async ({ page }) => {
       await open(page, 'orgAdmin', `/o/acme/p/${P1}/desk/${tab}`);
       await expect(
-        page.getByRole('navigation', { name: 'Project sections' }).getByRole('link', { name: 'Project settings' }),
+        page.getByRole('navigation', { name: 'Project menu' }).getByRole('link', { name: 'Routing rules' }),
       ).toBeVisible();
       await expect(forbidden(page)).toHaveCount(0);
     });
@@ -159,9 +157,9 @@ test.describe('BR-46: Agent & settings access', () => {
       page,
     }) => {
       const seen = await open(page, role, `/o/acme/p/${P1}/runs`);
-      const sections = page.getByRole('navigation', { name: 'Project sections' });
-      await expect(sections.getByRole('link', { name: /^Runs/ })).toBeVisible();
-      await expect(sections.getByRole('link', { name: 'Project settings' })).toHaveCount(0);
+      // MA TC-46.x: wait for the side menu's "Runs" item, then assert there is no Agent & settings.
+      const menu = page.getByRole('navigation', { name: 'Project menu' });
+      await expect(menu.getByRole('link', { name: /^Runs/ })).toBeVisible();
       await expect(page.getByRole('link', { name: /Agent & settings/ })).toHaveCount(0);
 
       await page.goto(agentPath);
@@ -175,7 +173,7 @@ test.describe('BR-46: Agent & settings access', () => {
     await open(page, 'orgAdmin', agentPath);
     await expect(page.getByRole('heading', { level: 1, name: 'Agent & settings' })).toBeVisible();
     await expect(
-      page.getByRole('navigation', { name: 'Desk' }).getByRole('link', { name: 'Agent & settings' }),
+      page.getByRole('navigation', { name: 'Project menu' }).getByRole('link', { name: 'Agent & settings' }),
     ).toBeVisible();
     await expect(forbidden(page)).toHaveCount(0);
   });

@@ -38,6 +38,7 @@ const RulesSearch = z.object({
 });
 
 export const Route = createFileRoute('/o/$org/p/$project/desk/rules')({
+  staticData: { chrome: { mode: 'standard', scope: 'project', item: 'rules', crumb: 'Routing rules', fill: true } },
   validateSearch: (search) => RulesSearch.parse(search),
   loaderDeps: ({ search }) => ({ page: pageOfSearch(search) }),
   // Desk config is for roles that hold `rule:read` on this project; the guard runs before any loader.
@@ -115,7 +116,6 @@ function DeskRulesPage() {
 
   return (
     <DeskRules
-      height="viewport"
       frame={frame}
       rules={rules}
       pagination={pagination}

@@ -9,7 +9,9 @@ import { runFixtures } from '@/mocks/dto/runs';
 import { mockDb } from '@/mocks/msw/db';
 import { server } from '@/mocks/msw/node';
 import { scenarios } from '@/mocks/msw/scenarios';
+import { FakeEventSource } from '@/test/fakeEventSource';
 import { renderRoute } from '@/test/renderRoute';
+import { expectShellOwnedPage } from '@/test/shellAssert';
 
 const projectId = ids.project.invoicerApi;
 const base = `/o/alice/p/${projectId}`;
@@ -289,23 +291,28 @@ describe('runs route', () => {
     );
   });
 
-  it('TC-43.4, TC-48.1: the project bar shows the org crumb, Runs and Settings, and the logo goes to the org projects', async () => {
-    await renderRoute(`${base}/runs`);
+  it('TC-43.4, TC-48.1: the bar shows the org and project switchers, the Project menu has Runs current, and the logo goes to the org projects', async () => {
+    const { router, user } = await renderRoute(`${base}/runs`);
     await screen.findByRole('heading', { level: 1, name: 'Runs' });
-    const bar = screen.getByRole('banner');
+    const bar = screen.getAllByRole('banner').filter((b) => !b.closest('main'))[0]!;
     expect(within(bar).getByRole('button', { name: /^Switch scope/ })).toBeVisible();
     expect(within(bar).getByRole('button', { name: /^Switch project, currently/ })).toBeVisible();
-    const tabs = within(bar).getByRole('navigation', { name: 'Project sections' });
-    expect(within(tabs).getByRole('link', { name: /^Runs/ })).toHaveAttribute('aria-current', 'page');
-    expect(within(tabs).getByRole('link', { name: 'Project settings' })).toBeVisible();
-    expect(within(bar).getAllByRole('link', { name: /Agent Desk/ })[0]).toHaveAttribute('href', '/o/alice/projects');
+    const menu = screen.getByRole('navigation', { name: 'Project menu' });
+    expect(within(menu).getByRole('link', { name: /^Runs/ })).toHaveAttribute('aria-current', 'page');
+    expect(within(bar).queryByRole('link', { name: 'Project settings' })).not.toBeInTheDocument();
+    await user.click(within(bar).getAllByRole('link', { name: /Agent Desk/ })[0]!);
+    await waitFor(() => expect(router.state.location.pathname).toBe('/o/alice/projects'));
   });
 
-  it('the Settings tab opens Routing rules, not Skills', async () => {
+  it('the Project menu opens Routing rules first in Configure, not Skills', async () => {
     await renderRoute(`${base}/runs`);
     await screen.findByRole('heading', { level: 1, name: 'Runs' });
-    const tabs = screen.getByRole('navigation', { name: 'Project sections' });
-    expect(within(tabs).getByRole('link', { name: 'Project settings' })).toHaveAttribute('href', `${base}/desk/rules`);
+    const menu = screen.getByRole('navigation', { name: 'Project menu' });
+    const labels = within(menu)
+      .getAllByRole('link')
+      .map((a) => a.textContent?.trim());
+    expect(labels.indexOf('Routing rules')).toBe(labels.indexOf('Runs2 needs you') + 1);
+    expect(within(menu).getByRole('link', { name: 'Routing rules' })).toHaveAttribute('href', `${base}/desk/rules`);
   });
 
   it('clicking a filter chip gives a clean URL that the route reads back', async () => {
@@ -1084,5 +1091,78 @@ describe('runs route, usage', () => {
     if (!row) throw new Error('no row');
     const cell = within(row).getByText(/48\.2k · ~\$0\.42/);
     expect(cell.closest('td')).toHaveAttribute('title', '48,213 tokens in total, estimated cost $0.42, 1 model');
+  });
+});
+
+describe('runs route, in the app shell', () => {
+  const menu = () => screen.getByRole('navigation', { name: 'Project menu' });
+  const runsLink = () => within(menu()).getByRole('link', { name: /^Runs/ });
+
+  it('has one Project menu, one main and the Runs item current', async () => {
+    await renderRoute(`${base}/runs`);
+    await screen.findByRole('heading', { level: 1, name: 'Runs' });
+    expectShellOwnedPage('Runs', { menu: 'Project menu' });
+    expect(runsLink()).toHaveAttribute('aria-current', 'page');
+    expect(within(menu()).getByRole('link', { name: 'All projects' })).toHaveAttribute('href', '/o/alice/projects');
+  });
+
+  it('the repository block shows the repository, its branch and Open repository', async () => {
+    const trigger = mockDb.state.triggers[projectId];
+    if (!trigger) throw new Error('trigger missing');
+    trigger.webhook = { lastEventAt: new Date().toISOString(), lastEventAction: null };
+    await renderRoute(`${base}/runs`);
+    const block = await within(menu()).findByRole('region', { name: 'Repository' });
+    expect(within(block).getByText('main')).toBeInTheDocument();
+    expect(await within(block).findByText('Connected')).toBeInTheDocument();
+    expect(within(block).getByRole('link', { name: 'Open repository' })).toHaveAttribute('target', '_blank');
+  });
+
+  it('the repository block omits the branch when the project has none', async () => {
+    const row = mockDb.state.projects.find((p) => p.id === projectId);
+    if (!row) throw new Error('project missing');
+    row.defaultBranch = null;
+    await renderRoute(`${base}/runs`);
+    const block = await within(menu()).findByRole('region', { name: 'Repository' });
+    expect(within(block).queryByText('main')).not.toBeInTheDocument();
+  });
+
+  it('the repository block shows the warning of a silent webhook', async () => {
+    const trigger = mockDb.state.triggers[projectId];
+    if (!trigger) throw new Error('trigger missing');
+    trigger.webhook = { lastEventAt: '2020-01-01T00:00:00.000Z', lastEventAction: null };
+    await renderRoute(`${base}/runs`);
+    const block = await within(menu()).findByRole('region', { name: 'Repository' });
+    expect(await within(block).findByText('No webhooks for 2 days')).toBeInTheDocument();
+  });
+
+  it('the repository block shows the error of a failing poll', async () => {
+    const row = mockDb.state.projects.find((p) => p.id === projectId);
+    const trigger = mockDb.state.triggers[projectId];
+    if (!row || !trigger) throw new Error('project missing');
+    row.triggerMode = 'polling';
+    trigger.polling = { ...trigger.polling, lastError: 'rate limited' };
+    await renderRoute(`${base}/runs`);
+    const block = await within(menu()).findByRole('region', { name: 'Repository' });
+    expect(await within(block).findByText('Polling failed: rate limited')).toBeInTheDocument();
+  });
+
+  it('the needs you badge follows the project stream and hides at zero', async () => {
+    await renderRoute(`${base}/runs`);
+    await screen.findByRole('heading', { level: 1, name: 'Runs' });
+    expect(await within(runsLink()).findByText(/^2/)).toBeInTheDocument();
+    const source = FakeEventSource.matching(`/api/projects/${projectId}/events`).at(-1);
+    if (!source) throw new Error('no project stream');
+    act(() => source.open());
+    act(() => source.emit('run', { runId: ids.run(1, 62), number: 62, status: 'succeeded', seq: 90 }));
+    await waitFor(() => expect(within(runsLink()).getByText(/^1/)).toBeInTheDocument());
+    act(() => source.emit('run', { runId: ids.run(1, 64), number: 64, status: 'succeeded', seq: 91 }));
+    await waitFor(() => expect(within(runsLink()).queryByText(/^\d+$/)).not.toBeInTheDocument());
+  });
+
+  it('keeps the Ignored view: no search box, the Ignored chip current', async () => {
+    await renderRoute(`${base}/runs?filter=ignored`);
+    expect(await screen.findByRole('heading', { level: 1, name: 'Runs' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /^Ignored/ })).toHaveAttribute('aria-current', 'page');
+    expect(screen.queryByRole('textbox', { name: 'Search runs' })).not.toBeInTheDocument();
   });
 });

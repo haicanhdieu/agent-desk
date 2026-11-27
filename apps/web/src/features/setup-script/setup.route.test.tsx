@@ -58,7 +58,7 @@ describe('desk setup route', () => {
   it('loads the saved script, the plugins and the version history', async () => {
     await renderRoute(base());
     expect(await screen.findByText(/Version 1, saved by kim-hale/)).toBeInTheDocument();
-    expect(screen.getByRole('heading', { level: 2, name: 'Workspace setup' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 1, name: 'Workspace setup' })).toBeInTheDocument();
     expect(editor()).toHaveValue(setupScript);
     expect(screen.getByText(/Version 1, saved by kim-hale/)).toBeInTheDocument();
     expect(await screen.findByText('superpowers')).toBeInTheDocument();
@@ -159,10 +159,10 @@ describe('desk setup route', () => {
     });
   });
 
-  it('the Desk nav links to workspace setup', async () => {
+  it('the Project menu links to workspace setup', async () => {
     await renderRoute(base());
-    const desk = await screen.findByRole('navigation', { name: 'Desk' });
-    expect(within(desk).getByRole('link', { name: /Workspace setup/ })).toHaveAttribute('href', base());
+    const menu = await screen.findByRole('navigation', { name: 'Project menu' });
+    expect(within(menu).getByRole('link', { name: /Workspace setup/ })).toHaveAttribute('href', base());
   });
 
   it('saves a new version with baseVersion and the note (v1 → v2)', async () => {

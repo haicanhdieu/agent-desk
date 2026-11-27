@@ -28,8 +28,10 @@ test('Preview shows the skill as formatted Markdown with its diagram', async ({ 
   await expect(region.getByRole('heading', { level: 3, name: 'qa-e2e' })).toBeVisible();
   await expect(region.getByRole('table')).toBeVisible();
   await expect(region.getByRole('columnheader', { name: 'What to try' })).toBeVisible();
+  // Streamdown draws a diagram once it is scrolled near the view, so bring each fence into the column first (the shell's
+  // header and setup warning leave the column less room than the old frame did).
+  await region.getByRole('heading', { name: 'Flow' }).scrollIntoViewIfNeeded();
   await expect(region.locator('svg').filter({ hasText: 'Explore' }).first()).toBeVisible();
-  // Streamdown draws a diagram once it is scrolled near the view, so bring the broken fence into the column first.
   await region.getByRole('heading', { name: 'Not drawn' }).scrollIntoViewIfNeeded();
   await expect(region.getByText('This diagram could not be drawn')).toHaveCount(1);
   await expect(source(page)).toHaveCount(0);
@@ -177,7 +179,8 @@ test('wide preview content scrolls inside the editor column', async ({ page }) =
 });
 
 test('Preview and Diff keep the header and commit bar in view', async ({ page }) => {
-  await page.setViewportSize({ width: 1280, height: 300 });
+  // Short enough that the editor overflows, tall enough for the shell's bar and page header with the setup warning.
+  await page.setViewportSize({ width: 1280, height: 560 });
   await open(page);
   const body = await source(page).inputValue();
   await source(page).fill(body.replace('Open the PR preview', 'Open the preview'));

@@ -755,7 +755,7 @@ describe('Desk lists with pagination', () => {
     onPageSizeChange: () => undefined,
   });
 
-  it('DeskRules pins the control under the scrolling list, which ends with Guards (BR-61)', () => {
+  it('DeskRules pins the control in the scrolling list, between the last rule and the Guards (TC-29.2, BR-61)', () => {
     render(
       <DeskRules
         frame={deskFrame}
@@ -772,8 +772,9 @@ describe('Desk lists with pagination', () => {
     expect(scroll).toContainElement(lastRule);
     expect(scroll).toContainElement(guards);
     expect(lastRule.compareDocumentPosition(guards) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(scroll.contains(nav)).toBe(false);
-    expect(guards.compareDocumentPosition(nav) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(scroll).toContainElement(nav);
+    expect(lastRule.compareDocumentPosition(nav) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(nav.compareDocumentPosition(guards) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
   it('DeskRules with no rules shows No routing rules yet and no control', () => {
@@ -828,7 +829,7 @@ describe('DeskSkills in the shell', () => {
   const warning = { title: 'Workspace setup needs attention', detail: 'The last test failed.', href: '#setup' };
 
   it('draws one main with the h1 Skills, the folder line and New skill in the header', () => {
-    inShell(<DeskSkills frame={deskFrame} skills={skills} activeName="code-build" />);
+    inShell(<DeskSkills frame={deskFrame} skills={skills} activeName="code-build" folders={['.claude/skills']} />);
     const main = expectShellOwnedPage('Skills', { menu });
     const header = screen.getByRole('heading', { level: 1 }).closest('header')!;
     expect(within(header).getByText('.claude/skills/ on main')).toBeInTheDocument();

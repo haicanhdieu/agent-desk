@@ -446,9 +446,14 @@
 .rulesScroll > * {
   flex-shrink: 0;
 }
+/* The pager sits between the rule list and the guards, inside the scrolling list, and stays pinned to its bottom edge
+   until the list is scrolled down to it. */
 .rulesFoot {
-  flex: 0 0 auto;
-  padding: 0 28px 16px;
+  position: sticky;
+  bottom: 0;
+  z-index: 1;
+  padding: 8px 0;
+  background: var(--bg);
 }
 .ruleList {
   border: 1px solid var(--line);
@@ -1038,7 +1043,7 @@
 }
 .shellSplitCol > header {
   flex: 0 0 auto;
-  padding: 0 28px 16px;
+  padding: 0 32px 16px;
 }
 
 /* invitation pages in the shell */

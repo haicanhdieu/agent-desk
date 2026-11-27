@@ -1,13 +1,13 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
 import { INVOICER_API, ORG } from './mock';
 
-// The Skills page fits the viewport: the page itself never scrolls, and each of its three columns (the Desk nav, the
-// skill list and the skill editor) scrolls inside its own area. The editor keeps its header and commit bar in view.
+// The Skills page fits the viewport: the page itself never scrolls, and each of its three columns (the Project menu,
+// the skill list and the skill editor) scrolls inside its own area. The editor keeps its header and commit bar in view.
 
 const SKILLS = `/o/${ORG}/p/${INVOICER_API}/desk/skills`;
 
-// Short enough that every column overflows.
-const HEIGHT = 300;
+// Short enough that every column overflows, tall enough for the shell's bar and page header (with the setup warning).
+const HEIGHT = 560;
 
 const pageScroll = (page: Page) =>
   page.evaluate(() => ({ scroll: document.documentElement.scrollHeight, inner: window.innerHeight }));
@@ -30,14 +30,15 @@ const scroller = async (column: Locator) => {
   return found;
 };
 
-test('the page fits the viewport; the Desk nav, the skill list and the editor each scroll on their own', async ({
+test('the page fits the viewport; the Project menu, the skill list and the editor each scroll on their own', async ({
   page,
 }) => {
   await page.setViewportSize({ width: 1280, height: HEIGHT });
   await page.goto(SKILLS);
-  const nav = page.getByRole('navigation', { name: 'Desk' });
+  const nav = page.getByRole('navigation', { name: 'Project menu' });
   const list = page.getByRole('navigation', { name: 'Skills' });
-  const editor = page.getByRole('main');
+  // The main holds the page header, the list and the editor: the editor column is the one that holds the skill's own h2.
+  const editor = page.getByRole('main').locator('[class*="skillsMain"]');
   const commit = editor.getByRole('button', { name: 'Submit changes' });
   await expect(commit).toBeVisible();
 
@@ -76,8 +77,9 @@ test('the Skills header and path line stay in view while the skill list scrolls'
   await page.setViewportSize({ width: 1280, height: HEIGHT });
   await page.goto(SKILLS);
   const list = page.getByRole('navigation', { name: 'Skills' });
-  const head = list.getByRole('heading', { level: 2, name: 'Skills' });
-  const path = list.getByText(/^\.claude\/skills\/ on /);
+  // In the shell the title and the folder line are the page header's, above the list.
+  const head = page.getByRole('heading', { level: 1, name: 'Skills' });
+  const path = page.getByText(/^\.claude\/skills\/ on /);
   await expect(head).toBeVisible();
   const before = { head: await box(head), path: await box(path) };
 
@@ -85,7 +87,7 @@ test('the Skills header and path line stay in view while the skill list scrolls'
   await area.evaluate((el) => el.scrollTo(0, 5000));
   expect(await area.evaluate((el) => el.scrollTop)).toBeGreaterThan(0);
 
-  // The header and path line did not move, and both are still inside the column.
+  // The header and path line did not move, and both are still in the window, above the list.
   const column = await box(list);
   for (const [name, loc] of [
     ['head', head],
@@ -93,7 +95,7 @@ test('the Skills header and path line stay in view while the skill list scrolls'
   ] as const) {
     const b = await box(loc);
     expect(b.y).toBe(before[name].y);
-    expect(b.y).toBeGreaterThanOrEqual(column.y);
-    expect(b.y + b.height).toBeLessThanOrEqual(column.y + column.height);
+    expect(b.y).toBeGreaterThanOrEqual(0);
+    expect(b.y + b.height).toBeLessThanOrEqual(column.y);
   }
 });

@@ -78,14 +78,10 @@ async function roleKeysOnP1(userId: string): Promise<string[]> {
   return (found?.projectRoles ?? []).map((r) => r.role.key).sort();
 }
 
-/** Opens P1 → Settings → Members through the Settings tab and the Desk side menu, and waits for the list. */
+/** Opens P1 → Settings → Members through the Project menu, and waits for the list. */
 async function openMembers(who: Actor): Promise<void> {
   await who.page.goto(runsUrl());
-  await who.page
-    .getByRole('navigation', { name: 'Project sections' })
-    .getByRole('link', { name: 'Project settings', exact: true })
-    .click();
-  await who.page.getByRole('navigation', { name: 'Desk' }).getByRole('link', { name: 'Members' }).click();
+  await who.page.getByRole('navigation', { name: 'Project menu' }).getByRole('link', { name: 'Members' }).click();
   await expect(membersHeading(who.page)).toBeVisible();
   await expect(rowOf(who.page, cast.c.handle)).toBeVisible();
 }
@@ -134,11 +130,13 @@ async function openRemove(page: Page, handle: string, projectName: string): Prom
 }
 
 /** Removes `handle` from P1 through the confirm dialog; ends on the toast and the row gone. */
-async function removeViaUi(page: Page, handle: string, projectName: string): Promise<void> {
+/** `inherited`: the person keeps an org-wide role, so their row stays (as an Organization row) without the removed role. */
+async function removeViaUi(page: Page, handle: string, projectName: string, inherited = false): Promise<void> {
   const dialog = await openRemove(page, handle, projectName);
   await dialog.getByRole('button', { name: 'Remove', exact: true }).click();
   await expect(okToast(page, `${handle} removed from ${projectName}`)).toBeVisible();
-  await expect(rowOf(page, handle)).toHaveCount(0);
+  if (inherited) await expect(roleCell(rowOf(page, handle))).toHaveText('ViewerOrganization');
+  else await expect(rowOf(page, handle)).toHaveCount(0);
 }
 
 const addDialog = (page: Page): Locator => page.getByRole('dialog', { name: /^Add member to/ });
@@ -157,7 +155,8 @@ async function fillAddDialog(page: Page, handle: string, role: 'Admin' | 'Member
 
 /** O's org Settings → Members row of `handle`. */
 const orgMembersRow = (page: Page, handle: string): Locator => page.locator('tbody tr').filter({ hasText: handle });
-const PROJECT_ROLES = 2;
+/** The org Members table: Name, Access (one chip per grant, "<scope> · <role>"), then the row menu. */
+const ACCESS_CELL = 1;
 
 /** Whether a run status is one of the active ones. */
 const isActive = (status: string): boolean => ACTIVE_RUN_STATUSES.some((s) => s === status);
@@ -293,11 +292,14 @@ test.describe('BR-9: remove a person from P1', () => {
     const run = await runOf(o.page, rb);
     const runUrl = `${runsUrl()}/${run.number}`;
     await openMembers(a);
-    await expect(roleCell(rowOf(a.page, v.handle))).toHaveText('Admin');
-    await removeViaUi(a.page, v.handle, projectName);
+    // BR-4: one row shows the role granted on P1 and the inherited org-wide role (labelled Organization).
+    await expect(roleCell(rowOf(a.page, v.handle))).toHaveText('AdminViewerOrganization');
+    // The project role goes; V's org Viewer role (BR-4) keeps an Organization row without Admin.
+    await removeViaUi(a.page, v.handle, projectName, true);
     await reloadMembers(a);
     await expect(rowOf(a.page, a.handle)).toBeVisible();
-    await expect(rowOf(a.page, v.handle)).toHaveCount(0);
+    await expect(roleCell(rowOf(a.page, v.handle))).toHaveText('ViewerOrganization');
+    await expect(roleCell(rowOf(a.page, v.handle))).not.toContainText('Admin');
 
     // Control: the owner sees Cancel run on this run, so its absence for V is a real difference.
     await o.page.goto(runUrl);
@@ -367,14 +369,14 @@ test.describe('BR-14: org Members shows the new project role', () => {
 
     await o.page.goto(`/o/${cast.slug}/settings/members`);
     await expect(o.page.getByRole('heading', { level: 1, name: 'Members' })).toBeVisible();
-    await expect(orgMembersRow(o.page, c.handle).getByRole('cell').nth(PROJECT_ROLES)).toHaveText(
-      `${projectName} (Viewer)`,
-    );
+    // C holds no org-wide role ("No role") and one project grant, now Viewer.
+    const chips = (): Locator =>
+      orgMembersRow(o.page, c.handle).getByRole('cell').nth(ACCESS_CELL).getByRole('listitem');
+    await expect(chips()).toHaveText(['No role', `${projectName} · Viewer`]);
     await o.page.reload();
     await expect(o.page.getByRole('heading', { level: 1, name: 'Members' })).toBeVisible();
-    const cell = orgMembersRow(o.page, c.handle).getByRole('cell').nth(PROJECT_ROLES);
-    await expect(cell).toHaveText(`${projectName} (Viewer)`);
-    await expect(cell).not.toContainText('Member');
+    await expect(chips()).toHaveText(['No role', `${projectName} · Viewer`]);
+    await expect(orgMembersRow(o.page, c.handle).getByRole('cell').nth(ACCESS_CELL)).not.toContainText('Member');
   });
 });
 

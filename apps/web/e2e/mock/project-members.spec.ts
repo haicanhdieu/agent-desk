@@ -14,7 +14,7 @@ test.use({ timezoneId: 'UTC', locale: 'en-US' });
 const P = INVOICER_API;
 const membersUrl = (project: string) => `/o/${ORG}/p/${project}/desk/members`;
 const forbidden = (page: Page) => page.getByRole('heading', { name: "You don't have access" });
-const sideMenu = (page: Page) => page.getByRole('navigation', { name: 'Desk' });
+const sideMenu = (page: Page) => page.getByRole('navigation', { name: 'Project menu' });
 const rowOf = (page: Page, name: string): Locator => page.getByRole('row').filter({ hasText: name });
 
 /** Records every API request path the page sends from now on. */
@@ -33,13 +33,9 @@ test.describe('BR-1: Members and Audit log in the side menu', () => {
     ['TC-1.2', 'admin'],
     ['TC-1.3', 'projectAdmin'],
   ] as const) {
-    test(`${tc}: the ${role} sees Members and Audit log under Access in P's Settings`, async ({ page }) => {
+    test(`${tc}: the ${role} sees Members and Audit log under Access in the Project menu`, async ({ page }) => {
       await seedProjectSpace(page, { role });
       await page.goto(`/o/${ORG}/p/${P}/runs`);
-      await page
-        .getByRole('navigation', { name: 'Project sections' })
-        .getByRole('link', { name: 'Project settings' })
-        .click();
       const menu = sideMenu(page);
       for (const name of ['Routing rules', 'Skills', 'Workspace setup', 'Agent & settings']) {
         await expect(menu.getByRole('link', { name })).toBeVisible();
@@ -54,12 +50,12 @@ test.describe('BR-1: Members and Audit log in the side menu', () => {
     ['TC-1.4', 'member'],
     ['TC-1.5', 'viewer'],
   ] as const) {
-    test(`${tc}: the ${role} has no Settings tab, so no Members or Audit log`, async ({ page }) => {
+    test(`${tc}: the ${role} has no configuration items, so no Members or Audit log`, async ({ page }) => {
       await seedProjectSpace(page, { role });
       await page.goto(`/o/${ORG}/p/${P}/runs`);
-      const main = page.getByRole('navigation', { name: 'Project sections' });
+      const main = sideMenu(page);
       await expect(main.getByRole('link', { name: /^Runs/ })).toBeVisible();
-      await expect(main.getByRole('link', { name: 'Project settings' })).toHaveCount(0);
+      await expect(main.getByRole('link', { name: 'Routing rules' })).toHaveCount(0);
       await expect(page.getByRole('link', { name: 'Members' })).toHaveCount(0);
       await expect(page.getByRole('link', { name: 'Audit log' })).toHaveCount(0);
     });

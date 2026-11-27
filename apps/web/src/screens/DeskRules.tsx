@@ -274,17 +274,17 @@ export function DeskRules({
             ))}
           </div>
         )}
+        {rules.length > 0 && pagination && (
+          <div className={styles.rulesFoot}>
+            <Pagination {...pagination} />
+          </div>
+        )}
         <GuardsCard
           maxRunsPerTicket={maxRunsPerTicket}
           changeHref={guardLinks?.change ?? '/desk/agent'}
           ignoredHref={guardLinks?.ignored ?? '/runs'}
         />
       </div>
-      {rules.length > 0 && pagination && (
-        <div className={styles.rulesFoot}>
-          <Pagination {...pagination} />
-        </div>
-      )}
     </div>
   );
   const pane =
