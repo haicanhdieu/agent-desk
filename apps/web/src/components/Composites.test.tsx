@@ -262,6 +262,12 @@ describe('GuardsCard', () => {
     expect(screen.getAllByRole('listitem')).toHaveLength(4);
   });
 
+  it('TC-72.3: without a change link there is no Change link and Runs, Ignored stays a link', () => {
+    render(<GuardsCard maxRunsPerTicket={10} ignoredHref="/runs?filter=ignored" />);
+    expect(screen.queryByRole('link', { name: 'Change' })).not.toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Runs, Ignored' })).toHaveAttribute('href', '/runs?filter=ignored');
+  });
+
   it('says unlimited, not "at most 0", when the limit is 0', () => {
     render(<GuardsCard maxRunsPerTicket={0} changeHref="/agent" />);
     expect(screen.getByText('unlimited')).toBeInTheDocument();

@@ -187,6 +187,19 @@ describe('setup flow', () => {
     expect(mockDb.state.rules.filter((r) => r.projectId === id && r.command === 'code-build')).toHaveLength(1);
   });
 
+  it('BR-72: the rules step guards link Change to the Limits tab and Runs, Ignored to the Ignored filter', async () => {
+    const id = seedAt('rules');
+    await renderRoute(`${base}/rules?project=${id}`);
+    expect(await screen.findByRole('link', { name: 'Change' })).toHaveAttribute(
+      'href',
+      `/o/alice/p/${id}/desk/agent?tab=limits`,
+    );
+    expect(screen.getByRole('link', { name: 'Runs, Ignored' })).toHaveAttribute(
+      'href',
+      `/o/alice/p/${id}/runs?filter=ignored`,
+    );
+  });
+
   it('skipping the first rule creates no rule, marks setup ready and opens the Ready step', async () => {
     const id = seedAt('rules');
     mockDb.state.rules = mockDb.state.rules.filter((r) => r.projectId !== id);

@@ -572,6 +572,8 @@ function RulesStep({ org, projectId }: { org: string; projectId: string }) {
   const { data: agent } = useSuspenseQuery(setupQueries.agent(org, projectId));
   const { data: skills } = useSuspenseQuery(setupQueries.skills(org, projectId));
   const save = useSaveRulesStep(org);
+  const paths = projectPaths(org, projectId);
+  const mayReadAgent = useCan(org, 'agent:read', { projectId });
   const [errors, setErrors] =
     useState<StepErrors<'command' | 'labels' | 'target' | 'skill' | 'prompt' | 'model'>>(noErrors);
   const models = useQuery(deskQueries.agentModels(org, agent.id));
@@ -656,6 +658,8 @@ function RulesStep({ org, projectId }: { org: string; projectId: string }) {
       maxRunsPerTicket={project.maxRunsPerTicket}
       credentialDetail={credentialDetail(agent)}
       backHref={stepHref(org, 'skills', projectId)}
+      {...(mayReadAgent && { agentSettingsHref: `${paths.agent}?tab=limits` })}
+      ignoredHref={`${paths.runs}?filter=ignored`}
       onContinue={(d) => void onContinue(d)}
       onSkip={() => void onSkip()}
       saving={save.isPending}

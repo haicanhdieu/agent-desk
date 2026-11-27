@@ -1,5 +1,6 @@
 import type { SkillDto } from '@agentdesk/contracts';
 import { roleFixtures } from '../dto/access';
+import { agentsFixture } from '../dto/agents';
 import { ids } from '../dto/ids';
 import { defaultTriggerState, mockDb, type InvitationRow, type MockState } from './db';
 import { applyOnboardingScenario } from './onboardingScenarios';
@@ -16,11 +17,16 @@ export const SHELL_SCENARIOS = [
   'suspendedOnly',
   'oneOrgNoPlatform',
   'unfinishedProjects',
+  'unfinishedAtRules',
+  'unfinishedCodex',
+  'unfinishedAsMember',
+  'unfinishedAsViewer',
+  'unfinishedAsAdmin',
+  'unfinishedProjectAdmin',
   'connectionWarn',
   'connectionError',
   'noDefaultBranch',
   'longNames',
-  'creatorNoAgentRead',
   'auditOnly',
   'orgUpdateOnly',
   'distinctProjects',
@@ -150,6 +156,43 @@ const seeders: Record<ShellScenario, () => void> = {
     projectOf(P1).setupStep = 'agent';
     projectOf(P2).setupStep = 'skills';
   },
+  // invoicer-api stopped on the rules step: the wizard shows the rule guards.
+  unfinishedAtRules() {
+    applyOnboardingScenario('singleOrg');
+    projectOf(P1).setupStep = 'rules';
+  },
+  // invoicer-api has one saved Codex agent and its setup stopped after the Agent step.
+  unfinishedCodex() {
+    applyOnboardingScenario('singleOrg');
+    projectOf(P1).setupStep = 'setup';
+    const codex = agentsFixture.find((a) => a.name === 'Codex');
+    if (!codex) throw new Error('Codex agent fixture missing');
+    state().agents = [
+      ...state().agents.filter((a) => a.projectId !== P1),
+      { ...structuredClone(codex), projectId: P1, isDefault: true },
+    ];
+  },
+  // The unfinished projects of `unfinishedProjects`, seen by people who must not resume them.
+  unfinishedAsMember() {
+    seeders.unfinishedProjects();
+    seatOf(ids.org.alice).roleKey = 'member';
+  },
+  unfinishedAsViewer() {
+    seeders.unfinishedProjects();
+    seatOf(ids.org.alice).roleKey = 'viewer';
+  },
+  unfinishedAsAdmin() {
+    seeders.unfinishedProjects();
+    seatOf(ids.org.alice).roleKey = 'admin';
+  },
+  // Alice administers only invoicer-api (stopped on the Agent step) and has no org-wide role.
+  unfinishedProjectAdmin() {
+    seeders.unfinishedProjects();
+    const seat = seatOf(ids.org.alice);
+    seat.roleKey = 'member';
+    seat.projectIds = [P1];
+    seat.projectRoles = [{ projectId: P1, roleKey: 'admin' }];
+  },
   // Webhooks silent for three days.
   connectionWarn() {
     applyOnboardingScenario('singleOrg');
@@ -183,10 +226,6 @@ const seeders: Record<ShellScenario, () => void> = {
     if (!org) throw new Error('alice org missing');
     org.name = 'Harbor Labs Platform Engineering and Infrastructure Reliability Organization';
     projectOf(P1).name = 'invoicer-api-with-a-very-long-name-that-keeps-going-until-it-has-to-be-cut-short';
-  },
-  // Can create a project, cannot read agents: the wizard's agent step is not for them.
-  creatorNoAgentRead() {
-    oneOrgAs('project-creator');
   },
   auditOnly() {
     oneOrgAs('audit-reader');

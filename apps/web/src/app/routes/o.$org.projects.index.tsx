@@ -128,6 +128,14 @@ function ProjectsPage() {
   const orgPath = `/o/${encodeURIComponent(org)}`;
   const settingsHref = (id: string): string | undefined =>
     can(access, 'agent:read', { projectId: id }) ? `${orgPath}/p/${encodeURIComponent(id)}/desk/agent` : undefined;
+  const mayResume = can(access, 'project:create');
+  const setupSteps = new Map(dtos.map((d) => [d.id, d.setupStep]));
+  const resumeHref = (id: string): string | undefined => {
+    const step = setupSteps.get(id);
+    return mayResume && step !== undefined && step !== 'ready'
+      ? `${orgPath}/projects/new/${step}?project=${encodeURIComponent(id)}`
+      : undefined;
+  };
   return (
     <Projects
       user={bar.user}
@@ -136,6 +144,7 @@ function ProjectsPage() {
       projectHref={(p) => `${orgPath}/p/${encodeURIComponent(p.id)}/runs`}
       // Project settings is the Desk agent page: only for roles that may read it on that project.
       settingsHref={(p) => settingsHref(p.id)}
+      resumeHref={(p) => resumeHref(p.id)}
       switchToPollingHref={(p) => {
         const href = settingsHref(p.id);
         return href === undefined ? undefined : `${href}?tab=github`;

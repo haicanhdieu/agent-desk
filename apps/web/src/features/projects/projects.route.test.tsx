@@ -13,6 +13,7 @@ import { mockDb } from '@/mocks/msw/db';
 import { jsonResponse, problemResponse } from '@/mocks/msw/http';
 import { server } from '@/mocks/msw/node';
 import { scenarios } from '@/mocks/msw/scenarios';
+import { applyShellScenario, FOREIGN } from '@/mocks/msw/shellScenarios';
 import { renderRoute } from '@/test/renderRoute';
 import { createElement, type ReactNode } from 'react';
 import { useReplaceCredential } from '../desk/agent.form';
@@ -854,5 +855,70 @@ describe('setup rules step: Skip', () => {
     );
     expect(next.setupStep).toBe('ready');
     expect(ruleCalls).toBe(0);
+  });
+});
+
+describe('projects route resume setup', () => {
+  const resumeLink = (name: string) => screen.queryByRole('link', { name: `Resume setup for ${name}` });
+  const asRole = (roleKey: string) => {
+    applyShellScenario('unfinishedProjects');
+    const seat = mockDb.state.memberships.find((m) => m.userId === ids.user.alice && m.orgId === ids.org.alice);
+    if (!seat) throw new Error('no seat');
+    seat.roleKey = roleKey;
+    return seat;
+  };
+
+  it('TC-77.1 BR-78: an owner gets Resume setup on each unfinished project, to its own first unfinished step', async () => {
+    applyShellScenario('unfinishedProjects');
+    await renderRoute('/o/alice/projects');
+    await screen.findByRole('link', { name: 'invoicer-api' });
+    expect(resumeLink('invoicer-api')).toHaveAttribute(
+      'href',
+      `/o/alice/projects/new/agent?project=${ids.project.invoicerApi}`,
+    );
+    expect(resumeLink('invoicer-web')).toHaveAttribute(
+      'href',
+      `/o/alice/projects/new/skills?project=${ids.project.invoicerWeb}`,
+    );
+  });
+
+  it('TC-77.1: an org admin gets Resume setup', async () => {
+    asRole('admin');
+    await renderRoute('/o/alice/projects');
+    await screen.findByRole('link', { name: 'invoicer-api' });
+    expect(resumeLink('invoicer-api')).toBeInTheDocument();
+  });
+
+  it('TC-77.2: finished projects have no Resume setup', async () => {
+    await renderRoute('/o/acme/projects', { scenario: () => scenarios.onboarding('owner') });
+    await screen.findByRole('link', { name: 'invoicer-api' });
+    expect(screen.queryAllByRole('link', { name: /^Resume setup for / })).toHaveLength(0);
+  });
+
+  it.each(['member', 'viewer'])('TC-77.3: a %s sees the unfinished project without Resume setup', async (role) => {
+    asRole(role);
+    await renderRoute('/o/alice/projects');
+    await screen.findByRole('link', { name: 'invoicer-api' });
+    expect(screen.queryAllByRole('link', { name: /^Resume setup for / })).toHaveLength(0);
+  });
+
+  it('TC-77.4: an admin of only the unfinished project gets no Resume setup', async () => {
+    const seat = asRole('member');
+    seat.projectIds = [ids.project.invoicerApi];
+    seat.projectRoles = [{ projectId: ids.project.invoicerApi, roleKey: 'admin' }];
+    await renderRoute('/o/alice/projects');
+    await screen.findByRole('link', { name: 'invoicer-api' });
+    expect(screen.queryAllByRole('link', { name: /^Resume setup for / })).toHaveLength(0);
+  });
+
+  it('another org project never gets a link', async () => {
+    applyShellScenario('foreignOrg');
+    const foreign = mockDb.state.projects.find((p) => p.id === FOREIGN.projectId);
+    if (!foreign) throw new Error('no foreign project');
+    foreign.setupStep = 'agent';
+    await renderRoute('/o/alice/projects');
+    await screen.findByRole('link', { name: 'invoicer-api' });
+    expect(screen.queryByText(FOREIGN.projectName)).toBeNull();
+    expect(screen.queryAllByRole('link', { name: /^Resume setup for / })).toHaveLength(0);
   });
 });

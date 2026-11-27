@@ -122,7 +122,7 @@ function DeskRulesPage() {
       skills={skillNames}
       editingId={editing?.id}
       maxRunsPerTicket={project.maxRunsPerTicket}
-      guardLinks={{ change: `${paths.agent}?tab=limits`, ignored: paths.runs }}
+      guardLinks={{ change: `${paths.agent}?tab=limits`, ignored: `${paths.runs}?filter=ignored` }}
       onToggle={(id, enabled) => toggle.mutate({ id, enabled })}
       onCreate={() => open('new')}
       onEdit={open}

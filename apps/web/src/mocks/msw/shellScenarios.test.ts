@@ -42,11 +42,16 @@ it('the key and every scenario name', () => {
     'suspendedOnly',
     'oneOrgNoPlatform',
     'unfinishedProjects',
+    'unfinishedAtRules',
+    'unfinishedCodex',
+    'unfinishedAsMember',
+    'unfinishedAsViewer',
+    'unfinishedAsAdmin',
+    'unfinishedProjectAdmin',
     'connectionWarn',
     'connectionError',
     'noDefaultBranch',
     'longNames',
-    'creatorNoAgentRead',
     'auditOnly',
     'orgUpdateOnly',
     'distinctProjects',
@@ -119,6 +124,46 @@ describe('the defining facts', () => {
     expect(a.setupStep).not.toBe(b.setupStep);
   });
 
+  it('unfinishedAtRules: invoicer-api stopped on the rules step', async () => {
+    apply('unfinishedAtRules');
+    expect((await projectById(P1)).setupStep).toBe('rules');
+  });
+
+  it('unfinishedCodex: invoicer-api stopped after the Agent step with exactly one Codex agent', async () => {
+    apply('unfinishedCodex');
+    expect((await projectById(P1)).setupStep).toBe('setup');
+    const agents = mockDb.state.agents.filter((a) => a.projectId === P1);
+    expect(agents.map((a) => a.provider)).toEqual(['codex']);
+  });
+
+  it('unfinishedAsMember and unfinishedAsViewer: the same unfinished projects without a creating role', async () => {
+    for (const [scenario, role] of [
+      ['unfinishedAsMember', 'member'],
+      ['unfinishedAsViewer', 'viewer'],
+    ] as const) {
+      apply(scenario);
+      expect((await projectById(P1)).setupStep).not.toBe('ready');
+      expect((await grants()).map((a) => a.roleKey)).toEqual([role]);
+      expect(await permissionsOf()).not.toContain('project:create');
+    }
+  });
+
+  it('unfinishedAsAdmin: the same unfinished projects seen by an org admin, who may create projects', async () => {
+    apply('unfinishedAsAdmin');
+    expect((await projectById(P1)).setupStep).not.toBe('ready');
+    expect((await grants()).map((a) => a.roleKey)).toEqual(['admin']);
+    expect(await permissionsOf()).toContain('project:create');
+  });
+
+  it('unfinishedProjectAdmin: admin of invoicer-api only, which is unfinished, with no org-level grant', async () => {
+    apply('unfinishedProjectAdmin');
+    const all = await grants();
+    expect(all.every((a) => a.scope.type === 'project')).toBe(true);
+    expect(all.find((a) => a.roleKey === 'admin')?.scope).toEqual({ type: 'project', projectId: P1 });
+    expect((await projectById(P1)).setupStep).not.toBe('ready');
+    expect(all.some((a) => a.scope.type === 'org')).toBe(false);
+  });
+
   it('connectionWarn: invoicer-api shows the silent-webhook warning', async () => {
     apply('connectionWarn');
     const project = await projectById(P1);
@@ -151,13 +196,6 @@ describe('the defining facts', () => {
     apply('longNames');
     expect((await orgList())[0]?.name.length).toBeGreaterThanOrEqual(60);
     expect((await projectById(P1)).name.length).toBeGreaterThanOrEqual(60);
-  });
-
-  it('creatorNoAgentRead: project:create without agent:read', async () => {
-    apply('creatorNoAgentRead');
-    const held = await permissionsOf();
-    expect(held).toContain('project:create');
-    expect(held).not.toContain('agent:read');
   });
 
   it('auditOnly: audit:read is the only right', async () => {

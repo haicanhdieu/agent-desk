@@ -30,13 +30,20 @@ async function startClaudeWizard(page: Page) {
 }
 
 /**
- * Resumes the Agent step of a project whose credential is already saved: save the token in the Agent step, then go
- * back to it. Client-side navigation only: a reload would reseed the mock store.
+ * Resumes the Agent step of a project whose credential is already saved: save the token in the Agent step, leave
+ * to the project list, press "Resume setup" (the project is saved on a later step) and press Back to the Agent step.
+ * Client-side navigation only: a reload would reseed the mock store.
  */
 async function resumeAgentStepWithCredential(page: Page) {
   await startClaudeWizard(page);
   await page.getByRole('textbox', { name: 'Token' }).fill(TOKEN);
   await page.getByRole('button', { name: 'Continue' }).click();
+  await expect(workspaceHeading(page)).toBeVisible();
+  await page
+    .getByRole('navigation', { name: 'Organization sections' })
+    .getByRole('link', { name: 'Projects', exact: true })
+    .click();
+  await page.getByRole('link', { name: /^Resume setup for / }).click();
   await expect(workspaceHeading(page)).toBeVisible();
   await page.getByRole('link', { name: 'Back' }).click();
   await expect(agentHeading(page)).toBeVisible();

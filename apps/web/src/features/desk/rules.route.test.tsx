@@ -67,7 +67,7 @@ describe('desk rules route', () => {
     expect(screen.getAllByText('Never ran').length).toBeGreaterThan(0);
     expect(screen.getByText(/Skill docs-update is not in \.claude\/skills\/ on main/)).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Change' })).toHaveAttribute('href', `${base}/desk/agent?tab=limits`);
-    expect(screen.getByRole('link', { name: 'Runs, Ignored' })).toHaveAttribute('href', `${base}/runs`);
+    expect(screen.getByRole('link', { name: 'Runs, Ignored' })).toHaveAttribute('href', `${base}/runs?filter=ignored`);
     expect(screen.queryByRole('complementary')).toBeNull();
   });
 
