@@ -127,4 +127,49 @@ describe('ProjectSwitch menu', () => {
     await user.click(screen.getByRole('button', { name: 'Retry' }));
     expect(onRetry).toHaveBeenCalledTimes(1);
   });
+
+  describe('BR-53: the list arrives after opening', () => {
+    const mount = (menu: ProjectSwitchMenu) => {
+      const user = userEvent.setup();
+      const tree = (m: ProjectSwitchMenu) => (
+        <div>
+          <ProjectSwitch project="invoicer-api" menu={m} />
+          <button>Elsewhere</button>
+        </div>
+      );
+      const view = render(tree(menu));
+      return { user, show: (m: ProjectSwitchMenu) => view.rerender(tree(m)) };
+    };
+
+    it('arrows work when the list arrives after opening', async () => {
+      const { user, show } = mount({ status: 'loading' });
+      button().focus();
+      await user.keyboard('{Enter}');
+      show({ status: 'ready', items: items.slice(0, 2) });
+      expect(await screen.findByRole('link', { name: /invoicer-api/ })).toHaveFocus();
+      await user.keyboard('{ArrowDown}');
+      expect(screen.getByRole('link', { name: /invoicer-web/ })).toHaveFocus();
+      await user.keyboard('{Escape}');
+      expect(screen.queryByRole('dialog')).toBeNull();
+      expect(button()).toHaveFocus();
+    });
+
+    it('Escape closes the menu while it is still loading', async () => {
+      const { user } = mount({ status: 'loading' });
+      button().focus();
+      await user.keyboard('{Enter}');
+      await user.keyboard('{Escape}');
+      expect(screen.queryByRole('dialog')).toBeNull();
+      expect(button()).toHaveFocus();
+    });
+
+    it('focus that moved outside before the list arrived is not pulled back', async () => {
+      const { user, show } = mount({ status: 'loading' });
+      button().focus();
+      await user.keyboard('{Enter}');
+      screen.getByRole('button', { name: 'Elsewhere' }).focus();
+      show({ status: 'ready', items });
+      expect(screen.getByRole('button', { name: 'Elsewhere' })).toHaveFocus();
+    });
+  });
 });

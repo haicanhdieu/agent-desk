@@ -14,11 +14,11 @@ export interface DeskLayoutProps {
     status?: { tone: 'ok' | 'warn' | 'err'; text: string };
   };
   /**
-   * Sub-nav hrefs; default to the relative "skills", "rules", "setup" and "agent". "Workspace setup" shows only when
-   * `setup` is set, so callers without that route keep the three-item nav.
+   * Sub-nav hrefs; default to the relative "skills", "rules", "setup" and "agent" when `links` is omitted. Each item
+   * shows only when its link is set, and a group with no item is not drawn.
    * The "Access" group (Members, Audit log) shows only the items whose link is set, and not at all when neither is.
    */
-  links?: { skills: string; rules: string; agent: string; setup?: string; members?: string; audit?: string };
+  links?: { skills?: string; rules?: string; agent?: string; setup?: string; members?: string; audit?: string };
   /** The project's name for the sidebar header; the generic "Desk" when not given. */
   projectName?: string;
   children?: ReactNode;
@@ -28,29 +28,26 @@ const relativeLinks = { skills: 'skills', rules: 'rules', setup: 'setup', agent:
 
 export function DeskLayout({ active, repo, projectName, links = relativeLinks, children }: DeskLayoutProps) {
   const status = repo.status ?? (repo.connected ? { tone: 'ok' as const, text: 'Connected' } : undefined);
+  const configure = [
+    ...(links.rules
+      ? [{ label: 'Routing rules', href: links.rules, icon: 'rule' as const, active: active === 'rules' }]
+      : []),
+    ...(links.skills
+      ? [{ label: 'Skills', href: links.skills, icon: 'skill-file' as const, active: active === 'skills' }]
+      : []),
+    ...(links.setup
+      ? [{ label: 'Workspace setup', href: links.setup, icon: 'terminal' as const, active: active === 'setup' }]
+      : []),
+    ...(links.agent
+      ? [{ label: 'Agent & settings', href: links.agent, icon: 'bot' as const, active: active === 'agent' }]
+      : []),
+  ];
   return (
     <div className={styles.body}>
       <SubNav
         aria-label="Desk"
         groups={[
-          {
-            heading: projectName ?? 'Desk',
-            items: [
-              { label: 'Routing rules', href: links.rules, icon: 'rule', active: active === 'rules' },
-              { label: 'Skills', href: links.skills, icon: 'skill-file', active: active === 'skills' },
-              ...(links.setup
-                ? [
-                    {
-                      label: 'Workspace setup',
-                      href: links.setup,
-                      icon: 'terminal' as const,
-                      active: active === 'setup',
-                    },
-                  ]
-                : []),
-              { label: 'Agent & settings', href: links.agent, icon: 'bot', active: active === 'agent' },
-            ],
-          },
+          ...(configure.length > 0 ? [{ heading: projectName ?? 'Desk', items: configure }] : []),
           ...(links.members || links.audit
             ? [
                 {

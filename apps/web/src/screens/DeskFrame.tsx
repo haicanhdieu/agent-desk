@@ -10,9 +10,10 @@ export interface DeskLinks {
   runs: string;
   /** The top bar's Settings tab; hidden without it. */
   desk?: string;
-  skills: string;
-  rules: string;
-  agent: string;
+  /** Desk nav items; each is hidden without its link. */
+  skills?: string;
+  rules?: string;
+  agent?: string;
   /** Desk Setup tab; the nav item is hidden without it. */
   setup?: string;
   /** Access group items; each is hidden without its link. */

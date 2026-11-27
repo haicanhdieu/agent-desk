@@ -1,4 +1,5 @@
 import { useEffect, useId, useRef, useState, type KeyboardEvent, type Ref } from 'react';
+import { useMenuNav } from './useMenuNav';
 import { AppLink, Button, CountBadge, Icon, InlineStatus, Popover, Skeleton } from '@/ds';
 import styles from './Chrome.module.css';
 
@@ -45,9 +46,6 @@ function SwitchButton({ project, onClick, buttonRef, expanded, controls, onKeyDo
   );
 }
 
-const MENU_ITEMS = 'a[href],button:not([disabled])';
-const ARROW_KEYS = ['ArrowDown', 'ArrowUp', 'Home', 'End'];
-
 export function ProjectSwitch({ project, onClick, menu }: ProjectSwitchProps) {
   if (!menu) return <SwitchButton project={project} onClick={onClick} />;
   return <ProjectSwitchWithMenu project={project} menu={menu} />;
@@ -63,36 +61,8 @@ function ProjectSwitchWithMenu({ project, menu }: { project: string; menu: Proje
     if (open) onOpen?.();
   }, [open, onOpen]);
 
-  // An outside press closes the menu; Escape is handled by the Popover, which also returns focus to the button.
-  useEffect(() => {
-    if (!open) return undefined;
-    const onPointerDown = (e: PointerEvent) => {
-      if (e.target instanceof Node && !wrapRef.current?.contains(e.target)) setOpen(false);
-    };
-    document.addEventListener('pointerdown', onPointerDown);
-    return () => document.removeEventListener('pointerdown', onPointerDown);
-  }, [open]);
-
-  const onButtonKeyDown = (e: KeyboardEvent<HTMLButtonElement>) => {
-    if (e.key === 'ArrowDown' && !open) {
-      e.preventDefault();
-      setOpen(true);
-    }
-  };
-
-  // Arrow keys, Home and End move between the menu's links (and Retry).
-  const onMenuKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
-    if (!ARROW_KEYS.includes(e.key)) return;
-    const items = Array.from(e.currentTarget.querySelectorAll<HTMLElement>(MENU_ITEMS));
-    if (items.length === 0) return;
-    e.preventDefault();
-    const at = items.findIndex((el) => el === document.activeElement);
-    let next = 0;
-    if (e.key === 'End') next = items.length - 1;
-    else if (e.key === 'ArrowDown') next = (at + 1) % items.length;
-    else if (e.key === 'ArrowUp') next = (at <= 0 ? items.length : at) - 1;
-    items[next]?.focus();
-  };
+  // Outside press, ArrowDown on the button and the arrow keys inside the popover; Escape and focus return stay with the Popover.
+  const { onTriggerKeyDown, onMenuKeyDown } = useMenuNav(open, setOpen, wrapRef, menu.status === 'ready');
 
   return (
     <div ref={wrapRef} className={styles.switchWrap}>
@@ -101,16 +71,17 @@ function ProjectSwitchWithMenu({ project, menu }: { project: string; menu: Proje
         expanded={open}
         controls={menuId}
         onClick={() => setOpen((o) => !o)}
-        onKeyDown={onButtonKeyDown}
+        onKeyDown={onTriggerKeyDown}
       />
       <Popover
         open={open}
         label="Projects"
         onClose={() => setOpen(false)}
+        onKeyDown={onMenuKeyDown}
         style={{ top: 'calc(100% + 6px)', left: 0, padding: 0, gap: 0 }}
       >
-        {/* The Popover is the dialog; this wrapper carries the id and the arrow-key handling. */}
-        <div id={menuId} onKeyDown={onMenuKeyDown}>
+        {/* The Popover is the dialog and handles the arrow keys; this wrapper carries the id. */}
+        <div id={menuId}>
           <SwitchMenuBody menu={menu} onNavigate={() => setOpen(false)} />
         </div>
       </Popover>

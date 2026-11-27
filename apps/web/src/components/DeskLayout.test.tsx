@@ -54,3 +54,25 @@ describe('DeskLayout Access group', () => {
     expect(within(nav).queryByRole('link', { name: 'Audit log' })).toBeNull();
   });
 });
+
+describe('DeskLayout with partial links', () => {
+  it('draws no Configure item and no empty heading when only members is set', () => {
+    const nav = setup({ links: { members: '#members' } });
+    const labels = within(nav)
+      .getAllByRole('link')
+      .map((a) => a.textContent);
+    expect(labels).toEqual(['Members']);
+    expect(within(nav).getByText('Access')).toBeInTheDocument();
+    expect(within(nav).getByText('Repository')).toBeInTheDocument();
+    expect(within(nav).getByText('invoicer-api')).toBeInTheDocument();
+    expect(within(nav).queryByText('Desk')).toBeNull();
+  });
+
+  it('shows neither group heading with no link at all', () => {
+    const nav = setup({ links: {} });
+    expect(within(nav).queryAllByRole('link')).toEqual([]);
+    expect(within(nav).queryByText('Access')).toBeNull();
+    expect(within(nav).queryByText('Desk')).toBeNull();
+    expect(within(nav).getByText('Repository')).toBeInTheDocument();
+  });
+});

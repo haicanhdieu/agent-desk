@@ -8,6 +8,7 @@ import {
   type APIResponse,
   type Browser,
   type BrowserContext,
+  type Locator,
   type Page,
 } from '@playwright/test';
 import {
@@ -752,4 +753,19 @@ export const isCredentialPut = (r: { url(): string; request(): { method(): strin
 export async function chooseAction(page: Page, name: string): Promise<void> {
   await page.getByRole('button', { name: 'More actions' }).click();
   await page.getByRole('menuitem', { name }).click();
+}
+
+/** The side menu by its landmark name: the organization, project and platform menus and the wizard's stepper. */
+const SIDE_MENU_NAME = /^(Organization menu|Project menu|Platform menu|Setup progress)$/;
+
+/**
+ * Opens the side menu and returns it: presses "Open menu" below 1024 px, or "Expand menu" when the menu is collapsed,
+ * and gives back the visible side `navigation`.
+ */
+export async function openSideMenu(page: Page): Promise<Locator> {
+  const open = page.getByRole('button', { name: 'Open menu' });
+  const expand = page.getByRole('button', { name: 'Expand menu' });
+  if (await open.isVisible()) await open.click();
+  else if (await expand.isVisible()) await expand.click();
+  return page.getByRole('navigation', { name: SIDE_MENU_NAME });
 }

@@ -9,12 +9,14 @@ import { sessionEventFixtures, sessionRunFixtures, sessionTranscriptFixtures } f
 import { mockDb } from './db';
 import { applyMockLists, MOCK_LISTS_KEY, mockListHandlers, parseMockLists } from './e2eLists';
 import { handlers } from './handlers';
+import { HOLD_KEY, holdHandlers, parseHoldConfig, type HeldRead, type ReadMode } from './holdScenarios';
 import { GITHUB_SYNC_SCENARIO_KEY, GithubSyncScenario } from './githubSync';
 import { PR_STATES_SCENARIO_KEY } from './prStates';
 import { SKILL_REVIEW_KEY } from './skillReview';
 import { ONBOARDING_SCENARIO_KEY, parseOnboardingScenario } from './onboardingScenarios';
 import { PLATFORM_SCENARIO_KEY, parsePlatformScenario } from './platformScenarios';
 import { scenarios, setScenarioTarget } from './scenarios';
+import { SHELL_KEY, applyShellScenario, parseShellScenario } from './shellScenarios';
 import { PROJECT_SPACE_KEY, applyProjectSpace, parseProjectSpace } from './projectSpaceScenarios';
 import { TENANT_ADMIN_SCENARIO_KEY, applyTenantAdminScenario, parseTenantAdminScenario } from './tenantAdminScenarios';
 import { DEFAULT_RUN_SCRIPT, streamHandlers } from './stream-handlers';
@@ -171,6 +173,44 @@ function loadProjectSpace(): void {
   if (picked !== undefined) applyProjectSpace(mockDb, picked);
 }
 
+// The mocked e2e specs pick a shell scenario here before the first load (e2e/mock/mock.ts `seedShell`, shellScenarios.ts).
+// It resets the store like the scenarios above. An unknown name is ignored.
+function loadShell(): void {
+  let raw: string | null = null;
+  try {
+    raw = sessionStorage.getItem(SHELL_KEY);
+  } catch {
+    // Storage blocked: the seed stays.
+  }
+  const name = parseShellScenario(raw);
+  if (name !== undefined) applyShellScenario(name);
+}
+
+declare global {
+  interface Window {
+    /** Mock mode only: lets a held read go on (`ok`) or fail (e2e/mock/mock.ts `release`). */
+    __mockRelease?: (read: HeldRead, outcome?: 'ok' | 'fail') => void;
+    /** Mock mode only: changes how a read answers while the app runs; no mode lets it through (e2e/mock/mock.ts `setRead`). */
+    __mockRead?: (read: HeldRead, mode?: ReadMode) => void;
+  }
+}
+
+// The mocked e2e specs hold, fail or hide single reads of the shell (e2e/mock/mock.ts `holdReads`, holdScenarios.ts). The
+// handlers are always in place so `window.__mockRead` can change a read while the app runs; with no config they let
+// every request through. Anything unparsable is ignored.
+function loadHold(): void {
+  let raw: string | null = null;
+  try {
+    raw = sessionStorage.getItem(HOLD_KEY);
+  } catch {
+    // Storage blocked: nothing is held.
+  }
+  const hold = holdHandlers(parseHoldConfig(raw) ?? {});
+  worker.use(...hold.handlers);
+  window.__mockRelease = hold.release;
+  window.__mockRead = hold.setRead;
+}
+
 function loadGithubSync(): void {
   try {
     const raw = sessionStorage.getItem(GITHUB_SYNC_SCENARIO_KEY);
@@ -201,6 +241,7 @@ export function startMockWorker(opts: { quiet?: boolean } = {}): Promise<unknown
     loadTenantAdmin();
     loadPlatform();
     loadProjectSpace();
+    loadShell();
     loadAuth();
     loadAgentModels();
     loadAgents();
@@ -218,6 +259,8 @@ export function startMockWorker(opts: { quiet?: boolean } = {}): Promise<unknown
     mockDb.addRuns(usageRunFixtures, {});
     // After the extra fixtures: a seeded run count replaces every invoicer-api run, these included.
     loadLists();
+    // Last, so these handlers answer before the ones above.
+    loadHold();
     // A clean click-through shows a live run: open run 63 and watch it start (stream-handlers.ts).
     scenarios.runScript(DEFAULT_RUN_SCRIPT.runId, DEFAULT_RUN_SCRIPT.steps, { start: 'onStream' });
     worker.events.on('response:mocked', ({ request }) => {

@@ -5,6 +5,7 @@ import { SKILL_REVIEW_KEY } from '../../src/mocks/msw/skillReview';
 import { GITHUB_SYNC_SCENARIO_KEY, type GithubSyncScenario } from '../../src/mocks/msw/githubSync';
 import { PR_STATES_SCENARIO_KEY, type PrStatesScenario } from '../../src/mocks/msw/prStates';
 import { ids } from '../../src/mocks/dto/ids';
+import { HOLD_KEY, type HeldRead, type HoldConfig, type ReadMode } from '../../src/mocks/msw/holdScenarios';
 import { MOCK_LISTS_KEY, type MockLists } from '../../src/mocks/msw/e2eLists';
 import { ONBOARDING_SCENARIO_KEY, type OnboardingScenario } from '../../src/mocks/msw/onboardingScenarios';
 import { PLATFORM_SCENARIO_KEY, type PlatformScenario } from '../../src/mocks/msw/platformScenarios';
@@ -13,6 +14,7 @@ import {
   type ProjectSpaceRole,
   type ProjectSpaceScenario,
 } from '../../src/mocks/msw/projectSpaceScenarios';
+import { SHELL_KEY, type ShellScenario } from '../../src/mocks/msw/shellScenarios';
 import { TENANT_ADMIN_SCENARIO_KEY, type TenantAdminScenario } from '../../src/mocks/msw/tenantAdminScenarios';
 
 /*
@@ -317,6 +319,69 @@ export async function seedProjectSpace(
     },
     [PROJECT_SPACE_KEY, JSON.stringify(opts)] as const,
   );
+}
+
+/**
+ * Starts this test in a shell scenario (src/mocks/msw/shellScenarios.ts): who is signed in, their orgs and roles, and
+ * the projects, runs and invitations the side-menu shell meets. Call before the first `page.goto`: browser.ts reads the
+ * key once when the mock worker starts. It lives in sessionStorage, so a reload in the same tab keeps it.
+ */
+export async function seedShell(page: Page, scenario: ShellScenario): Promise<void> {
+  await page.addInitScript(
+    ([key, value]) => {
+      sessionStorage.setItem(key, value);
+    },
+    [SHELL_KEY, scenario] as const,
+  );
+}
+
+/**
+ * Holds, fails or hides single reads of the app shell for this test (src/mocks/msw/holdScenarios.ts: `hold`, `fail`,
+ * `failOnce`, `pending`, `notFound`, `crash`). Call before the first `page.goto`: browser.ts reads the key once when
+ * the mock worker starts. It lives in sessionStorage, so a reload in the same tab keeps it.
+ */
+export async function holdReads(page: Page, config: HoldConfig): Promise<void> {
+  await page.addInitScript(
+    ([key, value]) => {
+      sessionStorage.setItem(key, value);
+    },
+    [HOLD_KEY, JSON.stringify(config)] as const,
+  );
+}
+
+/** Lets a read held with `hold` go on (`ok`, the default) or answer 500 (`fail`), after the page has loaded. */
+export async function release(page: Page, read: HeldRead, outcome: 'ok' | 'fail' = 'ok'): Promise<void> {
+  await page.evaluate(
+    ([r, o]) => {
+      window.__mockRelease?.(r, o);
+    },
+    [read, outcome] as const,
+  );
+}
+
+/** Changes how a read answers from now on, while the app runs (no mode: the mock API answers). For "access removed" cases. */
+export async function setRead(page: Page, read: HeldRead, mode?: ReadMode): Promise<void> {
+  await page.evaluate(
+    ([r, m]) => {
+      window.__mockRead?.(r, m);
+    },
+    [read, mode] as const,
+  );
+}
+
+/** The side menu by its landmark name: the organization, project and platform menus and the wizard's stepper. */
+export const SIDE_MENU_NAME = /^(Organization menu|Project menu|Platform menu|Setup progress)$/;
+
+/**
+ * Opens the side menu and returns it: presses "Open menu" below 1024 px, or "Expand menu" when the menu is collapsed,
+ * and gives back the visible side `navigation`.
+ */
+export async function openSideMenu(page: Page): Promise<Locator> {
+  const open = page.getByRole('button', { name: 'Open menu' });
+  const expand = page.getByRole('button', { name: 'Expand menu' });
+  if (await open.isVisible()) await open.click();
+  else if (await expand.isVisible()) await expand.click();
+  return page.getByRole('navigation', { name: SIDE_MENU_NAME });
 }
 
 /** Opens the "More actions" menu of a platform org header and picks the item (status action or link). */

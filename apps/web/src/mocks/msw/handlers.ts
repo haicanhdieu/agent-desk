@@ -155,15 +155,22 @@ function session(): { user: MockUser; orgId: string } {
 function accessOf(user: MockUser): AccessDto {
   const orgId = mockDb.auth.activeOrganizationId;
   const seat = db().memberships.find((m) => m.userId === user.id && m.orgId === orgId);
-  const role = roleFixtures.find((r) => r.key === seat?.roleKey);
-  const assignments =
-    !seat || !role
-      ? []
-      : (seat.projectIds ?? [undefined]).map((projectId) => ({
-          roleKey: role.key,
-          scope: projectId === undefined ? ({ type: 'org' } as const) : ({ type: 'project', projectId } as const),
-          permissions: role.permissions,
-        }));
+  // A seat with `projectRoles` holds a different role on each project; otherwise one role over its projects (or the org).
+  const held = !seat
+    ? []
+    : (seat.projectRoles ??
+      (seat.projectIds ?? [undefined]).map((projectId) => ({ projectId, roleKey: seat.roleKey })));
+  const assignments = held.flatMap(({ projectId, roleKey }) => {
+    const role = roleFixtures.find((r) => r.key === roleKey);
+    if (!role) return [];
+    return [
+      {
+        roleKey: role.key,
+        scope: projectId === undefined ? ({ type: 'org' } as const) : ({ type: 'project', projectId } as const),
+        permissions: role.permissions,
+      },
+    ];
+  });
   return { userId: user.id, platformAdmin: user.platformAdmin, assignments };
 }
 

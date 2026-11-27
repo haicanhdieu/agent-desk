@@ -1,7 +1,7 @@
 import { useSuspenseQuery } from '@tanstack/react-query';
 import { can, type Access, type Permission } from '@agentdesk/contracts';
 import type { OrgSwitchProps } from '@/components';
-import type { DeskFrameData } from '@/screens';
+import type { DeskFrameData, DeskLinks } from '@/screens';
 import { useAccess } from '../access/guards';
 import { useAppBar } from '../chrome/appBar';
 import { toConnectionStatus, toProject } from '../projects/map';
@@ -57,6 +57,22 @@ export function deskRightsOf(access: Access | undefined, projectId: string): Des
   };
 }
 
+/** The Desk menu links the caller may open: each is set only when its right is held. */
+export function deskLinksFor(
+  paths: ReturnType<typeof projectPaths>,
+  rights: DeskRights,
+): Pick<DeskLinks, 'skills' | 'rules' | 'agent' | 'setup' | 'members' | 'audit' | 'desk'> {
+  return {
+    // The Settings tab opens the rules page, so it shows only for roles that may read it.
+    ...(rights.rules && { desk: paths.rules, rules: paths.rules }),
+    ...(rights.skills && { skills: paths.skills }),
+    ...(rights.agent && { agent: paths.agent }),
+    ...(rights.setup && { setup: paths.setup }),
+    ...(rights.members && { members: paths.members }),
+    ...(rights.audit && { audit: paths.audit }),
+  };
+}
+
 /** Top bar and Desk navigation data for a project page, from the `$project` layout's cached queries. Pass `useNow()`. */
 export function useDeskFrame(org: string, projectId: string, now: Date): DeskFrameData & { org: OrgSwitchProps } {
   const bar = useAppBar(org);
@@ -79,14 +95,7 @@ export function useDeskFrame(org: string, projectId: string, now: Date): DeskFra
     links: {
       projects: paths.projects,
       runs: paths.runs,
-      // The Settings tab opens the rules page, so it shows only for roles that may read it.
-      ...(rights.rules && { desk: paths.rules }),
-      skills: paths.skills,
-      rules: paths.rules,
-      agent: paths.agent,
-      setup: paths.setup,
-      ...(rights.members && { members: paths.members }),
-      ...(rights.audit && { audit: paths.audit }),
+      ...deskLinksFor(paths, rights),
     },
     ...(warning && rights.setup && { warning: { title: warning.title, detail: warning.detail, href: paths.setup } }),
   };

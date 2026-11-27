@@ -436,7 +436,7 @@ graph LR
 - Consumes: `deskRightsOf(access, projectId): DeskRights`.
 - Produces: `deskLinksFor(paths: ReturnType<typeof projectPaths>, rights: DeskRights): Pick<DeskLinks, 'skills' | 'rules' | 'agent' | 'setup' | 'members' | 'audit' | 'desk'>` in `frame.ts`, used by `useDeskFrame`. `DeskLinks.skills`, `.rules`, `.agent` and `DeskLayoutProps.links.*` become optional.
 
-- [ ] **Step 1: Write the failing test** in `frame.test.ts`:
+- [x] **Step 1: Write the failing test** in `frame.test.ts`:
 
 ```ts
 it('gives a caller without rule, skill, setup or agent read no Configure link', () => {
@@ -447,9 +447,9 @@ it('gives a caller without rule, skill, setup or agent read no Configure link', 
 
 Add an `it.each` over `tenantAccessFixtures` (owner, admin, projectAdmin, member, viewer, noRole, and `undefined` access) with the exact link keys per fixture. In `DeskLayout.test.tsx`: with only `members` set there is no Routing rules, Skills, Workspace setup or Agent & settings link and no empty group heading; the Repository block stays; with no link at all, neither group heading shows.
 
-- [ ] **Step 2: Run** VITEST on both files. Expected: FAIL (`deskLinksFor` missing; links drawn).
-- [ ] **Step 3: Implement.** Each link is set only when its right is true. `DeskLayout` draws an item only when its href is set and drops a group with no items. When `links` is omitted (stories) keep the relative defaults. No look or copy change.
-- [ ] **Step 4: Run** the same tests, `src/features/access/deskAccess.route.test.tsx` and `pnpm --filter @agentdesk/web typecheck`. Expected: PASS. With built-in roles nothing visible changes on today's Desk pages, so this PR's proof is the unit test (say so in the PR); the visible e2e is TC-23 in Task 30.
+- [x] **Step 2: Run** VITEST on both files. Expected: FAIL (`deskLinksFor` missing; links drawn).
+- [x] **Step 3: Implement.** Each link is set only when its right is true. `DeskLayout` draws an item only when its href is set and drops a group with no items. When `links` is omitted (stories) keep the relative defaults. No look or copy change.
+- [x] **Step 4: Run** the same tests, `src/features/access/deskAccess.route.test.tsx` and `pnpm --filter @agentdesk/web typecheck`. Expected: PASS. With built-in roles nothing visible changes on today's Desk pages, so this PR's proof is the unit test (say so in the PR); the visible e2e is TC-23 in Task 30.
 - [ ] **Step 5: Commit** `fix(web): filter every desk menu link by permission`. Label `review:sensitive`.
 
 ### Task 3: Browser-mock switches, fixtures and the side-menu e2e helper
@@ -467,11 +467,11 @@ Add an `it.each` over `tenantAccessFixtures` (owner, admin, projectAdmin, member
 - Produces (`shellScenarios.ts`): `SHELL_SCENARIOS = ['adminP1ViewerP2', 'adminAMemberB', 'suspendedOnly', 'oneOrgNoPlatform', 'unfinishedProjects', 'connectionWarn', 'connectionError', 'noDefaultBranch', 'longNames', 'creatorNoAgentRead', 'auditOnly', 'orgUpdateOnly', 'distinctProjects', 'markerTicket', 'foreignOrg', 'foreignInvite'] as const`; `applyShellScenario(s)`; `SHELL_KEY = 'agentdesk.mock.shell'`. `unfinishedProjects` has two projects stopped at different `setupStep`s. `creatorNoAgentRead` has `project:create` without `agent:read`; `auditOnly` and `orgUpdateOnly` grant only that one org settings right; `distinctProjects` gives two projects different saved setup scripts and a same-named skill with different text (Task 32 adds their agents, limits and trigger modes); `markerTicket` puts a unique marker and HTML-like text in run 62's ticket title and comment; `foreignOrg` holds a non-member org and project with distinctive names; `foreignInvite` adds a pending invitation from such an org. Reuse an onboarding, project-space or tenant-admin scenario or fixture inside `applyShellScenario` where one already gives the state. A later task that finds a state still missing adds it in its own PR. This task adds no agent fixture or scenario and does not wait for the multi-agent work: later tasks reuse its fixtures, mock scenarios (`manyAgents`, `agentsEmpty`, a 500 on the agent list, a rejected test, a blocked delete) and local agent helpers. The change to `e2e/local/helpers.ts` only adds a helper and changes no signature.
 - Produces (`e2e/mock/mock.ts`): `holdReads(page, config)`, `release(page, read, outcome?)`, `setRead(page, read, mode?)`, `seedShell(page, s)`, `openSideMenu(page): Promise<Locator>` (presses "Open menu" below 1024, or "Expand menu" when collapsed; returns the visible side `navigation`). `e2e/local/helpers.ts` gets the same `openSideMenu`.
 
-- [ ] **Step 1: Write failing tests.** `holdScenarios.test.ts` (MSW node server): `hold` does not resolve until `release`; `release('orgList', 'fail')` answers 500 problem+json; `failOnce` fails once then passes through; `pending` never resolves; `notFound` answers 404 and `crash` 422; setting a read at runtime changes the next answer. `shellScenarios.test.ts`: `it.each(SHELL_SCENARIOS)` parses the resulting reads with contracts schemas and asserts its defining fact (for example `suspendedOnly`: one membership, status `suspended`, `platformAdmin` false; `adminP1ViewerP2`: project-scope admin on `ids.project.invoicerApi`, viewer on `ids.project.invoicerWeb`).
-- [ ] **Step 2: Run** VITEST on both. Expected: FAIL, modules missing.
-- [ ] **Step 3: Implement** both modules, the `browser.ts` loading (unparsable keys ignored, as the other switches) and the e2e helpers.
-- [ ] **Step 4: Run** the tests and typecheck. Expected: PASS.
-- [ ] **Step 5: Commit** `test(web): add browser-mock hold switches and shell scenarios`.
+- [x] **Step 1: Write failing tests.** `holdScenarios.test.ts` (MSW node server): `hold` does not resolve until `release`; `release('orgList', 'fail')` answers 500 problem+json; `failOnce` fails once then passes through; `pending` never resolves; `notFound` answers 404 and `crash` 422; setting a read at runtime changes the next answer. `shellScenarios.test.ts`: `it.each(SHELL_SCENARIOS)` parses the resulting reads with contracts schemas and asserts its defining fact (for example `suspendedOnly`: one membership, status `suspended`, `platformAdmin` false; `adminP1ViewerP2`: project-scope admin on `ids.project.invoicerApi`, viewer on `ids.project.invoicerWeb`).
+- [x] **Step 2: Run** VITEST on both. Expected: FAIL, modules missing.
+- [x] **Step 3: Implement** both modules, the `browser.ts` loading (unparsable keys ignored, as the other switches) and the e2e helpers.
+- [x] **Step 4: Run** the tests and typecheck. Expected: PASS.
+- [x] **Step 5: Commit** `test(web): add browser-mock hold switches and shell scenarios`.
 
 ### Task 4: Project switcher keyboard works while loading (BR-53)
 
@@ -488,12 +488,12 @@ Add an `it.each` over `tenantAccessFixtures` (owner, admin, projectAdmin, member
 - Consumes: `useMenuNav(open, setOpen, wrapRef)` returning `{ onTriggerKeyDown, onMenuKeyDown }`; `holdReads` (Task 3).
 - Produces: `useMenuNav` gains an optional fourth argument `ready?: boolean`: when it turns true while open and focus is still inside the popover, the first item is focused. Task 14 uses it for `OrgSwitch`.
 
-- [ ] **Step 1: Write the failing test** "BR-53: arrows work when the list arrives after opening": render `status: 'loading'`, open by keyboard, rerender `ready` with two items; expect the first link focused; `{ArrowDown}` focuses the second; `{Escape}` closes and focuses the trigger. Second case: focus moved outside before ready is not pulled back.
-- [ ] **Step 2: Run** VITEST `src/components/ProjectSwitch.test.tsx`. Expected: FAIL (focus stays on the popover root, arrows do nothing).
-- [ ] **Step 3: Implement:** drop the component's own arrow handler, use `useMenuNav` so the key handler covers the whole popover.
-- [ ] **Step 4: Add mock e2e** in `org-switcher.spec.ts`: "TC-53.1", "TC-53.3" with `holdReads(page, { projectList: 'hold' })`.
-- [ ] **Step 5: Run** the test and MOCK `e2e/mock/org-switcher.spec.ts`. Expected: PASS.
-- [ ] **Step 6: Commit** `fix(web): keyboard in the project switcher while it loads`.
+- [x] **Step 1: Write the failing test** "BR-53: arrows work when the list arrives after opening": render `status: 'loading'`, open by keyboard, rerender `ready` with two items; expect the first link focused; `{ArrowDown}` focuses the second; `{Escape}` closes and focuses the trigger. Second case: focus moved outside before ready is not pulled back.
+- [x] **Step 2: Run** VITEST `src/components/ProjectSwitch.test.tsx`. Expected: FAIL (focus stays on the popover root, arrows do nothing).
+- [x] **Step 3: Implement:** drop the component's own arrow handler, use `useMenuNav` so the key handler covers the whole popover.
+- [x] **Step 4: Add mock e2e** in `org-switcher.spec.ts`: "TC-53.1", "TC-53.3" with `holdReads(page, { projectList: 'hold' })`.
+- [x] **Step 5: Run** the test and MOCK `e2e/mock/org-switcher.spec.ts`. Expected: PASS.
+- [x] **Step 6: Commit** `fix(web): keyboard in the project switcher while it loads`.
 
 ### Task 5: Arrow, Home and End keys on the terminal view tabs (BR-81)
 
