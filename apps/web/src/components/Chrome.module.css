@@ -219,6 +219,91 @@
 .subnav > .grpH:first-child {
   padding-top: 2px;
 }
+.subnavList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.subnavLabel {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.subnavTop {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+.subnavTop .subnavBack {
+  flex: 1;
+  min-width: 0;
+}
+.subnavToggle {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: 0;
+  border-radius: var(--radius-6);
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+.subnavToggle:hover {
+  color: var(--text);
+  background: var(--raised);
+}
+.subnavCollapsed {
+  width: 48px;
+  flex-basis: 48px;
+  padding: 16px 8px;
+  align-items: center;
+}
+.subnavLoading {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 10px;
+}
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+.subnavError {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  font-size: var(--fs-12_5);
+  color: var(--err);
+}
+.subnavRetry {
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  text-decoration: underline;
+  cursor: pointer;
+  font: inherit;
+}
+.subnavFooter {
+  margin-top: auto;
+  padding-top: 12px;
+}
+.repoBlock {
+  min-width: 0;
+}
 .grpBody {
   padding: 4px 10px;
   display: flex;

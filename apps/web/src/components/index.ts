@@ -25,7 +25,8 @@ export {
   type AccountMenuProps,
 } from './AccountMenu';
 export { TopBar, TopBarSeparator, type TopBarProps } from './TopBar';
-export { SubNav, type SubNavProps } from './SubNav';
+export { SubNav, type SubNavGroup, type SubNavItem, type SubNavProps } from './SubNav';
+export { RepoBlock, type RepoBlockProps } from './RepoBlock';
 export { AppShell, type AppShellProps } from './AppShell';
 export { DeskLayout, type DeskLayoutProps } from './DeskLayout';
 export {

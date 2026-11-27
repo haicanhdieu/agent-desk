@@ -34,7 +34,11 @@ const h1 = (page: Page, name: string): Locator => page.getByRole('heading', { na
 /** A heading of any level: the no-access state of a route error is not an h1 (the spec gives the text only). */
 const anyHeading = (page: Page, name: string): Locator => page.getByRole('heading', { name });
 
-const FULL_MENU = ['Organization', 'General', 'Members', 'Invitations', 'Audit log'];
+const FULL_MENU = ['General', 'Members', 'Invitations', 'Audit log'];
+
+/** The side menu's items, found by role: the list is named like its heading. */
+const menuItems = (page: Page): Locator =>
+  sideMenu(page).getByRole('list', { name: 'Organization' }).getByRole('listitem');
 
 /** The no-access state: heading and hint, with no form. */
 async function expectNoAccess(page: Page): Promise<void> {
@@ -45,7 +49,8 @@ async function expectNoAccess(page: Page): Promise<void> {
 /** The Settings area with its full side menu, `current` active. */
 async function expectFullSideMenu(page: Page, current: string): Promise<void> {
   await expect(sideMenu(page)).toBeVisible();
-  await expect(sideMenu(page).locator('> *')).toHaveText(FULL_MENU);
+  await expect(sideMenu(page).getByText('Organization', { exact: true })).toBeVisible();
+  await expect(menuItems(page)).toHaveText(FULL_MENU);
   await expect(sideMenu(page).getByRole('link')).toHaveText(['General', 'Members', 'Invitations', 'Audit log']);
   await expect(sideMenu(page).getByRole('link', { name: current, exact: true })).toHaveAttribute(
     'aria-current',
@@ -123,7 +128,8 @@ test.describe('BR-2: roles without admin access', () => {
     await tab(page, 'Org settings').click();
     await expect(page).toHaveURL(new RegExp(`/o/${ORG}/settings/invitations$`));
     await expect(h1(page, 'Invitations')).toBeVisible();
-    await expect(sideMenu(page).locator('> *')).toHaveText(['Organization', 'Invitations']);
+    await expect(sideMenu(page).getByText('Organization', { exact: true })).toBeVisible();
+    await expect(menuItems(page)).toHaveText(['Invitations']);
     await expect(sideMenu(page).getByRole('link')).toHaveText(['Invitations']);
     await expect(sideMenu(page).getByRole('link', { name: 'Invitations' })).toHaveAttribute('aria-current', 'page');
     for (const url of [MEMBERS, GENERAL, AUDIT]) {
