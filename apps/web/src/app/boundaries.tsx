@@ -40,7 +40,10 @@ function ProjectsLink() {
 }
 
 export function NotFound() {
-  useDocumentTitle(pageTitle({ crumbs: NO_PAGE_CRUMBS, state: 'notFound' }));
+  const owned = useShellOwnsChrome();
+  // Under a shell the host owns the title and reads the reported state; without one the page sets its own.
+  useReportPageState('notFound');
+  useDocumentTitle(owned ? undefined : pageTitle({ crumbs: NO_PAGE_CRUMBS, state: 'notFound' }));
   return (
     <div className={styles.page}>
       <EmptyState
@@ -54,7 +57,9 @@ export function NotFound() {
 
 /** `titled={false}` when a TopBar rendered beside it already owns the page title (one title source per page). */
 export function Forbidden({ titled = true }: { titled?: boolean } = {}) {
-  useDocumentTitle(titled ? pageTitle({ crumbs: NO_PAGE_CRUMBS, state: 'forbidden' }) : undefined);
+  const owned = useShellOwnsChrome();
+  useReportPageState('forbidden');
+  useDocumentTitle(titled && !owned ? pageTitle({ crumbs: NO_PAGE_CRUMBS, state: 'forbidden' }) : undefined);
   return (
     <div className={styles.page}>
       <EmptyState
@@ -104,9 +109,10 @@ export function SuspendedOrgPage() {
   const slug = useOrgSlug();
   const bar = useAppBar(null);
   const name = bar.org.orgs.find((o) => o.slug === slug)?.name ?? 'this organization';
+  const owned = useShellOwnsChrome();
   return (
     <>
-      <TopBar variant="global" crumbs={NO_PAGE_CRUMBS} user={bar.user} org={bar.org} tabs="org" />
+      {!owned && <TopBar variant="global" crumbs={NO_PAGE_CRUMBS} user={bar.user} org={bar.org} tabs="org" />}
       <OrgSuspended orgName={name} />
     </>
   );

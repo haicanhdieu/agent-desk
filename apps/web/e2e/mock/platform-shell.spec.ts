@@ -20,7 +20,10 @@ async function open(page: Page, scenario: PlatformScenario, path: string): Promi
 
 const orgMenuButton = (page: Page): Locator => page.getByRole('button', { name: /^Switch scope/ });
 const menu = (page: Page): Locator => page.getByRole('dialog', { name: 'Scope' });
-const platformEntry = (page: Page): Locator => menu(page).getByRole('link', { name: 'Platform admin', exact: true });
+const platformEntry = (page: Page): Locator => menu(page).getByRole('link', { name: 'Platform', exact: true });
+// Pages that are not on the shell yet ("/", My invitations) still label the entry "Platform admin".
+const legacyPlatformEntry = (page: Page): Locator =>
+  menu(page).getByRole('link', { name: 'Platform admin', exact: true });
 const createEntry = (page: Page): Locator => menu(page).getByRole('link', { name: 'Create organization', exact: true });
 
 test.describe('BR-1: the Platform admin entry of the org menu', () => {
@@ -46,18 +49,17 @@ test.describe('BR-1: the Platform admin entry of the org menu', () => {
     await orgMenuButton(page).click();
 
     await expect(menu(page)).toBeVisible();
-    await expect(platformEntry(page)).toBeVisible();
+    await expect(legacyPlatformEntry(page)).toBeVisible();
   });
 
   test('TC-1.3: an org owner who is not a platform admin sees no "Platform admin" entry', async ({ page }) => {
     await open(page, 'ownerNoPlatform', `/o/${ORG}/projects`);
     await expect(page.getByText('invoicer-api', { exact: true }).first()).toBeVisible();
 
-    await orgMenuButton(page).click();
-
-    await expect(menu(page)).toBeVisible();
-    await expect(platformEntry(page)).toHaveCount(0);
-    await expect(menu(page).getByText('Platform admin')).toHaveCount(0);
+    // One org and no platform role: there is nothing to switch to, so the bar has no scope menu to open.
+    await expect(orgMenuButton(page)).toHaveCount(0);
+    await expect(page.getByRole('link', { name: 'Platform', exact: true })).toHaveCount(0);
+    await expect(page.getByText('Platform admin')).toHaveCount(0);
   });
 });
 
@@ -135,7 +137,7 @@ test.describe('BR-2: the entry lands on the Organizations directory', () => {
     await expect(orgMenuButton(page)).toBeVisible();
 
     await orgMenuButton(page).click();
-    await platformEntry(page).click();
+    await legacyPlatformEntry(page).click();
 
     await expect(page).toHaveURL(/\/platform\/orgs$/);
     await expect(directoryHeading(page)).toBeVisible();
@@ -199,7 +201,7 @@ test.describe('the Platform scope bar and the org-only side menu', () => {
     await orgMenuButton(page).click();
 
     await expect(menu(page)).toBeVisible();
-    await expect(platformEntry(page)).toBeVisible();
+    await expect(legacyPlatformEntry(page)).toBeVisible();
     await expect(menu(page).getByRole('group', { name: 'Switch organization' })).toHaveCount(0);
   });
 });

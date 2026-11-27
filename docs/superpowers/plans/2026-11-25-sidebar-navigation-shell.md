@@ -1201,13 +1201,13 @@ export function useShellData(input: ShellInput): ShellData;
 - Consumes: `ORG_SETTINGS_ORDER`; org screens' owned branch. `o.$org.projects.index.tsx` keeps the multi-agent card links ("Switch to polling" to `?tab=github`) and the "Resume setup" and "Agent & settings" wiring of Tasks 16 and 17.
 - Produces: `TAB_ORDER` in `appBar.ts` equals `ORG_SETTINGS_ORDER` (members, invitations, audit, general). `ProjectsForbidden` and the settings no-access state report `forbidden` and render no bar.
 
-- [ ] **Step 0: Multi-agent gate.** Run both checks in "Multi-agent gate". If either fails, stop: write no code and report which check failed.
-- [ ] **Step 1: Write failing route tests:** `/o/<org>/settings` redirects to the first of members, invitations, audit, general (owner: members; project admin: invitations; audit-only: audit; org-update-only: general; member: no-access state with the org menu). Org menu per role as in Task 25 through the real guard; "Manage in Platform" only for a platform admin; no "Org settings" crumb; title "Members · <org name> · Agent Desk". Extend the `DESK_DATA` request tracking in `deskAccess.route.test.tsx` to org pages: no gated request.
-- [ ] **Step 2: Run** VITEST on the listed files. Expected: FAIL.
-- [ ] **Step 3: Implement;** the path regex in `o.$org.settings.tsx` goes away (`staticData.item` decides).
-- [ ] **Step 4: Rewrite** the listed specs; add to `side-nav.spec.ts`: "TC-17.1", "TC-17.2", "TC-18.1", "TC-18.2", "TC-19.1", "TC-20.1", "TC-20.2", "TC-21.1", "TC-21.2", "TC-21.3", "TC-21.4", "TC-21.5". (Local halves: Task 43.)
-- [ ] **Step 5: Run** VITEST, MOCK the listed mock specs plus `side-nav`, LOCAL the listed local specs. Expected: PASS.
-- [ ] **Step 6: Commit** `feat(web): organization pages use the app shell`.
+- [x] **Step 0: Multi-agent gate.** Run both checks in "Multi-agent gate". If either fails, stop: write no code and report which check failed.
+- [x] **Step 1: Write failing route tests:** `/o/<org>/settings` redirects to the first of members, invitations, audit, general (owner: members; project admin: invitations; audit-only: audit; org-update-only: general; member: no-access state with the org menu). Org menu per role as in Task 25 through the real guard; "Manage in Platform" only for a platform admin; no "Org settings" crumb; title "Members · <org name> · Agent Desk". Extend the `DESK_DATA` request tracking in `deskAccess.route.test.tsx` to org pages: no gated request.
+- [x] **Step 2: Run** VITEST on the listed files. Expected: FAIL.
+- [x] **Step 3: Implement;** the path regex in `o.$org.settings.tsx` goes away (`staticData.item` decides).
+- [x] **Step 4: Rewrite** the listed specs; add to `side-nav.spec.ts`: "TC-17.1", "TC-17.2", "TC-18.1", "TC-18.2", "TC-19.1", "TC-20.1", "TC-20.2", "TC-21.1", "TC-21.2", "TC-21.3", "TC-21.4", "TC-21.5". (Local halves: Task 43.)
+- [x] **Step 5: Run** VITEST, MOCK the listed mock specs plus `side-nav`, LOCAL the listed local specs. Expected: PASS.
+- [x] **Step 6: Commit** `feat(web): organization pages use the app shell`.
 
 ### Task 30: Move Runs and project configuration pages onto the shell (after the multi-agent gate)
 

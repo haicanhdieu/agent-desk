@@ -28,6 +28,7 @@ import { OrgMembers, type OrgMembersProps } from '@/screens';
 import { can } from '@agentdesk/contracts';
 
 export const Route = createFileRoute('/o/$org/settings/members')({
+  staticData: { chrome: { mode: 'standard', scope: 'org', item: 'members', crumb: 'Members' } },
   // Members need `member:read` at org level (a project grant never gives it); the page keeps its own no-access state.
   beforeLoad: ({ context: { queryClient }, params }) => requirePermission(queryClient, params.org, 'member:read'),
   validateSearch: PageSearch,

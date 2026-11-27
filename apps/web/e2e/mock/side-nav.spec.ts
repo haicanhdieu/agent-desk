@@ -1,7 +1,18 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
 import { ids } from '../../src/mocks/dto/ids';
 import type { PlatformScenario } from '../../src/mocks/msw/platformScenarios';
-import { INVOICER_API, ORG, SESSION_MOCK_NOW, SIDE_MENU_NAME, chooseAction, holdReads, seedPlatform } from './mock';
+import type { TenantAdminScenario } from '../../src/mocks/msw/tenantAdminScenarios';
+import {
+  INVOICER_API,
+  ORG,
+  SESSION_MOCK_NOW,
+  SIDE_MENU_NAME,
+  chooseAction,
+  holdReads,
+  seedPlatform,
+  seedShell,
+  seedTenantAdmin,
+} from './mock';
 
 /*
  * BR-44: the GitHub connection tab shows only what its trigger mode can do. Webhook: no "Send test ping", no "Manage
@@ -276,5 +287,170 @@ test.describe('BR-35: the platform org menu while the org read loads, fails or f
       'page',
     );
     await expect(menu.getByRole('link')).toHaveText(['Organizations', 'Platform admins', 'Audit log']);
+  });
+});
+
+/*
+ * Organization pages on the shell (spec 2026-11-25-sidebar-navigation-shell-design.md "E2E requirements": TC-17.1,
+ * TC-17.2, TC-18.1, TC-18.2, TC-19.1, TC-20.1, TC-20.2, TC-21.1 to TC-21.5). The local halves are in e2e/local.
+ * A second `seed*` call before a `goto` replaces the first scenario: the init scripts run in order and the last wins.
+ */
+const ALICE_SLUG = ORG;
+const orgMenu = (page: Page): Locator => page.getByRole('navigation', { name: 'Organization menu' });
+const FULL_ORG_MENU = ['Projects', 'Members', 'Invitations', 'Audit log', 'General'];
+const settingsHeading = (page: Page): Locator => orgMenu(page).getByText('Settings', { exact: true });
+
+async function openOrgAs(page: Page, scenario: TenantAdminScenario, path = `/o/${ALICE_SLUG}/projects`): Promise<void> {
+  await seedTenantAdmin(page, scenario);
+  await page.goto(path);
+}
+
+test.describe('BR-17: owner and admin org menu', () => {
+  test('TC-17.1: an owner, then an org admin, see Projects and a Settings group of Members, Invitations, Audit log, General', async ({
+    page,
+  }) => {
+    for (const scenario of ['twoOwners', 'admin'] as const) {
+      await openOrgAs(page, scenario);
+      await expect(page.getByRole('heading', { name: 'Projects', level: 1 })).toBeVisible();
+      await expect(orgMenu(page).getByRole('link')).toHaveText(FULL_ORG_MENU);
+      await expect(settingsHeading(page)).toBeVisible();
+    }
+  });
+
+  test('TC-17.2: an org admin opens Members, Invitations, Audit log, General and Projects, each in one click with that item current', async ({
+    page,
+  }) => {
+    await openOrgAs(page, 'admin');
+    await expect(orgMenu(page).getByRole('link', { name: 'Projects', exact: true })).toHaveAttribute(
+      'aria-current',
+      'page',
+    );
+    for (const [name, path] of [
+      ['Members', 'settings/members'],
+      ['Invitations', 'settings/invitations'],
+      ['Audit log', 'settings/audit'],
+      ['General', 'settings/general'],
+      ['Projects', 'projects'],
+    ] as const) {
+      await orgMenu(page).getByRole('link', { name, exact: true }).click();
+      await expect(page).toHaveURL(new RegExp(`/o/${ALICE_SLUG}/${path}$`));
+      await expect(page.getByRole('heading', { name, level: 1 })).toBeVisible();
+      await expect(orgMenu(page).getByRole('link', { name, exact: true })).toHaveAttribute('aria-current', 'page');
+      await expect(orgMenu(page).locator('[aria-current]')).toHaveCount(1);
+      await expect(orgMenu(page).getByRole('link')).toHaveText(FULL_ORG_MENU);
+    }
+  });
+});
+
+test.describe('BR-18: member and viewer org menu', () => {
+  test('TC-18.1: an org member, then an org viewer, see Projects only: no Settings heading or Settings pages', async ({
+    page,
+  }) => {
+    for (const scenario of ['member', 'viewer'] as const) {
+      await openOrgAs(page, scenario);
+      await expect(page.getByRole('heading', { name: 'Projects', level: 1 })).toBeVisible();
+      await expect(orgMenu(page).getByRole('link')).toHaveText(['Projects']);
+      await expect(settingsHeading(page)).toHaveCount(0);
+      for (const name of ['Members', 'Invitations', 'Audit log', 'General']) {
+        await expect(orgMenu(page).getByRole('link', { name, exact: true })).toHaveCount(0);
+      }
+    }
+  });
+
+  test('TC-18.2: a member of one project and viewer of another sees Projects only, with no empty group heading', async ({
+    page,
+  }) => {
+    await seedShell(page, 'memberP1ViewerP2');
+    await page.goto(`/o/${ALICE_SLUG}/projects`);
+    await expect(page.getByRole('heading', { name: 'Projects', level: 1 })).toBeVisible();
+    await expect(orgMenu(page).getByRole('link')).toHaveText(['Projects']);
+    await expect(settingsHeading(page)).toHaveCount(0);
+  });
+});
+
+test.describe('BR-19: project-only admin org menu', () => {
+  test('TC-19.1: an admin of one project sees Projects and Invitations under Settings, and Invitations opens', async ({
+    page,
+  }) => {
+    await seedShell(page, 'adminP1ViewerP2');
+    await page.goto(`/o/${ALICE_SLUG}/projects`);
+    await expect(page.getByRole('heading', { name: 'Projects', level: 1 })).toBeVisible();
+    await expect(orgMenu(page).getByRole('link')).toHaveText(['Projects', 'Invitations']);
+    await expect(settingsHeading(page)).toBeVisible();
+    for (const name of ['Members', 'Audit log', 'General']) {
+      await expect(orgMenu(page).getByRole('link', { name, exact: true })).toHaveCount(0);
+    }
+    await orgMenu(page).getByRole('link', { name: 'Invitations', exact: true }).click();
+    await expect(page).toHaveURL(new RegExp(`/o/${ALICE_SLUG}/settings/invitations$`));
+    await expect(page.getByRole('heading', { name: 'Invitations', level: 1 })).toBeVisible();
+  });
+});
+
+test.describe('BR-20: "Manage in Platform"', () => {
+  test('TC-20.1: a platform admin on org Members presses "Manage in Platform", the last item, and the org opens in the platform area', async ({
+    page,
+  }) => {
+    await seedPlatform(page, 'platformAdminMemberOrg');
+    await page.goto(`/o/${ALICE_SLUG}/settings/members`);
+    const manage = orgMenu(page).getByRole('link', { name: 'Manage in Platform' });
+    await expect(manage).toBeVisible();
+    const last = orgMenu(page).getByRole('link').last();
+    await expect(last).toHaveText('Manage in Platform');
+    await manage.click();
+    await expect(page).toHaveURL(new RegExp(`/platform/orgs/${ALICE_ORG}$`));
+    const menu = platformMenu(page);
+    await expect(menu.getByText('Alice', { exact: true })).toBeVisible();
+    await expect(itemsOf(menu)).toHaveText(['Overview', 'Projects', 'Members', 'Invitations']);
+  });
+
+  test('TC-20.2: an org owner who is not a platform admin sees the org menu on Projects and each Settings page, never "Manage in Platform"', async ({
+    page,
+  }) => {
+    await openOrgAs(page, 'twoOwners');
+    for (const path of ['projects', 'settings/members', 'settings/invitations', 'settings/audit', 'settings/general']) {
+      await page.goto(`/o/${ALICE_SLUG}/${path}`);
+      await expect(orgMenu(page).getByRole('link')).toHaveText(FULL_ORG_MENU);
+      await expect(page.getByRole('link', { name: 'Manage in Platform' })).toHaveCount(0);
+    }
+  });
+});
+
+test.describe('BR-21: /o/<org>/settings redirect order', () => {
+  test('TC-21.1: an owner, then an org admin, open /settings and land on Members', async ({ page }) => {
+    for (const scenario of ['twoOwners', 'admin'] as const) {
+      await openOrgAs(page, scenario, `/o/${ALICE_SLUG}/settings`);
+      await expect(page).toHaveURL(new RegExp(`/o/${ALICE_SLUG}/settings/members$`));
+      await expect(page.getByRole('heading', { name: 'Members', level: 1 })).toBeVisible();
+    }
+  });
+
+  test('TC-21.2: an admin of one project opens /settings and lands on Invitations', async ({ page }) => {
+    await seedShell(page, 'adminP1ViewerP2');
+    await page.goto(`/o/${ALICE_SLUG}/settings`);
+    await expect(page).toHaveURL(new RegExp(`/o/${ALICE_SLUG}/settings/invitations$`));
+    await expect(page.getByRole('heading', { name: 'Invitations', level: 1 })).toBeVisible();
+  });
+
+  test('TC-21.3: a person with only the audit log right opens /settings and lands on Audit log', async ({ page }) => {
+    await seedShell(page, 'auditOnly');
+    await page.goto(`/o/${ALICE_SLUG}/settings`);
+    await expect(page).toHaveURL(new RegExp(`/o/${ALICE_SLUG}/settings/audit$`));
+    await expect(page.getByRole('heading', { name: 'Audit log', level: 1 })).toBeVisible();
+  });
+
+  test('TC-21.4: a person with only the org update right opens /settings and lands on General', async ({ page }) => {
+    await seedShell(page, 'orgUpdateOnly');
+    await page.goto(`/o/${ALICE_SLUG}/settings`);
+    await expect(page).toHaveURL(new RegExp(`/o/${ALICE_SLUG}/settings/general$`));
+    await expect(page.getByRole('heading', { name: 'General', level: 1 })).toBeVisible();
+  });
+
+  test('TC-21.5: an org member opens /settings and sees "You don\'t have access" with the org menu holding Projects only', async ({
+    page,
+  }) => {
+    await openOrgAs(page, 'member', `/o/${ALICE_SLUG}/settings`);
+    await expect(page.getByRole('heading', { name: "You don't have access" })).toBeVisible();
+    await expect(orgMenu(page).getByRole('link')).toHaveText(['Projects']);
+    await expect(settingsHeading(page)).toHaveCount(0);
   });
 });

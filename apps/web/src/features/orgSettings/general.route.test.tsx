@@ -17,8 +17,12 @@ const noAccess = () => screen.findByText("You don't have access");
 const nameInput = () => screen.getByLabelText('Name');
 const urlInput = () => screen.getByLabelText('URL');
 const save = () => screen.getByRole('button', { name: 'Save' });
-const orgButton = (name: string) =>
-  screen.getByRole('button', { name: `Switch scope, currently organization ${name}` });
+/** The org's name in the top bar (the first banner; one org has no switch button, so it is plain text). */
+const orgInBar = (name: string) => {
+  const [bar] = screen.getAllByRole('banner');
+  if (!bar) throw new Error('no top bar');
+  return within(bar).getByText(name);
+};
 const orgPath = `/api/orgs/${ids.org.alice}`;
 const patches = () => mockDb.requests('PATCH', orgPath);
 
@@ -82,7 +86,7 @@ describe('General: rename (BR-14)', () => {
     expect(savedName()).toBe('Harbor Labs');
     expect(patches()).toBe(1);
     await waitFor(() => expect(orgListFetches()).toBeGreaterThan(before));
-    expect(orgButton('Harbor Labs')).toBeInTheDocument();
+    expect(orgInBar('Harbor Labs')).toBeInTheDocument();
     expect(nameInput()).toHaveValue('Harbor Labs');
     expect(save()).toBeDisabled();
   });
@@ -103,7 +107,7 @@ describe('General: rename (BR-14)', () => {
     await replaceText(r, nameInput(), '<img src=x onerror=alert(1)>');
     await r.user.click(save());
     await screen.findByText('Organization updated');
-    expect(orgButton('<img src=x onerror=alert(1)>')).toBeInTheDocument();
+    expect(orgInBar('<img src=x onerror=alert(1)>')).toBeInTheDocument();
     expect(document.querySelector('img')).toBeNull();
   });
 });
@@ -118,7 +122,7 @@ describe('General: name validation (BR-15)', () => {
     await waitFor(() => expect(nameInput()).toHaveFocus());
     expect(patches()).toBe(0);
     expect(savedName()).toBe('Alice');
-    expect(orgButton('Alice')).toBeInTheDocument();
+    expect(orgInBar('Alice')).toBeInTheDocument();
   });
 
   it('TC-15.2: 101 characters show the length error, keep the input and send nothing', async () => {
@@ -129,7 +133,7 @@ describe('General: name validation (BR-15)', () => {
     expect(await screen.findByText(GENERAL_ERRORS.nameLong)).toBeInTheDocument();
     expect(nameInput()).toHaveValue(long);
     expect(patches()).toBe(0);
-    expect(orgButton('Alice')).toBeInTheDocument();
+    expect(orgInBar('Alice')).toBeInTheDocument();
   });
 
   it.each([
@@ -289,7 +293,7 @@ describe('General: change the URL (BR-16)', () => {
     await waitFor(() => expect(r.router.state.location.pathname).toBe('/o/acme-new/settings/general'));
     expect(savedName()).toBe('Acme New');
     expect(savedSlug()).toBe('acme-new');
-    await waitFor(() => expect(orgButton('Acme New')).toBeInTheDocument());
+    await waitFor(() => expect(orgInBar('Acme New')).toBeInTheDocument());
   });
 
   it('a rename alone never opens the dialog', async () => {
@@ -368,7 +372,7 @@ describe('General: API answers the form does not map (spec error handling)', () 
     await r.user.click(save());
     expect(await screen.findByText('Forbidden')).toBeInTheDocument();
     expect(screen.getByText('Request ID: req-g-2')).toBeInTheDocument();
-    expect(orgButton('Alice')).toBeInTheDocument();
+    expect(orgInBar('Alice')).toBeInTheDocument();
   });
 
   it('a 400 with a field pointer shows the server message under that field', async () => {

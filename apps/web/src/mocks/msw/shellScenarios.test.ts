@@ -38,6 +38,7 @@ it('the key and every scenario name', () => {
   expect(SHELL_KEY).toBe('agentdesk.mock.shell');
   expect(SHELL_SCENARIOS).toEqual([
     'adminP1ViewerP2',
+    'memberP1ViewerP2',
     'adminAMemberB',
     'suspendedOnly',
     'oneOrgNoPlatform',
@@ -89,6 +90,15 @@ describe('the defining facts', () => {
     const lines = (key: string) => all.find((a) => a.roleKey === key)?.permissions.map((p) => p.permission) ?? [];
     expect(lines('admin')).toContain('project:update');
     expect(lines('viewer')).not.toContain('project:update');
+  });
+
+  it('memberP1ViewerP2: member on invoicer-api and viewer on invoicer-web, with no org-wide role and no org-level right', async () => {
+    apply('memberP1ViewerP2');
+    const all = await grants();
+    expect(all).toHaveLength(2);
+    expect(all.find((a) => a.roleKey === 'member')?.scope).toEqual({ type: 'project', projectId: P1 });
+    expect(all.find((a) => a.roleKey === 'viewer')?.scope).toEqual({ type: 'project', projectId: P2 });
+    expect(all.some((a) => a.scope.type === 'org')).toBe(false);
   });
 
   it('adminAMemberB: admin of the active org and a plain member of the second', async () => {

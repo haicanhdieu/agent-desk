@@ -30,6 +30,9 @@ const menu = (page: Page): Locator => page.getByRole('dialog', { name: 'Scope' }
 const switchGroup = (page: Page): Locator => menu(page).getByRole('group', { name: 'Switch organization' });
 const orgLinks = (page: Page): Locator => switchGroup(page).getByRole('link');
 const orgItem = (page: Page, name: string): Locator => switchGroup(page).getByRole('link', { name, exact: true });
+/** The side menu of the org pages: Projects and the Settings group the role may open. */
+const orgMenu = (page: Page): Locator => page.getByRole('navigation', { name: 'Organization menu' });
+const FULL_MENU = ['Projects', 'Members', 'Invitations', 'Audit log', 'General'];
 
 /** The Alice Projects page has loaded: its projects are listed. */
 async function aliceLoaded(page: Page): Promise<void> {
@@ -80,18 +83,14 @@ test.describe('BR-6: switcher lists the orgs with the current marked', () => {
     await expect(button).toHaveAttribute('aria-expanded', 'true');
     await expect(orgLinks(page)).toHaveText(['Alice', 'Acme']);
 
-    // 2. Focus moves through the items (Projects, Settings, then the orgs): ArrowDown, then Home (first item, Projects), then End (last org).
+    // 2. Focus moves through the orgs (Projects and Settings are in the side menu now): ArrowDown, then Home (first org), then End (last org).
     await page.keyboard.press('ArrowDown');
-    await expect.poll(() => focusedName(page)).toMatch(/^(Projects|Org settings|Alice|Acme)/);
+    await expect.poll(() => focusedName(page)).toMatch(/^(Alice|Acme)/);
     await page.keyboard.press('Home');
-    await expect(menu(page).getByRole('link', { name: 'Projects' })).toBeFocused();
+    await expect(orgItem(page, 'Alice')).toBeFocused();
     await page.keyboard.press('End');
     await expect(orgItem(page, 'Acme')).toBeFocused();
     await page.keyboard.press('Home');
-    await page.keyboard.press('ArrowDown');
-    await expect(menu(page).getByRole('link', { name: 'Org settings' })).toBeFocused();
-    await page.keyboard.press('ArrowDown');
-    await expect(orgItem(page, 'Alice')).toBeFocused();
     await page.keyboard.press('ArrowDown');
     await expect(orgItem(page, 'Acme')).toBeFocused();
 
@@ -103,18 +102,15 @@ test.describe('BR-6: switcher lists the orgs with the current marked', () => {
   });
 });
 
-test.describe('BR-9 and BR-44: one org, an org menu without the switch group', () => {
-  test('TC-9.1: the org crumb is a button whose menu has Projects and no Switch organization', async ({ page }) => {
+test.describe('BR-9 and BR-44: one org, no switch group', () => {
+  test('TC-9.1: the org name is plain text with no switch menu; Projects is in the org menu', async ({ page }) => {
     await open(page, 'singleOrg');
     await expect(page.getByText('invoicer-api', { exact: true }).first()).toBeVisible();
-    const button = page.getByRole('button', { name: 'Switch scope, currently organization Alice' });
-    await expect(button).toBeVisible();
-    await button.click();
-    await expect(menu(page)).toBeVisible();
-    await expect(menu(page).getByRole('heading', { name: 'Alice' })).toBeVisible();
-    await expect(menu(page).getByRole('link', { name: 'Projects' })).toBeVisible();
-    await expect(menu(page).getByText('Switch organization')).toHaveCount(0);
-    await expect(menu(page).getByText('Create organization')).toHaveCount(0);
+    await expect(page.getByRole('banner').first().getByText('Alice', { exact: true })).toBeVisible();
+    await expect(page.getByRole('button', { name: /^Switch scope/ })).toHaveCount(0);
+    await expect(orgMenu(page).getByRole('link', { name: 'Projects', exact: true })).toBeVisible();
+    await expect(page.getByText('Switch organization')).toHaveCount(0);
+    await expect(page.getByText('Create organization')).toHaveCount(0);
   });
 });
 
@@ -221,18 +217,17 @@ test.describe('BR-46: org creation is for platform admins', () => {
 });
 
 /*
- * The org menu per role (spec 2026-11-22-org-tenant-admin-design.md "E2E requirements" BR-44, TC-44.1 to TC-44.7).
- * The menu's links are read in order inside the "Organizations" dialog, so an absent item is always checked next to the
- * items that must be there (the menu is open and the links are listed).
+ * The org menu per role (spec 2026-11-22-org-tenant-admin-design.md "E2E requirements" BR-44, TC-44.1 to TC-44.7), now
+ * read where the shell puts it: Projects and the Settings group in the "Organization menu" side menu, the organizations
+ * to switch to in the scope menu of the top bar (spec 2026-11-25-sidebar-navigation-shell-design.md, BR-17 to BR-19).
  */
-async function openOrgMenu(page: Page, label: string, landing = 'Projects'): Promise<Locator> {
+async function openScopeMenu(page: Page, label: string, landing = 'Projects'): Promise<Locator> {
   await expect(page.getByRole('heading', { name: landing })).toBeVisible();
   const button = page.getByRole('button', { name: label });
   await expect(button).toHaveAttribute('aria-expanded', 'false');
   await button.click();
   await expect(button).toHaveAttribute('aria-expanded', 'true');
   await expect(menu(page)).toBeVisible();
-  await expect(menu(page).getByRole('heading', { level: 2, name: 'Alice' })).toBeVisible();
   return menu(page);
 }
 
@@ -246,28 +241,30 @@ async function asTenantAdmin(page: Page, scenario: TenantAdminScenario): Promise
   await page.goto('/o/alice/projects');
 }
 
-const ONE_ORG = 'Switch scope, currently organization Alice';
 const TWO_ORGS = 'Switch scope, currently organization Alice';
 
 test.describe('BR-44: org menu (org-tenant-admin)', () => {
-  test('TC-44.1: an owner in one org sees the org name, Projects and Settings, no Switch organization', async ({
+  test('TC-44.1: an owner in one org sees Projects and Settings in the org menu, no Switch organization', async ({
     page,
   }) => {
     await asOnboarding(page, 'singleOrg');
-    const m = await openOrgMenu(page, ONE_ORG);
-    await expect(m.getByRole('link')).toHaveText(['Projects', 'Org settings']);
-    await expect(m.getByRole('link', { name: 'Projects' })).toHaveAttribute('href', '/o/alice/projects');
-    await expect(m.getByRole('link', { name: 'Org settings' })).toHaveAttribute('href', '/o/alice/settings');
-    await expect(m.getByText('Switch organization')).toHaveCount(0);
-    await expect(m.getByRole('group')).toHaveCount(0);
+    await expect(page.getByRole('heading', { name: 'Projects', level: 1 })).toBeVisible();
+    await expect(orgMenu(page).getByRole('link')).toHaveText(FULL_MENU);
+    await expect(orgMenu(page).getByRole('link', { name: 'Projects' })).toHaveAttribute('href', '/o/alice/projects');
+    await expect(orgMenu(page).getByRole('link', { name: 'Members' })).toHaveAttribute(
+      'href',
+      '/o/alice/settings/members',
+    );
+    await expect(page.getByRole('button', { name: /^Switch scope/ })).toHaveCount(0);
+    await expect(page.getByText('Switch organization')).toHaveCount(0);
   });
 
   test('TC-44.2: an owner in two orgs also sees Switch organization listing both orgs, a check on the current one', async ({
     page,
   }) => {
     await asOnboarding(page, 'twoOrgs');
-    const m = await openOrgMenu(page, TWO_ORGS);
-    await expect(m.getByRole('link')).toHaveText(['Projects', 'Org settings', 'Alice', 'Acme']);
+    await expect(orgMenu(page).getByRole('link')).toHaveText(FULL_MENU);
+    await openScopeMenu(page, TWO_ORGS);
     await expect(switchGroup(page)).toBeVisible();
     await expect(orgLinks(page)).toHaveText(['Alice', 'Acme']);
     await expect(orgItem(page, 'Alice')).toHaveAttribute('aria-current', /.+/);
@@ -276,39 +273,42 @@ test.describe('BR-44: org menu (org-tenant-admin)', () => {
     await expect(orgItem(page, 'Acme').locator('svg')).toHaveCount(0);
   });
 
-  test('TC-44.3: a member in one org sees the org name and Projects, no Settings, no Switch organization', async ({
+  test('TC-44.3: a member in one org sees Projects in the org menu, no Settings, no Switch organization', async ({
     page,
   }) => {
     await asTenantAdmin(page, 'member');
-    const m = await openOrgMenu(page, ONE_ORG);
-    await expect(m.getByRole('link')).toHaveText(['Projects']);
-    await expect(m.getByRole('link', { name: 'Projects' })).toBeVisible();
-    await expect(m.getByRole('link', { name: 'Org settings' })).toHaveCount(0);
-    await expect(m.getByText('Switch organization')).toHaveCount(0);
-    await expect(m.getByRole('group')).toHaveCount(0);
+    await expect(page.getByRole('heading', { name: 'Projects', level: 1 })).toBeVisible();
+    await expect(orgMenu(page).getByRole('link')).toHaveText(['Projects']);
+    await expect(orgMenu(page).getByText('Settings', { exact: true })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: /^Switch scope/ })).toHaveCount(0);
+    await expect(page.getByText('Switch organization')).toHaveCount(0);
   });
 
-  test('TC-44.4: a project admin sees Settings in the org menu', async ({ page }) => {
+  test('TC-44.4: a project admin sees Settings with Invitations in the org menu', async ({ page }) => {
     await asTenantAdmin(page, 'projectAdmin');
-    const m = await openOrgMenu(page, ONE_ORG);
-    await expect(m.getByRole('link')).toHaveText(['Projects', 'Org settings']);
-    await expect(m.getByRole('link', { name: 'Org settings' })).toHaveAttribute('href', '/o/alice/settings');
+    await expect(page.getByRole('heading', { name: 'Projects', level: 1 })).toBeVisible();
+    await expect(orgMenu(page).getByRole('link')).toHaveText(['Projects', 'Invitations']);
+    await expect(orgMenu(page).getByRole('link', { name: 'Invitations' })).toHaveAttribute(
+      'href',
+      '/o/alice/settings/invitations',
+    );
   });
 
   test('TC-44.5: a platform admin with no org role sees Switch organization and Create organization, no Settings', async ({
     page,
   }) => {
     await asOnboarding(page, 'platformAdminNoRole');
-    const m = await openOrgMenu(page, TWO_ORGS, "You don't have access");
-    await expect(m.getByRole('link', { name: 'Projects' })).toBeVisible();
+    const m = await openScopeMenu(page, TWO_ORGS, "You don't have access");
     await expect(switchGroup(page)).toBeVisible();
     await expect(m.getByRole('link', { name: 'Create organization' })).toBeVisible();
-    await expect(m.getByRole('link', { name: 'Org settings' })).toHaveCount(0);
+    // A platform admin also gets "Manage in Platform" at the bottom of the org menu (BR-20); no Settings group.
+    await expect(orgMenu(page).getByRole('link')).toHaveText(['Projects', 'Manage in Platform']);
+    await expect(orgMenu(page).getByText('Settings', { exact: true })).toHaveCount(0);
   });
 
   test('TC-44.6: an owner who is not a platform admin, in two orgs, sees no Create organization', async ({ page }) => {
     await asOnboarding(page, 'twoOrgs');
-    const m = await openOrgMenu(page, TWO_ORGS);
+    const m = await openScopeMenu(page, TWO_ORGS);
     await expect(switchGroup(page)).toBeVisible();
     await expect(orgLinks(page)).toHaveText(['Alice', 'Acme']);
     await expect(m.getByRole('link', { name: 'Create organization' })).toHaveCount(0);
@@ -318,9 +318,10 @@ test.describe('BR-44: org menu (org-tenant-admin)', () => {
   test('TC-44.7: ArrowDown on the focused crumb opens the menu, Escape closes it with focus back on the crumb', async ({
     page,
   }) => {
-    await asOnboarding(page, 'singleOrg');
+    // Agent call: two orgs, because the one-org bar has no switch button to focus (the shell shows the name as text).
+    await asOnboarding(page, 'twoOrgs');
     await expect(page.getByRole('heading', { level: 1, name: 'Projects' })).toBeVisible();
-    const button = page.getByRole('button', { name: ONE_ORG });
+    const button = page.getByRole('button', { name: TWO_ORGS });
     await button.focus();
     await expect(button).toBeFocused();
     await expect(menu(page)).toHaveCount(0);
@@ -328,7 +329,7 @@ test.describe('BR-44: org menu (org-tenant-admin)', () => {
     await page.keyboard.press('ArrowDown');
     await expect(menu(page)).toBeVisible();
     await expect(button).toHaveAttribute('aria-expanded', 'true');
-    await expect(menu(page).getByRole('link')).toHaveText(['Projects', 'Org settings']);
+    await expect(menu(page).getByRole('link')).toHaveText(['Alice', 'Acme']);
 
     await page.keyboard.press('Escape');
     await expect(menu(page)).toHaveCount(0);
@@ -345,7 +346,7 @@ test.describe('the Platform group in the scope menu', () => {
 
     await page.getByRole('button', { name: /^Switch scope/ }).click();
 
-    const platform = await menu(page).getByRole('link', { name: 'Platform admin', exact: true }).boundingBox();
+    const platform = await menu(page).getByRole('link', { name: 'Platform', exact: true }).boundingBox();
     const firstOrg = await menu(page)
       .getByRole('group', { name: 'Switch organization' })
       .getByRole('link')
@@ -355,12 +356,11 @@ test.describe('the Platform group in the scope menu', () => {
     expect(platform.y).toBeLessThan(firstOrg.y);
   });
 
-  test('"Manage this org in Platform" opens /platform/orgs/<id>', async ({ page }) => {
+  test('"Manage in Platform" at the bottom of the org menu opens /platform/orgs/<id>', async ({ page }) => {
     await seedPlatform(page, 'platformAdminOrgs');
     await page.goto('/o/alice/projects');
     await expect(page.getByText('invoicer-api', { exact: true }).first()).toBeVisible();
-    await page.getByRole('button', { name: /^Switch scope/ }).click();
-    await menu(page).getByRole('link', { name: 'Manage this org in Platform' }).click();
+    await orgMenu(page).getByRole('link', { name: 'Manage in Platform' }).click();
     await expect(page).toHaveURL(new RegExp(`/platform/orgs/${ALICE_ID}$`));
   });
 });

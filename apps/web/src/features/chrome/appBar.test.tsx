@@ -7,7 +7,14 @@ import { tenantAccessFixtures } from '@/mocks/dto/access';
 import { accessKeys } from '../access/keys';
 import { setActiveOrganization, type Session } from '../auth/session';
 import { toAccess } from '../access/queries';
-import { canOpenSettings, firstSettingsTab, openOrgHref, orgSettingsTabs, useAppBar } from './appBar';
+import {
+  ORG_SETTINGS_ORDER,
+  canOpenSettings,
+  firstSettingsTab,
+  openOrgHref,
+  orgSettingsTabs,
+  useAppBar,
+} from './appBar';
 
 const apiMock = vi.hoisted(() => ({ access: vi.fn(), listInvitations: vi.fn(), platform: vi.fn() }));
 vi.mock('@/features/api', () => ({ api: { me: apiMock } }));
@@ -27,8 +34,8 @@ const ALL = {
   audit: '/o/acme/settings/audit',
 };
 const EXPECTED: Record<Who, { tabs: Record<string, string>; first: string | null }> = {
-  owner: { tabs: ALL, first: 'general' },
-  admin: { tabs: ALL, first: 'general' },
+  owner: { tabs: ALL, first: 'members' },
+  admin: { tabs: ALL, first: 'members' },
   projectAdmin: { tabs: { invitations: ALL.invitations }, first: 'invitations' },
   member: { tabs: {}, first: null },
   viewer: { tabs: {}, first: null },
@@ -50,6 +57,11 @@ describe('settings visibility (BR-2, BR-13, BR-44, BR-45)', () => {
     expect(orgSettingsTabs('acme', access)).toEqual({});
   });
 
+  it('lists the tabs in the side-menu order and opens the first of them', () => {
+    const access = toAccess(tenantAccessFixtures.owner);
+    expect(Object.keys(orgSettingsTabs('acme', access))).toEqual([...ORG_SETTINGS_ORDER]);
+    expect([...ORG_SETTINGS_ORDER]).toEqual(['members', 'invitations', 'audit', 'general']);
+  });
   it('encodes the slug in every href', () => {
     const tabs = orgSettingsTabs('a b', toAccess(tenantAccessFixtures.owner));
     expect(tabs.general).toBe('/o/a%20b/settings/general');

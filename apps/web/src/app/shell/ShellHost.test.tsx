@@ -195,7 +195,9 @@ describe('ShellHost: org switch race', () => {
     await waitFor(() =>
       expect(queryClient.getQueryData<Session | null>(sessionQuery.queryKey)?.activeOrganizationId).toBe(ids.org.acme),
     );
-    const bar = screen.getByRole('banner');
+    // The top bar is the first banner; the page's own heading row is a header too.
+    const [bar] = screen.getAllByRole('banner');
+    if (!bar) throw new Error('no top bar');
     expect(within(bar).queryByText('Alice')).toBeNull();
     await waitFor(() => expect(sentToB.length).toBeGreaterThan(0));
     expect(wrong).toEqual([]);

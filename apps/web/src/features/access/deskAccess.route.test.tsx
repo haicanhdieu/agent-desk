@@ -31,6 +31,7 @@ afterEach(() => server.events.removeListener('request:start', listener));
 
 const DESK_DATA = /\/(agent|skills|rules|setup-script|plugins|setup-tests)(\/|$)|\/agents\/|\/rules\/|\/setup-tests\//;
 const ORG_INVITATIONS = /^\/api\/orgs\/[^/]+\/invitations(\/|$)/;
+const ORG_GATED = /^\/api\/orgs\/[^/]+\/(members|audit|invitations)(\/|$)/;
 const deskCalls = () => seen.filter((p) => DESK_DATA.test(p));
 
 const open = (path: string, scenario: Parameters<typeof scenarios.onboarding>[0]) => {
@@ -56,6 +57,21 @@ describe.each(['member', 'viewer'] as const)('a %s', (role) => {
     expect(await screen.findByRole('heading', FORBIDDEN)).toBeInTheDocument();
     // The app bar's own /api/me/invitations (the caller's pending count) is allowed; the ORG's list is not.
     expect(seen.filter((p) => ORG_INVITATIONS.test(p))).toEqual([]);
+  });
+
+  it.each([
+    '/o/acme/projects',
+    '/o/acme/settings',
+    '/o/acme/settings/members',
+    '/o/acme/settings/audit',
+    '/o/acme/settings/general',
+  ])('on the org page %s the shell requests no Desk data and none of the gated org lists', async (path) => {
+    await open(path, role);
+    await screen.findByRole('navigation', { name: 'Organization menu' });
+    await waitFor(() => expect(seen.length).toBeGreaterThan(0));
+    expect(deskCalls()).toEqual([]);
+    // Members, audit log and invitations of the org need org-level rights the role lacks.
+    expect(seen.filter((p) => ORG_GATED.test(p))).toEqual([]);
   });
 
   it('has no Settings tab on the runs page and no Desk data is requested there', async () => {

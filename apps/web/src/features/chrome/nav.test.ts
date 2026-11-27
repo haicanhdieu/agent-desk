@@ -6,7 +6,6 @@ import { ids } from '@/mocks/dto/ids';
 import { toAccess } from '../access/queries';
 import { deskLinksFor, projectPaths } from '../desk/frame';
 import {
-  ORG_SETTINGS_ORDER,
   errorMenuScope,
   goToProjectsHref,
   orgMenu,
@@ -15,6 +14,7 @@ import {
   projectMenuModel,
   type MenuModel,
 } from './nav';
+import { ORG_SETTINGS_ORDER } from './appBar';
 
 const P1 = ids.project.invoicerApi;
 const P2 = ids.project.invoicerWeb;

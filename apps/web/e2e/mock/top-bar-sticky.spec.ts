@@ -26,7 +26,9 @@ for (const vp of viewports) {
     test(`the top bar stays fixed while the ${name} page scrolls at ${vp.name} width`, async ({ page }) => {
       await page.setViewportSize({ width: vp.width, height: vp.height });
       await page.goto(path);
-      const bar = page.getByRole('banner');
+      // A page on the shell draws its bar before its data has loaded: wait for the page's own heading, so it is as tall as it will be.
+      await expect(page.getByRole('heading', { level: 1 }).first()).toBeVisible();
+      const bar = page.getByRole('banner').first();
       await expect(bar).toBeVisible();
       // The block that follows the bar is the page content.
       const content = bar.locator('xpath=following-sibling::*[1]');

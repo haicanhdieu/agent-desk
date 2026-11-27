@@ -5,8 +5,6 @@ import { resolve } from 'node:path';
 // bar fails the first test until a reviewer sees it added, and each one must pass its page crumbs.
 export const TOP_BAR_CALL_SITES: Record<string, number> = {
   'app/boundaries.tsx': 2,
-  'app/routes/o.$org.projects.index.tsx': 1,
-  'app/routes/o.$org.settings.tsx': 1,
   'app/shell/ShellHost.tsx': 1,
   'components/SetupLayout.tsx': 1,
   'screens/DeskFrame.tsx': 1,

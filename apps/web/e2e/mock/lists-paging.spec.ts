@@ -433,9 +433,16 @@ test.describe('Setup history', () => {
     await expect(versionItems(page)).toHaveCount(3);
     await expect(versionsHeader(page, 23)).toBeVisible();
     await expect(rangeOf(page)).toHaveText('Showing 21–23 of 23');
-    const list = await page.getByRole('list', { name: 'Setup script versions' }).boundingBox();
-    const control = await nav(page).boundingBox();
-    expect(control!.y).toBeGreaterThanOrEqual(list!.y + list!.height - 1);
+    await page.evaluate(() => document.fonts.ready);
+    const listBox = page.getByRole('list', { name: 'Setup script versions' });
+    // Poll the gap (control top minus list bottom) so both boxes are re-read together until layout settles.
+    await expect
+      .poll(async () => {
+        const list = await listBox.boundingBox();
+        const control = await nav(page).boundingBox();
+        return list && control ? control.y - (list.y + list.height) : Number.NEGATIVE_INFINITY;
+      })
+      .toBeGreaterThanOrEqual(-1);
   });
 
   test('TC-31.2: page 1 of 23 versions reads "23 versions", not 20', async ({ page }) => {

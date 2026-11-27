@@ -13,6 +13,7 @@ export const SHELL_KEY = 'agentdesk.mock.shell';
 
 export const SHELL_SCENARIOS = [
   'adminP1ViewerP2',
+  'memberP1ViewerP2',
   'adminAMemberB',
   'suspendedOnly',
   'oneOrgNoPlatform',
@@ -131,6 +132,17 @@ const seeders: Record<ShellScenario, () => void> = {
     seat.projectIds = [P1, P2];
     seat.projectRoles = [
       { projectId: P1, roleKey: 'admin' },
+      { projectId: P2, roleKey: 'viewer' },
+    ];
+  },
+  // Alice is a member of invoicer-api and a viewer of invoicer-web: one grant per project, nothing org-wide.
+  memberP1ViewerP2() {
+    applyOnboardingScenario('singleOrg');
+    const seat = seatOf(ids.org.alice);
+    seat.roleKey = 'member';
+    seat.projectIds = [P1, P2];
+    seat.projectRoles = [
+      { projectId: P1, roleKey: 'member' },
       { projectId: P2, roleKey: 'viewer' },
     ];
   },

@@ -25,20 +25,18 @@ async function open(page: Page, scenario: TenantAdminScenario, path: string): Pr
   await page.goto(path);
 }
 
-const mainNav = (page: Page): Locator => page.getByRole('navigation', { name: 'Organization sections' });
-const tab = (page: Page, name: string): Locator => mainNav(page).getByRole('link', { name, exact: true });
-const sideMenu = (page: Page): Locator => page.getByRole('navigation', { name: 'Organization settings' });
-const crumb = (page: Page, name: string): Locator =>
-  page.getByRole('button', { name: `Switch scope, currently organization ${name}` });
+// The pages not yet on the shell (My invitations) still draw the old bar with its Settings tab.
+const legacyTab = (page: Page, name: string): Locator =>
+  page.getByRole('navigation', { name: 'Organization sections' }).getByRole('link', { name, exact: true });
+const orgMenu = (page: Page): Locator => page.getByRole('navigation', { name: 'Organization menu' });
+const menuLink = (page: Page, name: string): Locator => orgMenu(page).getByRole('link', { name, exact: true });
+/** The org's name in the top bar (one org has no switch button, so the name is plain text). */
+const crumb = (page: Page, name: string): Locator => page.getByRole('banner').first().getByText(name, { exact: true });
 const h1 = (page: Page, name: string): Locator => page.getByRole('heading', { name, level: 1 });
 /** A heading of any level: the no-access state of a route error is not an h1 (the spec gives the text only). */
 const anyHeading = (page: Page, name: string): Locator => page.getByRole('heading', { name });
 
-const FULL_MENU = ['General', 'Members', 'Invitations', 'Audit log'];
-
-/** The side menu's items, found by role: the list is named like its heading. */
-const menuItems = (page: Page): Locator =>
-  sideMenu(page).getByRole('list', { name: 'Organization' }).getByRole('listitem');
+const FULL_MENU = ['Projects', 'Members', 'Invitations', 'Audit log', 'General'];
 
 /** The no-access state: heading and hint, with no form. */
 async function expectNoAccess(page: Page): Promise<void> {
@@ -46,17 +44,13 @@ async function expectNoAccess(page: Page): Promise<void> {
   await expect(page.getByText('Ask an owner of this organization to give you access.')).toBeVisible();
 }
 
-/** The Settings area with its full side menu, `current` active. */
+/** The org menu with Projects and the Settings group (all four pages), `current` marked. */
 async function expectFullSideMenu(page: Page, current: string): Promise<void> {
-  await expect(sideMenu(page)).toBeVisible();
-  await expect(sideMenu(page).getByText('Organization', { exact: true })).toBeVisible();
-  await expect(menuItems(page)).toHaveText(FULL_MENU);
-  await expect(sideMenu(page).getByRole('link')).toHaveText(['General', 'Members', 'Invitations', 'Audit log']);
-  await expect(sideMenu(page).getByRole('link', { name: current, exact: true })).toHaveAttribute(
-    'aria-current',
-    'page',
-  );
-  await expect(sideMenu(page).locator('[aria-current]')).toHaveCount(1);
+  await expect(orgMenu(page)).toBeVisible();
+  await expect(orgMenu(page).getByText('Settings', { exact: true })).toBeVisible();
+  await expect(orgMenu(page).getByRole('link')).toHaveText(FULL_MENU);
+  await expect(menuLink(page, current)).toHaveAttribute('aria-current', 'page');
+  await expect(orgMenu(page).locator('[aria-current]')).toHaveCount(1);
 }
 
 /** Counts the org update PATCHes this page sends. Call before the first goto. */
@@ -91,125 +85,117 @@ const NAME_LONG = 'Use 100 characters or fewer.';
 const SLUG_FORMAT = 'Use lowercase letters, numbers and dashes, with no dash at the start or end.';
 const SLUG_TAKEN = 'This URL is taken. Try another.';
 
-/** The caller of the no-access cases: the Projects page shows no Settings, and the typed settings URLs say no access. */
+/** The caller of the no-access cases: the org menu holds Projects only, and the typed settings URLs say no access. */
 async function expectNoSettingsFor(page: Page, scenario: TenantAdminScenario): Promise<void> {
   await open(page, scenario, PROJECTS);
   await expect(h1(page, 'Projects')).toBeVisible();
-  await expect(mainNav(page).getByRole('link')).toHaveText(['Projects']);
-  await expect(tab(page, 'Org settings')).toHaveCount(0);
-  await crumb(page, 'Alice').click();
-  const menu = page.getByRole('dialog', { name: 'Scope' });
-  await expect(menu.getByRole('link', { name: 'Projects' })).toBeVisible();
-  await expect(menu.getByRole('link', { name: 'Org settings' })).toHaveCount(0);
+  await expect(orgMenu(page).getByRole('link')).toHaveText(['Projects']);
+  await expect(orgMenu(page).getByText('Settings', { exact: true })).toHaveCount(0);
   for (const url of [GENERAL, MEMBERS, AUDIT]) {
     await page.goto(url);
     await expectNoAccess(page);
-    await expect(sideMenu(page)).toHaveCount(0);
-    await expect(tab(page, 'Projects')).toBeVisible();
-    await expect(tab(page, 'Org settings')).toHaveCount(0);
+    await expect(orgMenu(page).getByRole('link')).toHaveText(['Projects']);
+    await expect(orgMenu(page).getByText('Settings', { exact: true })).toHaveCount(0);
     await expect(nameInput(page)).toHaveCount(0);
   }
 }
 
 test.describe('BR-2: roles without admin access', () => {
-  test('TC-2.1: a member sees no Settings tab or item and the no-access state on the three URLs', async ({ page }) => {
+  test('TC-2.1: a member sees no Settings group and the no-access state on the three URLs', async ({ page }) => {
     await expectNoSettingsFor(page, 'member');
   });
 
-  test('TC-2.2: a viewer sees no Settings tab or item and the no-access state on the three URLs', async ({ page }) => {
+  test('TC-2.2: a viewer sees no Settings group and the no-access state on the three URLs', async ({ page }) => {
     await expectNoSettingsFor(page, 'viewer');
   });
 
-  test('TC-2.3: a project admin reaches Invitations only; the other three URLs show no-access inside the layout', async ({
+  test('TC-2.3: a project admin reaches Invitations only; the other three URLs show no-access with the org menu', async ({
     page,
   }) => {
     await open(page, 'projectAdmin', PROJECTS);
     await expect(h1(page, 'Projects')).toBeVisible();
-    await tab(page, 'Org settings').click();
+    await menuLink(page, 'Invitations').click();
     await expect(page).toHaveURL(new RegExp(`/o/${ORG}/settings/invitations$`));
     await expect(h1(page, 'Invitations')).toBeVisible();
-    await expect(sideMenu(page).getByText('Organization', { exact: true })).toBeVisible();
-    await expect(menuItems(page)).toHaveText(['Invitations']);
-    await expect(sideMenu(page).getByRole('link')).toHaveText(['Invitations']);
-    await expect(sideMenu(page).getByRole('link', { name: 'Invitations' })).toHaveAttribute('aria-current', 'page');
+    await expect(orgMenu(page).getByText('Settings', { exact: true })).toBeVisible();
+    await expect(orgMenu(page).getByRole('link')).toHaveText(['Projects', 'Invitations']);
+    await expect(menuLink(page, 'Invitations')).toHaveAttribute('aria-current', 'page');
     for (const url of [MEMBERS, GENERAL, AUDIT]) {
       await page.goto(url);
       await expectNoAccess(page);
-      await expect(sideMenu(page)).toBeVisible();
-      await expect(sideMenu(page).getByRole('link')).toHaveText(['Invitations']);
+      await expect(orgMenu(page)).toBeVisible();
+      await expect(orgMenu(page).getByRole('link')).toHaveText(['Projects', 'Invitations']);
       await expect(nameInput(page)).toHaveCount(0);
     }
   });
 });
 
 test.describe('BR-13: reaching Settings and the old invitations link', () => {
-  test('TC-13.1: the owner pressing the Settings tab lands on General with the full side menu', async ({ page }) => {
+  test('TC-13.1: the owner on Projects opens Members from the org menu and sees the full menu with Members current', async ({
+    page,
+  }) => {
     await open(page, 'twoOwners', PROJECTS);
-    await expect(tab(page, 'Projects')).toHaveAttribute('aria-current', 'page');
-    await tab(page, 'Org settings').click();
-    await expect(page).toHaveURL(new RegExp(`/o/${ORG}/settings/general$`));
-    await expect(h1(page, 'General')).toBeVisible();
-    await expect(tab(page, 'Org settings')).toHaveAttribute('aria-current', 'page');
-    await expect(tab(page, 'Projects')).not.toHaveAttribute('aria-current', 'page');
-    await expectFullSideMenu(page, 'General');
+    await expect(menuLink(page, 'Projects')).toHaveAttribute('aria-current', 'page');
+    await menuLink(page, 'Members').click();
+    await expect(page).toHaveURL(new RegExp(`/o/${ORG}/settings/members$`));
+    await expect(h1(page, 'Members')).toBeVisible();
+    await expect(menuLink(page, 'Projects')).not.toHaveAttribute('aria-current', 'page');
+    await expectFullSideMenu(page, 'Members');
   });
 
-  test('TC-13.2: the admin pressing the Settings tab lands on General with the full side menu', async ({ page }) => {
+  test('TC-13.2: the admin on Projects opens Members from the org menu and sees the full menu with Members current', async ({
+    page,
+  }) => {
     await open(page, 'admin', PROJECTS);
-    await expect(tab(page, 'Projects')).toHaveAttribute('aria-current', 'page');
-    await tab(page, 'Org settings').click();
-    await expect(page).toHaveURL(new RegExp(`/o/${ORG}/settings/general$`));
-    await expect(h1(page, 'General')).toBeVisible();
-    await expect(tab(page, 'Org settings')).toHaveAttribute('aria-current', 'page');
-    await expectFullSideMenu(page, 'General');
+    await expect(menuLink(page, 'Projects')).toHaveAttribute('aria-current', 'page');
+    await menuLink(page, 'Members').click();
+    await expect(page).toHaveURL(new RegExp(`/o/${ORG}/settings/members$`));
+    await expect(h1(page, 'Members')).toBeVisible();
+    await expectFullSideMenu(page, 'Members');
   });
 
-  test('TC-13.3: the project admin pressing the Settings tab lands on Invitations with only Invitations', async ({
+  test('TC-13.3: the project admin on Projects opens Invitations from the org menu, which holds Projects and Invitations only', async ({
     page,
   }) => {
     await open(page, 'projectAdmin', PROJECTS);
-    await tab(page, 'Org settings').click();
+    await menuLink(page, 'Invitations').click();
     await expect(page).toHaveURL(new RegExp(`/o/${ORG}/settings/invitations$`));
     await expect(h1(page, 'Invitations')).toBeVisible();
-    await expect(tab(page, 'Org settings')).toHaveAttribute('aria-current', 'page');
-    await expect(sideMenu(page).getByRole('link')).toHaveText(['Invitations']);
-    await expect(sideMenu(page).getByRole('link', { name: 'Invitations' })).toHaveAttribute('aria-current', 'page');
-    await expect(sideMenu(page).getByRole('link', { name: 'General' })).toHaveCount(0);
+    await expect(orgMenu(page).getByRole('link')).toHaveText(['Projects', 'Invitations']);
+    await expect(menuLink(page, 'Invitations')).toHaveAttribute('aria-current', 'page');
+    await expect(menuLink(page, 'General')).toHaveCount(0);
   });
 
-  test('TC-13.4: the owner on My invitations opens Settings from the org menu and lands on General', async ({
+  test('TC-13.4: the owner on My invitations opens Settings from the old bar and lands on Members', async ({
     page,
   }) => {
     await open(page, 'twoOwners', '/invitations');
     await expect(page).toHaveURL(/\/invitations$/);
-    await expect(tab(page, 'Org settings')).toBeVisible();
-    await expect(mainNav(page).locator('[aria-current]')).toHaveCount(0);
-    await crumb(page, 'Alice').click();
-    await page.getByRole('dialog', { name: 'Scope' }).getByRole('link', { name: 'Org settings' }).click();
-    await expect(page).toHaveURL(new RegExp(`/o/${ORG}/settings/general$`));
-    await expect(h1(page, 'General')).toBeVisible();
-    await expectFullSideMenu(page, 'General');
+    await expect(legacyTab(page, 'Org settings')).toBeVisible();
+    await legacyTab(page, 'Org settings').click();
+    await expect(page).toHaveURL(new RegExp(`/o/${ORG}/settings/members$`));
+    await expect(h1(page, 'Members')).toBeVisible();
+    await expectFullSideMenu(page, 'Members');
   });
 
-  test('TC-13.5: Back after the Projects tab shows General again', async ({ page }) => {
+  test('TC-13.5: Back after Projects in the org menu shows General again', async ({ page }) => {
     await open(page, 'twoOwners', GENERAL);
     await expect(h1(page, 'General')).toBeVisible();
-    await tab(page, 'Projects').click();
+    await menuLink(page, 'Projects').click();
     await expect(page).toHaveURL(new RegExp(`/o/${ORG}/projects$`));
     await expect(h1(page, 'Projects')).toBeVisible();
-    await expect(sideMenu(page)).toHaveCount(0);
+    await expect(menuLink(page, 'Projects')).toHaveAttribute('aria-current', 'page');
     await page.goBack();
     await expect(page).toHaveURL(new RegExp(`/o/${ORG}/settings/general$`));
     await expect(h1(page, 'General')).toBeVisible();
     await expectFullSideMenu(page, 'General');
-    await expect(tab(page, 'Org settings')).toHaveAttribute('aria-current', 'page');
   });
 
-  test('TC-13.6: /o/alice/settings lands on General', async ({ page }) => {
+  test('TC-13.6: /o/alice/settings lands on Members', async ({ page }) => {
     await open(page, 'twoOwners', `/o/${ORG}/settings`);
-    await expect(page).toHaveURL(new RegExp(`/o/${ORG}/settings/general$`));
-    await expect(h1(page, 'General')).toBeVisible();
-    await expectFullSideMenu(page, 'General');
+    await expect(page).toHaveURL(new RegExp(`/o/${ORG}/settings/members$`));
+    await expect(h1(page, 'Members')).toBeVisible();
+    await expectFullSideMenu(page, 'Members');
   });
 
   test('TC-13.7: the old invitations link lands on the Invitations tab with filter and page kept', async ({ page }) => {
@@ -228,10 +214,10 @@ test.describe('BR-13: reaching Settings and the old invitations link', () => {
     await expect(page).toHaveURL(/[?&]page=2(&|$)/);
   });
 
-  test('TC-13.8: Invitations in the side menu shows the Invitations list inside the layout', async ({ page }) => {
+  test('TC-13.8: Invitations in the org menu shows the Invitations list with the full menu', async ({ page }) => {
     await open(page, 'twoOwners', GENERAL);
     await expect(h1(page, 'General')).toBeVisible();
-    await sideMenu(page).getByRole('link', { name: 'Invitations', exact: true }).click();
+    await menuLink(page, 'Invitations').click();
     await expect(page).toHaveURL(new RegExp(`/o/${ORG}/settings/invitations$`));
     await expect(h1(page, 'Invitations')).toBeVisible();
     await expectFullSideMenu(page, 'Invitations');

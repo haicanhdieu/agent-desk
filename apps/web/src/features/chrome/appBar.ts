@@ -6,7 +6,13 @@ import { canInvite, orgAccessQuery, platformAdminQuery, sessionAccessQuery, toAc
 import { orgsQuery, sessionQuery } from '../auth/session';
 import { toOrgSwitch } from '../orgs/orgSwitch';
 
-const TAB_ORDER: OrgSettingsTabKey[] = ['general', 'members', 'invitations', 'audit'];
+/** The order of the settings pages: the side menu lists them so, and `/settings` opens the first the caller may open. */
+export const ORG_SETTINGS_ORDER = [
+  'members',
+  'invitations',
+  'audit',
+  'general',
+] as const satisfies readonly OrgSettingsTabKey[];
 
 /** Whether the access may open each tab; the three org-level permissions only count from an org-scope grant (`can`). */
 function allowed(access: Access): Record<OrgSettingsTabKey, boolean> {
@@ -23,7 +29,7 @@ export function orgSettingsTabs(slug: string, access: Access): Partial<Record<Or
   const ok = allowed(access);
   const base = `/o/${encodeURIComponent(slug)}/settings`;
   const tabs: Partial<Record<OrgSettingsTabKey, string>> = {};
-  for (const key of TAB_ORDER) if (ok[key]) tabs[key] = `${base}/${key}`;
+  for (const key of ORG_SETTINGS_ORDER) if (ok[key]) tabs[key] = `${base}/${key}`;
   return tabs;
 }
 
@@ -31,10 +37,10 @@ export function canOpenSettings(access: Access): boolean {
   return firstSettingsTab(access) !== null;
 }
 
-/** The first of general, members, invitations, audit that the access may open. */
+/** The first of members, invitations, audit, general that the access may open. */
 export function firstSettingsTab(access: Access): OrgSettingsTabKey | null {
   const ok = allowed(access);
-  return TAB_ORDER.find((key) => ok[key]) ?? null;
+  return ORG_SETTINGS_ORDER.find((key) => ok[key]) ?? null;
 }
 
 /** The projects page of the membership with this org id, or undefined for an org the person does not belong to. Ids are matched, never slugs. */

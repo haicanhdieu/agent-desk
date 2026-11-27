@@ -374,7 +374,7 @@ describe('members page: access (BR-2, BR-25)', () => {
         await queryClient.invalidateQueries({ queryKey: orgAccessQuery('alice').queryKey });
       });
       await noAccess();
-      expect(screen.getByRole('navigation', { name: 'Organization settings' })).toBeInTheDocument();
+      expect(screen.getByRole('navigation', { name: 'Organization menu' })).toBeInTheDocument();
       expect(screen.queryByRole('row')).not.toBeInTheDocument();
       // A refetch trigger (focus, a mutation elsewhere) must not ask for members either.
       await act(async () => {
@@ -385,16 +385,16 @@ describe('members page: access (BR-2, BR-25)', () => {
     expect(listed).toEqual([]);
   });
 
-  it('BR-2 a project admin typing the URL sees no-access inside the layout and members.list is not fetched', async () => {
+  it('BR-2 a project admin typing the URL sees no-access with the org menu and members.list is not fetched', async () => {
     const { listed } = await watchMemberLists(async () => {
       await renderRoute('/o/alice/settings/members', { scenario: asRole('projectAdmin') });
       await noAccess();
-      // The settings layout (side menu with Invitations only) is still there.
+      // The org menu (Projects and Invitations only) is still there.
       expect(
-        within(screen.getByRole('navigation', { name: 'Organization settings' }))
+        within(screen.getByRole('navigation', { name: 'Organization menu' }))
           .getAllByRole('link')
           .map((a) => a.textContent),
-      ).toEqual(['Invitations']);
+      ).toEqual(['Projects', 'Invitations']);
       expect(screen.queryByRole('heading', { level: 1, name: 'Members' })).not.toBeInTheDocument();
     });
     expect(listed).toEqual([]);
@@ -406,7 +406,12 @@ describe('members page: access (BR-2, BR-25)', () => {
       const { listed } = await watchMemberLists(async () => {
         await renderRoute('/o/alice/settings/members', { scenario: asRole(s) });
         await noAccess();
-        expect(screen.queryByRole('navigation', { name: 'Organization settings' })).not.toBeInTheDocument();
+        // The no-access state keeps the org menu with Projects only: no Settings group.
+        expect(
+          within(screen.getByRole('navigation', { name: 'Organization menu' })).queryByRole('link', {
+            name: 'Members',
+          }),
+        ).not.toBeInTheDocument();
         expect(screen.queryByRole('row')).not.toBeInTheDocument();
       });
       expect(listed).toEqual([]);

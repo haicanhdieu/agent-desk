@@ -64,13 +64,16 @@ describe('org switcher on the Projects page', () => {
     expect(screen.queryByRole('link', { name: 'invoicer-api' })).toBeNull();
   });
 
-  it('BR-9: one org shows a button whose menu has Projects and no Switch organization', async () => {
-    const { user } = await renderRoute('/o/alice/projects', { scenario: () => scenarios.onboarding('singleOrg') });
+  it('BR-9: one org shows its name with no switch button; Projects is in the org menu', async () => {
+    await renderRoute('/o/alice/projects', { scenario: () => scenarios.onboarding('singleOrg') });
     await screen.findByRole('link', { name: 'invoicer-api' });
-    await user.click(screen.getByRole('button', { name: 'Switch scope, currently organization Alice' }));
-    const menu = await screen.findByRole('dialog', { name: 'Scope' });
+    const [bar] = screen.getAllByRole('banner');
+    if (!bar) throw new Error('no top bar');
+    expect(within(bar).getByText('Alice')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^Switch scope/ })).toBeNull();
+    const menu = screen.getByRole('navigation', { name: 'Organization menu' });
     expect(within(menu).getByRole('link', { name: 'Projects' })).toBeInTheDocument();
-    expect(within(menu).queryByText('Switch organization')).toBeNull();
+    expect(screen.queryByText('Switch organization')).toBeNull();
   });
 
   it('BR-10: under the new URL a loading state shows and no project of the previous org, until set-active answers', async () => {
@@ -143,7 +146,7 @@ describe('org switcher on the Projects page', () => {
     });
     await user.click(await screen.findByRole('button', { name: /^Switch scope/ }));
     const menu = await screen.findByRole('dialog', { name: 'Scope' });
-    expect(within(menu).getByRole('link', { name: 'Platform admin' })).toHaveAttribute('href', '/platform');
+    expect(within(menu).getByRole('link', { name: 'Platform' })).toHaveAttribute('href', '/platform');
   });
 
   it('BR-1: a platform admin with no org sees Platform admin in the no-org menu', async () => {
@@ -153,24 +156,24 @@ describe('org switcher on the Projects page', () => {
     expect(within(menu).getByRole('link', { name: 'Platform admin' })).toHaveAttribute('href', '/platform');
   });
 
-  it('BR-1: an owner who is not a platform admin never sees Platform admin', async () => {
-    const { user } = await renderRoute('/o/alice/projects', { scenario: () => scenarios.platform('ownerNoPlatform') });
-    await user.click(await screen.findByRole('button', { name: 'Switch scope, currently organization Alice' }));
-    const menu = await screen.findByRole('dialog', { name: 'Scope' });
-    expect(within(menu).queryByRole('link', { name: 'Platform admin' })).toBeNull();
+  it('BR-1: an owner who is not a platform admin never sees Platform', async () => {
+    await renderRoute('/o/alice/projects', { scenario: () => scenarios.platform('ownerNoPlatform') });
+    await screen.findByRole('navigation', { name: 'Organization menu' });
+    // One org and no platform role: nothing to switch to, so there is no scope menu to open.
+    expect(screen.queryByRole('button', { name: /^Switch scope/ })).toBeNull();
+    expect(screen.queryByRole('link', { name: 'Platform' })).toBeNull();
   });
 
-  it('a 500 on me.platform hides Platform admin and the page still renders', async () => {
-    const { user } = await renderRoute('/o/alice/projects', {
+  it('a 500 on me.platform hides Platform and the page still renders', async () => {
+    await renderRoute('/o/alice/projects', {
       scenario: () => {
         scenarios.platform('platformAdminOrgs');
         scenarios.serverError('me.platform');
       },
     });
     await screen.findByRole('link', { name: 'invoicer-api' });
-    await user.click(await screen.findByRole('button', { name: /^Switch scope/ }));
-    const menu = await screen.findByRole('dialog', { name: 'Scope' });
-    expect(within(menu).queryByRole('link', { name: 'Platform admin' })).toBeNull();
+    expect(screen.queryByRole('link', { name: 'Platform' })).toBeNull();
+    expect(screen.queryByRole('link', { name: 'Manage in Platform' })).toBeNull();
   });
 });
 

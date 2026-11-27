@@ -145,7 +145,8 @@ test.describe('BR-75: Projects intro text', () => {
     await page.goto('/o/acme/projects');
     await expect(page.getByText(INTRO, { exact: true })).toBeVisible();
     const main = page.getByRole('main');
-    await expect(main.locator(':scope > p')).toHaveText([INTRO]);
+    // On the shell the intro is the page header's note, the only muted line there (no second sentence beside it).
+    await expect(main.locator('header .muted')).toHaveText([INTRO]);
     await expect(main.getByText(/last used|used last|you used/i)).toHaveCount(0);
     await expect(main.getByText(/runs of the project/i)).toHaveCount(0);
   });

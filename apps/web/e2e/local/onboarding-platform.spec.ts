@@ -260,7 +260,7 @@ test('TC-40.3: an org owner who is not a platform admin and belongs to two orgs 
       [first.name, second.name].sort(),
     );
     await expect(menu.getByText('Create organization')).toHaveCount(0);
-    // The one divider separates Projects from the org group; a non-admin has no Create organization divider after it.
-    await expect(menu.getByRole('separator')).toHaveCount(1);
+    // Projects is in the org menu now, so the scope menu holds the org group only: no divider, and none for Create organization.
+    await expect(menu.getByRole('separator')).toHaveCount(0);
   });
 });

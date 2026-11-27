@@ -1,7 +1,7 @@
 import { type Access } from '@agentdesk/contracts';
 import type { RepoBlockProps, SubNavGroup, SubNavItem } from '@/components';
 import { projectPaths, deskRightsOf } from '../desk/frame';
-import { orgSettingsTabs } from './appBar';
+import { ORG_SETTINGS_ORDER, orgSettingsTabs } from './appBar';
 import type { MenuItemKey } from './routeChrome';
 
 export type GrantState = 'loading' | 'error' | 'ready' | 'orgListLoading' | 'orgListError';
@@ -14,8 +14,6 @@ export interface MenuModel {
   header?: { name: string; status?: 'active' | 'suspended' } | 'loading';
   footer?: { kind: 'managePlatform'; href: string } | { kind: 'repo'; repo: RepoBlockProps };
 }
-
-export const ORG_SETTINGS_ORDER = ['members', 'invitations', 'audit', 'general'] as const;
 
 const SETTINGS_ITEM: Record<(typeof ORG_SETTINGS_ORDER)[number], Pick<SubNavItem, 'label' | 'icon'>> = {
   members: { label: 'Members', icon: 'users' },

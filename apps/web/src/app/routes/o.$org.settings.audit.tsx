@@ -19,6 +19,7 @@ import { orgsQuery } from '@/features/auth/session';
 import { OrgAudit, type OrgAuditProps } from '@/screens';
 
 export const Route = createFileRoute('/o/$org/settings/audit')({
+  staticData: { chrome: { mode: 'standard', scope: 'org', item: 'audit', crumb: 'Audit log' } },
   // The log needs `audit:read` at org level (a project grant never gives it); the page keeps its own no-access state.
   beforeLoad: ({ context: { queryClient }, params }) => requirePermission(queryClient, params.org, 'audit:read'),
   validateSearch: PageSearch,

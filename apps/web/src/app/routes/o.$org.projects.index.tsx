@@ -16,7 +16,7 @@ import {
 } from '@/app/pagination';
 import { useNow } from '@/app/useNow';
 import { Forbidden, RouteError, toastFromError } from '@/app/boundaries';
-import { TopBar, type OnboardingChecklistState } from '@/components';
+import type { OnboardingChecklistState } from '@/components';
 import { useToast } from '@/ds';
 import { forgetProject, useDeleteProject } from '@/features/desk/mutations';
 import { orgAccessQuery, toAccess } from '@/features/access/queries';
@@ -28,6 +28,7 @@ import { projectsQueries } from '@/features/projects/queries';
 import { Projects } from '@/screens';
 
 export const Route = createFileRoute('/o/$org/projects/')({
+  staticData: { chrome: { mode: 'standard', scope: 'org', item: 'projects', crumb: 'Projects' } },
   validateSearch: PageSearch,
   loaderDeps: ({ search }) => ({ page: pageOfSearch(search) }),
   loader: ({ context: { queryClient }, params, deps: { page }, cause }) =>
@@ -36,22 +37,10 @@ export const Route = createFileRoute('/o/$org/projects/')({
   errorComponent: ProjectsError,
 });
 
-// A 403 keeps the global top bar with the switcher over Forbidden, so a member with no role here can switch away.
+// A 403 reports `forbidden` to the shell, which keeps the bar and the org menu, so a member with no role here can switch away.
 function ProjectsError(props: ErrorComponentProps) {
   if (!(props.error instanceof ApiError && props.error.status === 403)) return <RouteError {...props} />;
-  return <ProjectsForbidden />;
-}
-
-function ProjectsForbidden() {
-  const { org } = Route.useParams();
-  // A pending or failed access query leaves the switcher without the platform-admin entry and Settings; it still switches.
-  const bar = useAppBar(org);
-  return (
-    <>
-      <TopBar variant="global" crumbs={[{ label: 'Projects' }]} state="forbidden" user={bar.user} org={bar.org} />
-      <Forbidden titled={false} />
-    </>
-  );
+  return <Forbidden />;
 }
 
 /**

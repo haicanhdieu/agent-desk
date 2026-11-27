@@ -20,6 +20,7 @@ import { formatShortDate } from '@/features/invitations/dates';
 import { OrgInvitations, type InvitationFilter, type OrgInvitationsProps } from '@/screens';
 
 export const Route = createFileRoute('/o/$org/settings/invitations')({
+  staticData: { chrome: { mode: 'standard', scope: 'org', item: 'invitations', crumb: 'Invitations' } },
   // Invite rights are checked before the page loads; the page keeps its own no-access state as a second line.
   beforeLoad: ({ context: { queryClient }, params }) => requireInvite(queryClient, params.org),
   validateSearch: InvitationsSearch,

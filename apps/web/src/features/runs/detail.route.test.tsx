@@ -129,13 +129,13 @@ describe('run detail route', () => {
       expect(other).toHaveAttribute('href', `/o/alice/p/${ids.project.invoicerWeb}/runs`);
     });
 
-    it('TC-47.4: the owner presses the org crumb, then Settings, and General opens', async () => {
+    it('TC-47.4: the owner presses the org crumb, then Settings, and Members opens', async () => {
       const { user, router } = await renderRoute(`${base}/runs/62`);
       await screen.findByText('The agent is waiting for your answer');
       await user.click(orgButton());
       await user.click(await screen.findByRole('link', { name: /^Org settings/ }));
-      await screen.findByRole('navigation', { name: 'Organization settings' });
-      expect(router.state.location.pathname).toBe('/o/alice/settings/general');
+      await screen.findByRole('navigation', { name: 'Organization menu' });
+      expect(router.state.location.pathname).toBe('/o/alice/settings/members');
     });
 
     it("TC-48.2: the logo opens the org's Projects page", async () => {
@@ -154,13 +154,13 @@ describe('run detail route', () => {
       await screen.findByText('The agent is waiting for your answer');
       await user.click(orgButton());
       await user.click(await screen.findByRole('link', { name: /^Org settings/ }));
-      const side = await screen.findByRole('navigation', { name: 'Organization settings' });
+      const side = await screen.findByRole('navigation', { name: 'Organization menu' });
       expect(router.state.location.pathname).toBe('/o/acme/settings/invitations');
       expect(
         within(side)
           .getAllByRole('link')
           .map((a) => a.textContent),
-      ).toEqual(['Invitations']);
+      ).toEqual(['Projects', 'Invitations']);
     });
 
     it('BR-47: a viewer has no Settings in the org menu', async () => {
