@@ -1470,3 +1470,302 @@ test.describe('BR-65: the Agent & settings pane at 390, 1023 and 1024', () => {
     await expect(pane).toBeHidden();
   });
 });
+
+/*
+ * Workspace setup and org General at 390 (TC-65.12, TC-65.14). Workspace setup fills the window: the page itself never
+ * scrolls, its content area does, so the fit check also reads the scroll area. General is a plain page: it never scrolls
+ * sideways and keeps its gutters.
+ */
+const setupPath = `/o/${ORG}/p/${INVOICER_API}/desk/setup`;
+const generalPath = `/o/${ORG}/settings/general`;
+
+test.describe('BR-65: Workspace setup at 390', () => {
+  test.use({ viewport: { width: 390, height: 844 } });
+
+  test('TC-65.12: the editor is full width and tall enough; versions, phases and Environment are usable', async ({
+    page,
+  }) => {
+    await page.goto(setupPath);
+    await expect(heading(page, 'Workspace setup')).toBeVisible();
+    await expect(page.getByText('Version 1, saved by kim-hale')).toBeVisible();
+    await page.evaluate(() => document.fonts.ready);
+    const scrollArea = page.locator('[class*="setupDeskRow"]');
+    const script = page.getByRole('textbox', { name: 'Setup script' });
+    await expectFillPageFits(page, [scrollArea]);
+    await expectPhoneKeepsControls(page, () => [
+      page.locator('[class*="setupDeskMain"]').first(),
+      page.locator('[class*="setupDeskRow"] aside'),
+    ]);
+
+    // The editor box is full width (inside its 20px gutters) and at least 200px tall.
+    const editorBox = await boxOf(script.locator('xpath=ancestor::div[2]'));
+    expect(editorBox.width).toBeGreaterThanOrEqual(390 - 2 * 20 - 2);
+    expect(editorBox.height).toBeGreaterThanOrEqual(200);
+    await script.press('Control+End');
+    await script.pressSequentially('\necho phone');
+    await expect(script).toHaveValue(/echo phone$/);
+
+    // Versions come below the editor, full width.
+    const versions = page.getByRole('list', { name: 'Setup script versions' });
+    await versions.scrollIntoViewIfNeeded();
+    const versionsBox = await boxOf(versions);
+    expect(versionsBox.y).toBeGreaterThanOrEqual(editorBox.y + editorBox.height - 1);
+    expect(versionsBox.width).toBeGreaterThan(0);
+    expect(versionsBox.x + versionsBox.width).toBeLessThanOrEqual(390 + 1);
+    await expectFillPageFits(page, [scrollArea]);
+
+    // Test setup: the phases are shown, inside the window, and the editor keeps its width.
+    const test_ = page.getByRole('button', { name: 'Test setup' });
+    await test_.scrollIntoViewIfNeeded();
+    await test_.click();
+    const phases = page.getByRole('list', { name: 'Setup phases' });
+    await expect(phases).toBeVisible();
+    await phases.scrollIntoViewIfNeeded();
+    const phasesBox = await boxOf(phases);
+    expect(phasesBox.width).toBeGreaterThan(0);
+    expect(phasesBox.x).toBeGreaterThanOrEqual(-1);
+    expect(phasesBox.x + phasesBox.width).toBeLessThanOrEqual(390 + 1);
+    expect((await boxOf(script.locator('xpath=ancestor::div[2]'))).width).toBeGreaterThanOrEqual(390 - 2 * 16 - 2);
+    await expectFillPageFits(page, [scrollArea]);
+    await expect(page.getByText('Last test passed, matches the saved script')).toBeVisible({ timeout: 15_000 });
+
+    // Environment keeps working and fits.
+    const env = page.getByRole('tab', { name: 'Environment' });
+    await env.scrollIntoViewIfNeeded();
+    await env.click();
+    await expect(env).toHaveAttribute('aria-selected', 'true');
+    await expect(page.getByRole('tabpanel')).toBeVisible();
+    await expectFillPageFits(page, [scrollArea, page.getByRole('tabpanel')]);
+  });
+});
+
+test.describe('BR-65: org General at 390', () => {
+  test.use({ viewport: { width: 390, height: 844 } });
+
+  test('TC-65.14: one column; the name and URL fields and Save are usable', async ({ page }) => {
+    await seedTenantAdmin(page, 'twoOwners');
+    await page.goto(generalPath);
+    await expect(heading(page, 'General')).toBeVisible();
+    const name = page.getByLabel('Name', { exact: true });
+    const url = page.getByLabel('URL', { exact: true });
+    await expect(name).toHaveValue('Alice');
+    await expectPageFits(page, 390);
+    await expectPhoneKeepsControls(page, () => [page.locator('form').first()]);
+
+    const [nameBox, urlBox] = [await boxOf(name), await boxOf(url)];
+    expect(nameBox.width).toBeGreaterThanOrEqual(390 - 2 * 16 - 1);
+    expect(urlBox.width).toBeGreaterThanOrEqual(390 - 2 * 16 - 1);
+    expect(urlBox.y).toBeGreaterThanOrEqual(nameBox.y + nameBox.height - 1);
+
+    await name.fill('Alice Phone');
+    const save = page.getByRole('button', { name: 'Save', exact: true });
+    await save.scrollIntoViewIfNeeded();
+    await expect(save).toBeEnabled();
+    const saveBox = await boxOf(save);
+    expect(saveBox.width).toBeGreaterThan(0);
+    expect(saveBox.x).toBeGreaterThanOrEqual(16 - 1);
+    expect(saveBox.x + saveBox.width).toBeLessThanOrEqual(390 - 16 + 1);
+    await save.click();
+    await expect(page.getByText('Organization updated')).toBeVisible();
+    await expectPageFits(page, 390);
+  });
+});
+
+/*
+ * Member, invitation and audit lists at 390 (TC-65.15 to TC-65.18). Each list is a stack of cards: every value cell shows
+ * its column label before the value (the label is the cell's `data-label`, drawn as text), the row menu and the pager
+ * keep working, and nothing runs past the window.
+ */
+const orgMembersPath = `/o/${ORG}/settings/members`;
+const orgAuditPath = `/o/${ORG}/settings/audit`;
+const deskMembersPath = `/o/${ORG}/p/${INVOICER_API}/desk/members`;
+const deskAuditPath = `/o/${ORG}/p/${INVOICER_API}/desk/audit`;
+const invitationsPath = '/o/acme/settings/invitations';
+const pagerOf = (page: Page): Locator => page.getByRole('navigation', { name: 'Pagination' });
+
+/** The labels a card draws before its values, in order (an empty `data-label` is not drawn). */
+const labelsOf = (row: Locator): Promise<string[]> =>
+  row
+    .locator('td[data-label]')
+    .evaluateAll((cells) => cells.map((c) => getComputedStyle(c, '::before').content.replace(/^"|"$/g, '')));
+
+/** The document does not scroll sideways and the first row is a block card inside the window. */
+async function expectCardsFit(page: Page, columns: string[]): Promise<Locator> {
+  await page.evaluate(() => document.fonts.ready);
+  const row = page.locator('tbody tr').first();
+  await expect(row).toBeVisible();
+  expect(await row.evaluate((el) => getComputedStyle(el).display)).toBe('block');
+  expect(await labelsOf(row)).toEqual(columns);
+  const box = await boxOf(row);
+  expect(box.width).toBeGreaterThan(0);
+  expect(box.x).toBeGreaterThanOrEqual(-1);
+  expect(box.x + box.width).toBeLessThanOrEqual(390 + 1);
+  expect(
+    await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth),
+  ).toBeLessThanOrEqual(1);
+  for (const cell of await row.locator('td').all()) {
+    const b = await boxOf(cell);
+    expect(b.x + b.width).toBeLessThanOrEqual(390 + 1);
+  }
+  return row;
+}
+
+/** The text of each cell of the first row (labels are drawn by CSS, so they are not part of the text). */
+const firstRowTexts = (page: Page): Promise<string[]> =>
+  page
+    .locator('tbody tr')
+    .first()
+    .locator('td')
+    .evaluateAll((cells) => cells.map((c) => (c.textContent ?? '').trim().replace(/\s+/g, ' ')));
+
+/** Fit rule: the first row of the list shows the same cell text at 1440 as at 390. */
+async function expectFirstRowMatchesDesktop(page: Page): Promise<void> {
+  const phone = await firstRowTexts(page);
+  expect(phone.length).toBeGreaterThan(0);
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await expect(page.locator('tbody tr').first()).toBeVisible();
+  const desktop = await firstRowTexts(page);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(page.locator('tbody tr').first()).toBeVisible();
+  expect(phone).toEqual(desktop);
+}
+
+/** The first row menu button that is not disabled (an own row or a finished invitation has none). */
+const enabledMenu = (page: Page): Locator =>
+  page
+    .getByRole('button', { name: /^Actions for / })
+    .and(page.locator(':enabled'))
+    .first();
+
+/** An open row menu lies inside the window; Escape closes it. */
+async function expectMenuInside(page: Page, button: Locator, name: RegExp): Promise<void> {
+  await button.scrollIntoViewIfNeeded();
+  await button.click();
+  const menu = page.getByRole('dialog', { name });
+  await expect(menu).toBeVisible();
+  inside(await boxOf(menu), 390, 844);
+  await page.keyboard.press('Escape');
+  await expect(menu).toBeHidden();
+}
+
+/** The pager is inside the window, and "Next" moves to the second page. */
+async function expectPagerWorks(page: Page): Promise<void> {
+  const pager = pagerOf(page);
+  await pager.scrollIntoViewIfNeeded();
+  const box = await boxOf(pager);
+  expect(box.x).toBeGreaterThanOrEqual(-1);
+  expect(box.x + box.width).toBeLessThanOrEqual(390 + 1);
+  const next = pager.getByRole('button', { name: 'Next', exact: true });
+  await expect(next).toBeVisible();
+  inside(await boxOf(next), 390, Number.MAX_SAFE_INTEGER);
+  await next.click();
+  await expect(pager.getByRole('button', { name: 'Previous', exact: true })).toBeEnabled();
+  expect(
+    await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth),
+  ).toBeLessThanOrEqual(1);
+}
+
+test.describe('BR-65: member, invitation and audit lists at 390', () => {
+  test.use({ viewport: { width: 390, height: 844 } });
+
+  test('TC-65.15: org Members are cards with labels; the row menu and the pager work', async ({ page }) => {
+    await seedTenantAdmin(page, 'membersPaged');
+    await page.goto(orgMembersPath);
+    await expect(heading(page, 'Members')).toBeVisible();
+    await expectCardsFit(page, ['Name', 'Access']);
+    await expectFirstRowMatchesDesktop(page);
+    await expectMenuInside(page, enabledMenu(page), /^Actions for /);
+    await expectPagerWorks(page);
+    await expectCardsFit(page, ['Name', 'Access']);
+  });
+
+  test('TC-65.16: Invitations are cards with labels; the status chips scroll in their own row; the invite dialog is full width', async ({
+    page,
+  }) => {
+    await seedOnboarding(page, 'owner');
+    await page.clock.setFixedTime(new Date(INVITATIONS_MOCK_NOW));
+    await page.goto(invitationsPath);
+    await expect(heading(page, 'Invitations')).toBeVisible();
+    await expectCardsFit(page, ['Email', 'Role', 'Access', 'Status', 'Expires', 'Invited by']);
+    await expectFirstRowMatchesDesktop(page);
+    await expectMenuInside(page, enabledMenu(page), /^Actions for /);
+
+    // The chips are one row that scrolls inside itself; the page does not widen.
+    const chips = page.getByRole('group', { name: 'Filter by status' });
+    const scroller = chips.locator('xpath=..');
+    const buttons = chips.getByRole('button');
+    const boxes: Box[] = [];
+    for (let i = 0; i < (await buttons.count()); i += 1) boxes.push(await boxOf(buttons.nth(i)));
+    expect(boxes.length).toBe(6);
+    for (const b of boxes) expect(Math.abs(b.y - boxes[0]!.y)).toBeLessThanOrEqual(1);
+    expect(await scroller.evaluate((el) => el.scrollWidth > el.clientWidth)).toBe(true);
+    expect(await scroller.evaluate((el) => getComputedStyle(el).overflowX)).toBe('auto');
+    await scroller.evaluate((el) => el.scrollTo({ left: el.scrollWidth }));
+    const all = chips.getByRole('button', { name: 'All', exact: true });
+    await expect(all).toBeVisible();
+    await all.click();
+    await expect(all).toHaveAttribute('aria-pressed', 'true');
+    await scroller.evaluate((el) => el.scrollTo({ left: 0 }));
+    const accepted = chips.getByRole('button', { name: 'Accepted', exact: true });
+    await accepted.click();
+    await expect(accepted).toHaveAttribute('aria-pressed', 'true');
+    expect(
+      await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth),
+    ).toBeLessThanOrEqual(1);
+
+    // The control that creates an invitation opens a full-width dialog whose footer buttons are inside the window.
+    await page.getByRole('button', { name: 'Invite people' }).click();
+    const dialog = page.getByRole('dialog', { name: 'Invite people' });
+    await expect(dialog).toBeVisible();
+    const dialogBox = await boxOf(dialog);
+    expect(dialogBox.x).toBeGreaterThanOrEqual(-1);
+    expect(dialogBox.width).toBeGreaterThanOrEqual(390 - 2);
+    const footer = dialog.getByRole('button');
+    for (let i = 0; i < (await footer.count()); i += 1) {
+      const b = await boxOf(footer.nth(i));
+      expect(b.x).toBeGreaterThanOrEqual(-1);
+      expect(b.x + b.width).toBeLessThanOrEqual(390 + 1);
+    }
+  });
+
+  test('TC-65.17: the org Audit log is cards with labels and its pager works', async ({ page }) => {
+    await seedTenantAdmin(page, 'auditPaged');
+    await page.goto(orgAuditPath);
+    await expect(heading(page, 'Audit log')).toBeVisible();
+    await expectCardsFit(page, ['When', 'Who', 'What']);
+    await expectFirstRowMatchesDesktop(page);
+    await expectPagerWorks(page);
+    await expectCardsFit(page, ['When', 'Who', 'What']);
+  });
+
+  test('TC-65.18: project Members and project Audit log are cards with labels; the controls and the dialog work', async ({
+    page,
+  }) => {
+    await seedProjectSpace(page, { role: 'owner', scenario: 'membersPaged' });
+    await page.goto(deskMembersPath);
+    await expect(heading(page, 'Members')).toBeVisible();
+    await expectCardsFit(page, ['Name', 'Role']);
+    await expectFirstRowMatchesDesktop(page);
+    await expectMenuInside(page, enabledMenu(page), /^Actions for /);
+    await page.getByRole('button', { name: 'Add member' }).first().click();
+    const dialog = page.getByRole('dialog', { name: /^Add member to/ });
+    await expect(dialog).toBeVisible();
+    const dialogBox = await boxOf(dialog);
+    expect(dialogBox.x).toBeGreaterThanOrEqual(-1);
+    expect(dialogBox.x + dialogBox.width).toBeLessThanOrEqual(390 + 1);
+    expect(dialogBox.width).toBeGreaterThanOrEqual(390 - 2);
+    await page.keyboard.press('Escape');
+    await expect(dialog).toBeHidden();
+    await expectPagerWorks(page);
+
+    // The audit log opens in its own page, seeded once before its first goto.
+    const audit = await page.context().newPage();
+    await audit.setViewportSize({ width: 390, height: 844 });
+    await seedProjectSpace(audit, { role: 'owner', scenario: 'auditPaged' });
+    await audit.goto(deskAuditPath);
+    await expect(heading(audit, 'Audit log')).toBeVisible();
+    await expectCardsFit(audit, ['When', 'Who', 'What']);
+    await expectFirstRowMatchesDesktop(audit);
+    await expectPagerWorks(audit);
+  });
+});

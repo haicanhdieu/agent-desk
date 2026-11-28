@@ -1229,3 +1229,51 @@
     align-items: stretch;
   }
 }
+
+/* Phone (BR-65, TC-65.12), Workspace setup: the page still fills the window and its content area scrolls, not the document.
+   The editor column keeps a usable height and the plugins, version history or test result come below it at full width. */
+@media (max-width: 639px) {
+  .setupDeskRow {
+    flex-direction: column;
+    overflow-x: hidden;
+    overflow-y: auto;
+  }
+  .setupDeskRow > .setupDeskMain {
+    flex: 0 0 auto;
+    min-height: 680px;
+    overflow: visible;
+  }
+  .setupDeskRow > aside {
+    width: 100%;
+    flex: 0 0 auto;
+    border-left: 0;
+    border-top: 1px solid var(--line);
+    overflow-y: visible;
+  }
+  .setupTestEditorFit {
+    min-height: 160px;
+  }
+  .setupSaveRow {
+    flex-wrap: wrap;
+  }
+  .setupSaveRow > .grow {
+    flex: 1 1 100%;
+  }
+  .setupPhaseBar {
+    flex-wrap: wrap;
+  }
+}
+
+/* Phone (BR-65, TC-65.16): the invitation status chips are one row that scrolls inside itself, not a wrapped block. */
+@media (max-width: 639px) {
+  .invitationChips {
+    overflow-x: auto;
+    padding-bottom: 4px;
+  }
+  .invitationChips > [role='group'] {
+    flex-wrap: nowrap;
+  }
+  .invitationChips > [role='group'] > * {
+    flex: none;
+  }
+}

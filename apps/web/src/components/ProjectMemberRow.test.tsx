@@ -109,3 +109,10 @@ describe('ProjectMemberRow', () => {
     expect(screen.getByText(name)).toHaveClass('nameText');
   });
 });
+
+describe('ProjectMemberRow phone card labels (BR-65)', () => {
+  it('labels the Name and Role cells and leaves the actions cell unlabelled', () => {
+    renderRow();
+    expect(screen.getAllByRole('cell').map((c) => c.getAttribute('data-label'))).toEqual(['Name', 'Role', null]);
+  });
+});

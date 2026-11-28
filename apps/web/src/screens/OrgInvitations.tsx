@@ -224,16 +224,18 @@ export function OrgInvitations({
         {state.kind === 'ready' && (
           <>
             <PageHeader title="Invitations" actions={invite} />
-            <FilterChips aria-label="Filter by status">
-              {CHIPS.map((c) => (
-                <FilterChip
-                  key={c.value}
-                  label={c.label}
-                  on={filter === c.value}
-                  onClick={() => onFilterChange(c.value)}
-                />
-              ))}
-            </FilterChips>
+            <div className={styles.invitationChips}>
+              <FilterChips aria-label="Filter by status">
+                {CHIPS.map((c) => (
+                  <FilterChip
+                    key={c.value}
+                    label={c.label}
+                    on={filter === c.value}
+                    onClick={() => onFilterChange(c.value)}
+                  />
+                ))}
+              </FilterChips>
+            </div>
             <div ref={tableRef}>
               <DataTable columns={columns} busy={state.pagination?.busy}>
                 {state.rows.map((row) => (

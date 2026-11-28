@@ -674,3 +674,30 @@ export const CreateOrgPhone: Story = phoneStory({
   name: 'Phone: create organization',
   render: () => createOrg(createForm(emptyOrgValues)),
 });
+
+// BR-65: org Invitations at 390x844 (phone board): cards with labels, the status chips in their own scrolling row, the
+// row menu and the pager kept. The real shell frame draws the bar and the menu.
+export const OrgInvitationsSettingsPhone: Story = {
+  name: 'Phone: invitations as cards, status chips scroll',
+  decorators: [
+    (S) => (
+      <div style={{ width: 390, height: 844 }}>
+        <OrgShellFrame viewer="owner" page="invitations" height={844} crumbs={[{ label: 'Invitations' }]}>
+          <S />
+        </OrgShellFrame>
+      </div>
+    ),
+  ],
+  globals: viewport(390, 844),
+  render: () => (
+    <OrgInvitationsScreen
+      filter="pending"
+      onFilterChange={noop}
+      state={ready(pendingRows, { page: 1, pageSize: 20, total: 25, onPageChange: noop, onPageSizeChange: noop })}
+      onInvite={noop}
+      onCopy={noop}
+      onResend={noop}
+      onRevoke={noop}
+    />
+  ),
+};

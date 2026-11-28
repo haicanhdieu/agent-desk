@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import { userEvent, within } from 'storybook/test';
-import { ChangeRoleDialog, type ChangeRoleDialogProps } from '@/components';
+import { ChangeRoleDialog, type ChangeRoleDialogProps, type PaginationProps } from '@/components';
 import {
   accessProjectRoleIds,
   accessProjects,
@@ -461,3 +461,67 @@ export const OrgAuditForbiddenSideMenu: Story = shellStory({
     </OrgShellFrame>
   ),
 });
+
+// BR-65: org General at 390x844 (phone board): one column, every control usable. The real shell frame draws the bar and the menu.
+export const OrgGeneralPhone: Story = {
+  name: 'Phone: organization general, one column',
+  decorators: [
+    (S) => (
+      <div style={{ width: 390, height: 844 }}>
+        <OrgShellFrame viewer="owner" page="general" height={844} crumbs={[{ label: 'General' }]}>
+          <S />
+        </OrgShellFrame>
+      </div>
+    ),
+  ],
+  globals: viewport(390, 844),
+  render: () => (
+    <OrgGeneralScreen
+      state={{ kind: 'ready' }}
+      name={{ value: orgSettingsFixtures.org.name, onChange: noop }}
+      slug={{ value: orgSettingsFixtures.org.slug, onChange: noop }}
+      dirty={false}
+      saving={false}
+      onSave={noop}
+    />
+  ),
+};
+
+// BR-65: org Members and Audit log at 390x844 (phone boards): each row is a card with its value labels, the row menu and
+// the pager are kept. The real shell frame draws the bar and the menu.
+const orgListPhone = (page: 'members' | 'audit', crumb: string): NonNullable<Story['decorators']> => [
+  (S) => (
+    <div style={{ width: 390, height: 844 }}>
+      <OrgShellFrame viewer="owner" page={page} height={844} crumbs={[{ label: crumb }]}>
+        <S />
+      </OrgShellFrame>
+    </div>
+  ),
+];
+const phonePagination: PaginationProps = {
+  page: 1,
+  pageSize: 20,
+  total: 25,
+  onPageChange: noop,
+  onPageSizeChange: noop,
+};
+
+export const OrgMembersPhone: Story = {
+  name: 'Phone: members as cards with labels',
+  decorators: orgListPhone('members', 'Members'),
+  globals: viewport(390, 844),
+  render: () => (
+    <OrgMembersScreen
+      state={ready(memberRows.paged.slice(0, 5), null, phonePagination)}
+      onChangeRole={noop}
+      onRemove={noop}
+    />
+  ),
+};
+
+export const OrgAuditPhone: Story = {
+  name: 'Phone: audit log as cards with labels',
+  decorators: orgListPhone('audit', 'Audit log'),
+  globals: viewport(390, 844),
+  render: () => <OrgAuditScreen state={{ kind: 'ready', rows: auditRows, pagination: phonePagination }} />,
+};

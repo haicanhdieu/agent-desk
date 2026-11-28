@@ -815,3 +815,21 @@ Seven boards are registered: `DeskAgentPhone`, `DeskAgentAddPhone`, `DeskAgentEd
 - Agent call: Escape on the open menu drawer no longer also closes an open agent pane (TC-62.5): the pane's Escape handler ignores the key while a modal dialog is open.
 - Agent call: the new shell scenario `phoneLongAgentName` gives invoicer-api 30 agents with the third named with 256 characters.
 - No copy, state or behaviour of the multi-agent work changed apart from the Escape case above.
+
+## Sidebar navigation shell: phone Workspace setup and General (Task 51)
+
+Two boards are registered: `DeskSetupPhone` and `OrgGeneralPhone`, 489 in all. PARITY was not run in this session (no browser), so no pair was checked; the two boards are unchecked. `scripts/parity.mjs` needed no change: it reads the board list from `canvas.json` and `storyIds.ts`.
+
+- Agent call: below 640px the Workspace setup row stacks: the editor column keeps at least 680px (so the editor stays above 200px tall) and the plugins, version history or test result come below it at full width; the row scrolls inside the fill page, not the document. The Environment tab keeps its own layout and scrolls in its panel.
+- Agent call: the change note field takes its own row and the save row, and the test phase bar, wrap below 640px.
+- Agent call: org General needed no change: its section is already one column below 720px with 16px gutters. `TC-65.14` is a regression test for that, and `OrgGeneral.tsx` and `WorkspaceSetup.module.css` are untouched.
+- Agent call: the phone stories reuse the desktop screens inside the real shell frame at 390px.
+
+## Sidebar navigation shell: phone member, invitation and audit lists (Task 52)
+
+Five boards are registered: `OrgMembersPhone`, `OrgInvitationsSettingsPhone`, `OrgAuditPhone`, `DeskMembersPhone` and `DeskAuditPhone`, 494 in all. PARITY was not run in this session (no browser), so no pair was checked; the five boards are unchecked. `scripts/parity.mjs` needed no change: it reads the board list from `canvas.json` and `storyIds.ts`.
+
+- Agent call: `InvitationRow`, `AuditRow` and `ProjectMemberRow` cells now carry `data-label` (the org `MemberRow` already did); the actions cell stays unlabelled. The labels are the column headers.
+- Agent call: below 640px the rows' percent widths and one-line ellipsis give way (values wrap and sit at the card's right); the audit sentence and its note take a full-width line under "What"; the menu button sits at the card's end. `Pagination` needed no change: it already reacts to its own width.
+- Agent call: the invitation status chips sit in a wrapper that scrolls sideways below 640px (same pattern as the Runs chips); the shared `FilterChips` is unchanged.
+- Agent call: the org and project Audit log pages have no filter control, so `TC-65.17` and `TC-65.18` check cards and the pager only; "filters wrap" has nothing to check on those two pages.

@@ -1764,11 +1764,11 @@ it.each([
 
 - Boards: `DeskSetupPhone`, `OrgGeneralPhone` (expected count 489). Covers: TC-65.12, TC-65.14.
 
-- [ ] **Step 0: Multi-agent gate.** Run both checks in "Multi-agent gate". If either fails, stop: write no code and report which check failed.
+- [x] **Step 0: Multi-agent gate.** Run both checks in "Multi-agent gate". If either fails, stop: write no code and report which check failed.
 - [ ] **Step 1: Write** "TC-65.12" (with the fill-page fit check on the scroll area) and "TC-65.14". Run. Expected: FAIL.
-- [ ] **Step 2: Implement:** editor full width with a usable minimum height, versions and phases below, Environment keeps its 640 layout, General one column with the Danger zone reachable. Where Workspace setup is a fill page its content area scrolls, not the document.
+- [x] **Step 2: Implement:** editor full width with a usable minimum height, versions and phases below, Environment keeps its 640 layout, General one column with the Danger zone reachable. Where Workspace setup is a fill page its content area scrolls, not the document.
 - [ ] **Step 3: Stories and REG;** run, PARITY. Expected: PASS.
-- [ ] **Step 4: Commit** `feat(web): phone layouts for workspace setup and general settings`.
+- [x] **Step 4: Commit** `feat(web): phone layouts for workspace setup and general settings`.
 
 ### Task 52: Phone, organization and project member, invitation and audit lists (after the multi-agent gate)
 
@@ -1786,11 +1786,11 @@ it.each([
 - Consumes: the card pattern (Task 45).
 - Boards: `OrgMembersPhone`, `OrgInvitationsSettingsPhone`, `OrgAuditPhone`, `DeskMembersPhone`, `DeskAuditPhone` (expected count 494). Covers: TC-65.15 to TC-65.18.
 
-- [ ] **Step 0: Multi-agent gate.** Run both checks in "Multi-agent gate". If either fails, stop: write no code and report which check failed.
+- [x] **Step 0: Multi-agent gate.** Run both checks in "Multi-agent gate". If either fails, stop: write no code and report which check failed.
 - [ ] **Step 1: Write** "TC-65.15", "TC-65.16", "TC-65.17", "TC-65.18". Run. Expected: FAIL.
-- [ ] **Step 2: Implement:** `data-label` on each cell; filters wrap, status chips scroll in their own row; row menu and pagination kept.
+- [x] **Step 2: Implement:** `data-label` on each cell; filters wrap, status chips scroll in their own row; row menu and pagination kept.
 - [ ] **Step 3: Stories and REG;** run, PARITY. Expected: PASS.
-- [ ] **Step 4: Commit** `feat(web): phone layouts for member, invitation and audit lists`.
+- [x] **Step 4: Commit** `feat(web): phone layouts for member, invitation and audit lists`.
 
 ### Task 53: Phone, platform pages (after the multi-agent gate)
 

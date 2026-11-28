@@ -41,3 +41,16 @@
 .afterRoles {
   margin-left: 8px;
 }
+
+/* Phone (BR-65, TC-65.18): a row is a card (DataTable cards); the cells size to their content and the menu sits at the end. */
+@media (max-width: 639px) {
+  tr > td.nameCell {
+    width: auto;
+  }
+  .orgRoles {
+    flex-wrap: wrap;
+  }
+  tr > td.actionsCell {
+    justify-content: flex-end;
+  }
+}

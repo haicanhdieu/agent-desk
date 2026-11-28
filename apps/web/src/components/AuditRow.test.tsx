@@ -143,3 +143,10 @@ describe('AuditRow', () => {
     expect(screen.getByText('Acme')).not.toHaveClass('mono');
   });
 });
+
+describe('AuditRow phone card labels (BR-65)', () => {
+  it('labels the three cells When, Who and What', () => {
+    renderRow(rowAt(0));
+    expect(screen.getAllByRole('cell').map((c) => c.getAttribute('data-label'))).toEqual(['When', 'Who', 'What']);
+  });
+});

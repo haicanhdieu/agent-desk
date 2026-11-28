@@ -3905,6 +3905,62 @@
    "h": 844,
    "title": "Phone: limits, one column with Save limits pinned",
    "expand": "fill"
+  },
+  "DeskSetupPhone.dc.html": {
+   "x": 2350,
+   "y": 106860,
+   "w": 390,
+   "h": 844,
+   "title": "Phone: workspace setup",
+   "expand": "fill"
+  },
+  "OrgGeneralPhone.dc.html": {
+   "x": 0,
+   "y": 107960,
+   "w": 390,
+   "h": 844,
+   "title": "Phone: organization general, one column",
+   "expand": "fill"
+  },
+  "OrgMembersPhone.dc.html": {
+   "x": 0,
+   "y": 109060,
+   "w": 390,
+   "h": 844,
+   "title": "Phone: members as cards with labels",
+   "expand": "fill"
+  },
+  "OrgInvitationsSettingsPhone.dc.html": {
+   "x": 500,
+   "y": 109060,
+   "w": 390,
+   "h": 844,
+   "title": "Phone: invitations as cards, status chips scroll",
+   "expand": "fill"
+  },
+  "OrgAuditPhone.dc.html": {
+   "x": 1000,
+   "y": 109060,
+   "w": 390,
+   "h": 844,
+   "title": "Phone: audit log as cards with labels",
+   "expand": "fill"
+  },
+  "DeskMembersPhone.dc.html": {
+   "x": 1500,
+   "y": 109060,
+   "w": 390,
+   "h": 844,
+   "title": "Phone: project members as cards with labels",
+   "expand": "fill"
+  },
+  "DeskAuditPhone.dc.html": {
+   "x": 2000,
+   "y": 109060,
+   "w": 390,
+   "h": 844,
+   "title": "Phone: project audit log as cards with labels",
+   "expand": "fill"
   }
  },
  "order": [
@@ -4394,7 +4450,14 @@
   "DeskAgentRowMenuPhone.dc.html",
   "DeskAgentDeletePhone.dc.html",
   "DeskAgentGitHubPhone.dc.html",
-  "DeskAgentLimitsPhone.dc.html"
+  "DeskAgentLimitsPhone.dc.html",
+  "DeskSetupPhone.dc.html",
+  "OrgGeneralPhone.dc.html",
+  "OrgMembersPhone.dc.html",
+  "OrgInvitationsSettingsPhone.dc.html",
+  "OrgAuditPhone.dc.html",
+  "DeskMembersPhone.dc.html",
+  "DeskAuditPhone.dc.html"
  ],
  "notes": {
   "t-intro": {

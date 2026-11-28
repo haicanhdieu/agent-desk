@@ -42,3 +42,22 @@
   font-size: var(--fs-12);
   color: var(--muted);
 }
+
+/* Phone (BR-65, TC-65.17, TC-65.18): a row is a card (DataTable cards); the time and the actor keep their label and
+   wrap, and the sentence (with its note) takes its own full-width line under the "What" label. */
+@media (max-width: 639px) {
+  tr > td.when,
+  tr > td.who {
+    width: auto;
+    white-space: normal;
+  }
+  tr > td.whatCell {
+    flex-wrap: wrap;
+  }
+  .what,
+  .note {
+    flex: 1 1 100%;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+}

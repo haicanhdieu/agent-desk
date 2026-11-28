@@ -88,3 +88,21 @@
     flex-wrap: wrap;
   }
 }
+
+/* Phone (BR-65, TC-65.16): a row is a card (DataTable cards), so the percent widths and the one-line ellipsis give way:
+   a value takes the room it needs and wraps, and the menu button sits at the card's end. */
+@media (max-width: 639px) {
+  tr > td.ellipsisCell {
+    width: auto;
+  }
+  .ellipsis {
+    flex: 1 1 auto;
+    min-width: 0;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    text-align: right;
+  }
+  tr > td.actionsCell {
+    justify-content: flex-end;
+  }
+}

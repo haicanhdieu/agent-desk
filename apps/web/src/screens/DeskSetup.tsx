@@ -349,7 +349,7 @@ export function DeskSetup({
       actions={headActions}
       fill
     >
-      <div className={styles.deskRow}>
+      <div className={`${styles.deskRow} ${styles.setupDeskRow}`}>
         <div className={styles.setupDeskMain}>
           <div className={styles.setupTabs}>
             <Tabs

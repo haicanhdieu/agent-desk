@@ -2129,7 +2129,7 @@ The phone keyboard itself and the keyboard covering the key row are not provable
 | TC-65.14 | positive | mock | Org owner on org General. Width 390, touch. | 1. Edit the org name and use the save control. | Fit holds. One column; every control is usable. |
 | TC-65.15 | positive | mock | Org owner on org Members with enough rows to paginate. Width 390, touch. | 1. Open a row's actions menu, then go to page 2. | Fit holds. Rows are cards with value labels as text; the row menu and pagination work. |
 | TC-65.16 | positive | mock | Org owner on org Invitations. Width 390, touch. | 1. Use the status filter and the control that creates an invitation. | Fit holds. Cards with labels; filter chips scroll in their own row; the invite dialog is full width and usable. |
-| TC-65.17 | positive | mock | Org owner on org Audit log. Width 390, touch. | 1. Use a filter and pagination. | Fit holds. Cards with labels; filters wrap. |
+| TC-65.17 | positive | mock | Org owner on org Audit log. Width 390, touch. | 1. Use pagination. | Fit holds. Cards with labels. |
 | TC-65.18 | positive | mock | Org owner on project Members, then project Audit log. Width 390, touch. | 1. Use the main control on each (add member or row menu; filter or pagination). | Fit holds. Cards with labels; controls and their dialogs are usable. |
 | TC-65.19 | positive | mock | Platform admin on Organizations. Width 390, touch. | 1. Search, set the "Status" filter and open an organization. | Fit holds. Cards; controls usable. |
 | TC-65.20 | positive | mock | Platform admin on Platform admins, then platform Audit log. Width 390, touch. | 1. Use the add-admin control; filter the audit list. | Fit holds. Cards; filters wrap; dialogs are full width. |

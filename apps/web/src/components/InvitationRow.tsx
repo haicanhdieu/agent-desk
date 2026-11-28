@@ -62,27 +62,31 @@ export function InvitationRow({ row, busy, onCopy, onResend, onRevoke }: Invitat
 
   return (
     <tr>
-      <td className={styles.ellipsisCell}>
+      <td className={styles.ellipsisCell} data-label="Email">
         <span className={styles.ellipsis} title={row.email}>
           {row.email}
         </span>
       </td>
-      <td className={styles.cell}>{row.role}</td>
-      <td className={styles.ellipsisCell}>
+      <td className={styles.cell} data-label="Role">
+        {row.role}
+      </td>
+      <td className={styles.ellipsisCell} data-label="Access">
         <span className={styles.ellipsis} title={row.access}>
           {row.access}
         </span>
       </td>
-      <td>
+      <td data-label="Status">
         <span className={styles.status}>
           <StatusGlyph status={row.status} />
           {LABELS[row.status]}
         </span>
       </td>
-      <td>
+      <td data-label="Expires">
         <ExpiryLabel expires={row.expires} />
       </td>
-      <td className={styles.cell}>{row.invitedBy ?? '–'}</td>
+      <td className={styles.cell} data-label="Invited by">
+        {row.invitedBy ?? '–'}
+      </td>
       <td className={styles.actionsCell}>
         <span ref={moreRef}>
           <IconButton

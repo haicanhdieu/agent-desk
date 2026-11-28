@@ -198,3 +198,19 @@ describe('InvitationCard', () => {
     expect(screen.getByRole('button', { name: other })).toBeDisabled();
   });
 });
+
+describe('InvitationRow phone card labels (BR-65)', () => {
+  it('labels every value cell and leaves the actions cell unlabelled', () => {
+    renderRow(rowOf('pending'));
+    const cells = screen.getAllByRole('cell');
+    expect(cells.map((c) => c.getAttribute('data-label'))).toEqual([
+      'Email',
+      'Role',
+      'Access',
+      'Status',
+      'Expires',
+      'Invited by',
+      null,
+    ]);
+  });
+});

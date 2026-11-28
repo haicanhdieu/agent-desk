@@ -1745,7 +1745,10 @@ export const DeskAgentSideMenu: Story = deskShellStory({
 // BR-65, BR-83: Routing rules and Skills at 390x844 (phone boards). The rules are one column with their run line under
 // the rule's text; an open rule pane takes the place of the list under the page header; the skills list sits above the
 // editor with its own scroll. The real shell frame draws the bar and the menu, not the board's own copy.
-const deskPhoneArtboard = (page: 'rules' | 'skills' | 'agents', crumb: string): NonNullable<Story['decorators']> => [
+const deskPhoneArtboard = (
+  page: 'rules' | 'skills' | 'agents' | 'setup' | 'members' | 'audit',
+  crumb: string,
+): NonNullable<Story['decorators']> => [
   (S) => (
     <div style={{ width: 390, height: 844 }}>
       <ProjectShellFrame page={page} fill height={844} crumbs={[{ label: crumb }]}>
@@ -1837,3 +1840,44 @@ export const DeskAgentGitHubPhone: Story = agentPhone(
 export const DeskAgentLimitsPhone: Story = agentPhone('Phone: limits, one column with Save limits pinned', {
   tab: 'limits',
 });
+
+// BR-65: Workspace setup at 390x844 (phone board). The editor is full width with a usable height, the plugins and the
+// version history come below it, and the content area scrolls, not the document.
+export const DeskSetupPhone: Story = {
+  name: 'Phone: workspace setup',
+  decorators: deskPhoneArtboard('setup', 'Workspace setup'),
+  globals: viewport(390, 844),
+  render: () => <DeskSetupScreen {...setupProps} />,
+};
+
+// BR-65: the project Members and Audit log at 390x844 (phone boards): each row is a card with its value labels, the row
+// menu and the pager are kept.
+export const DeskMembersPhone: Story = {
+  name: 'Phone: project members as cards with labels',
+  decorators: deskPhoneArtboard('members', 'Members'),
+  globals: viewport(390, 844),
+  render: () => (
+    <DeskMembersScreen
+      frame={deskFrame}
+      orgName="Harbor Labs"
+      projectName="invoicer-api"
+      state={membersReady(pagedProjectMemberRows.slice(0, 5), { pagination: pagination(1, 25) })}
+      onAdd={noop}
+      onInvite={noop}
+      onChangeRole={noop}
+      onRemove={noop}
+    />
+  ),
+};
+
+export const DeskAuditPhone: Story = {
+  name: 'Phone: project audit log as cards with labels',
+  decorators: deskPhoneArtboard('audit', 'Audit log'),
+  globals: viewport(390, 844),
+  render: () => (
+    <DeskAuditScreen
+      frame={deskFrame}
+      state={{ kind: 'ready', rows: projectAuditRows, pagination: pagination(1, 25) }}
+    />
+  ),
+};

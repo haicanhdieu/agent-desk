@@ -32,7 +32,7 @@ export function ProjectMemberRow({ row, busy, onChangeRole, onRemove }: ProjectM
 
   return (
     <tr>
-      <td className={styles.nameCell}>
+      <td className={styles.nameCell} data-label="Name">
         <span className={styles.name}>
           <span className={styles.nameText} title={row.name}>
             {row.name}
@@ -41,7 +41,7 @@ export function ProjectMemberRow({ row, busy, onChangeRole, onRemove }: ProjectM
           {row.you && <LabelChip name="You" />}
         </span>
       </td>
-      <td className={styles.cell}>
+      <td className={styles.cell} data-label="Role">
         {row.roles}
         {row.orgRoles !== '' && (
           <span className={[styles.orgRoles, row.roles !== '' && styles.afterRoles].filter(Boolean).join(' ')}>
