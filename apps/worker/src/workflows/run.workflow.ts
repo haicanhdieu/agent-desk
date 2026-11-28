@@ -1031,7 +1031,8 @@ export async function RunWorkflow(input: RunWorkflowInput): Promise<RunOutcome> 
         isGranted = false;
         await settled.requestSlot({ projectId: c.projectId, runId, limit: c.maxConcurrentRuns });
         await condition(() => isGranted);
-        await status('starting');
+        // A resume keeps the agent's last note until the agent says something new (#322).
+        await status('starting', { keepAgentNote: true });
         const allowance = sessionAllowanceSeconds(c.timeoutSeconds, usedSeconds, true, c.resumeMinSeconds);
         podStartedMs = Date.now();
         jobMayExist = true;

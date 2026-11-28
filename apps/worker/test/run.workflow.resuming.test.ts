@@ -67,6 +67,8 @@ describe('RunWorkflow', () => {
       expect(statuses(s)).toEqual(['starting', 'running', 'queued', 'starting', 'idle']);
       expect(s.statuses[2]).toMatchObject({ status: 'queued', reopen: true, keepAgentNote: true });
       expect(s.statuses[4]).toMatchObject({ status: 'idle', keepAgentNote: true, session: null });
+      // The resume's own `starting` must keep the agent's last note too, or it is cleared before the pod runs (#322).
+      expect(s.statuses[3]).toMatchObject({ status: 'starting', keepAgentNote: true });
       expect(count(s, 'requestSlot')).toBe(2);
       expect(s.createOpts[1]).toEqual({ resume: true, deadlineSeconds: 3600 });
       expect(s.followOpts[1]).toEqual({ resume: true });
