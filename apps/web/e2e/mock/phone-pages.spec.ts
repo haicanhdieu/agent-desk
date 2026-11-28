@@ -1,11 +1,15 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
+import { agentListId, ids } from '../../src/mocks/dto/ids';
 import { INVITATIONS_MOCK_NOW } from '../../src/mocks/dto/invitations';
 import { FOREIGN } from '../../src/mocks/msw/shellScenarios';
 import {
   IDLE_RUN,
   INVOICER_API,
+  NO_CREDENTIAL_RUN,
   ORG,
+  PAUSED_RUN,
   SESSION_MOCK_NOW,
+  TRANSCRIPT_TIMED_OUT_RUN,
   holdReads,
   seedAgents,
   seedOnboarding,
@@ -635,5 +639,140 @@ test.describe('BR-65: Runs at 390', () => {
     expect(390 - (cb.x + cb.width)).toBeGreaterThanOrEqual(15);
     await card.getByRole('link', { name: /^Run \d+$/ }).click();
     await expect(page).toHaveURL(/\/runs\/\d+$/);
+  });
+});
+
+/**
+ * The run page fits at 390: the document and the main do not scroll sideways, and every visible control of the page
+ * (header, bar, key row, panel) lies inside the window with a real width. (The terminal bar and the key row run closer
+ * to the edge than the 16px gutter of the other pages, so only the window is the bound here.)
+ */
+async function expectRunPageFits(page: Page): Promise<void> {
+  await page.evaluate(() => document.fonts.ready);
+  expect(
+    await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth),
+  ).toBeLessThanOrEqual(1);
+  const main = page.getByRole('main').first();
+  expect(await main.evaluate((el) => el.scrollWidth - el.clientWidth)).toBeLessThanOrEqual(1);
+  const controls = main.locator('a:visible, button:visible');
+  for (let i = 0; i < (await controls.count()); i += 1) {
+    const b = await controls.nth(i).boundingBox();
+    if (!b) continue;
+    expect(b.width).toBeGreaterThan(0);
+    expect(b.x).toBeGreaterThanOrEqual(-1);
+    expect(b.x + b.width).toBeLessThanOrEqual(390 + 1);
+  }
+}
+
+const runPath = (n: number) => `/o/${ORG}/p/${INVOICER_API}/runs/${n}`;
+const runHeaderOf = (page: Page): Locator =>
+  page.getByRole('main').getByRole('heading', { level: 1 }).locator('xpath=ancestor::header[1]');
+
+test.describe('BR-65: the run page at 390', () => {
+  test.use({ viewport: { width: 390, height: 844 } });
+
+  test('TC-65.7: Details and back keep the same connected terminal; Find and a header action work', async ({
+    page,
+  }) => {
+    await page.goto(runPath(IDLE_RUN));
+    const terminal = page.getByRole('group', { name: 'Claude Code terminal' });
+    await expect(terminal).toContainText('agent-desk fake terminal');
+    await terminal.tap();
+    await page.keyboard.type('before details');
+    await page.keyboard.press('Enter');
+    await expect(terminal).toContainText('> before details');
+    await expectRunPageFits(page);
+    // The bar keeps its tools and its size; the page does not widen.
+    await expect(page.getByRole('button', { name: 'Find' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Copy all' })).toBeVisible();
+    await expect(page.getByRole('tablist', { name: 'Run view' })).toBeVisible();
+    await expect(page.getByRole('main').getByText(/^\d+×\d+$/)).toBeVisible();
+
+    const switcher = page.getByRole('radiogroup', { name: 'Run view switch' });
+    await switcher.getByRole('radio', { name: 'Details' }).tap();
+    const panel = page.getByRole('complementary', { name: 'Run context' });
+    await expect(panel).toBeVisible();
+    await expect(terminal).toBeHidden();
+    await expectRunPageFits(page);
+    await switcher.getByRole('radio', { name: 'Terminal' }).tap();
+    await expect(terminal).toBeVisible();
+    expect((await boxOf(terminal)).width).toBeGreaterThan(0);
+    await expect(terminal).toContainText('> before details');
+    await expect(page.getByText('Connection to the terminal lost')).toHaveCount(0);
+    await expectRunPageFits(page);
+
+    await page.getByRole('button', { name: 'Find' }).tap();
+    await runHeaderOf(page).getByRole('button', { name: 'Stop session' }).tap();
+    await expect(page.getByText('Session ending…')).toBeVisible();
+    await expectRunPageFits(page);
+  });
+
+  test('TC-65.8: the Cancel run confirm is full width and its buttons work', async ({ page }) => {
+    await page.goto(runPath(IDLE_RUN));
+    await expect(page.getByRole('group', { name: 'Claude Code terminal' })).toContainText('agent-desk fake terminal');
+    await runHeaderOf(page).getByRole('button', { name: 'Cancel run' }).tap();
+    const confirm = page.getByRole('dialog', { name: /^Cancel run \d+\?$/ });
+    await expect(confirm).toBeVisible();
+    const b = await boxOf(confirm);
+    expect(b.x).toBeGreaterThanOrEqual(16 - 1);
+    expect(390 - (b.x + b.width)).toBeGreaterThanOrEqual(16 - 1);
+    expect(b.width).toBeGreaterThanOrEqual(390 - 2 * 16 - 1);
+    await expectRunPageFits(page);
+    await confirm.getByRole('button', { name: 'Keep running' }).tap();
+    await expect(confirm).toBeHidden();
+    await runHeaderOf(page).getByRole('button', { name: 'Cancel run' }).tap();
+    await confirm.getByRole('button', { name: 'Cancel run' }).tap();
+    await expect(runHeaderOf(page).getByText('Cancelled', { exact: true })).toBeVisible();
+  });
+
+  test('TC-65.9: a paused run shows the read-only transcript and its notice actions; View PR is usable', async ({
+    page,
+  }) => {
+    await page.goto(runPath(PAUSED_RUN));
+    await expect(runHeaderOf(page).getByText('Paused', { exact: true })).toBeVisible();
+    await expectRunPageFits(page);
+    const area = page.getByRole('region', { name: /^(Terminal|Transcript)$/ });
+    await expect(area.getByRole('button', { name: 'Resume' })).toBeEnabled();
+    await expect(area.getByRole('button', { name: 'Finish' })).toBeEnabled();
+    const view = runHeaderOf(page).getByRole('link', { name: /^View (PR|issue)$/ });
+    await expect(view).toBeVisible();
+    await expect(view).toHaveAttribute('href', /.+/);
+    await expect(page.getByRole('radiogroup', { name: 'Run view switch' })).toBeVisible();
+  });
+
+  test('TC-65.37: the run agent name and the run links keep their targets from the Details view', async ({ page }) => {
+    const settings = (p: Page) =>
+      p.getByRole('tablist', { name: 'Agent and project settings' }).getByRole('tab', { selected: true });
+    // "Change time limit" on a timed-out run, and the agent name in Details.
+    await page.goto(runPath(TRANSCRIPT_TIMED_OUT_RUN));
+    await page.getByRole('radiogroup', { name: 'Run view switch' }).getByRole('radio', { name: 'Details' }).tap();
+    const panel = page.getByRole('complementary', { name: 'Run context' });
+    await expect(panel.getByText('Agent', { exact: true })).toBeVisible();
+    await expect(panel.getByText('Claude')).toBeVisible();
+    await expectRunPageFits(page);
+    await page.getByRole('radiogroup', { name: 'Run view switch' }).getByRole('radio', { name: 'Terminal' }).tap();
+    await page.getByRole('link', { name: 'Change time limit' }).tap();
+    await expect(page).toHaveURL(/\/desk\/agent\?tab=limits$/);
+    await expect(settings(page)).toHaveText('Limits');
+    await expectPageFits(page, 390);
+
+    // "Replace credential" on a run that failed for a missing credential.
+    await seedAgents(page, 'perAgentModels');
+    await page.goto(runPath(NO_CREDENTIAL_RUN));
+    await page.getByRole('radiogroup', { name: 'Run view switch' }).getByRole('radio', { name: 'Details' }).tap();
+    await expect(page.getByRole('complementary', { name: 'Run context' }).getByText('Claude')).toBeVisible();
+    await page.getByRole('radiogroup', { name: 'Run view switch' }).getByRole('radio', { name: 'Terminal' }).tap();
+    await page.getByRole('link', { name: 'Replace credential' }).tap();
+    await expect(page).toHaveURL(new RegExp(`/desk/agent\\?agent=${agentListId(1)}$`));
+    await expect(page.getByRole('complementary', { name: 'Edit agent' })).toBeVisible();
+
+    // "Connection details" and "Switch to polling" on a project's Runs, Ignored.
+    const docsRuns = `/o/${ORG}/p/${ids.project.docsSite}/runs?filter=ignored`;
+    for (const name of ['Connection details', 'Switch to polling']) {
+      await page.goto(docsRuns);
+      await page.getByRole('link', { name }).tap();
+      await expect(page).toHaveURL(/\/desk\/agent\?tab=github$/);
+      await expect(settings(page)).toHaveText('GitHub connection');
+    }
   });
 });

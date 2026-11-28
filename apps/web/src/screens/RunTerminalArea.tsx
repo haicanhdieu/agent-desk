@@ -9,8 +9,10 @@ import {
   Terminal,
   TerminalBar,
   TerminalPane,
+  TerminalKeys,
   TerminalPlaceholder,
   Transcript,
+  type TerminalKey,
   type TermLine,
   type TranscriptProps,
 } from '@/components';
@@ -44,6 +46,8 @@ export interface RunTerminalAreaProps {
   transcript?: TranscriptProps;
   /** The pane's accessible name; defaults to "Terminal", or "Transcript" when a Transcript is shown. */
   label?: string;
+  /** The extra keys row under the live terminal shows only with this handler (the socket is open and writable). */
+  onKey?(key: TerminalKey): void;
 }
 
 /** One view tab: the "Transcript, coming in MVP" tab is removed. */
@@ -254,6 +258,7 @@ export function RunTerminalArea({
   inactiveBody,
   transcript,
   label,
+  onKey,
 }: RunTerminalAreaProps) {
   const { run, connection } = data;
   const status = run.status;
@@ -468,7 +473,7 @@ export function RunTerminalArea({
     ) : undefined;
 
   return (
-    <TerminalPane notice={notice} bar={bar} overlay={overlay}>
+    <TerminalPane notice={notice} bar={bar} overlay={overlay} keys={onKey && <TerminalKeys onKey={onKey} />}>
       {terminal ?? (
         <Terminal
           lines={lines}

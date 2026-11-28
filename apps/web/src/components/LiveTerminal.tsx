@@ -3,7 +3,9 @@ import { FitAddon } from '@xterm/addon-fit';
 import { WebglAddon } from '@xterm/addon-webgl';
 import { Terminal as XTerm } from '@xterm/xterm';
 import { useEffect, useImperativeHandle, useRef, type Ref } from 'react';
+import type { TerminalKey } from './TerminalKeys';
 import styles from './LiveTerminal.module.css';
+import { terminalKeyBytes } from './terminalKeyBytes';
 import { terminalFont, terminalTheme } from './terminalTheme';
 
 // The live terminal (spec §5.3): xterm with the fit addon and the token theme, screen reader mode on. It knows
@@ -12,6 +14,11 @@ import { terminalFont, terminalTheme } from './terminalTheme';
 
 export interface LiveTerminalHandle {
   write(data: Uint8Array | string): void;
+  /**
+   * Presses an extra key (BR-67): the key's bytes go in as typed input, so `onData` gets exactly one call (none on a
+   * read-only terminal). Nothing else happens: no focus change, no copy of a selection.
+   */
+  sendKey(key: TerminalKey): void;
 }
 
 export interface TerminalSize {
@@ -76,7 +83,17 @@ export default function LiveTerminal({
     callbacks.current = { onData, onResize };
   });
 
-  useImperativeHandle(ref, () => ({ write: (data) => termRef.current?.write(data) }), []);
+  useImperativeHandle(
+    ref,
+    () => ({
+      write: (data) => termRef.current?.write(data),
+      sendKey: (key) => {
+        const term = termRef.current;
+        term?.input(terminalKeyBytes(key, term.modes.applicationCursorKeysMode));
+      },
+    }),
+    [],
+  );
 
   useEffect(() => {
     const host = hostRef.current;
@@ -174,7 +191,12 @@ export default function LiveTerminal({
           return true;
         });
 
-    const report = () => callbacks.current.onResize?.({ cols: term.cols, rows: term.rows });
+    // The size is reported only once the host has had a real size: a terminal mounted hidden must not tell the pod 80x24.
+    let sized = false;
+    const report = () => {
+      sized = true;
+      callbacks.current.onResize?.({ cols: term.cols, rows: term.rows });
+    };
     const subscriptions = [
       term.onResize(report),
       term.onData((data) => {
@@ -182,11 +204,13 @@ export default function LiveTerminal({
       }),
     ];
     const refit = () => {
-      // The container may have no size yet (hidden, or not laid out); the next resize fits it.
+      // The container may have no size yet (hidden, or not laid out); the next resize fits it. A hidden host (the phone
+      // run view's other half) must not be fitted: the addon would propose a tiny size and the pod would be resized to it.
+      if (host.clientWidth === 0 || host.clientHeight === 0) return;
       if (fit.proposeDimensions()) fit.fit();
+      if (!sized) report();
     };
     refit();
-    report();
     if (text) term.write(text);
 
     let frame = 0;

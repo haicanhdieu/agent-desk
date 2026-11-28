@@ -70,6 +70,7 @@ afterEach(() => {
   FakeXterm.reset();
   FakeMermaid.reset();
   FakeFitAddon.nextSize = { cols: 80, rows: 24 };
+  FakeFitAddon.hasSize = true;
   FakeWebglAddon.failOnActivate = false;
 });
 afterAll(() => server.close());

@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
+import { userEvent, within } from 'storybook/test';
 import {
   autoResumedTerminal,
   runDetailPrMerged,
@@ -486,4 +487,65 @@ export const RunRunningStopSideMenu: Story = {
   globals: viewport(1440, 900),
   args: { data: runDetails.RunRunningStop, lines: terminalByRun[61] },
   render: () => shellRun(runDetails.RunRunningStop, terminalByRun[61], {}, { stopConfirmOpen: true }),
+};
+
+// BR-60, BR-65, BR-66: the run page at 390x844. The page header wraps (the run actions on their own row), the view
+// switch swaps the terminal and the context panel, and the extra keys sit directly under a live terminal that accepts
+// typing (`onKey` given). The shell frame is the real phone shell; the board's own drawn bar is not copied.
+const phoneArtboard: NonNullable<Story['decorators']> = [
+  (S) => (
+    <div style={{ width: 390, height: 844 }}>
+      <S />
+    </div>
+  ),
+];
+const phoneRun = (
+  data: (typeof runDetails)[keyof typeof runDetails],
+  lines: React.ComponentProps<typeof RunDetail>['lines'],
+  props: Partial<React.ComponentProps<typeof RunDetail>> = {},
+) => shellRun(data, lines, { height: 844, fill: true }, { ...props });
+const openDetails = async ({ canvasElement }: { canvasElement: HTMLElement }) => {
+  await userEvent.click(within(canvasElement).getByRole('radio', { name: 'Details' }));
+};
+export const RunIdlePhone: Story = {
+  name: 'Phone: needs you, with the extra keys',
+  decorators: phoneArtboard,
+  globals: viewport(390, 844),
+  args: { data: runDetails.RunIdle, lines: terminalByRun[62] },
+  render: () => phoneRun(runDetails.RunIdle, terminalByRun[62], { onKey: () => undefined }),
+};
+export const RunIdlePhoneDetails: Story = {
+  name: 'Phone: needs you, Details view',
+  decorators: phoneArtboard,
+  globals: viewport(390, 844),
+  args: { data: runDetails.RunIdle, lines: terminalByRun[62] },
+  render: () => phoneRun(runDetails.RunIdle, terminalByRun[62], { onKey: () => undefined }),
+  play: openDetails,
+};
+/** Connection lost: the overlay shows and the key row does not (no `onKey`). */
+export const RunReconnectPhone: Story = {
+  name: 'Phone: connection lost, no keys',
+  decorators: phoneArtboard,
+  globals: viewport(390, 844),
+  args: { data: runDetails.RunReconnect, lines: terminalByRun[61] },
+  render: () => phoneRun(runDetails.RunReconnect, terminalByRun[61]),
+};
+export const RunRunningPhoneCancelConfirm: Story = {
+  name: 'Phone: running, cancel confirm full width',
+  decorators: phoneArtboard,
+  globals: viewport(390, 844),
+  args: { data: runDetails.RunRunning, lines: terminalByRun[61] },
+  render: () => phoneRun(runDetails.RunRunning, terminalByRun[61], { cancelConfirmOpen: true, onKey: () => undefined }),
+};
+/** Stopped: the saved Transcript, read-only, with no key row. */
+export const RunStoppedPhone: Story = {
+  name: 'Phone: stopped, transcript, no keys',
+  decorators: phoneArtboard,
+  globals: viewport(390, 844),
+  args: { data: runDetails.RunStopped },
+  render: () =>
+    phoneRun(runDetails.RunStopped, undefined, {
+      transcript: { state: 'ready', items: transcriptFixtures.default, hasEarlier: true },
+      onResume: () => undefined,
+    }),
 };

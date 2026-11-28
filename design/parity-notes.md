@@ -784,3 +784,12 @@ Two boards are registered: `RunsPhone` and `RunsPhoneDrawer`, 472 in all. PARITY
 - Agent call: below 640px the Runs page header's actions wrap with the search on its own full-width line, and the status chips plus Ignored scroll sideways in one row inside `chipRow`.
 - Agent call: below 640px the tree connector is hidden and the ticket group header is a card of its own with its title on its own line.
 - Agent call: the phone stories reuse the desktop Runs screen inside the project shell frame at 390px, so the bar and the drawer are the real shell; the board's own drawn bar is not copied.
+
+## Sidebar navigation shell: phone run page with extra terminal keys (Task 49)
+
+Five boards are registered: `RunIdlePhone`, `RunIdlePhoneDetails`, `RunReconnectPhone`, `RunRunningPhoneCancelConfirm` and `RunStoppedPhone`, 477 in all. PARITY was not run in this session (no browser), so no pair was checked; the five boards are unchecked. `scripts/parity.mjs` needed no change: it reads the board list from `canvas.json` and `storyIds.ts`.
+
+- Agent call: below 1024px (not 640px) the run page is two views, "Terminal" and "Details" (group "Run view switch"); both stay mounted and the hidden one is `display:none`, so there is one socket and one terminal, and the hidden terminal is never fitted (a host with no size is skipped).
+- Agent call: the key row sits directly under the terminal inside the terminal pane, only while the socket is open and the viewer may attach; the pane's bar wraps below 1024px.
+- Agent call: the context panel's collapse button is not shown below 1024px, where the panel is the Details view.
+- Agent call: `RunIdlePhoneDetails` opens the Details view with a play function; the phone stories reuse the desktop screen inside the shell frame at 390px, so the bar and drawer are the real shell.

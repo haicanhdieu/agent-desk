@@ -1,6 +1,16 @@
-import type { ReactNode } from 'react';
-import { Button, CommandChip, IconButton, Popover, StatusBadge, TicketRef } from '@/ds';
-import { PageHeader, PopoverCard, type TermLine, type TranscriptProps } from '@/components';
+import { useState, type ReactNode } from 'react';
+import {
+  BELOW_DESKTOP,
+  Button,
+  CommandChip,
+  IconButton,
+  Popover,
+  SegmentedControl,
+  StatusBadge,
+  TicketRef,
+  useMediaQuery,
+} from '@/ds';
+import { PageHeader, PopoverCard, type TermLine, type TerminalKey, type TranscriptProps } from '@/components';
 import type { RunDetailData } from '@/mocks';
 import styles from './Screens.module.css';
 import { RunSidePanel } from './RunSidePanel';
@@ -56,7 +66,20 @@ export interface RunDetailProps {
   onCloseSession?(): void;
   /** A close request is in flight: the action buttons wait. */
   closing?: boolean;
+  /**
+   * An extra key was pressed (phone, BR-66): given only while the terminal socket is open and writable, so the key row
+   * shows only then, and only below 1024px.
+   */
+  onKey?(key: TerminalKey): void;
+  /** The visible height in px (the on-screen keyboard shrinks it). The phone run view is sized to it. */
+  viewportHeight?: number;
 }
+
+type RunView = 'terminal' | 'details';
+const RUN_VIEWS: Array<{ value: RunView; label: string }> = [
+  { value: 'terminal', label: 'Terminal' },
+  { value: 'details', label: 'Details' },
+];
 
 export interface RunDetailLinks {
   skills?: string;
@@ -104,8 +127,14 @@ export function RunDetail({
   stopping,
   onCloseSession,
   closing,
+  onKey,
+  viewportHeight,
 }: RunDetailProps) {
   const { run } = data;
+  // Below 1024px the terminal and the context panel are two views of one page: both stay mounted (one socket, one
+  // terminal) and the other is hidden.
+  const narrow = useMediaQuery(BELOW_DESKTOP);
+  const [view, setView] = useState<RunView>('terminal');
   const t = run.ticket;
   const ended = ENDED.includes(run.status);
   const finishable = FINISHABLE.includes(run.status);
@@ -275,26 +304,31 @@ export function RunDetail({
   );
   const body = (
     <>
-      <RunTerminalArea
-        data={data}
-        lines={lines}
-        terminal={terminal}
-        busy={busy}
-        onFinish={onFinish}
-        onResume={onResume}
-        onReconnect={onReconnect}
-        reconnectOverlay={reconnectOverlay}
-        reconnectBody={reconnectBody}
-        inactiveBody={inactiveBody}
-        transcript={transcript}
-      />
-      <RunSidePanel
-        data={data}
-        collapsed={panelCollapsed}
-        onExpand={onTogglePanel}
-        links={{ skills: links?.skills, rules: links?.rules, setup: links?.setup }}
-        maxRunsPerTicket={maxRunsPerTicket}
-      />
+      <div className={styles.runPane} hidden={narrow && view !== 'terminal'}>
+        <RunTerminalArea
+          data={data}
+          lines={lines}
+          terminal={terminal}
+          busy={busy}
+          onFinish={onFinish}
+          onResume={onResume}
+          onReconnect={onReconnect}
+          reconnectOverlay={reconnectOverlay}
+          reconnectBody={reconnectBody}
+          inactiveBody={inactiveBody}
+          transcript={transcript}
+          onKey={narrow ? onKey : undefined}
+        />
+      </div>
+      <div className={styles.runSide} hidden={narrow && view !== 'details'}>
+        <RunSidePanel
+          data={data}
+          collapsed={panelCollapsed && !narrow}
+          onExpand={onTogglePanel}
+          links={{ skills: links?.skills, rules: links?.rules, setup: links?.setup }}
+          maxRunsPerTicket={maxRunsPerTicket}
+        />
+      </div>
     </>
   );
 
@@ -306,14 +340,17 @@ export function RunDetail({
       ? true
       : onFinish !== undefined || (stoppable && (onStopOpen || onStop) !== undefined) || onCancel !== undefined;
   const headerActions =
-    hasActions || onTogglePanel ? (
+    hasActions || (onTogglePanel && !narrow) ? (
       <>
         {runButtons}
-        {onTogglePanel && panelButton}
+        {onTogglePanel && !narrow && panelButton}
       </>
     ) : undefined;
   return (
-    <main className={styles.runShellMain}>
+    <main
+      className={styles.runShellMain}
+      style={narrow && viewportHeight !== undefined ? { height: viewportHeight } : undefined}
+    >
       <PageHeader
         title={`Run ${run.id}`}
         meta={
@@ -324,6 +361,11 @@ export function RunDetail({
         }
         actions={headerActions}
       />
+      {narrow && (
+        <div className={styles.runViewSwitch}>
+          <SegmentedControl<RunView> aria-label="Run view switch" value={view} options={RUN_VIEWS} onChange={setView} />
+        </div>
+      )}
       <div className={styles.runBody}>{body}</div>
     </main>
   );

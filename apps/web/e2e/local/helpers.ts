@@ -626,6 +626,11 @@ export async function waitForStatus(
     .toBe(status);
 }
 
+/** Everything the run's terminal has written into the fake pod so far (`<FAKE_STATE_DIR>/kube/run-<id>/input`; '' when none yet). */
+export async function podInput(runId: string): Promise<string> {
+  return readFile(`${FAKE_STATE_DIR}/kube/run-${runId}/input`, 'utf8').catch(() => '');
+}
+
 /** Lines of the fake pod's log for a run ([] when none yet). */
 export async function podLogLines(runId: string): Promise<string[]> {
   const log = await readFile(`${FAKE_STATE_DIR}/kube/run-${runId}/log`, 'utf8').catch(() => '');

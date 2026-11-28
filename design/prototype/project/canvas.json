@@ -3785,6 +3785,46 @@
    "h": 844,
    "title": "Phone: project menu drawer",
    "expand": "fill"
+  },
+  "RunIdlePhone.dc.html": {
+   "x": 940,
+   "y": 104660,
+   "w": 390,
+   "h": 844,
+   "title": "Phone: run needs you, terminal with extra keys",
+   "expand": "fill"
+  },
+  "RunIdlePhoneDetails.dc.html": {
+   "x": 1410,
+   "y": 104660,
+   "w": 390,
+   "h": 844,
+   "title": "Phone: run needs you, Details view",
+   "expand": "fill"
+  },
+  "RunReconnectPhone.dc.html": {
+   "x": 1880,
+   "y": 104660,
+   "w": 390,
+   "h": 844,
+   "title": "Phone: run, connection lost",
+   "expand": "fill"
+  },
+  "RunRunningPhoneCancelConfirm.dc.html": {
+   "x": 2350,
+   "y": 104660,
+   "w": 390,
+   "h": 844,
+   "title": "Phone: run, cancel confirm",
+   "expand": "fill"
+  },
+  "RunStoppedPhone.dc.html": {
+   "x": 0,
+   "y": 105760,
+   "w": 390,
+   "h": 844,
+   "title": "Phone: run stopped, transcript",
+   "expand": "fill"
   }
  },
  "order": [
@@ -4259,7 +4299,12 @@
   "Setup4Phone.dc.html",
   "SetupReadyPhone.dc.html",
   "RunsPhone.dc.html",
-  "RunsPhoneDrawer.dc.html"
+  "RunsPhoneDrawer.dc.html",
+  "RunIdlePhone.dc.html",
+  "RunIdlePhoneDetails.dc.html",
+  "RunReconnectPhone.dc.html",
+  "RunRunningPhoneCancelConfirm.dc.html",
+  "RunStoppedPhone.dc.html"
  ],
  "notes": {
   "t-intro": {

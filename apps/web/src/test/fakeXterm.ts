@@ -42,8 +42,12 @@ export class Terminal {
     return last;
   }
 
+  /** The size jsdom reports for every terminal host (it has no layout). 0 by 0: hidden, or not laid out yet. */
+  static hostSize = { width: 800, height: 600 };
+
   static reset(): void {
     Terminal.instances = [];
+    Terminal.hostSize = { width: 800, height: 600 };
   }
 
   readonly options: FakeXtermOptions;
@@ -91,6 +95,12 @@ export class Terminal {
     this.screen.className = 'xterm-screen';
     element.append(input, this.screen);
     parent.append(element);
+    for (const [name, dim] of [
+      ['clientWidth', 'width'],
+      ['clientHeight', 'height'],
+    ] as const) {
+      Object.defineProperty(parent, name, { configurable: true, get: () => Terminal.hostSize[dim] });
+    }
     this.element = element;
   }
 
@@ -134,7 +144,21 @@ export class Terminal {
     this.resized.fire({ cols, rows });
   }
 
-  focus(): void {}
+  /** How many times `focus()` was called. */
+  focusCalls = 0;
+
+  focus(): void {
+    this.focusCalls += 1;
+  }
+
+  /** The terminal modes the program has set; `applicationCursorKeysMode` is DECCKM. Tests flip it with `setApplicationCursor()`. */
+  readonly modes = { applicationCursorKeysMode: false };
+
+  /** Like xterm's `input()`: sends `data` as if typed, and is dropped while stdin is disabled. */
+  input(data: string): void {
+    if (this.options.disableStdin || this.disposed) return;
+    this.data.fire(data);
+  }
 
   dispose(): void {
     this.disposed = true;
@@ -167,6 +191,11 @@ export class Terminal {
     void this.oscHandlers.get(ident)?.(data);
   }
 
+  /** The program turns application cursor mode (DECCKM) on or off. */
+  setApplicationCursor(on: boolean): void {
+    this.modes.applicationCursorKeysMode = on;
+  }
+
   /** The user selects `text` on the screen (an empty string clears it). */
   select(text: string): void {
     this.selected = text;
@@ -194,6 +223,8 @@ export class Terminal {
 export class FitAddon {
   /** The size the next `fit()` applies (the container's size in cells). */
   static nextSize: { cols: number; rows: number } = { cols: 80, rows: 24 };
+  /** False: the container has no size (hidden or not laid out), so `proposeDimensions()` reports none. Reset after every test. */
+  static hasSize = true;
   private term: Terminal | undefined;
 
   activate(term: Terminal): void {
@@ -204,8 +235,8 @@ export class FitAddon {
     this.term?.resize(FitAddon.nextSize.cols, FitAddon.nextSize.rows);
   }
 
-  proposeDimensions(): { cols: number; rows: number } {
-    return { ...FitAddon.nextSize };
+  proposeDimensions(): { cols: number; rows: number } | undefined {
+    return FitAddon.hasSize ? { ...FitAddon.nextSize } : undefined;
   }
 
   dispose(): void {}
@@ -238,3 +269,4 @@ export const FakeXterm = Terminal;
 export const FakeFitAddon = FitAddon;
 export const FakeWebglAddon = WebglAddon;
 export type FakeWebglAddon = WebglAddon;
+export type FakeFitAddon = FitAddon;

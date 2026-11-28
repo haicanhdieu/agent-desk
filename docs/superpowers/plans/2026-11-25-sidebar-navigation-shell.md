@@ -1675,9 +1675,9 @@ export function useShellData(input: ShellInput): ShellData;
 - Multi-agent content (BR-41, BR-65): the phone run header or the "Details" view keeps the run's agent name (MA BR-54) and the links "Connection details", "Switch to polling", "Change time limit" and "Replace credential", with the same targets as at 1440.
 - Access: no protocol, API or authz change; no second write path; the key table is fixed, with no user or ticket text, and nothing is logged.
 
-- [ ] **Step 0: Multi-agent gate.** Run both checks in "Multi-agent gate". If either fails, stop: write no code and report which check failed.
-- [ ] **Step 1: Stories first** (the spec blocker for this page): phone stories for the five boards, built from the owned `RunDetail` with `onKey` set or absent; add the `onKey` and "Run view switch" markup to the screen. Register them (REG).
-- [ ] **Step 2: Write failing unit tests:**
+- [x] **Step 0: Multi-agent gate.** Run both checks in "Multi-agent gate". If either fails, stop: write no code and report which check failed.
+- [x] **Step 1: Stories first** (the spec blocker for this page): phone stories for the five boards, built from the owned `RunDetail` with `onKey` set or absent; add the `onKey` and "Run view switch" markup to the screen. Register them (REG).
+- [x] **Step 2: Write failing unit tests:**
 
 ```ts
 it.each([
@@ -1688,13 +1688,13 @@ it.each([
 ```
 
 `LiveTerminal.test.tsx`: one `sendKey` is one `onData`; read-only sends nothing; Ctrl-C sends `\x03` with text selected; `refit` does nothing while the host has no size.
-- [ ] **Step 3: Write failing route tests** (`phoneRun.route.test.tsx`, `FakeWebSocket`, `setViewportWidth`): each press sends exactly one binary frame; keys show only below 1024 while the socket is open and writable: none before open, retrying, gave up, inactive, forbidden (viewer and a member on another's run: no frame at all), paused, ended or transcript; a tap keeps terminal focus when it had it and does not call `focus()` when it did not; a tap restarts the unused-socket timer, and after that close nothing is sent; "Terminal | Details" (group "Run view switch") keeps one socket, never remounts the terminal and sends no resize frame while hidden (fake timers over the 100ms debounce); a fake `visualViewport` of height 400 sizes the phone run view to 400.
-- [ ] **Step 4: Run** VITEST on the new and changed test files. Expected: FAIL.
-- [ ] **Step 5: Implement** the key table, `sendKey`, the refit guard (skip when the host's width or height is 0), the viewport hook, the wiring and the phone layout (header actions on their own wrapping row, terminal fills the rest, terminal bar wraps keeping connection, size, Find and Copy all, key row directly under it, confirms full width).
-- [ ] **Step 6: E2E.** Mock `phone-terminal.spec.ts`: "TC-60.1", "TC-60.2", "TC-60.3", "TC-66.1" (also: order on screen, row wraps inside the viewport), "TC-66.2", "TC-66.3", "TC-67.1", "TC-69.1", "TC-69.2", "TC-69.3", "TC-69.4", "TC-69.5", "TC-69.6". `phone-pages.spec.ts`: "TC-65.7", "TC-65.8", "TC-65.9", "TC-65.37" (find the agent name and each link, follow it, and assert the selected tab or the open agent pane; the fit check is on the run page, the destination's fit is Task 57's cases). Local `phone-terminal.spec.ts`: "TC-60.1", "TC-60.2", "TC-67.2" (poll `podInput` until it ends with exactly `\x1b\t\x1b[D\x1b[A\x1b[B\x1b[C\x03\r` in normal mode; assert the bytes of the mode the page's xterm has), "TC-67.3", "TC-67.4", "TC-69.1", "TC-69.2" (the pod `input` file is unchanged). The 4403 assertions in the rbac specs stay as they are.
+- [x] **Step 3: Write failing route tests** (`phoneRun.route.test.tsx`, `FakeWebSocket`, `setViewportWidth`): each press sends exactly one binary frame; keys show only below 1024 while the socket is open and writable: none before open, retrying, gave up, inactive, forbidden (viewer and a member on another's run: no frame at all), paused, ended or transcript; a tap keeps terminal focus when it had it and does not call `focus()` when it did not; a tap restarts the unused-socket timer, and after that close nothing is sent; "Terminal | Details" (group "Run view switch") keeps one socket, never remounts the terminal and sends no resize frame while hidden (fake timers over the 100ms debounce); a fake `visualViewport` of height 400 sizes the phone run view to 400.
+- [x] **Step 4: Run** VITEST on the new and changed test files. Expected: FAIL.
+- [x] **Step 5: Implement** the key table, `sendKey`, the refit guard (skip when the host's width or height is 0), the viewport hook, the wiring and the phone layout (header actions on their own wrapping row, terminal fills the rest, terminal bar wraps keeping connection, size, Find and Copy all, key row directly under it, confirms full width).
+- [x] **Step 6: E2E.** Mock `phone-terminal.spec.ts`: "TC-60.1", "TC-60.2", "TC-60.3", "TC-66.1" (also: order on screen, row wraps inside the viewport), "TC-66.2", "TC-66.3", "TC-67.1", "TC-69.1", "TC-69.2", "TC-69.3", "TC-69.4", "TC-69.5", "TC-69.6". `phone-pages.spec.ts`: "TC-65.7", "TC-65.8", "TC-65.9", "TC-65.37" (find the agent name and each link, follow it, and assert the selected tab or the open agent pane; the fit check is on the run page, the destination's fit is Task 57's cases). Local `phone-terminal.spec.ts`: "TC-60.1", "TC-60.2", "TC-67.2" (poll `podInput` until it ends with exactly `\x1b\t\x1b[D\x1b[A\x1b[B\x1b[C\x03\r` in normal mode; assert the bytes of the mode the page's xterm has), "TC-67.3", "TC-67.4", "TC-69.1", "TC-69.2" (the pod `input` file is unchanged). The 4403 assertions in the rbac specs stay as they are.
 - [ ] **Step 7: Run** VITEST, MOCK `phone-terminal phone-pages`, LOCAL `phone-terminal`, PARITY. Expected: PASS.
 - [ ] **Step 8: Manual real-phone check** of on-screen keyboard cover and typing (not provable by e2e). Record the result in the PR, or state that it was not done.
-- [ ] **Step 9: Commit** `feat(web): phone run page with extra terminal keys`. Label `review:sensitive`; one PR, about 800 changed lines or fewer, with no other page in it.
+- [x] **Step 9: Commit** `feat(web): phone run page with extra terminal keys`. Label `review:sensitive`; one PR, about 800 changed lines or fewer, with no other page in it.
 
 ### Task 50: Phone, Routing rules and Skills (BR-65, BR-83) (after the multi-agent gate)
 
