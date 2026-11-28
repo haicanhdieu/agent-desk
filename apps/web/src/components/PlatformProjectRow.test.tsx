@@ -47,3 +47,10 @@ describe('PlatformProjectRow', () => {
     expect(container.querySelector('b')).toBeNull();
   });
 });
+
+describe('PlatformProjectRow phone card labels (BR-65)', () => {
+  it('labels the Name and Id cells', () => {
+    renderRow();
+    expect(screen.getAllByRole('cell').map((c) => c.getAttribute('data-label'))).toEqual(['Name', 'Id']);
+  });
+});

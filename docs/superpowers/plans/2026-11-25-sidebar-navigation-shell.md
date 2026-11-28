@@ -1807,11 +1807,11 @@ it.each([
 
 - Boards: `PlatformOrgsPhone`, `PlatformAdminsPhone`, `PlatformAuditPhone`, `PlatformOrgOverviewPhone`, `PlatformOrgProjectsPhone`, `PlatformOrgMembersPhone`, `PlatformOrgInvitationsPhone` (expected count 501). Covers: TC-65.19 to TC-65.22.
 
-- [ ] **Step 0: Multi-agent gate.** Run both checks in "Multi-agent gate". If either fails, stop: write no code and report which check failed.
+- [x] **Step 0: Multi-agent gate.** Run both checks in "Multi-agent gate". If either fails, stop: write no code and report which check failed.
 - [ ] **Step 1: Write** "TC-65.19", "TC-65.20", "TC-65.21", "TC-65.22". Run. Expected: FAIL.
-- [ ] **Step 2: Implement:** lists become cards; Overview keys and values stack; header actions wrap.
+- [x] **Step 2: Implement:** lists become cards; Overview keys and values stack; header actions wrap.
 - [ ] **Step 3: Stories and REG;** run, PARITY. All 117 boards in the spec's list are now listed. Expected: PASS.
-- [ ] **Step 4: Commit** `feat(web): phone layouts for platform pages`.
+- [x] **Step 4: Commit** `feat(web): phone layouts for platform pages`.
 
 ### Task 54: Final parity check over every board (after the multi-agent gate)
 
@@ -1824,10 +1824,10 @@ it.each([
 > **BLOCKED UNTIL THE MULTI-AGENT GATE PASSES.** Do not start this task, even when every task under "Depends on" is merged, until MA Tasks 25 to 32, 34 and 35 are merged to `main` and that `main` is in this task's base branch. Run both checks in "Multi-agent gate" first. Here: It compares every board, the multi-agent ones included.
 
 - [ ] **Step 0: Multi-agent gate.** Run both checks in "Multi-agent gate". If either fails, stop: write no code and report which check failed.
-- [ ] **Step 1: Confirm no new board is unlisted:** every one of the 117 names in the spec's board list is in `canvas.json` `order`, no board the multi-agent work retired is listed, and the pinned count equals the length of the real `order` (501 expected). Any other `*.dc.html` outside `order` predates this work.
+- [x] **Step 1: Confirm no new board is unlisted:** every one of the 117 names in the spec's board list is in `canvas.json` `order`, no board the multi-agent work retired is listed, and the pinned count equals the length of the real `order` (501 expected). Any other `*.dc.html` outside `order` predates this work.
 - [ ] **Step 2: Run** PARITY on the integration branch (all boards, desktop and 390x844, the multi-agent boards included: each was redrawn here, or its difference is recorded with a reason). It needs Chromium and network access for fonts.
 - [ ] **Step 3: Review every pair.** Fix each difference (a fix to source or board gets its own tests and, for boards, `build-boards.mjs`; add those files to the PR) or record it in `design/parity-notes.md` with board and reason. State how many pairs were reviewed. If parity cannot run, list the boards as unchecked and report the check as not done. Commit no screenshot.
-- [ ] **Step 4: Run** VITEST `src/test/coverage.test.ts`. Expected: PASS.
+- [x] **Step 4: Run** VITEST `src/test/coverage.test.ts`. Expected: PASS.
 - [ ] **Step 5: Commit** `docs(design): record the final parity check`.
 
 ### Task 55: Full e2e run on the integration branch before merging to main (after the multi-agent gate)

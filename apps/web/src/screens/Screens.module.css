@@ -1277,3 +1277,27 @@
     flex: none;
   }
 }
+
+/* Phone (BR-65, TC-65.19 to TC-65.22), platform pages: the filters wrap and each control takes the full width, the
+   directory table gives up its sideways scroll (its rows are cards), and the Overview keys stack over their values. */
+@media (max-width: 639px) {
+  .platformFilters {
+    flex-wrap: wrap;
+  }
+  .platformSearch,
+  .platformAction,
+  .platformStatus {
+    width: 100%;
+    flex: 1 1 100%;
+  }
+  .platformTableScroll > table {
+    min-width: 0;
+  }
+  .platformOverview > dl {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 2px;
+  }
+  .platformOverview > dl dd {
+    margin-bottom: 10px;
+  }
+}

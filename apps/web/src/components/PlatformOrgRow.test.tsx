@@ -90,3 +90,12 @@ describe('PlatformOrgRow', () => {
     expect(pagedPlatformOrgRows).toHaveLength(25);
   });
 });
+
+describe('PlatformOrgRow phone card labels (BR-65)', () => {
+  it('labels every cell with its column header', () => {
+    renderRow();
+    expect(screen.getAllByRole('cell').map((c) => c.getAttribute('data-label'))).toEqual(
+      platformOrgColumns.map((c) => c.header),
+    );
+  });
+});

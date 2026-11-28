@@ -29,3 +29,23 @@
   min-width: 200px;
   justify-content: flex-start;
 }
+
+/* Phone (BR-65, TC-65.22): a row is a card (DataTable cards); values wrap and the row menu sits at the card's end. */
+@media (max-width: 639px) {
+  .name {
+    align-items: flex-end;
+    text-align: right;
+  }
+  .nameText,
+  .handle {
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+  .cell {
+    text-align: right;
+    overflow-wrap: anywhere;
+  }
+  tr > td.actionsCell {
+    justify-content: flex-end;
+  }
+}

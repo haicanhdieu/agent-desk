@@ -18,7 +18,7 @@ export const platformOrgColumns: DataTableColumn[] = [
 export function PlatformOrgRow({ row }: { row: PlatformOrgRowView }) {
   return (
     <tr>
-      <td>
+      <td data-label="Organization">
         <span className={styles.name}>
           <AppLink href={row.href} className={styles.link} title={row.name}>
             {row.name}
@@ -26,20 +26,26 @@ export function PlatformOrgRow({ row }: { row: PlatformOrgRowView }) {
           <span className={styles.slug}>/o/{row.slug}</span>
         </span>
       </td>
-      <td className={styles.cell}>{row.owner ?? <span className={styles.muted}>No owner yet</span>}</td>
-      <td className={`${styles.cell} ${styles.num}`}>{row.members}</td>
-      <td className={`${styles.cell} ${styles.num}`}>{row.projects}</td>
-      <td className={styles.cell}>
+      <td className={styles.cell} data-label="Owner">
+        {row.owner ?? <span className={styles.muted}>No owner yet</span>}
+      </td>
+      <td className={`${styles.cell} ${styles.num}`} data-label="Members">
+        {row.members}
+      </td>
+      <td className={`${styles.cell} ${styles.num}`} data-label="Projects">
+        {row.projects}
+      </td>
+      <td className={styles.cell} data-label="Last activity">
         {row.lastActivity ? (
           <span title={row.lastActivity.title}>{row.lastActivity.label}</span>
         ) : (
           <span className={styles.muted}>No activity yet</span>
         )}
       </td>
-      <td>
+      <td data-label="Status">
         <OrgStatus status={row.status} />
       </td>
-      <td className={styles.cell}>
+      <td className={styles.cell} data-label="Created">
         <span title={row.created.title}>{row.created.label}</span>
       </td>
     </tr>

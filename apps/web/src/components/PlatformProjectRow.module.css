@@ -11,3 +11,17 @@
 .name {
   font-weight: 500;
 }
+
+/* Phone (BR-65, TC-65.22): a row is a card (DataTable cards); the id shows in full and wraps instead of an ellipsis. */
+@media (max-width: 639px) {
+  .id {
+    max-width: none;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    text-align: right;
+  }
+  tr > td.name {
+    text-align: right;
+    overflow-wrap: anywhere;
+  }
+}

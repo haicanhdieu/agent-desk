@@ -1,6 +1,7 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
 import { agentListId, ids } from '../../src/mocks/dto/ids';
 import { INVITATIONS_MOCK_NOW } from '../../src/mocks/dto/invitations';
+import type { PlatformScenario } from '../../src/mocks/msw/platformScenarios';
 import { FOREIGN } from '../../src/mocks/msw/shellScenarios';
 import {
   IDLE_RUN,
@@ -1767,5 +1768,198 @@ test.describe('BR-65: member, invitation and audit lists at 390', () => {
     await expectCardsFit(audit, ['When', 'Who', 'What']);
     await expectFirstRowMatchesDesktop(audit);
     await expectPagerWorks(audit);
+  });
+});
+
+/*
+ * Platform pages at 390 (TC-65.19 to TC-65.22). Lists are cards with the value labels drawn as text, filters wrap, the
+ * Overview keys stack over their values and the header actions wrap, all inside the window. Every case also compares
+ * the first row (or the Overview facts) with the same page at 1440: nothing the desktop shows is lost on the phone.
+ */
+const platformAt = async (page: Page, scenario: PlatformScenario, path: string): Promise<void> => {
+  await page.clock.install({ time: new Date(SESSION_MOCK_NOW) });
+  await seedPlatform(page, scenario);
+  await page.goto(path);
+};
+const PLATFORM_ORG = `/platform/orgs/${ACME}`;
+
+/** A control lies inside the window (a 16px gutter each side) and is as wide as the window allows. */
+async function expectInsideGutters(l: Locator): Promise<Box> {
+  await l.scrollIntoViewIfNeeded();
+  const b = await boxOf(l);
+  expect(b.width).toBeGreaterThan(0);
+  expect(b.x).toBeGreaterThanOrEqual(16 - 1);
+  expect(390 - (b.x + b.width)).toBeGreaterThanOrEqual(16 - 1);
+  return b;
+}
+
+/** The Overview facts as `term: value` text, in order. */
+const factsOf = (page: Page): Promise<string[]> =>
+  page
+    .locator('dl')
+    .first()
+    .locator('dt')
+    .evaluateAll((terms) =>
+      terms.map(
+        (t) =>
+          `${(t.textContent ?? '').trim()}: ${((t.nextElementSibling as HTMLElement | null)?.textContent ?? '').trim()}`,
+      ),
+    );
+
+test.describe('BR-65: platform pages at 390', () => {
+  test.use({ viewport: { width: 390, height: 844 } });
+
+  test('TC-65.19: Organizations are cards with labels; search, the Status filter and opening an organization work', async ({
+    page,
+  }) => {
+    await platformAt(page, 'platformAdminOrgs', '/platform/orgs');
+    await expect(heading(page, 'Organizations')).toBeVisible();
+    await expectCardsFit(page, ['Organization', 'Owner', 'Members', 'Projects', 'Last activity', 'Status', 'Created']);
+    await expectFirstRowMatchesDesktop(page);
+
+    // The filters wrap into the window; each control can be used.
+    const search = page.getByLabel('Search organizations');
+    const status = page.getByRole('combobox', { name: 'Status' });
+    await expectInsideGutters(search);
+    await expectInsideGutters(status);
+    await search.fill('Acme');
+    await expect(page.locator('tbody tr').first()).toContainText('Acme');
+    await status.selectOption('active');
+    await expect(status).toHaveValue('active');
+    await expectCardsFit(page, ['Organization', 'Owner', 'Members', 'Projects', 'Last activity', 'Status', 'Created']);
+    await expectInsideGutters(
+      page
+        .getByRole('button', { name: 'Create organization' })
+        .or(page.getByRole('link', { name: 'Create organization' })),
+    );
+
+    await page.locator('tbody tr').first().getByRole('link').first().click();
+    await expect(page).toHaveURL(/\/platform\/orgs\/[^/]+$/);
+    await expect(page.getByRole('heading', { name: 'Overview', level: 2 })).toBeVisible();
+  });
+
+  test('TC-65.20: Platform admins and the platform Audit log are cards with labels; the add dialog is full width and the audit filter wraps', async ({
+    page,
+  }) => {
+    await platformAt(page, 'platformAdminOrgs', '/platform/admins');
+    await expect(heading(page, 'Platform admins')).toBeVisible();
+    await expectCardsFit(page, ['Name', 'Email', 'Handle', 'Added', 'Added by']);
+    await expectFirstRowMatchesDesktop(page);
+
+    await page.getByRole('button', { name: 'Add platform admin' }).click();
+    const dialog = page.getByRole('dialog', { name: 'Add platform admin' });
+    await expect(dialog).toBeVisible();
+    const box = await boxOf(dialog);
+    expect(box.x).toBeGreaterThanOrEqual(-1);
+    expect(box.x + box.width).toBeLessThanOrEqual(390 + 1);
+    expect(box.width).toBeGreaterThanOrEqual(390 - 2);
+    for (const b of await dialog.getByRole('button').all()) {
+      const bb = await boxOf(b);
+      expect(bb.x).toBeGreaterThanOrEqual(-1);
+      expect(bb.x + bb.width).toBeLessThanOrEqual(390 + 1);
+    }
+    await page.keyboard.press('Escape');
+    await expect(dialog).toBeHidden();
+
+    const audit = await page.context().newPage();
+    await audit.setViewportSize({ width: 390, height: 844 });
+    await platformAt(audit, 'manyAudit', '/platform/audit');
+    await expect(heading(audit, 'Audit log')).toBeVisible();
+    await expectCardsFit(audit, ['When', 'Who', 'What']);
+    await expectFirstRowMatchesDesktop(audit);
+    const action = audit.getByRole('combobox', { name: 'Action' });
+    await expectInsideGutters(action);
+    const first = await action.locator('option').nth(1).getAttribute('value');
+    if (first === null) throw new Error('the action filter has no action');
+    await action.selectOption(first);
+    await expect(action).toHaveValue(first);
+    await expectInsideGutters(action);
+    await action.selectOption('all');
+    await expectCardsFit(audit, ['When', 'Who', 'What']);
+    await expectPagerWorks(audit);
+  });
+
+  test('TC-65.21: the Overview keys stack over their values and the header actions wrap and work', async ({ page }) => {
+    await platformAt(page, 'platformAdminOrgs', PLATFORM_ORG);
+    await expect(page.getByRole('heading', { name: 'Overview', level: 2 })).toBeVisible();
+    await page.evaluate(() => document.fonts.ready);
+
+    // Keys over values: each value starts below its key, at the key's left edge.
+    const terms = page.locator('dl').first().locator('dt');
+    const count = await terms.count();
+    expect(count).toBeGreaterThan(0);
+    for (let i = 0; i < count; i += 1) {
+      const dt = await boxOf(terms.nth(i));
+      const dd = await boxOf(terms.nth(i).locator('xpath=following-sibling::dd[1]'));
+      expect(dd.y).toBeGreaterThanOrEqual(dt.y + dt.height - 1);
+      expect(Math.abs(dd.x - dt.x)).toBeLessThanOrEqual(1);
+      expect(dd.x + dd.width).toBeLessThanOrEqual(390 + 1);
+    }
+    const phoneFacts = await factsOf(page);
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await expect(page.getByRole('heading', { name: 'Overview', level: 2 })).toBeVisible();
+    expect(await factsOf(page)).toEqual(phoneFacts);
+    await page.setViewportSize({ width: 390, height: 844 });
+    await expectPageFits(page, 390);
+
+    // The header actions stay inside the window and each opens what it names.
+    const edit = page.getByRole('button', { name: 'Edit organization' });
+    await expectInsideGutters(edit);
+    await edit.click();
+    const dialog = page.getByRole('dialog', { name: 'Edit organization' });
+    await expect(dialog).toBeVisible();
+    const dialogBox = await boxOf(dialog);
+    expect(dialogBox.x).toBeGreaterThanOrEqual(-1);
+    expect(dialogBox.x + dialogBox.width).toBeLessThanOrEqual(390 + 1);
+    await page.keyboard.press('Escape');
+    await expect(dialog).toBeHidden();
+
+    const more = page.getByRole('button', { name: 'More actions' });
+    await expectInsideGutters(more);
+    await more.click();
+    const menu = page.getByRole('menu', { name: 'More actions' });
+    await expect(menu).toBeVisible();
+    inside(await boxOf(menu), 390, 844);
+    await page.keyboard.press('Escape');
+    await expect(menu).toBeHidden();
+  });
+
+  test("TC-65.22: an organization's Projects, Members and Invitations are cards with labels; the controls work", async ({
+    page,
+  }) => {
+    await platformAt(page, 'platformAdminOrgs', `${PLATFORM_ORG}/projects`);
+    await expect(page.getByRole('heading', { name: 'Projects', level: 2 })).toBeVisible();
+    await expectCardsFit(page, ['Name', 'Id']);
+    await expectFirstRowMatchesDesktop(page);
+    await expectPagerWorks(page);
+
+    await page.goto(`${PLATFORM_ORG}/members`);
+    await expect(page.getByRole('heading', { name: 'Members', level: 2 })).toBeVisible();
+    await expectCardsFit(page, ['Name', 'Email', 'Roles']);
+    await expectFirstRowMatchesDesktop(page);
+    await expectMenuInside(page, enabledMenu(page), /^Actions for /);
+
+    await page.goto(`${PLATFORM_ORG}/invitations`);
+    await expect(page.getByRole('heading', { name: 'Invitations', level: 2 })).toBeVisible();
+    await expectCardsFit(page, ['Email', 'Role', 'Access', 'Status', 'Expires', 'Invited by']);
+    await expectFirstRowMatchesDesktop(page);
+    await expectMenuInside(page, enabledMenu(page), /^Actions for /);
+
+    // The status chips are one row that scrolls inside itself; the page does not widen.
+    const chips = page.getByRole('group', { name: 'Filter by status' });
+    const scroller = chips.locator('xpath=..');
+    const buttons = chips.getByRole('button');
+    const boxes: Box[] = [];
+    for (let i = 0; i < (await buttons.count()); i += 1) boxes.push(await boxOf(buttons.nth(i)));
+    expect(boxes.length).toBe(6);
+    for (const b of boxes) expect(Math.abs(b.y - boxes[0]!.y)).toBeLessThanOrEqual(1);
+    expect(await scroller.evaluate((el) => getComputedStyle(el).overflowX)).toBe('auto');
+    const accepted = chips.getByRole('button', { name: 'Accepted', exact: true });
+    await accepted.scrollIntoViewIfNeeded();
+    await accepted.click();
+    await expect(accepted).toHaveAttribute('aria-pressed', 'true');
+    expect(
+      await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth),
+    ).toBeLessThanOrEqual(1);
   });
 });

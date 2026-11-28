@@ -829,3 +829,128 @@ export const CreateOrgSideMenu: Story = shellStory({
     </PlatformShellFrame>
   ),
 });
+
+// BR-65: the platform pages at 390x844 (phone boards): lists are cards with their value labels, filters wrap, the
+// Overview keys stack over their values. The real shell frame draws the bar and the menu.
+const phoneStory = (story: Story): Story => ({
+  ...shellStory(story),
+  decorators: [
+    (S) => (
+      <div style={{ width: 390, height: 844 }}>
+        <S />
+      </div>
+    ),
+  ],
+  globals: viewport(390, 844),
+});
+const phonePagination = { page: 1, pageSize: 20 as const, total: 25, onPageChange: noop, onPageSizeChange: noop };
+
+export const PlatformOrgsPhone: Story = phoneStory({
+  name: 'Phone: organizations as cards, filters wrap',
+  render: () => (
+    <PlatformShellFrame menu={{ page: 'orgs' }} crumbs={[orgsCrumb]} height={844}>
+      <PlatformOrgsScreen
+        view={{ kind: 'ready', rows: platformOrgRows, pagination: phonePagination }}
+        filters={noFilters}
+        onSearch={noop}
+        onStatus={noop}
+        onClearFilters={noop}
+        createHref="/platform/orgs/new"
+      />
+    </PlatformShellFrame>
+  ),
+});
+export const PlatformAdminsPhone: Story = phoneStory({
+  name: 'Phone: platform admins as cards',
+  render: () => (
+    <PlatformShellFrame menu={{ page: 'admins' }} crumbs={[{ label: 'Platform admins' }]} height={844}>
+      <PlatformAdminsScreen
+        view={{ kind: 'ready', rows: platformAdminRows, pagination: phonePagination }}
+        onAdd={noop}
+        onRevoke={noop}
+      />
+    </PlatformShellFrame>
+  ),
+});
+export const PlatformAuditPhone: Story = phoneStory({
+  name: 'Phone: platform audit log as cards, filters wrap',
+  render: () => (
+    <PlatformShellFrame menu={{ page: 'audit' }} crumbs={[{ label: 'Audit log' }]} height={844}>
+      <PlatformAuditScreen
+        view={{ kind: 'ready', rows: platformAuditRows, pagination: phonePagination }}
+        action="all"
+        actions={platformAuditActions}
+        onAction={noop}
+        orgChip={{ label: 'Harbor Labs', onRemove: noop }}
+        filtered={false}
+        onClearFilters={noop}
+      />
+    </PlatformShellFrame>
+  ),
+});
+export const PlatformOrgOverviewPhone: Story = phoneStory({
+  name: 'Phone: organization overview, keys over values, header actions wrap',
+  render: () => (
+    <PlatformShellFrame
+      menu={{ org: 'active', tab: 'overview' }}
+      crumbs={harborCrumbs({ label: 'Overview' })}
+      height={844}
+    >
+      <PlatformOrgDetailScreen view={shellReady} />
+    </PlatformShellFrame>
+  ),
+});
+export const PlatformOrgProjectsPhone: Story = phoneStory({
+  name: 'Phone: organization projects as cards',
+  render: () => (
+    <PlatformShellFrame
+      menu={{ org: 'active', tab: 'projects' }}
+      crumbs={harborCrumbs({ label: 'Projects' })}
+      height={844}
+    >
+      <PlatformOrgDetailScreen view={shellReady}>
+        <PlatformOrgProjectsScreen
+          view={{ kind: 'ready', rows: platformProjectRows, pagination: { ...phonePagination, total: 25 } }}
+        />
+      </PlatformOrgDetailScreen>
+    </PlatformShellFrame>
+  ),
+});
+export const PlatformOrgMembersPhone: Story = phoneStory({
+  name: 'Phone: organization members as cards',
+  render: () => (
+    <PlatformShellFrame
+      menu={{ org: 'active', tab: 'members' }}
+      crumbs={harborCrumbs({ label: 'Members' })}
+      height={844}
+    >
+      <PlatformOrgDetailScreen view={shellReady}>
+        <PlatformOrgMembersScreen
+          view={{ kind: 'ready', rows: platformMemberRows, pagination: phonePagination }}
+          onAdd={noop}
+          onRemove={noop}
+        />
+      </PlatformOrgDetailScreen>
+    </PlatformShellFrame>
+  ),
+});
+export const PlatformOrgInvitationsPhone: Story = phoneStory({
+  name: 'Phone: organization invitations as cards, status chips scroll',
+  render: () => (
+    <PlatformShellFrame
+      menu={{ org: 'active', tab: 'invitations' }}
+      crumbs={harborCrumbs({ label: 'Invitations' })}
+      height={844}
+    >
+      <PlatformOrgDetailScreen view={shellReady}>
+        <PlatformOrgInvitationsScreen
+          view={{ kind: 'ready', rows: pendingInvites, pagination: phonePagination }}
+          status="pending"
+          onStatus={noop}
+          onInvite={noop}
+          rowActions={() => ({ onCopy: noop, onResend: noop, onRevoke: noop })}
+        />
+      </PlatformOrgDetailScreen>
+    </PlatformShellFrame>
+  ),
+});

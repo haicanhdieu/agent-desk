@@ -105,18 +105,20 @@ export function PlatformOrgOverview({ overview }: { overview: PlatformOrgOvervie
   return (
     <>
       <h2>Overview</h2>
-      <KeyValue
-        termWidth={120}
-        items={[
-          { term: 'Slug', value: `/o/${overview.facts.slug}` },
-          { term: 'Owner', value: overview.facts.owner ?? 'No owner yet' },
-          { term: 'Members', value: overview.facts.members },
-          { term: 'Projects', value: overview.facts.projects },
-          { term: 'Last activity', value: overview.facts.lastActivity ?? 'No activity yet' },
-          { term: 'Created', value: overview.facts.created },
-          { term: 'Status', value: <OrgStatus status={overview.facts.status} /> },
-        ]}
-      />
+      <div className={styles.platformOverview}>
+        <KeyValue
+          termWidth={120}
+          items={[
+            { term: 'Slug', value: `/o/${overview.facts.slug}` },
+            { term: 'Owner', value: overview.facts.owner ?? 'No owner yet' },
+            { term: 'Members', value: overview.facts.members },
+            { term: 'Projects', value: overview.facts.projects },
+            { term: 'Last activity', value: overview.facts.lastActivity ?? 'No activity yet' },
+            { term: 'Created', value: overview.facts.created },
+            { term: 'Status', value: <OrgStatus status={overview.facts.status} /> },
+          ]}
+        />
+      </div>
     </>
   );
 }

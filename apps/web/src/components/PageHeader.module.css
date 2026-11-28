@@ -37,3 +37,10 @@
   flex-shrink: 0;
   gap: 8px;
 }
+
+/* Phone (BR-65, TC-65.21): the actions wrap inside the window instead of running past it. */
+@media (max-width: 639px) {
+  .actions {
+    flex-wrap: wrap;
+  }
+}

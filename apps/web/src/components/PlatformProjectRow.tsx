@@ -11,8 +11,10 @@ export const platformProjectColumns: DataTableColumn[] = [
 export function PlatformProjectRow({ row }: { row: PlatformProjectRowView }) {
   return (
     <tr>
-      <td className={styles.name}>{row.name}</td>
-      <td>
+      <td className={styles.name} data-label="Name">
+        {row.name}
+      </td>
+      <td data-label="Id">
         <span className={styles.id} title={row.id}>
           {row.id}
         </span>

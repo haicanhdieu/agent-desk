@@ -53,3 +53,13 @@
   margin: 4px 0;
   background: var(--line);
 }
+
+/* Phone (BR-65, TC-65.21): the More actions trigger keeps its size and its menu stays inside the window. */
+@media (max-width: 639px) {
+  .more {
+    flex: none;
+  }
+  .menu {
+    max-width: calc(100vw - 32px);
+  }
+}

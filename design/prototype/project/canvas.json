@@ -3961,6 +3961,62 @@
    "h": 844,
    "title": "Phone: project audit log as cards with labels",
    "expand": "fill"
+  },
+  "PlatformOrgsPhone.dc.html": {
+   "x": 0,
+   "y": 110160,
+   "w": 390,
+   "h": 844,
+   "title": "Phone: organizations as cards, filters wrap",
+   "expand": "fill"
+  },
+  "PlatformAdminsPhone.dc.html": {
+   "x": 500,
+   "y": 110160,
+   "w": 390,
+   "h": 844,
+   "title": "Phone: platform admins as cards",
+   "expand": "fill"
+  },
+  "PlatformAuditPhone.dc.html": {
+   "x": 1000,
+   "y": 110160,
+   "w": 390,
+   "h": 844,
+   "title": "Phone: platform audit log as cards, filters wrap",
+   "expand": "fill"
+  },
+  "PlatformOrgOverviewPhone.dc.html": {
+   "x": 1500,
+   "y": 110160,
+   "w": 390,
+   "h": 844,
+   "title": "Phone: organization overview, keys over values, header actions wrap",
+   "expand": "fill"
+  },
+  "PlatformOrgProjectsPhone.dc.html": {
+   "x": 2000,
+   "y": 110160,
+   "w": 390,
+   "h": 844,
+   "title": "Phone: organization projects as cards",
+   "expand": "fill"
+  },
+  "PlatformOrgMembersPhone.dc.html": {
+   "x": 0,
+   "y": 111260,
+   "w": 390,
+   "h": 844,
+   "title": "Phone: organization members as cards",
+   "expand": "fill"
+  },
+  "PlatformOrgInvitationsPhone.dc.html": {
+   "x": 500,
+   "y": 111260,
+   "w": 390,
+   "h": 844,
+   "title": "Phone: organization invitations as cards, status chips scroll",
+   "expand": "fill"
   }
  },
  "order": [
@@ -4457,7 +4513,14 @@
   "OrgInvitationsSettingsPhone.dc.html",
   "OrgAuditPhone.dc.html",
   "DeskMembersPhone.dc.html",
-  "DeskAuditPhone.dc.html"
+  "DeskAuditPhone.dc.html",
+  "PlatformOrgsPhone.dc.html",
+  "PlatformAdminsPhone.dc.html",
+  "PlatformAuditPhone.dc.html",
+  "PlatformOrgOverviewPhone.dc.html",
+  "PlatformOrgProjectsPhone.dc.html",
+  "PlatformOrgMembersPhone.dc.html",
+  "PlatformOrgInvitationsPhone.dc.html"
  ],
  "notes": {
   "t-intro": {

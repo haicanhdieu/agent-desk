@@ -833,3 +833,24 @@ Five boards are registered: `OrgMembersPhone`, `OrgInvitationsSettingsPhone`, `O
 - Agent call: below 640px the rows' percent widths and one-line ellipsis give way (values wrap and sit at the card's right); the audit sentence and its note take a full-width line under "What"; the menu button sits at the card's end. `Pagination` needed no change: it already reacts to its own width.
 - Agent call: the invitation status chips sit in a wrapper that scrolls sideways below 640px (same pattern as the Runs chips); the shared `FilterChips` is unchanged.
 - Agent call: the org and project Audit log pages have no filter control, so `TC-65.17` and `TC-65.18` check cards and the pager only; "filters wrap" has nothing to check on those two pages.
+
+## Sidebar navigation shell: phone platform pages (Task 53)
+
+Seven boards are registered: `PlatformOrgsPhone`, `PlatformAdminsPhone`, `PlatformAuditPhone`, `PlatformOrgOverviewPhone`, `PlatformOrgProjectsPhone`, `PlatformOrgMembersPhone` and `PlatformOrgInvitationsPhone`, 501 in all. PARITY was not run in this session (no browser), so no pair was checked; the seven boards are unchecked. `scripts/parity.mjs` needed no change: it reads the board list from `canvas.json` and `storyIds.ts`.
+
+- Agent call: `data-label` on every data cell of the four platform rows (the actions cell stays unlabelled); the labels are the column headers.
+- Agent call: below 640px the rows' one-line ellipsis gives way (name, slug, id and email wrap and sit at the card's right), and the directory table drops its 960px minimum width, so it no longer scrolls sideways.
+- Agent call: the platform filters (search, Status, Action) wrap and each takes the full width; the platform Invitations status chips sit in the same sideways-scrolling wrapper as the org Invitations page.
+- Agent call: the Overview keys stack over their values below 640px through a wrapper class on the platform page, so the shared `KeyValue` (run side panel, setup) keeps its two columns.
+- Agent call: `PageHeader` actions may wrap below 640px (a shared rule, one `flex-wrap`), so the org header's "Edit organization" and "More actions" stay inside the window.
+
+## Sidebar navigation shell: final parity check (Task 54)
+
+PARITY was not run in this session (no browser, no Chromium), so no pair was reviewed and every board is unchecked: the check is not done. It must be run where Chromium is available (all 501 boards, desktop and 390x844), and each difference fixed or recorded here.
+
+What was checked without a browser:
+
+- The multi-agent gate markers script prints nothing for `origin/main` and `HEAD`. The merged pull request numbers for MA Tasks 25 to 32, 34 and 35 were not matched to the tasks here; the PR must list them under "Multi-agent gate".
+- `canvas.json` `order`, the `boardStories` keys in `storyIds.ts` and the length pinned in `coverage.test.ts` agree: 501 boards, no duplicates, same names in the same order.
+- All 117 boards of the spec's board list are in `order`. The nine `*.dc.html` files outside `order` (`DeskSkillsShell`, `OrgMembersShell`, `PlatformOrgMembersShell`, `PlatformOrgOverviewShell`, `ProjectsShell`, `ProjectsShellScopeMenu`, `ProjectsShellScopeMenuPlatformError`, `ProjectsShellSkipLink`, `RunsShell`) are on `main` already and predate this work.
+- `src/test/coverage.test.ts` passes (590 tests).
