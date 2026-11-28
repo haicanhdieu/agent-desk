@@ -771,3 +771,47 @@
     overflow-wrap: anywhere;
   }
 }
+
+/* Phone and narrow list column (BR-65, BR-83): the run line goes under the rule's text instead of in a column of its own,
+   so a row never overlaps itself. The list (`ruleList`, Screens.module.css) is the size container. */
+@container (max-width: 520px) {
+  .ruleRow {
+    grid-template-columns: 44px minmax(0, 1fr) 32px;
+  }
+  .stats {
+    grid-column: 2;
+    grid-row: 2;
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+  .ruleMore {
+    grid-column: 3;
+    grid-row: 1;
+  }
+}
+
+/* Phone (BR-65), Skills: the list is a bordered box above the editor, capped in height; only its items scroll. */
+@media (max-width: 639px) {
+  .skills {
+    width: 100%;
+    flex: 0 0 auto;
+    max-height: 190px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-8);
+    padding: 6px;
+  }
+  .commitBar {
+    padding: 12px 16px 0;
+  }
+  .commitRow {
+    flex-wrap: wrap;
+  }
+  .commitMsg {
+    flex: 1 1 100%;
+  }
+  .commitTo {
+    width: auto;
+    flex: 1 1 140px;
+    min-width: 0;
+  }
+}

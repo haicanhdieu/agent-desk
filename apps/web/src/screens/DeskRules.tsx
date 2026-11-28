@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Banner, Button, Icon } from '@/ds';
 import {
   EmptyState,
@@ -220,9 +220,28 @@ export function DeskRules({
   onDelete,
 }: DeskRulesProps) {
   const editing = rules.find((r) => r.id === editingId);
+  const paneOpen = form !== undefined || editing !== undefined;
+  const opener = useRef<HTMLElement | null>(null);
+  const wasOpen = useRef(false);
+  // Closing the pane returns focus to the control that opened it (below 1024px the list was hidden meanwhile).
+  useEffect(() => {
+    if (wasOpen.current && !paneOpen && opener.current?.isConnected) opener.current.focus();
+    if (!paneOpen) opener.current = null;
+    wasOpen.current = paneOpen;
+  }, [paneOpen]);
+  const remember = () => {
+    if (document.activeElement instanceof HTMLElement) opener.current = document.activeElement;
+  };
   const helpLine = 'A comment whose first line is a command starts a run when it matches a rule. One rule per command.';
   const newRule = (
-    <Button variant="primary" icon="plus" onClick={onCreate}>
+    <Button
+      variant="primary"
+      icon="plus"
+      onClick={() => {
+        remember();
+        onCreate?.();
+      }}
+    >
       New rule
     </Button>
   );
@@ -251,7 +270,10 @@ export function DeskRules({
                 warning={r.warning}
                 selected={r.id === editingId}
                 onToggle={(next) => onToggle?.(r.id, next)}
-                onSelect={() => onEdit?.(r.id)}
+                onSelect={() => {
+                  remember();
+                  onEdit?.(r.id);
+                }}
                 onDelete={onDelete && (() => onDelete(r.id))}
               />
             ))}
@@ -285,7 +307,7 @@ export function DeskRules({
       />
     ));
   return (
-    <main className={styles.shellSplitMain}>
+    <main className={styles.shellSplitMain} data-pane-open={paneOpen || undefined}>
       {column}
       {pane}
     </main>

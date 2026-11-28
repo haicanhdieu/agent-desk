@@ -1714,11 +1714,11 @@ it.each([
 - Boards: `DeskRulesPhone`, `DeskRulesPromptPhone`, `DeskSkillsPhone` (expected count 480). The example run-line text on the rules boards does not set the wording.
 - Covers: TC-65.10, TC-65.11, TC-65.36, TC-83.1, TC-83.2, TC-83.3.
 
-- [ ] **Step 0: Multi-agent gate.** Run both checks in "Multi-agent gate". If either fails, stop: write no code and report which check failed.
+- [x] **Step 0: Multi-agent gate.** Run both checks in "Multi-agent gate". If either fails, stop: write no code and report which check failed.
 - [ ] **Step 1: Write** "TC-65.10" (390x844, several agents: "New rule", pick in "With agent", close, open a rule; the pane replaces the list and the page does not scroll), "TC-65.36" (390, 1023 and 1024 with the side menu expanded: full-width pane, footer reachable, focus back to the opener; at 1024 the list column has a width above 0 and rows do not overlap), "TC-83.3" (rows "with <agent name>" and "with the project default agent", and the no-credential warning with its run line, readable and not overlapping), "TC-65.11", "TC-83.1" (each rule's run line at 390 equals the one at 1440, including one with runs and one "Never ran", fixed clock) and "TC-83.2" (line inside the viewport, not cut off, no overlap with rule text or controls). Run. Expected: FAIL.
-- [ ] **Step 2: Implement:** rules one column, the rule pane in place of the list below 1024px, a setup warning as the first item of the scroll area, run line under the rule's other text and wrapping; skills list above the editor with a capped height and own scroll; editor, preview and diff full width with width above 0; commit bar wraps.
+- [x] **Step 2: Implement:** rules one column, the rule pane in place of the list below 1024px, a setup warning as the first item of the scroll area, run line under the rule's other text and wrapping; skills list above the editor with a capped height and own scroll; editor, preview and diff full width with width above 0; commit bar wraps.
 - [ ] **Step 3: Stories and REG;** run MOCK `phone-pages`, tests, PARITY. Expected: PASS.
-- [ ] **Step 4: Commit** `feat(web): phone layouts for routing rules and skills`.
+- [x] **Step 4: Commit** `feat(web): phone layouts for routing rules and skills`.
 
 ### Task 57: Phone, Agent & settings with its tabs, panes and delete dialog (BR-65) (after the multi-agent gate)
 

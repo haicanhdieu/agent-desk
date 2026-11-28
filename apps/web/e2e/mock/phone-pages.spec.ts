@@ -776,3 +776,309 @@ test.describe('BR-65: the run page at 390', () => {
     }
   });
 });
+
+/*
+ * Routing rules and Skills at 390 (TC-65.10, TC-65.11, TC-65.36, TC-83.1 to TC-83.3). Both pages fill the window: the
+ * page itself never scrolls, the list, the pane body or the editor column does, so the fit also reads the scroll areas.
+ */
+const rulesPath = `/o/${ORG}/p/${INVOICER_API}/desk/rules`;
+const skillsPath = `/o/${ORG}/p/${INVOICER_API}/desk/skills`;
+/** Fixed clock of the run lines: the rules' last runs are on 12 Nov 2026. */
+const RULES_NOW = new Date('2026-11-13T09:00:00.000Z');
+
+const ruleButton = (page: Page, command: string): Locator =>
+  page.getByRole('button', { name: `Edit rule /${command}` });
+const ruleRowOf = (page: Page, command: string): Locator =>
+  ruleButton(page, command).locator('xpath=ancestor::div[contains(@class, "ruleRow")][1]');
+const runLineOf = (row: Locator): Locator => row.locator('[class*="stats"]');
+
+/** The window does not scroll and nothing the page shows is wider than its scroll area. */
+async function expectFillPageFits(page: Page, areas: Locator[]): Promise<void> {
+  await page.evaluate(() => document.fonts.ready);
+  const doc = await page.evaluate(() => ({
+    x: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+    y: document.documentElement.scrollHeight - document.documentElement.clientHeight,
+  }));
+  expect(doc.x).toBeLessThanOrEqual(1);
+  expect(doc.y).toBeLessThanOrEqual(1);
+  for (const area of areas) {
+    await expect(area).toBeVisible();
+    expect(await area.evaluate((el) => el.scrollWidth - el.clientWidth)).toBeLessThanOrEqual(1);
+  }
+}
+
+const paneOf = (page: Page, name: 'New rule' | 'Edit rule'): Locator => page.getByRole('complementary', { name });
+const paneBodyOf = (pane: Locator): Locator => pane.locator('[class*="paneBody"]');
+
+/** The pane is open in place of the list: full content width, footer reachable, the list hidden. */
+async function expectPaneInPlaceOfList(page: Page, pane: Locator, width: number): Promise<void> {
+  await expect(pane).toBeVisible();
+  const box = await boxOf(pane);
+  expect(box.x).toBeLessThanOrEqual(1);
+  expect(box.width).toBeGreaterThanOrEqual(width - 1);
+  await expect(page.getByRole('region', { name: 'Rules list' })).toBeHidden();
+  for (const name of ['Close', 'Cancel', 'Save rule']) {
+    const control = pane.getByRole('button', { name, exact: true });
+    await control.scrollIntoViewIfNeeded();
+    const b = await boxOf(control);
+    expect(b.width).toBeGreaterThan(0);
+    expect(b.x).toBeGreaterThanOrEqual(-1);
+    expect(b.x + b.width).toBeLessThanOrEqual(width + 1);
+    expect(b.y + b.height).toBeLessThanOrEqual(844 + 1);
+  }
+  await expectFillPageFits(page, [paneBodyOf(pane)]);
+}
+
+test.describe('BR-65: Routing rules at 390', () => {
+  test.use({ viewport: { width: 390, height: 844 } });
+
+  test('TC-65.10: the rule pane takes the place of the list; "With agent" and every footer button work', async ({
+    page,
+  }) => {
+    await seedAgents(page, 'perAgentModels');
+    await page.goto(rulesPath);
+    await expect(heading(page, 'Routing rules')).toBeVisible();
+    await expectFillPageFits(page, [page.getByRole('region', { name: 'Rules list' })]);
+
+    await page.getByRole('button', { name: 'New rule' }).click();
+    const created = paneOf(page, 'New rule');
+    await expectPaneInPlaceOfList(page, created, 390);
+    const agent = created.getByLabel('With agent');
+    await agent.scrollIntoViewIfNeeded();
+    await agent.selectOption({ label: 'Codex' });
+    await expect(agent.locator('option:checked')).toHaveText('Codex');
+    await created.getByRole('button', { name: 'Close' }).click();
+    await expect(created).toBeHidden();
+    await expect(page.getByRole('region', { name: 'Rules list' })).toBeVisible();
+
+    await ruleButton(page, 'code-review').click();
+    await expectPaneInPlaceOfList(page, paneOf(page, 'Edit rule'), 390);
+    await expect(paneOf(page, 'Edit rule').getByRole('button', { name: 'Delete rule' })).toBeVisible();
+  });
+
+  test('TC-65.36: at 390 and 1023 the pane replaces the list and focus returns; at 1024 the list keeps a width', async ({
+    page,
+  }) => {
+    await page.goto(rulesPath);
+    await expect(heading(page, 'Routing rules')).toBeVisible();
+    for (const width of [390, 1023]) {
+      await page.setViewportSize({ width, height: 844 });
+      await ruleButton(page, 'code-build').click();
+      await expectPaneInPlaceOfList(page, paneOf(page, 'Edit rule'), width);
+      await paneOf(page, 'Edit rule').getByRole('button', { name: 'Close' }).click();
+      await expect(paneOf(page, 'Edit rule')).toBeHidden();
+      await expect(ruleButton(page, 'code-build')).toBeFocused();
+    }
+
+    // 1024 with the side menu expanded: list and pane sit side by side, and the rows do not overlap.
+    await page.setViewportSize({ width: 1024, height: 844 });
+    const expand = page.getByRole('button', { name: 'Expand menu' });
+    if (await expand.isVisible()) await expand.click();
+    await expect(page.getByRole('button', { name: 'Collapse menu' })).toBeVisible();
+    await ruleButton(page, 'code-build').click();
+    await expect(paneOf(page, 'Edit rule')).toBeVisible();
+    const list = page.getByRole('region', { name: 'Rules list' });
+    await expect(list).toBeVisible();
+    expect((await boxOf(list)).width).toBeGreaterThan(0);
+    const commands = ['code-build', 'code-review', 'code-e2e'];
+    const rows: Box[] = [];
+    for (const command of commands) rows.push(await boxOf(ruleRowOf(page, command)));
+    rows.forEach((a, i) => rows.slice(i + 1).forEach((b) => expect(overlaps(a, b)).toBe(false)));
+    for (const command of commands) {
+      const row = ruleRowOf(page, command);
+      const parts = [
+        row.getByRole('switch'),
+        ruleButton(page, command),
+        runLineOf(row),
+        row.getByRole('button', { name: /^More actions/ }),
+      ];
+      const boxes: Box[] = [];
+      for (const part of parts) boxes.push(await boxOf(part));
+      boxes.forEach((a, i) => boxes.slice(i + 1).forEach((b) => expect(overlaps(a, b)).toBe(false)));
+    }
+    await paneOf(page, 'Edit rule').getByRole('button', { name: 'Close' }).click();
+    await expect(paneOf(page, 'Edit rule')).toBeHidden();
+  });
+});
+
+test.describe('BR-83: the run line on phone Routing rules', () => {
+  /** Run lines of the rules of the first page, by command, read at the current width. */
+  async function runLines(page: Page, commands: string[]): Promise<string[]> {
+    const lines: string[] = [];
+    for (const command of commands) lines.push((await runLineOf(ruleRowOf(page, command)).innerText()).trim());
+    return lines;
+  }
+  const COMMANDS = ['code-build', 'code-review', 'code-e2e', 'docs-update', 'qa-e2e', 'triage'];
+
+  test('TC-83.1: every rule shows at 390 the run line it shows at 1440, with runs and "Never ran"', async ({
+    page,
+  }) => {
+    await page.clock.setFixedTime(RULES_NOW);
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.goto(rulesPath);
+    await expect(heading(page, 'Routing rules')).toBeVisible();
+    const wide = await runLines(page, COMMANDS);
+    expect(wide.some((l) => /^\d+ runs? in 30 days/.test(l))).toBe(true);
+    expect(wide).toContain('Never ran');
+    await page.setViewportSize({ width: 390, height: 844 });
+    expect(await runLines(page, COMMANDS)).toEqual(wide);
+  });
+
+  test('TC-83.2: each run line is inside the window, not cut off and clear of the rule text and controls', async ({
+    page,
+  }) => {
+    await page.clock.setFixedTime(RULES_NOW);
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto(rulesPath);
+    await expect(heading(page, 'Routing rules')).toBeVisible();
+    await page.evaluate(() => document.fonts.ready);
+    for (const command of COMMANDS) {
+      const row = ruleRowOf(page, command);
+      const line = runLineOf(row);
+      await line.scrollIntoViewIfNeeded();
+      const lineBox = await boxOf(line);
+      expect(lineBox.width).toBeGreaterThan(0);
+      expect(lineBox.x).toBeGreaterThanOrEqual(0);
+      expect(lineBox.x + lineBox.width).toBeLessThanOrEqual(390 + 1);
+      expect(await line.evaluate((el) => el.scrollWidth - el.clientWidth)).toBeLessThanOrEqual(1);
+      expect(await line.evaluate((el) => el.scrollHeight - el.clientHeight)).toBeLessThanOrEqual(1);
+      const rowBox = await boxOf(row);
+      expect(lineBox.y + lineBox.height).toBeLessThanOrEqual(rowBox.y + rowBox.height + 1);
+      for (const other of [
+        row.getByRole('switch'),
+        ruleButton(page, command),
+        row.getByRole('button', { name: /^More actions/ }),
+      ])
+        expect(overlaps(lineBox, await boxOf(other))).toBe(false);
+    }
+  });
+
+  test('TC-83.3: "with <agent>", "with the project default agent" and the no-credential warning stay readable', async ({
+    page,
+  }) => {
+    await page.clock.setFixedTime(RULES_NOW);
+    await seedAgents(page, 'perAgentModels');
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto(`/o/${ORG}/p/${INVOICER_API}/desk/agent`);
+    await expect(heading(page, 'Agent & settings')).toBeVisible();
+    // The Given goes through the mock API route, as the rule form does; the link then reads the list fresh.
+    await page.evaluate(
+      async ({ projectId }) => {
+        const base = `/api/projects/${projectId}`;
+        const listed: { items: Array<{ id: string; name: string }> } = await (await fetch(`${base}/agents`)).json();
+        for (const [command, name] of [
+          ['with-work', 'Claude - Work'],
+          ['with-new', 'Claude - New'],
+        ] as const) {
+          const agent = listed.items.find((a) => a.name === name);
+          if (!agent) throw new Error(`agent ${name} not listed`);
+          const res = await fetch(`${base}/rules`, {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({
+              kind: 'skill',
+              command,
+              skillName: 'code-build',
+              labelFilter: [],
+              target: 'issue',
+              enabled: true,
+              agentId: agent.id,
+            }),
+          });
+          if (!res.ok) throw new Error(`rule ${command}: ${res.status}`);
+        }
+      },
+      { projectId: INVOICER_API },
+    );
+    await page.getByRole('link', { name: 'Routing rules' }).first().click();
+    await expect(heading(page, 'Routing rules')).toBeVisible();
+    await page.evaluate(() => document.fonts.ready);
+
+    await expect(ruleButton(page, 'with-work')).toContainText('with Claude - Work');
+    await expect(ruleButton(page, 'qa-e2e')).toContainText('with the project default agent');
+    const warned = ruleRowOf(page, 'with-new');
+    await expect(warned).toContainText('Claude - New has no working credential. Runs from this rule will fail.');
+    for (const command of ['with-work', 'qa-e2e', 'with-new']) {
+      const row = ruleRowOf(page, command);
+      await row.scrollIntoViewIfNeeded();
+      const text = await boxOf(ruleButton(page, command));
+      const line = await boxOf(runLineOf(row));
+      for (const b of [text, line]) {
+        expect(b.x).toBeGreaterThanOrEqual(0);
+        expect(b.x + b.width).toBeLessThanOrEqual(390 + 1);
+      }
+      expect(overlaps(text, line)).toBe(false);
+    }
+    const warning = warned.getByText('has no working credential');
+    const warnBox = await boxOf(warning);
+    expect(warnBox.x).toBeGreaterThanOrEqual(0);
+    expect(warnBox.x + warnBox.width).toBeLessThanOrEqual(390 + 1);
+    expect(overlaps(warnBox, await boxOf(runLineOf(warned)))).toBe(false);
+    expect(overlaps(warnBox, await boxOf(ruleButton(page, 'with-new')))).toBe(false);
+  });
+});
+
+test.describe('BR-65: Skills at 390', () => {
+  test.use({ viewport: { width: 390, height: 844 } });
+
+  test('TC-65.11: the list sits above a full-width editor; Edit, Preview, Diff and New skill are usable', async ({
+    page,
+  }) => {
+    await page.goto(skillsPath);
+    await expect(heading(page, 'Skills')).toBeVisible();
+    await page.evaluate(() => document.fonts.ready);
+    const list = page.getByRole('navigation', { name: 'Skills' });
+    const editor = page.getByLabel('SKILL.md source');
+    await expect(editor).toBeVisible();
+    // The scroll areas of the page: the row holding list and editor, the list, the editor column and the commit bar.
+    const skillsAreas = [
+      page.locator('[class*="skillsRow"]'),
+      list.locator('ul'),
+      page.locator('[class*="skillsMain"]'),
+      page.locator('[class*="commitBar"]'),
+    ];
+    const [listBox, editorBox] = [await boxOf(list), await boxOf(editor)];
+    expect(editorBox.y).toBeGreaterThanOrEqual(listBox.y + listBox.height - 1);
+    expect(editorBox.width).toBeGreaterThanOrEqual(390 - 2 * 16 - 1);
+    // The list has a capped height and scrolls on its own.
+    expect(listBox.height).toBeLessThanOrEqual(260);
+    expect(await list.locator('ul').evaluate((el) => getComputedStyle(el).overflowY)).toBe('auto');
+
+    const second = list.getByRole('link').nth(1);
+    await second.scrollIntoViewIfNeeded();
+    await second.click();
+    await expect(second).toHaveAttribute('aria-current', 'page');
+    const views = page.getByRole('radiogroup', { name: 'Editor view' });
+    for (const view of ['Preview', 'Diff', 'Edit']) {
+      await views.getByRole('radio', { name: view }).click();
+      if (view === 'Edit') await expect(editor).toBeVisible();
+      else {
+        await expect(editor).toBeHidden();
+        const shown = page.locator(view === 'Diff' ? '[class*="_diff_"]' : '[class*="_preview_"]').first();
+        await expect(shown).toBeVisible();
+        expect((await boxOf(shown)).width).toBeGreaterThanOrEqual(390 - 2 * 16 - 1);
+      }
+      await expectFillPageFits(page, skillsAreas);
+    }
+    const commit = page.getByRole('button', { name: 'Submit changes' });
+    await commit.scrollIntoViewIfNeeded();
+    const commitBox = await boxOf(commit);
+    expect(commitBox.width).toBeGreaterThan(0);
+    expect(commitBox.x).toBeGreaterThanOrEqual(-1);
+    expect(commitBox.x + commitBox.width).toBeLessThanOrEqual(390 + 1);
+    const message = page.getByRole('textbox', { name: 'Commit message' });
+    expect((await boxOf(message)).width).toBeGreaterThanOrEqual(390 - 2 * 16 - 1);
+
+    const create = page.getByRole('button', { name: 'New skill' });
+    await create.scrollIntoViewIfNeeded();
+    const createBox = await boxOf(create);
+    expect(createBox.width).toBeGreaterThan(0);
+    expect(createBox.x + createBox.width).toBeLessThanOrEqual(390 + 1);
+    await create.click();
+    await expect(editor).toBeVisible();
+    expect((await boxOf(editor)).width).toBeGreaterThanOrEqual(390 - 2 * 16 - 1);
+    await message.fill('Add a skill');
+    await expect(message).toHaveValue('Add a skill');
+    await expectFillPageFits(page, skillsAreas);
+  });
+});

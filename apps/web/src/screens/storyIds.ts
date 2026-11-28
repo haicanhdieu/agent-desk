@@ -497,6 +497,9 @@ export const boardStories = {
   RunReconnectPhone: { title: detail, exportName: 'RunReconnectPhone' },
   RunRunningPhoneCancelConfirm: { title: detail, exportName: 'RunRunningPhoneCancelConfirm' },
   RunStoppedPhone: { title: detail, exportName: 'RunStoppedPhone' },
+  DeskRulesPhone: { title: desk, exportName: 'DeskRulesPhone' },
+  DeskRulesPromptPhone: { title: desk, exportName: 'DeskRulesPromptPhone' },
+  DeskSkillsPhone: { title: desk, exportName: 'DeskSkillsPhone' },
 } as const satisfies Record<string, BoardStory>;
 
 export type BoardName = keyof typeof boardStories;

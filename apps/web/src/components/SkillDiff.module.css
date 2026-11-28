@@ -63,3 +63,10 @@
 .text {
   min-width: 0;
 }
+
+/* Phone (BR-65): the column scrolls instead of squeezing this view to nothing. */
+@media (max-width: 639px) {
+  .diff {
+    min-height: 240px;
+  }
+}

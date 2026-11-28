@@ -1741,3 +1741,45 @@ export const DeskAgentSideMenu: Story = deskShellStory({
     </ProjectShellFrame>
   ),
 });
+
+// BR-65, BR-83: Routing rules and Skills at 390x844 (phone boards). The rules are one column with their run line under
+// the rule's text; an open rule pane takes the place of the list under the page header; the skills list sits above the
+// editor with its own scroll. The real shell frame draws the bar and the menu, not the board's own copy.
+const deskPhoneArtboard = (page: 'rules' | 'skills', crumb: string): NonNullable<Story['decorators']> => [
+  (S) => (
+    <div style={{ width: 390, height: 844 }}>
+      <ProjectShellFrame page={page} fill height={844} crumbs={[{ label: crumb }]}>
+        <S />
+      </ProjectShellFrame>
+    </div>
+  ),
+];
+
+export const DeskRulesPhone: Story = {
+  name: 'Phone: routing rules, one column',
+  decorators: deskPhoneArtboard('rules', 'Routing rules'),
+  globals: viewport(390, 844),
+  render: () => <DeskRulesScreen frame={deskFrame} {...rulesShellProps} />,
+};
+
+export const DeskRulesPromptPhone: Story = {
+  name: 'Phone: routing rule pane in place of the list',
+  decorators: deskPhoneArtboard('rules', 'Routing rules'),
+  globals: viewport(390, 844),
+  render: () => (
+    <DeskRulesScreen
+      frame={deskFrame}
+      {...rulesShellProps}
+      editingId="r6"
+      modelField={modelField}
+      promptPreview={promptReady}
+    />
+  ),
+};
+
+export const DeskSkillsPhone: Story = {
+  name: 'Phone: skills, list above the editor',
+  decorators: deskPhoneArtboard('skills', 'Skills'),
+  globals: viewport(390, 844),
+  render: () => <DeskSkillsScreen {...skillsProps} />,
+};

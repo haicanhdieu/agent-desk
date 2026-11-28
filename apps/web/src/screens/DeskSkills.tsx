@@ -287,7 +287,7 @@ export function DeskSkills({
         }
         fill
       >
-        <div className={styles.deskRow}>
+        <div className={`${styles.deskRow} ${styles.skillsRow}`}>
           <SkillList
             branch={branchLabel}
             hideHeader

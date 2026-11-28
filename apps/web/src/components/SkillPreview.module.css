@@ -162,3 +162,10 @@
   max-width: 100%;
   height: auto;
 }
+
+/* Phone (BR-65): the column scrolls instead of squeezing this view to nothing. */
+@media (max-width: 639px) {
+  .preview {
+    min-height: 240px;
+  }
+}

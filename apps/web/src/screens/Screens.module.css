@@ -400,6 +400,8 @@
   background: var(--bg);
 }
 .ruleList {
+  /* The size container of the rule rows (Composites.module.css, @container). */
+  container-type: inline-size;
   border: 1px solid var(--line);
   border-radius: var(--radius-10);
   overflow: hidden;
@@ -1120,4 +1122,63 @@
 .runPane[hidden],
 .runSide[hidden] {
   display: none;
+}
+
+/* Phone and tablet (BR-65, TC-65.36): below 1024px an open side pane takes the full content width in place of the list and
+   the pager, under the pinned page header. The list is hidden, not removed, so focus can return to its opener. The pane's
+   title and footer stay put, its body scrolls and its footer wraps. */
+@media (max-width: 1023px) {
+  .shellSplitMain[data-pane-open] {
+    flex-direction: column;
+  }
+  .shellSplitMain[data-pane-open] > .shellSplitCol {
+    flex: 0 0 auto;
+    min-height: 0;
+  }
+  .shellSplitMain[data-pane-open] > .shellSplitCol > :not(header) {
+    display: none;
+  }
+  .shellSplitMain[data-pane-open] > aside {
+    width: 100% !important;
+    flex: 1 1 0;
+    min-width: 0;
+    min-height: 0;
+    border-left: 0;
+    border-top: 1px solid var(--line);
+  }
+  .paneActions {
+    flex-wrap: wrap;
+  }
+}
+
+/* Phone (BR-65), Routing rules: one column with 16px gutters. */
+@media (max-width: 639px) {
+  .rulesCol > header {
+    padding: 0 16px 16px;
+  }
+  .rulesScroll {
+    padding: 0 16px 16px;
+  }
+}
+
+/* Phone (BR-65), Skills: the list sits above the editor with a capped height and its own scroll; the editor column keeps a
+   usable height and the page area scrolls when both do not fit. */
+@media (max-width: 639px) {
+  .skillsRow {
+    flex-direction: column;
+    gap: 12px;
+    overflow-x: hidden;
+    overflow-y: auto;
+  }
+  .skillsMain {
+    flex: 0 0 auto;
+    min-height: 640px;
+  }
+  .skillHead {
+    flex-wrap: wrap;
+    padding: 14px 16px;
+  }
+  .skillHeadText {
+    flex: 1 1 100%;
+  }
 }

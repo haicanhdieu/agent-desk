@@ -793,3 +793,13 @@ Five boards are registered: `RunIdlePhone`, `RunIdlePhoneDetails`, `RunReconnect
 - Agent call: the key row sits directly under the terminal inside the terminal pane, only while the socket is open and the viewer may attach; the pane's bar wraps below 1024px.
 - Agent call: the context panel's collapse button is not shown below 1024px, where the panel is the Details view.
 - Agent call: `RunIdlePhoneDetails` opens the Details view with a play function; the phone stories reuse the desktop screen inside the shell frame at 390px, so the bar and drawer are the real shell.
+
+## Sidebar navigation shell: phone Routing rules and Skills (Task 50)
+
+Three boards are registered: `DeskRulesPhone`, `DeskRulesPromptPhone` and `DeskSkillsPhone`, 480 in all. PARITY was not run in this session (no browser), so no pair was checked; the three boards are unchecked. `scripts/parity.mjs` needed no change: it reads the board list from `canvas.json` and `storyIds.ts`.
+
+- Agent call: below 1024px an open rule pane takes the full width under the page header and the list and pager are `display:none` (the list stays in the page, so focus can return); `DeskRules` marks its main with `data-pane-open` and returns focus to the control that opened the pane when it closes, at every width.
+- Agent call: the rule row moves its run line under the rule text when the list is narrower than 520px (a container query on the list, not a window width), so the rows also fit at 1024 with the side menu open and the pane beside the list.
+- Agent call: below 640px the skills list is a bordered box above the editor, capped at 190px with its own scroll; the editor column keeps 640px and the page area scrolls; the editor, preview and diff keep at least 240px; the commit bar wraps.
+- Agent call: `DeskRulesPromptPhone` opens the custom prompt rule `/triage`; the phone stories reuse the desktop screens inside the project shell frame at 390px, so the bar and the menu are the real shell.
+- No `.tsx` change was needed in `SkillList`, `CommitBar` or the `RuleForm` stories: the layouts are CSS only.

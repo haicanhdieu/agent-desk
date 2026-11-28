@@ -3825,6 +3825,30 @@
    "h": 844,
    "title": "Phone: run stopped, transcript",
    "expand": "fill"
+  },
+  "DeskRulesPhone.dc.html": {
+   "x": 470,
+   "y": 105760,
+   "w": 390,
+   "h": 844,
+   "title": "Phone: routing rules, one column",
+   "expand": "fill"
+  },
+  "DeskRulesPromptPhone.dc.html": {
+   "x": 940,
+   "y": 105760,
+   "w": 390,
+   "h": 844,
+   "title": "Phone: routing rule pane in place of the list",
+   "expand": "fill"
+  },
+  "DeskSkillsPhone.dc.html": {
+   "x": 1410,
+   "y": 105760,
+   "w": 390,
+   "h": 844,
+   "title": "Phone: skills, list above the editor",
+   "expand": "fill"
   }
  },
  "order": [
@@ -4304,7 +4328,10 @@
   "RunIdlePhoneDetails.dc.html",
   "RunReconnectPhone.dc.html",
   "RunRunningPhoneCancelConfirm.dc.html",
-  "RunStoppedPhone.dc.html"
+  "RunStoppedPhone.dc.html",
+  "DeskRulesPhone.dc.html",
+  "DeskRulesPromptPhone.dc.html",
+  "DeskSkillsPhone.dc.html"
  ],
  "notes": {
   "t-intro": {

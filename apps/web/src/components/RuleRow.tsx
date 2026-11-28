@@ -53,7 +53,7 @@ export function RuleRow({ rule, stats, warning, selected, onToggle, onSelect, on
         )}
       </div>
       <span className={styles.stats}>{stats}</span>
-      <span ref={moreRef}>
+      <span ref={moreRef} className={styles.ruleMore}>
         <IconButton
           icon="more"
           aria-label={`More actions for /${rule.command}`}

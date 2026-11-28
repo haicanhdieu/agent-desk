@@ -1,7 +1,7 @@
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { agentKindViews, agentPaneAgents, agentRowViews, connections, deskFrame, rules, skills } from '@/mocks';
-import type { ReactElement } from 'react';
+import { useState, type ReactElement } from 'react';
 import { DeskSkills } from './DeskSkills';
 import { ProjectShellFrame } from './projectShellFrame';
 import { expectShellOwnedPage, headerActions } from '@/test/shellAssert';
@@ -349,6 +349,39 @@ describe('DeskRules', () => {
     expect(onToggle).toHaveBeenLastCalledWith('r1', false);
     await userEvent.click(screen.getByRole('switch', { name: 'Enable rule /qa-e2e' }));
     expect(onToggle).toHaveBeenLastCalledWith('r5', true);
+  });
+
+  it('marks the main while a rule pane is open, so a narrow window shows the pane in place of the list (BR-65)', () => {
+    const { rerender } = render(<DeskRules frame={deskFrame} rules={rules} {...base} />);
+    expect(screen.getByRole('main')).not.toHaveAttribute('data-pane-open');
+    rerender(<DeskRules frame={deskFrame} rules={rules} {...base} editingId="r2" />);
+    expect(screen.getByRole('main')).toHaveAttribute('data-pane-open', 'true');
+    // The list stays in the page (hidden by the layout), so focus can return to its opener.
+    expect(screen.getByRole('button', { name: 'Edit rule /code-review' })).toBeInTheDocument();
+  });
+
+  it('closing the pane returns focus to the control that opened it (TC-65.36)', async () => {
+    function Host() {
+      const [id, setId] = useState<string>();
+      return (
+        <DeskRules
+          frame={deskFrame}
+          rules={rules}
+          {...base}
+          editingId={id}
+          onCreate={() => setId(undefined)}
+          onEdit={setId}
+          onClose={() => setId(undefined)}
+        />
+      );
+    }
+    render(<Host />);
+    const opener = screen.getByRole('button', { name: 'Edit rule /code-review' });
+    await userEvent.click(opener);
+    expect(screen.getByRole('complementary', { name: 'Edit rule' })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Close' }));
+    expect(screen.queryByRole('complementary')).toBeNull();
+    expect(opener).toHaveFocus();
   });
 
   it('editingId opens the Edit rule pane and marks that row selected', () => {
