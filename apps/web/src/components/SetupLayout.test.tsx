@@ -1,39 +1,13 @@
 import { render, screen, within } from '@testing-library/react';
-import { user } from '@/mocks';
 import { setViewportWidth } from '@/test/fakeMatchMedia';
 import { ShellContext } from './shellContext';
 import { SetupLayout } from './SetupLayout';
 
-const harbor = { id: 'org-harbor', slug: 'harbor-labs', name: 'Harbor Labs' };
-const org = (settingsHref?: string) => ({
-  current: harbor,
-  orgs: [harbor],
-  platformAdmin: false,
-  orgHref: (o: { slug: string }) => `/o/${o.slug}/projects`,
-  createHref: '/orgs/new',
-  projectsHref: '/o/harbor-labs/projects',
-  settingsHref,
-});
 const layout = (props: Partial<Parameters<typeof SetupLayout>[0]>) => (
-  <SetupLayout user={user} projectName="invoicer-api" steps={[{ label: 'Add rule' }]} current={0} {...props}>
+  <SetupLayout projectName="invoicer-api" steps={[{ label: 'Add rule' }]} current={0} {...props}>
     body
   </SetupLayout>
 );
-
-describe('SetupLayout org bar', () => {
-  it('marks Projects current and shows Settings with settingsHref', () => {
-    render(layout({ org: org('/o/harbor-labs/settings') }));
-    const nav = screen.getByRole('navigation', { name: 'Organization sections' });
-    expect(within(nav).getByRole('link', { name: /Projects/ })).toHaveAttribute('aria-current', 'page');
-    expect(within(nav).getByRole('link', { name: /Org settings/ })).toBeInTheDocument();
-  });
-
-  it('has no Settings tab without settingsHref', () => {
-    render(layout({ org: org() }));
-    const nav = screen.getByRole('navigation', { name: 'Organization sections' });
-    expect(within(nav).queryByRole('link', { name: /Org settings/ })).not.toBeInTheDocument();
-  });
-});
 
 describe('SetupLayout in the shell', () => {
   const steps = [{ label: 'Connect repo' }, { label: 'Add agent' }, { label: 'Add rule', optional: true }];
@@ -45,10 +19,8 @@ describe('SetupLayout in the shell', () => {
   afterEach(() => slot.remove());
 
   const inShell = (props: Partial<Parameters<typeof SetupLayout>[0]>, wizardSlot: HTMLElement | null = slot) => (
-    <ShellContext.Provider value={{ owned: true, wizardSlot, reportPageState: () => () => {} }}>
+    <ShellContext.Provider value={{ wizardSlot, reportPageState: () => () => {} }}>
       <SetupLayout
-        user={user}
-        org={org()}
         projectName="invoicer-api"
         steps={steps}
         current={2}
@@ -77,10 +49,11 @@ describe('SetupLayout in the shell', () => {
     expect(screen.queryByRole('list')).toBeNull();
   });
 
-  it('keeps the old frame without a shell', () => {
-    render(layout({ org: org() }));
+  it('draws the stepper in place, with no bar, when there is no shell provider', () => {
+    render(layout({}));
     expect(screen.getByRole('complementary', { name: 'Setup progress' })).toBeInTheDocument();
-    expect(screen.getByRole('navigation', { name: 'Organization sections' })).toBeInTheDocument();
+    expect(screen.queryByRole('banner')).toBeNull();
+    expect(screen.queryByRole('navigation')).toBeNull();
   });
 
   it('at 1440 puts the step label above the title and Exit setup in the aside, once each', () => {
@@ -89,7 +62,7 @@ describe('SetupLayout in the shell', () => {
     const exit = screen.getAllByRole('link', { name: 'Exit setup' });
     expect(exit).toHaveLength(1);
     expect(slot).toContainElement(exit[0]);
-    expect(exit[0]).toHaveAttribute('href', '/o/harbor-labs/projects');
+    expect(exit[0]).toHaveAttribute('href', '/projects');
     expect(screen.getByRole('heading', { level: 1 }).previousElementSibling).toHaveTextContent('Step 3 of 3, optional');
     expect(screen.queryByRole('button', { name: /collapse|expand/i })).toBeNull();
     expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1);

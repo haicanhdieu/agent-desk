@@ -25,7 +25,6 @@ const s1Props = { user, projectName: 'invoicer-api', repos, selected: repo, inst
 const s1 = <Setup1 {...s1Props} pingAt="14:01:37" />;
 const s2 = (extra = {}) => (
   <Setup2
-    user={user}
     projectName="invoicer-api"
     repo={repo}
     kinds={agentKindViews}
@@ -48,7 +47,6 @@ const withoutPicker = (container: HTMLElement) => {
 const pick = (name: string) => userEvent.click(screen.getByRole('radio', { name }));
 const s3 = (selected = ['code-build', 'code-review']) => (
   <Setup3
-    user={user}
     projectName="invoicer-api"
     repo={repo}
     branch="main"
@@ -59,7 +57,6 @@ const s3 = (selected = ['code-build', 'code-review']) => (
 );
 const s4 = (
   <Setup4
-    user={user}
     projectName="invoicer-api"
     repo={repo}
     rule={rules[0]}
@@ -70,7 +67,6 @@ const s4 = (
 );
 const ready = (
   <SetupReady
-    user={user}
     projectName="invoicer-api"
     repo={repo}
     label={{ name: 'user-story', color: '#7C8FD8' }}
@@ -673,7 +669,6 @@ describe('Setup4', () => {
     const modelList = toModelList({ status: 'success', data: agentModelsFixtures.live }, null);
     render(
       <Setup4
-        user={user}
         projectName="invoicer-api"
         repo={repo}
         rule={rules[0]}
@@ -690,7 +685,6 @@ describe('Setup4', () => {
   it('shows the locked agent as "Project default (<name>)" when the default agent is named', () => {
     render(
       <Setup4
-        user={user}
         projectName="invoicer-api"
         repo={repo}
         rule={rules[0]}
@@ -728,7 +722,6 @@ describe('Setup4', () => {
     const onSkip = vi.fn();
     render(
       <Setup4
-        user={user}
         projectName="invoicer-api"
         repo={repo}
         rule={rules[0]}
@@ -753,7 +746,6 @@ describe('SetupReady', () => {
   it('without a rule, shows an empty state with a link to add one instead of a command', () => {
     render(
       <SetupReady
-        user={user}
         projectName="invoicer-api"
         repo={repo}
         summary={[]}
@@ -797,7 +789,6 @@ describe('SetupReady', () => {
   it('polling: names the last check instead', () => {
     render(
       <SetupReady
-        user={user}
         projectName="invoicer-api"
         repo={repo}
         label={{ name: 'user-story', color: '#7C8FD8' }}
@@ -822,83 +813,10 @@ describe('Setup2 credential callback', () => {
   });
 });
 
-describe('setup screens pass the org to the top bar', () => {
-  const harbor = { id: 'org-harbor', slug: 'harbor-labs', name: 'Harbor Labs' };
-  const org = {
-    current: harbor,
-    orgs: [harbor],
-    platformAdmin: false,
-    orgHref: (o: { slug: string }) => `/o/${o.slug}/projects`,
-    createHref: '/orgs/new',
-    projectsHref: '/o/harbor-labs/projects',
-    settingsHref: '/o/harbor-labs/settings',
-  };
-
-  const bar = { org };
-  const workspace = (
-    <SetupWorkspace user={user} projectName="invoicer-api" repo={repo} plugins={{ plugins: [] }} {...bar} />
-  );
-
-  it.each([
-    ['Setup1', <Setup1 key="1" {...s1Props} {...bar} />],
-    ['Setup2', s2(bar)],
-    ['SetupWorkspace', workspace],
-    [
-      'Setup3',
-      <Setup3
-        key="3"
-        user={user}
-        projectName="invoicer-api"
-        repo={repo}
-        branch="main"
-        templates={skillTemplates}
-        selected={[]}
-        commitMessage="m"
-        {...bar}
-      />,
-    ],
-    [
-      'Setup4',
-      <Setup4
-        key="4"
-        user={user}
-        projectName="invoicer-api"
-        repo={repo}
-        rule={rules[0]}
-        skills={[]}
-        followUp={{ command: 'code-review', target: 'pr', skill: 'code-review', enabled: true }}
-        maxRunsPerTicket={agentSettings.maxRunsPerTicket}
-        {...bar}
-      />,
-    ],
-    [
-      'SetupReady',
-      <SetupReady
-        key="r"
-        user={user}
-        projectName="invoicer-api"
-        repo={repo}
-        label={{ name: 'user-story', color: '#7C8FD8' }}
-        command="/code-build"
-        summary={[{ term: 'Repository', value: repo }]}
-        lastEvent={{ mode: 'webhook', at: 'ping, 14:01:37' }}
-        {...bar}
-      />,
-    ],
-  ])('%s shows the org bar', (_n, el) => {
-    render(el);
-    const nav = screen.getByRole('navigation', { name: 'Organization sections' });
-    expect(within(nav).getByRole('link', { name: /Projects/ })).toHaveAttribute('aria-current', 'page');
-    expect(within(nav).getByRole('link', { name: /Org settings/ })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /Harbor Labs/ })).toBeInTheDocument();
-  });
-});
-
 describe('SetupReady without rule:create', () => {
   it('hides the Add a rule action but keeps the empty state', () => {
     render(
       <SetupReady
-        user={user}
         projectName="invoicer-api"
         repo={repo}
         summary={[]}
@@ -919,7 +837,7 @@ describe('setup screens in the shell frame', () => {
     ['Setup2', s2(), 'Step 2 of 5'],
     [
       'SetupWorkspace',
-      <SetupWorkspace user={user} projectName="invoicer-api" repo={repo} plugins={{ plugins: [] }} />,
+      <SetupWorkspace projectName="invoicer-api" repo={repo} plugins={{ plugins: [] }} />,
       'Step 3 of 5, optional',
     ],
     ['Setup3', s3(), 'Step 4 of 5, optional'],
@@ -928,7 +846,7 @@ describe('setup screens in the shell frame', () => {
   ];
   const withExit = (el: ReactElement) => cloneElement(el, { exitHref: '/leave' } as Record<string, unknown>);
   const inShell = (el: ReactElement, slot: HTMLElement) => (
-    <ShellContext.Provider value={{ owned: true, wizardSlot: slot, reportPageState: () => () => {} }}>
+    <ShellContext.Provider value={{ wizardSlot: slot, reportPageState: () => () => {} }}>
       {withExit(el)}
     </ShellContext.Provider>
   );

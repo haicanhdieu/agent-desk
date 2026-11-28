@@ -49,7 +49,7 @@ const findAddButton = () =>
 /**
  * The Members page's data and wiring: the frame, the list query and the screen state, with Add, Invite, Change role and Remove.
  */
-export function useDeskMembersState(org: string, projectId: string): Omit<DeskMembersProps, 'headingRef'> {
+export function useDeskMembersState(org: string, projectId: string): DeskMembersProps {
   const search = Route.useSearch();
   const page = pageOfSearch(search);
   const navigate = useNavigate({ from: Route.fullPath });
@@ -193,7 +193,7 @@ export function useDeskMembersState(org: string, projectId: string): Omit<DeskMe
 
   return {
     frame,
-    orgName: frame.org.current?.name ?? org,
+    orgName: frame.orgName,
     projectName: frame.project.name,
     state,
     onAdd: () => setAdding(true),
@@ -204,7 +204,7 @@ export function useDeskMembersState(org: string, projectId: string): Omit<DeskMe
       removeConfirm: {
         memberName: removing.name,
         projectName: frame.project.name,
-        orgName: frame.org.current?.name ?? org,
+        orgName: frame.orgName,
         busy: removeMember.isPending,
         onConfirm: () => void onConfirmRemove(),
         onCancel: () => {
@@ -219,7 +219,7 @@ export function useDeskMembersState(org: string, projectId: string): Omit<DeskMe
           <AddMemberDialog
             org={org}
             orgId={orgId}
-            orgName={frame.org.current?.name ?? org}
+            orgName={frame.orgName}
             projectId={projectId}
             projectName={frame.project.name}
             onAdded={(dto, roleName) => {
@@ -234,7 +234,7 @@ export function useDeskMembersState(org: string, projectId: string): Omit<DeskMe
           <ChangeRolePanel
             org={org}
             orgId={orgId}
-            orgName={frame.org.current?.name ?? org}
+            orgName={frame.orgName}
             row={changing.row}
             current={changing.current}
             saving={setRole.isPending}

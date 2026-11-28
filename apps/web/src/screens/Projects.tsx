@@ -6,20 +6,16 @@ import {
   PageHeader,
   Pagination,
   ProjectRow,
-  TopBar,
-  useShellOwnsChrome,
   type OnboardingChecklistState,
-  type OrgSwitchProps,
   type PaginationProps,
 } from '@/components';
-import type { Actor, Project } from '@/mocks/types';
+import type { Project } from '@/mocks/types';
 import { deleteProjectBody } from './deleteProjectCopy';
 import { InvitationsBanner, type InvitationsBannerProps } from './InvitationsBanner';
 import { ProjectsEmpty } from './ProjectsEmpty';
 import styles from './Screens.module.css';
 
 export interface ProjectsProps {
-  user: Actor;
   projects: Project[];
   newHref: string;
   /** Where a project row links (its runs). Defaults to the prototype's `/runs`. */
@@ -32,8 +28,6 @@ export interface ProjectsProps {
   switchToPollingHref?: (project: Project) => string | undefined;
   /** The paging control under the table; its `busy` marks the table aria-busy. */
   pagination?: PaginationProps;
-  /** The org switcher in the top bar. */
-  org?: OrgSwitchProps;
   /** The first-run checklist card between the page head and the table. */
   checklist?: OnboardingChecklistState;
   /** The pending-invitations strip above the page head. */
@@ -57,7 +51,6 @@ const columns = [
 ];
 
 export function Projects({
-  user,
   projects,
   newHref,
   projectHref = () => '/runs',
@@ -65,20 +58,16 @@ export function Projects({
   resumeHref,
   switchToPollingHref,
   pagination,
-  org,
   checklist,
   invitationsBanner,
   canCreate = false,
   onDeleteProject,
 }: ProjectsProps) {
-  const owned = useShellOwnsChrome();
   const [confirming, setConfirming] = useState<Project>();
   if (projects.length === 0)
     return (
       <ProjectsEmpty
-        user={user}
         createHref={newHref}
-        org={org}
         checklist={checklist}
         invitationsBanner={invitationsBanner}
         canCreate={canCreate}
@@ -91,27 +80,13 @@ export function Projects({
   ) : undefined;
   return (
     <>
-      {!owned && (
-        <TopBar variant="global" crumbs={[{ label: 'Projects' }]} user={user} org={org} tabs="org" active="projects" />
-      )}
-      <main className={owned ? styles.shellMain : styles.listMain}>
-        {owned ? (
-          <PageHeader
-            title="Projects"
-            meta={<span className="muted">{intro}</span>}
-            actions={newProject}
-            banner={invitationsBanner && <InvitationsBanner {...invitationsBanner} />}
-          />
-        ) : (
-          <>
-            {invitationsBanner && <InvitationsBanner {...invitationsBanner} />}
-            <div className={styles.listHead}>
-              <h1>Projects</h1>
-              {newProject && <div className={styles.listActions}>{newProject}</div>}
-            </div>
-            <p className={`muted ${styles.listIntro}`}>{intro}</p>
-          </>
-        )}
+      <main className={styles.shellMain}>
+        <PageHeader
+          title="Projects"
+          meta={<span className="muted">{intro}</span>}
+          actions={newProject}
+          banner={invitationsBanner && <InvitationsBanner {...invitationsBanner} />}
+        />
         {checklist && <OnboardingChecklist state={checklist} />}
         <DataTable columns={columns} busy={pagination?.busy}>
           {projects.map((p) => (

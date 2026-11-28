@@ -1,11 +1,9 @@
 import { useSuspenseQuery } from '@tanstack/react-query';
 import { can, type Access, type Permission } from '@agentdesk/contracts';
-import type { OrgSwitchProps } from '@/components';
-import type { DeskFrameData, DeskLinks } from '@/screens';
+import type { DeskFrameData } from '@/screens';
 import { useAccess } from '../access/guards';
-import { useAppBar } from '../chrome/appBar';
+import { orgsQuery } from '../auth/session';
 import { toConnectionStatus, toProject } from '../projects/map';
-import { useProjectMenu } from '../projects/menu';
 import { projectsQueries } from '../projects/queries';
 import { useSetupWarning } from '../setup-script/useSetupWarning';
 
@@ -56,25 +54,9 @@ export function deskRightsOf(access: Access | undefined, projectId: string): Des
   };
 }
 
-/** The Desk menu links the caller may open: each is set only when its right is held. */
-export function deskLinksFor(
-  paths: ReturnType<typeof projectPaths>,
-  rights: DeskRights,
-): Pick<DeskLinks, 'skills' | 'rules' | 'agent' | 'setup' | 'members' | 'audit' | 'desk'> {
-  return {
-    // The Settings tab opens the rules page, so it shows only for roles that may read it.
-    ...(rights.rules && { desk: paths.rules, rules: paths.rules }),
-    ...(rights.skills && { skills: paths.skills }),
-    ...(rights.agent && { agent: paths.agent }),
-    ...(rights.setup && { setup: paths.setup }),
-    ...(rights.members && { members: paths.members }),
-    ...(rights.audit && { audit: paths.audit }),
-  };
-}
-
-/** Top bar and Desk navigation data for a project page, from the `$project` layout's cached queries. Pass `useNow()`. */
-export function useDeskFrame(org: string, projectId: string, now: Date): DeskFrameData & { org: OrgSwitchProps } {
-  const bar = useAppBar(org);
+/** The project, its connection and the setup warning for a Desk page, from the `$project` layout's cached queries. Pass `useNow()`. */
+export function useDeskFrame(org: string, projectId: string, now: Date): DeskFrameData & { orgName: string } {
+  const { data: orgs } = useSuspenseQuery(orgsQuery);
   const { data: dto } = useSuspenseQuery(projectsQueries.detail(org, projectId));
   const { data: connectionDto } = useSuspenseQuery(projectsQueries.connection(org, projectId));
   const connection = toConnectionStatus(connectionDto, dto, now);
@@ -84,18 +66,10 @@ export function useDeskFrame(org: string, projectId: string, now: Date): DeskFra
   const paths = projectPaths(org, projectId);
   const rights = useDeskRights(org, projectId);
   const warning = useSetupWarning(org, projectId, rights.setup);
-  const projectMenu = useProjectMenu(org, projectId);
   return {
-    user: bar.user,
     project: { org: owner, name: project.name, repo: project.repo, needsYou: project.needsYou },
     connection,
-    projectMenu,
-    org: bar.org,
-    links: {
-      projects: paths.projects,
-      runs: paths.runs,
-      ...deskLinksFor(paths, rights),
-    },
+    orgName: orgs.find((o) => o.slug === org)?.name ?? org,
     ...(warning && rights.setup && { warning: { title: warning.title, detail: warning.detail, href: paths.setup } }),
   };
 }

@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import { userEvent, within } from 'storybook/test';
-import { AppShell, ChangeRoleDialog, type ChangeRoleDialogProps } from '@/components';
+import { ChangeRoleDialog, type ChangeRoleDialogProps } from '@/components';
 import {
   accessProjectRoleIds,
   accessProjects,
@@ -17,8 +17,7 @@ import type { MemberRowView, ProjectGrantView } from '@/mocks/types';
 import { OrgAudit as OrgAuditScreen, type OrgAuditProps } from './OrgAudit';
 import { OrgGeneral as OrgGeneralScreen, type OrgGeneralProps } from './OrgGeneral';
 import { OrgMembers as OrgMembersScreen, type OrgMembersProps } from './OrgMembers';
-import { OrgSettingsFrame } from './orgSettingsFrame';
-import { OrgShellFrame } from './orgShellFrame';
+import { OrgSettingsFrame, OrgShellFrame } from './orgShellFrame';
 import { viewport } from './viewports';
 
 const noop = () => undefined;
@@ -27,17 +26,6 @@ const meta = {
   title: 'Screens/OrgSettings',
   parameters: { layout: 'fullscreen' },
   globals: viewport(1440, 900),
-  decorators: [
-    // A story with `parameters.shell` brings its own ShellFrame; the others sit in the old bare frame.
-    (S, { parameters }) =>
-      parameters.shell ? (
-        <S />
-      ) : (
-        <AppShell height={900} topBar={null}>
-          <S />
-        </AppShell>
-      ),
-  ],
 } satisfies Meta;
 export default meta;
 type Story = StoryObj<typeof meta>;
@@ -468,7 +456,7 @@ export const OrgMembersSideMenuLoading: Story = shellStory({
 export const OrgAuditForbiddenSideMenu: Story = shellStory({
   name: 'No access, organization menu',
   render: () => (
-    <OrgShellFrame viewer="projectAdmin" page={null} state="forbidden">
+    <OrgShellFrame viewer="projectAdmin" page={null}>
       <OrgAuditScreen state={{ kind: 'forbidden' }} />
     </OrgShellFrame>
   ),

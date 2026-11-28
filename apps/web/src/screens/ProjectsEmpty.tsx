@@ -1,22 +1,10 @@
 import { Button } from '@/ds';
-import {
-  OnboardingChecklist,
-  PageHeader,
-  StepCardGrid,
-  TopBar,
-  useShellOwnsChrome,
-  type OnboardingChecklistState,
-  type OrgSwitchProps,
-} from '@/components';
-import type { Actor } from '@/mocks/types';
+import { OnboardingChecklist, PageHeader, StepCardGrid, type OnboardingChecklistState } from '@/components';
 import { InvitationsBanner, type InvitationsBannerProps } from './InvitationsBanner';
 import styles from './Screens.module.css';
 
 export interface ProjectsEmptyProps {
-  user: Actor;
   createHref: string;
-  /** The org switcher in the top bar. */
-  org?: OrgSwitchProps;
   /** The first-run checklist; it replaces the static step cards. */
   checklist?: OnboardingChecklistState;
   invitationsBanner?: InvitationsBannerProps;
@@ -34,30 +22,16 @@ const steps = [
   { title: 'Add a rule', body: 'Map a comment like /code-build to a skill.' },
 ];
 
-export function ProjectsEmpty({
-  user,
-  createHref,
-  org,
-  checklist,
-  invitationsBanner,
-  canCreate = false,
-}: ProjectsEmptyProps) {
-  const owned = useShellOwnsChrome();
-  const bar = !owned && (
-    <TopBar variant="global" crumbs={[{ label: 'Projects' }]} user={user} org={org} tabs="org" active="projects" />
-  );
+export function ProjectsEmpty({ createHref, checklist, invitationsBanner, canCreate = false }: ProjectsEmptyProps) {
   if (!canCreate) {
     return (
-      <>
-        {bar}
-        <main className={styles.emptyNotice}>
-          <div className={styles.emptyNoticeCol}>
-            {invitationsBanner && <InvitationsBanner {...invitationsBanner} />}
-            <h1>No projects yet</h1>
-            <p className="muted">An owner or admin of this organization creates projects.</p>
-          </div>
-        </main>
-      </>
+      <main className={styles.emptyNotice}>
+        <div className={styles.emptyNoticeCol}>
+          {invitationsBanner && <InvitationsBanner {...invitationsBanner} />}
+          <h1>No projects yet</h1>
+          <p className="muted">An owner or admin of this organization creates projects.</p>
+        </div>
+      </main>
     );
   }
   const body = (
@@ -73,31 +47,14 @@ export function ProjectsEmpty({
       </div>
     </>
   );
-  if (owned) {
-    return (
-      <main className={styles.shellMain}>
-        <PageHeader
-          title="Create your first project"
-          meta={<span className="muted">{createLead}</span>}
-          banner={invitationsBanner && <InvitationsBanner {...invitationsBanner} />}
-        />
-        {body}
-      </main>
-    );
-  }
   return (
-    <>
-      {bar}
-      <main className={styles.emptyMain}>
-        <div className={styles.emptyCol}>
-          {invitationsBanner && <InvitationsBanner {...invitationsBanner} />}
-          <div className={styles.emptyHead}>
-            <h1>Create your first project</h1>
-            <p className="muted">{createLead}</p>
-          </div>
-          {body}
-        </div>
-      </main>
-    </>
+    <main className={styles.shellMain}>
+      <PageHeader
+        title="Create your first project"
+        meta={<span className="muted">{createLead}</span>}
+        banner={invitationsBanner && <InvitationsBanner {...invitationsBanner} />}
+      />
+      {body}
+    </main>
   );
 }

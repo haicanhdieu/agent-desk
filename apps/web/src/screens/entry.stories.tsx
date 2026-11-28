@@ -1,21 +1,13 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import { useEffect, useState, type ReactNode } from 'react';
 import { userEvent, waitFor, within } from 'storybook/test';
-import {
-  AppShell,
-  EmptyState,
-  NO_PAGE_CRUMBS,
-  RouteLoadError,
-  RouteSkeleton,
-  TopBar,
-  type OrgSwitchProps,
-} from '@/components';
+import { EmptyState, NO_PAGE_CRUMBS, RouteLoadError, RouteSkeleton, type OrgSwitchProps } from '@/components';
 import { Button } from '@/ds';
 import { checklistSteps, pagedProjects, projects, user } from '@/mocks';
 import type { Actor, OrgOption, Project } from '@/mocks/types';
 import { SignIn as SignInScreen, SignInNoInvitationError } from './SignIn';
-import { ProjectsEmpty as ProjectsEmptyScreen } from './ProjectsEmpty';
-import { Projects as ProjectsScreen } from './Projects';
+import { ProjectsEmpty as ProjectsEmptyBase, type ProjectsEmptyProps } from './ProjectsEmpty';
+import { Projects as ProjectsBase, type ProjectsProps } from './Projects';
 import { OrgSuspended as OrgSuspendedScreen } from './OrgSuspended';
 import { OrgShellFrame } from './orgShellFrame';
 import { ProjectShellFrame } from './projectShellFrame';
@@ -58,12 +50,16 @@ const forecast: Project = {
   lastRun: 'None',
 };
 
-/** The org menu and bar of an owner or admin: the Projects tab and the Settings tab. */
-const withSettings = (o: OrgSwitchProps): OrgSwitchProps => ({
-  ...o,
-  projectsHref: '#projects',
-  settingsHref: '#settings',
-});
+/** The Projects pages of the older boards: the page in the organization shell, with the person and org of the bar. */
+const projectsFrame = (user: Actor, org: OrgSwitchProps, page: ReactNode) => (
+  <OrgShellFrame viewer="owner" page="projects" user={user} org={org} crumbs={[{ label: 'Projects' }]}>
+    {page}
+  </OrgShellFrame>
+);
+const ProjectsScreen = ({ user, org, ...props }: ProjectsProps & { user: Actor; org: OrgSwitchProps }) =>
+  projectsFrame(user, org, <ProjectsBase {...props} />);
+const ProjectsEmptyScreen = ({ user, org, ...props }: ProjectsEmptyProps & { user: Actor; org: OrgSwitchProps }) =>
+  projectsFrame(user, org, <ProjectsEmptyBase {...props} />);
 
 const invitations = (count: number) => ({ count, href: '#' });
 const ready = (steps: typeof checklistSteps.none) => ({ kind: 'ready', steps }) as const;
@@ -72,17 +68,6 @@ const meta = {
   title: 'Screens/Entry',
   parameters: { layout: 'fullscreen' },
   globals: viewport(1440, 900),
-  decorators: [
-    // A story with `parameters.shell` brings its own ShellFrame; the others sit in the old bare frame.
-    (S, { parameters }) =>
-      parameters.shell ? (
-        <S />
-      ) : (
-        <AppShell height={900} topBar={null}>
-          <S />
-        </AppShell>
-      ),
-  ],
 } satisfies Meta;
 export default meta;
 type Story = StoryObj<typeof meta>;
@@ -172,7 +157,7 @@ export const ProjectsChecklistDoneSettings: Story = {
       user={user}
       projects={projects}
       newHref="#"
-      org={withSettings(orgOf(harbor, [harbor, northwind]))}
+      org={orgOf(harbor, [harbor, northwind])}
       canCreate
       invitationsBanner={invitations(2)}
     />
@@ -226,7 +211,7 @@ export const ProjectsEmptyChecklistSettings: Story = {
     <ProjectsEmptyScreen
       user={user}
       createHref="#"
-      org={withSettings(loneNorthwind)}
+      org={loneNorthwind}
       canCreate
       checklist={ready(checklistSteps.none)}
     />
@@ -256,23 +241,17 @@ export const ProjectsMember: Story = {
 /** A member with no role in the org: the access message, with the switcher still usable. */
 export const ProjectsNoAccess: Story = {
   name: 'Projects, no access',
-  render: () => (
-    <>
-      <TopBar
-        variant="global"
-        crumbs={[{ label: 'Projects' }]}
-        state="forbidden"
-        user={sam}
-        org={orgOf(northwind, [northwind, harbor])}
-      />
+  render: () =>
+    projectsFrame(
+      sam,
+      orgOf(northwind, [northwind, harbor]),
       <main className={styles.emptyNotice}>
         <div className={styles.emptyNoticeCol}>
           <h1>You don&apos;t have access</h1>
           <p className="muted">Ask an owner of this organization to give you access.</p>
         </div>
-      </main>
-    </>
-  ),
+      </main>,
+    ),
 };
 
 export const ProjectsOrgSwitchAdmin: Story = {
@@ -314,19 +293,14 @@ export const ProjectsOrgSwitchOpen: Story = {
 /** The new org is in the top bar while its projects load. */
 export const ProjectsSwitching: Story = {
   name: 'Projects, switching org',
-  render: () => (
-    <>
-      <TopBar
-        variant="global"
-        crumbs={[{ label: 'Projects' }]}
-        user={user}
-        org={orgOf(northwind, [harbor, northwind])}
-      />
-      <main className={styles.listMain}>
+  render: () =>
+    projectsFrame(
+      user,
+      orgOf(northwind, [harbor, northwind]),
+      <main className={styles.shellMain}>
         <RouteSkeleton />
-      </main>
-    </>
-  ),
+      </main>,
+    ),
 };
 
 export const SignInNoInvitation: Story = {
@@ -343,10 +317,9 @@ export const SignInProofOfConcept: Story = {
 const suspendedOrg = { ...harbor, suspended: true };
 const suspendedOrgs: OrgOption[] = [suspendedOrg, northwind, riverside];
 const suspended = (user: Actor, org: OrgSwitchProps) => (
-  <>
-    <TopBar variant="global" crumbs={NO_PAGE_CRUMBS} user={user} org={org} tabs="none" />
+  <ShellFrame topBar={{ user, crumbs: NO_PAGE_CRUMBS, org }}>
     <OrgSuspendedScreen orgName={harbor.name} />
-  </>
+  </ShellFrame>
 );
 
 export const OrgSuspended: Story = {
@@ -372,8 +345,7 @@ const projectsCrumbs = [{ label: 'Projects' }];
 const severalOrgs = orgOf(harbor, [harbor, northwind, riverside]);
 const shellStory = (story: Story): Story => ({ ...story, parameters: { ...story.parameters, shell: true } });
 const projectsPage = (o: { canCreate?: boolean; resume?: boolean } = {}) => (
-  <ProjectsScreen
-    user={user}
+  <ProjectsBase
     projects={projects}
     newHref="#"
     canCreate={o.canCreate ?? true}
@@ -517,7 +489,7 @@ const inProject = (page: ReactNode) => (
   </ProjectShellFrame>
 );
 const noMenuShell = (page: ReactNode, org: OrgSwitchProps = severalOrgs) => (
-  <ShellFrame topBar={{ variant: 'global', user, crumbs: NO_PAGE_CRUMBS, org, tabs: 'none' }}>
+  <ShellFrame topBar={{ user, crumbs: NO_PAGE_CRUMBS, org }}>
     <main className={styles.shellMain}>{page}</main>
   </ShellFrame>
 );
@@ -569,7 +541,7 @@ export const RouteErrorNotFoundNoMenu: Story = shellStory({
 });
 
 const suspendedShell = (org: OrgSwitchProps) => (
-  <ShellFrame topBar={{ variant: 'global', user, crumbs: NO_PAGE_CRUMBS, org, tabs: 'none' }}>
+  <ShellFrame topBar={{ user, crumbs: NO_PAGE_CRUMBS, org }}>
     <OrgSuspendedScreen orgName={harbor.name} />
   </ShellFrame>
 );

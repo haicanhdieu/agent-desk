@@ -14,8 +14,6 @@ export {
   type ProjectMenuProps,
 } from './ProjectSwitch';
 export { OrgSwitch, type OrgSwitchProps } from './OrgSwitch';
-export { OrgNav, type OrgNavProps } from './OrgNav';
-export { PlatformNav, type PlatformNavProps } from './PlatformNav';
 export { OnboardingChecklist, type OnboardingChecklistState } from './OnboardingChecklist';
 export {
   AccountInfoProvider,
@@ -32,11 +30,9 @@ export {
   ShellContext,
   useGoToProjectsHref,
   useReportPageState,
-  useShellOwnsChrome,
   type ShellContextValue,
   type ShellPageState,
 } from './shellContext';
-export { DeskLayout, type DeskLayoutProps } from './DeskLayout';
 export {
   Terminal,
   TerminalPane,
@@ -97,7 +93,6 @@ export { ProjectRow, type ProjectRowProps } from './ProjectRow';
 export { FollowUpRule, type FollowUpRuleProps } from './FollowUpRule';
 export { SkillTemplateCard, type SkillTemplateCardProps } from './SkillTemplateCard';
 export { SkillTemplatePreview, type SkillTemplatePreviewProps } from './SkillTemplatePreview';
-export { ProjectNav, type ProjectNavProps } from './ProjectNav';
 export { NeedsYouBanner, type NeedsYouBannerProps } from './NeedsYouBanner';
 export { IgnoredRow } from './IgnoredRow';
 export { GitHubComment, type GitHubCommentProps } from './GitHubComment';
@@ -146,9 +141,7 @@ export { ProjectMemberRow, projectMemberColumns, type ProjectMemberRowProps } fr
 export { MemberPicker, type MemberPickerProps } from './MemberPicker';
 export { AddProjectMemberDialog, type AddProjectMemberDialogProps } from './AddProjectMemberDialog';
 export { AuditRow, auditColumns } from './AuditRow';
-export { OrgSettingsLayout, type OrgSettingsLayoutProps } from './OrgSettingsLayout';
 export { InvitationCard, type InvitationCardProps } from './InvitationCard';
-export { PlatformLayout, type PlatformLayoutProps, type PlatformOrgGroup } from './PlatformLayout';
 export { PlatformAdminRow, platformAdminColumns, type PlatformAdminRowProps } from './PlatformAdminRow';
 export { PlatformOrgRow, platformOrgColumns } from './PlatformOrgRow';
 export { OrgStatus } from './OrgStatus';

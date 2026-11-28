@@ -10,7 +10,6 @@ import {
   PageHeader,
   Pagination,
   RouteLoadError,
-  useShellOwnsChrome,
   type PaginationProps,
 } from '@/components';
 import type { OrgInvitationRowView } from '@/mocks/types';
@@ -83,7 +82,6 @@ export function OrgInvitations({
   notice,
   children,
 }: OrgInvitationsProps) {
-  const owned = useShellOwnsChrome();
   const tableRef = useRef<HTMLDivElement>(null);
   const opened = useRef(false);
   const menuRow = state.kind === 'ready' ? openMenuRowId : undefined;
@@ -201,7 +199,7 @@ export function OrgInvitations({
 
   return (
     <>
-      <main className={owned ? styles.shellMain : styles.listMain}>
+      <main className={styles.shellMain}>
         {state.kind === 'loading' && (
           <div className={styles.invitationsLoading} aria-busy="true" role="status" aria-label="Loading">
             <span className={styles.invitationsLoadingHead} aria-hidden="true">
@@ -225,14 +223,7 @@ export function OrgInvitations({
         )}
         {state.kind === 'ready' && (
           <>
-            {owned ? (
-              <PageHeader title="Invitations" actions={invite} />
-            ) : (
-              <div className={styles.listHead}>
-                <h1>Invitations</h1>
-                {invite}
-              </div>
-            )}
+            <PageHeader title="Invitations" actions={invite} />
             <FilterChips aria-label="Filter by status">
               {CHIPS.map((c) => (
                 <FilterChip

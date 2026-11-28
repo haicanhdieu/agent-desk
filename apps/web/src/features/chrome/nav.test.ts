@@ -4,7 +4,6 @@ import type { SubNavGroup } from '@/components';
 import { tenantAccessFixtures } from '@/mocks/dto/access';
 import { ids } from '@/mocks/dto/ids';
 import { toAccess } from '../access/queries';
-import { deskLinksFor, projectPaths } from '../desk/frame';
 import {
   errorMenuScope,
   goToProjectsHref,
@@ -299,15 +298,6 @@ describe('projectMenuModel', () => {
 
   it('marks nothing as current without an item', () => {
     expect(itemsOf(menu(tenantAccessFixtures.owner)).some((i) => i.active)).toBe(false);
-  });
-});
-
-describe('deskLinksFor', () => {
-  const paths = projectPaths(SLUG, P1);
-
-  it('sets only the link of each right held', () => {
-    const rights = { rules: false, skills: true, agent: false, setup: true, members: false, audit: true };
-    expect(deskLinksFor(paths, rights)).toEqual({ skills: paths.skills, setup: paths.setup, audit: paths.audit });
   });
 });
 

@@ -1,5 +1,5 @@
-import { useState, type ReactNode } from 'react';
-import { SubNav, type OrgSwitchProps, type PageCrumb, type PageState, type ProjectSwitchMenu } from '@/components';
+import type { ReactNode } from 'react';
+import { type OrgSwitchProps, type PageCrumb, type ProjectSwitchMenu } from '@/components';
 import {
   projectMenuFixtures,
   projectSwitchFixtures,
@@ -22,7 +22,6 @@ export interface ProjectShellFrameProps {
   /** What the project switcher's popover holds. */
   switcher?: ProjectSwitchMenu;
   crumbs?: readonly PageCrumb[];
-  state?: PageState;
   /** Menu collapsed to its 48px strip. */
   collapsed?: boolean;
   fill?: boolean;
@@ -41,13 +40,11 @@ export function ProjectShellFrame({
   user: actor = user,
   switcher = projectSwitchFixtures.ready,
   crumbs = [],
-  state,
-  collapsed: startCollapsed = false,
+  collapsed = false,
   fill,
   height = 900,
   children,
 }: ProjectShellFrameProps) {
-  const [collapsed, setCollapsed] = useState(startCollapsed);
   const fixture = projectMenuFixtures[menu];
   const model = page === null ? fixture : withProjectMenuActive(fixture, page);
   const project = projects[0]!;
@@ -55,17 +52,14 @@ export function ProjectShellFrame({
     <ShellFrame
       height={height}
       {...(fill && { fill })}
-      menuMode={collapsed ? 'collapsed' : 'full'}
-      menu={<SubNav {...model} collapsed={collapsed} onToggleCollapsed={() => setCollapsed((c) => !c)} />}
+      menuModel={model}
+      collapsed={collapsed}
       topBar={{
-        variant: 'project',
         user: actor,
         crumbs,
         org,
-        tabs: 'none',
-        project: { name: project.name },
+        projectName: project.name,
         projectMenu: switcher,
-        ...(state && { state }),
       }}
     >
       {children}

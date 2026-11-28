@@ -8,7 +8,6 @@ import {
   PlatformOrgRow,
   RouteLoadError,
   platformOrgColumns,
-  useShellOwnsChrome,
   type PaginationProps,
 } from '@/components';
 import type { OrgStatusView, PlatformOrgRowView } from '@/mocks';
@@ -33,7 +32,6 @@ const isStatus = (v: string): v is 'all' | OrgStatusView => v === 'all' || v ===
 
 /** The platform Organizations directory. Names, slugs and owners are text, never HTML. */
 export function PlatformOrgs({ view, filters, onSearch, onStatus, onClearFilters, createHref }: PlatformOrgsProps) {
-  const owned = useShellOwnsChrome();
   // The box keeps what was typed while the route debounces; it follows `filters.q` when that changes elsewhere.
   const [text, setText] = useState(filters.q);
   const [seenQ, setSeenQ] = useState(filters.q);
@@ -46,7 +44,7 @@ export function PlatformOrgs({ view, filters, onSearch, onStatus, onClearFilters
   const showFilters = view.kind !== 'error' && !(empty && !filters.active);
 
   return (
-    <main className={owned ? styles.shellMain : styles.platformMain}>
+    <main className={styles.shellMain}>
       {view.kind === 'loading' && (
         <div className={styles.platformLoading} aria-busy="true" role="status" aria-label="Loading">
           <span aria-hidden="true">
@@ -62,23 +60,14 @@ export function PlatformOrgs({ view, filters, onSearch, onStatus, onClearFilters
       {view.kind === 'error' && <RouteLoadError title={view.title} requestId={view.requestId} onRetry={view.onRetry} />}
       {view.kind === 'ready' && (
         <>
-          {owned ? (
-            <PageHeader
-              title="Organizations"
-              actions={
-                <Button variant="primary" icon="plus" href={createHref}>
-                  Create organization
-                </Button>
-              }
-            />
-          ) : (
-            <div className={styles.listHead}>
-              <h1 tabIndex={-1}>Organizations</h1>
+          <PageHeader
+            title="Organizations"
+            actions={
               <Button variant="primary" icon="plus" href={createHref}>
                 Create organization
               </Button>
-            </div>
-          )}
+            }
+          />
           {showFilters && (
             <div className={styles.platformFilters}>
               <TextInput

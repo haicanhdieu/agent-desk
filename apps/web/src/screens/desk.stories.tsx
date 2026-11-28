@@ -3,11 +3,8 @@ import type { ComponentProps, ReactElement, ReactNode } from 'react';
 import { fn, userEvent, within } from 'storybook/test';
 import {
   AddProjectMemberDialog,
-  AppShell,
   ChangeRoleDialog,
   InviteDialog,
-  NO_PAGE_CRUMBS,
-  TopBar,
   type AddProjectMemberDialogProps,
   type ChangeRoleDialogProps,
   type InviteDialogStep,
@@ -21,7 +18,7 @@ import {
   type RuleDraft,
 } from '@/components';
 import { ruleAgentWarning, type RuleAgentOption } from '@/components/RuleSentence';
-import type { Actor, AgentPaneAgent, ProjectMemberRowView, Rule } from '@/mocks/types';
+import type { AgentPaneAgent, ProjectMemberRowView, Rule } from '@/mocks/types';
 import type { DeskFrameData } from './DeskFrame';
 import {
   agentKindViews,
@@ -39,7 +36,6 @@ import {
   envPagedSecretRows,
   envPagedVariableRows,
   envVariableRows,
-  orgSwitchFixtures,
   pagedRules,
   pagedSkills,
   pagedVersions,
@@ -107,28 +103,15 @@ const AgentShell = ({ children }: { children: ReactNode }) => (
 const artboard = (height: number): NonNullable<Story['decorators']> => [
   (S) => (
     <div style={{ width: 1440, height }}>
-      <AppShell height={height} topBar={null}>
+      <ProjectShellFrame page={null} height={height} crumbs={[{ label: 'Agent & settings' }]}>
         <S />
-      </AppShell>
+      </ProjectShellFrame>
     </div>
   ),
 ];
 
-/** The Desk boards under the app bar: the org crumb, the account menu, and the Runs and Settings tabs with Settings active. */
-const deskFrame: DeskFrameData = {
-  ...plainDeskFrame,
-  org: { ...orgSwitchFixtures.severalOrgsSettings, orgHref: (o) => `#${o.slug}`, createHref: '#new-org' },
-  links: {
-    projects: '#projects',
-    runs: '#runs',
-    desk: '#desk',
-    skills: '#skills',
-    rules: '#rules',
-    agent: '#agent',
-    members: '#members',
-    audit: '#audit',
-  },
-};
+/** The project, connection and warning of the Desk boards; the shell around them is the artboard's. */
+const deskFrame: DeskFrameData = plainDeskFrame;
 
 // The Danger zone shows only when the caller can delete the project, so the owner boards pass a handler.
 const DeskAgentScreen = (props: DeskAgentProps) => <DeskAgentBase onDeleteProject={() => undefined} {...props} />;
@@ -454,7 +437,6 @@ export const DeskRulesAgentFitsViewport: Story = {
     <RulesShell>
       <DeskRulesScreen
         frame={deskFrame}
-        height="viewport"
         rules={pagedRules(20)}
         skills={skills.map((s) => s.name)}
         maxRunsPerTicket={agentSettings.maxRunsPerTicket}
@@ -726,13 +708,7 @@ export const DeskAgentListPaged: Story = agentsBoard('Agents tab, second page', 
 export const DeskAgentListProjectAdmin: Story = {
   ...agentsBoard('Agents tab, project admin (no Danger zone)', {}),
   render: () => (
-    <DeskAgentBase
-      frame={{ ...deskFrame, user: { login: 'lee-park', initials: 'LP' } }}
-      limits={agentLimits}
-      github={agentGithub}
-      agents={agentList()}
-      tab="agents"
-    />
+    <DeskAgentBase frame={deskFrame} limits={agentLimits} github={agentGithub} agents={agentList()} tab="agents" />
   ),
 };
 export const DeskAgentListReadOnly: Story = agentsBoard('Agents tab, read-only', {
@@ -921,7 +897,6 @@ export const DeskAgentListFitsViewport: Story = {
     <AgentShell>
       <DeskAgentScreen
         frame={deskFrame}
-        height="viewport"
         limits={agentLimits}
         github={agentGithub}
         tab="agents"
@@ -1162,15 +1137,11 @@ export const DeskAuditInvitationExpired: Story = {
   ...audit({ kind: 'ready', rows: projectAuditRowsExpired }),
 };
 
-// The project Members page (Settings > Access > Members), 1440x900 boards. Lee Park (project admin) is signed in
-// unless a board says otherwise.
-const LEE: Actor = { login: 'lee-park', initials: 'LP' };
-const MIRA: Actor = { login: 'mira-chen', initials: 'MC' };
-const leeFrame: DeskFrameData = { ...deskFrame, user: LEE };
+// The project Members page (Settings > Access > Members), 1440x900 boards.
 const members = (
   state: DeskMembersProps['state'],
   props: Partial<Omit<DeskMembersProps, 'state'>> = {},
-  frame: DeskFrameData = leeFrame,
+  frame: DeskFrameData = deskFrame,
 ): Story => ({
   decorators: artboard(900),
   globals: viewport(1440, 900),
@@ -1216,17 +1187,6 @@ export const DeskMembersForbidden: Story = {
   globals: viewport(1440, 900),
   render: () => (
     <>
-      <TopBar
-        variant="project"
-        crumbs={NO_PAGE_CRUMBS}
-        state="forbidden"
-        active="runs"
-        user={MIRA}
-        org={deskFrame.org}
-        needsYou={deskFrame.project.needsYou}
-        project={{ name: deskFrame.project.name, repoUrl: `https://github.com/${deskFrame.project.repo}` }}
-        links={{ projects: '#projects', runs: '#runs' }}
-      />
       <main className={screenStyles.emptyNotice}>
         <div className={screenStyles.emptyNoticeCol}>
           <h1>You don&apos;t have access</h1>
@@ -1728,7 +1688,7 @@ export const DeskSetupSideMenu: Story = deskShellStory({
 export const DeskRulesForbiddenSideMenu: Story = deskShellStory({
   name: 'Routing rules URL opened without access: project menu, no active item',
   render: () => (
-    <ProjectShellFrame page={null} state="forbidden">
+    <ProjectShellFrame page={null}>
       <main className={screenStyles.emptyNotice}>
         <div className={screenStyles.emptyNoticeCol}>
           <h1>You don&apos;t have access</h1>

@@ -1,6 +1,6 @@
 import { useEffect, useId, useRef } from 'react';
 import { Banner, Button, Field, Icon, PrefixInput, TextInput } from '@/ds';
-import { InviteLink, PageHeader, SurfaceCard, useShellOwnsChrome } from '@/components';
+import { InviteLink, PageHeader, SurfaceCard } from '@/components';
 import styles from './Screens.module.css';
 
 export interface CreateOrgValues {
@@ -43,9 +43,8 @@ const HINT = 'They get the owner role. Send them the link that appears next.';
  * The page renders inside the platform shell, which draws the bar.
  */
 export function CreateOrg({ state, onChange, onSubmit, onRetry, onCopy, onDone }: CreateOrgProps) {
-  const owned = useShellOwnsChrome();
-  // In the shell the title is the page header's h1; the no-access notice keeps its own centred one.
-  const inHeader = owned && state.kind !== 'forbidden';
+  // The title is the page header's h1; the no-access notice keeps its own centred one.
+  const inHeader = state.kind !== 'forbidden';
   return (
     <main className={inHeader ? styles.shellMain : styles.emptyMain}>
       {inHeader && <PageHeader title="Create an organization" />}

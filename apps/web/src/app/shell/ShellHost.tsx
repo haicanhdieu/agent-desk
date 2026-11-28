@@ -74,12 +74,6 @@ function menuFooter(footer: MenuModel['footer']): ReactNode {
   return <RepoBlock {...footer.repo} />;
 }
 
-function barVariant(chrome: RouteChrome, run: boolean): TopBarProps['variant'] {
-  if (chrome.scope === 'platform' || chrome.scope === 'platformOrg') return 'platform';
-  if (chrome.scope === 'project') return run ? 'run' : 'project';
-  return 'global';
-}
-
 function focusMain() {
   const main = document.querySelector('main');
   if (!main) return;
@@ -117,7 +111,7 @@ export function ShellHost({ children }: { children: ReactNode }) {
   const signedIn = Boolean(useQuery(sessionQuery).data);
   const bare = chrome?.mode === 'none';
   const unownedValue = useMemo<ShellContextValue>(
-    () => ({ owned: false, wizardSlot: null, reportPageState: bare ? NO_REPORT : reportPageState }),
+    () => ({ wizardSlot: null, reportPageState: bare ? NO_REPORT : reportPageState }),
     [bare, reportPageState],
   );
   if (bare || !signedIn || (chrome === undefined && pageState === undefined)) {
@@ -188,6 +182,7 @@ function OwnedShell({
 
   const fixedState: PageState | undefined =
     pageState === 'notFound' || pageState === 'forbidden' ? pageState : undefined;
+  // The bar and the shell are rendered below; this host alone owns the document title.
   useDocumentTitle(
     pageTitle({
       crumbs: data.crumbs,
@@ -246,25 +241,21 @@ function OwnedShell({
     ) : undefined;
 
   const value = useMemo<ShellContextValue>(
-    () => ({ owned: true, wizardSlot, reportPageState, goToProjectsHref: data.goToProjectsHref }),
+    () => ({ wizardSlot, reportPageState, goToProjectsHref: data.goToProjectsHref }),
     [wizardSlot, reportPageState, data.goToProjectsHref],
   );
 
   const crumbs: PageCrumb[] = data.projectPlaceholder
     ? [{ label: '', loading: true, what: 'project' }, ...data.crumbs]
     : data.crumbs;
-  const variant = barVariant(chrome, params.run !== undefined);
   const topBar: TopBarProps = {
-    variant,
     user: data.user,
     crumbs,
     org: data.orgSwitch,
-    tabs: 'none',
-    ...(data.logoHref !== undefined && { links: { projects: data.logoHref } }),
+    ...(data.logoHref !== undefined && { logoHref: data.logoHref }),
     ...(data.projectSwitch !== undefined &&
-      data.titleScope !== undefined && { project: { name: data.titleScope }, projectMenu: data.projectSwitch }),
+      data.titleScope !== undefined && { projectName: data.titleScope, projectMenu: data.projectSwitch }),
     ...(inDrawer && { onOpenMenu: () => setDrawerOpen(true), menuOpen: drawerOpen }),
-    ownsTitle: false,
   };
 
   return (

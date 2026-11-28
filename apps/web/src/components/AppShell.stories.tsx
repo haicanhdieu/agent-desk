@@ -11,10 +11,9 @@ const user = { login: 'kim-hale', initials: 'KH' };
 const org = {
   orgHref: (o: { slug: string }) => `/o/${o.slug}`,
   createHref: '/platform/orgs/new',
-  projectsHref: '#projects',
   ...orgSwitchFixtures.oneOrg,
 };
-const barProps: TopBarProps = { variant: 'global', user, org, crumbs: NO_PAGE_CRUMBS };
+const barProps: TopBarProps = { user, org, crumbs: NO_PAGE_CRUMBS };
 
 const groups: SubNavGroup[] = [
   {

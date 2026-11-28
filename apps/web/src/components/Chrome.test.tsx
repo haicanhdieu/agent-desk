@@ -3,8 +3,6 @@ import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import { Brand } from './Brand';
 import { Breadcrumb } from './Breadcrumb';
-import { OrgNav } from './OrgNav';
-import { ProjectNav } from './ProjectNav';
 import { ProjectMenu } from './ProjectSwitch';
 import { SubNav } from './SubNav';
 import { AccountInfoProvider, SignOutProvider } from './AccountMenu';
@@ -13,11 +11,16 @@ import { NO_PAGE_CRUMBS } from './pageTitle';
 import { orgSwitchFixtures } from '@/mocks';
 
 const user = { login: 'kim-hale', initials: 'KH' };
-const project = { org: 'harbor-labs', name: 'invoicer-api', repoUrl: 'https://github.com/harbor-labs/invoicer-api' };
+const orgProps = {
+  ...orgSwitchFixtures.severalOrgs,
+  orgHref: (o: { slug: string }) => `/o/${o.slug}`,
+  createHref: '/orgs/new',
+};
+const projectName = 'invoicer-api';
 
-describe('TopBar bell and title', () => {
+describe('TopBar bell', () => {
   it('has a disabled, unfocusable bell named "Notifications (coming soon)" with that tooltip, never "Notifications on"', () => {
-    render(<TopBar crumbs={NO_PAGE_CRUMBS} variant="global" user={user} />);
+    render(<TopBar crumbs={NO_PAGE_CRUMBS} user={user} />);
     const bell = screen.getByRole('button', { name: 'Notifications (coming soon)' });
     expect(bell).toBeDisabled();
     expect(bell).toHaveAttribute('title', 'Notifications (coming soon)');
@@ -25,13 +28,10 @@ describe('TopBar bell and title', () => {
     expect(bell).not.toHaveFocus();
     expect(screen.queryByRole('button', { name: 'Notifications on' })).toBeNull();
   });
-  it('leaves document.title alone with ownsTitle={false}', () => {
+  it('leaves document.title to the shell host', () => {
     document.title = 'Before';
-    const { unmount } = render(<TopBar crumbs={[{ label: 'Runs' }]} variant="global" user={user} ownsTitle={false} />);
+    render(<TopBar crumbs={[{ label: 'Runs' }]} user={user} />);
     expect(document.title).toBe('Before');
-    unmount();
-    render(<TopBar crumbs={[{ label: 'Runs' }]} variant="global" user={user} />);
-    expect(document.title).toContain('Runs');
   });
 });
 
@@ -71,211 +71,33 @@ describe('Brand', () => {
     rerender(<Brand withName={false} />);
     expect(screen.getByRole('img', { name: 'Agent Desk' })).toHaveAttribute('viewBox', '0 0 120 120');
   });
-  it('is the horizontal lockup in the global and project top bars and the icon in the run top bar', () => {
-    const { container, rerender } = render(<TopBar crumbs={NO_PAGE_CRUMBS} variant="global" user={user} />);
+  it('is the horizontal lockup in the bar', () => {
+    const { container } = render(<TopBar crumbs={NO_PAGE_CRUMBS} user={user} />);
     expect(container.querySelector('header svg[viewBox="0 0 480 120"]')).not.toBeNull();
     expect(container.querySelector('img')).toBeNull();
-    rerender(<TopBar crumbs={NO_PAGE_CRUMBS} variant="project" user={user} project={project} />);
-    expect(container.querySelector('header svg[viewBox="0 0 480 120"]')).not.toBeNull();
-    rerender(<TopBar crumbs={NO_PAGE_CRUMBS} variant="run" user={user} />);
-    expect(container.querySelector('header svg[viewBox="0 0 480 120"]')).toBeNull();
-    expect(container.querySelector('header svg[viewBox="0 0 120 120"]')).not.toBeNull();
   });
 });
 
-describe('nav landmark names', () => {
-  it('no nav is named "Main" on any bar', () => {
-    for (const bar of [
-      <TopBar
-        crumbs={NO_PAGE_CRUMBS}
-        key="o"
-        variant="global"
-        user={user}
-        org={orgProps}
-        tabs="org"
-        active="projects"
-        links={orgLinks}
-      />,
-      <TopBar
-        crumbs={NO_PAGE_CRUMBS}
-        key="p"
-        variant="project"
-        user={user}
-        project={project}
-        active="runs"
-        links={{ desk: '/desk' }}
-      />,
-      <TopBar crumbs={NO_PAGE_CRUMBS} key="r" variant="run" user={user} project={project} />,
-    ]) {
-      const { unmount } = render(bar);
-      expect(screen.queryByRole('navigation', { name: 'Main' })).toBeNull();
-      unmount();
-    }
+describe('TopBar', () => {
+  it('has no navigation landmark of its own beyond the breadcrumb: no section links, no tabs', () => {
+    render(<TopBar crumbs={NO_PAGE_CRUMBS} user={user} org={orgProps} projectName={projectName} />);
+    expect(screen.queryByRole('navigation', { name: 'Main' })).toBeNull();
+    expect(screen.queryByRole('navigation', { name: 'Organization sections' })).toBeNull();
+    expect(screen.queryByRole('navigation', { name: 'Project sections' })).toBeNull();
+    expect(screen.queryByRole('link', { name: /Repo on GitHub/ })).toBeNull();
   });
-  it('the org tabs nav is "Organization sections" and the project tabs nav "Project sections"', () => {
-    render(
-      <>
-        <OrgNav projectsHref="/projects" settingsHref="/settings" />
-        <ProjectNav deskHref="/rules" />
-      </>,
-    );
-    expect(screen.getByRole('navigation', { name: 'Organization sections' })).toBeInTheDocument();
-    expect(screen.getByRole('navigation', { name: 'Project sections' })).toBeInTheDocument();
-  });
-});
-
-describe('TopBar project', () => {
-  it('marks the active tab with aria-current and class on', () => {
-    render(
-      <TopBar
-        crumbs={NO_PAGE_CRUMBS}
-        variant="project"
-        user={user}
-        project={project}
-        active="runs"
-        links={{ desk: '/desk' }}
-      />,
-    );
-    const tabs = screen.getByRole('navigation', { name: 'Project sections' });
-    const runs = within(tabs).getByRole('link', { name: /Runs/ });
-    expect(runs).toHaveAttribute('aria-current', 'page');
-    expect(runs.className).toMatch(/\bon\b/);
-    expect(within(tabs).getByRole('link', { name: 'Project settings' })).not.toHaveAttribute('aria-current');
-  });
-  it('the project settings tab reads "Project settings"', () => {
-    render(
-      <TopBar
-        crumbs={NO_PAGE_CRUMBS}
-        variant="project"
-        user={user}
-        project={project}
-        active="runs"
-        links={{ desk: '/desk' }}
-      />,
-    );
-    const tabs = screen.getByRole('navigation', { name: 'Project sections' });
-    expect(within(tabs).getByRole('link', { name: 'Project settings' })).toHaveAttribute('href', '/desk');
-  });
-  it('shows no Settings tab without a desk link (a member or viewer may not open the Desk)', () => {
-    render(<TopBar crumbs={NO_PAGE_CRUMBS} variant="project" user={user} project={project} active="runs" />);
-    const tabs = screen.getByRole('navigation', { name: 'Project sections' });
-    expect(within(tabs).getByRole('link', { name: /Runs/ })).toBeInTheDocument();
-    expect(within(tabs).queryByRole('link', { name: 'Project settings' })).not.toBeInTheDocument();
-  });
-  it('draws the project Settings tab with the org Settings tab icon and no Desk label', () => {
-    render(
-      <>
-        <OrgNav projectsHref="/projects" settingsHref="/settings" />
-        <ProjectNav deskHref="/rules" />
-      </>,
-    );
-    const orgNav = screen.getByRole('navigation', { name: 'Organization sections' });
-    const projectNav = screen.getByRole('navigation', { name: 'Project sections' });
-    const orgIcon = within(orgNav).getByRole('link', { name: 'Org settings' }).querySelector('svg');
-    const projectIcon = within(projectNav).getByRole('link', { name: 'Project settings' }).querySelector('svg');
-    expect(orgIcon).not.toBeNull();
-    expect(projectIcon?.innerHTML).toBe(orgIcon?.innerHTML);
-    expect(within(projectNav).queryByText('Desk')).toBeNull();
-  });
-  it('needsYou 0 or undefined renders no badge', () => {
-    const { rerender } = render(
-      <TopBar crumbs={NO_PAGE_CRUMBS} variant="project" user={user} project={project} active="runs" needsYou={0} />,
-    );
-    expect(screen.queryByText(/needs you/)).toBeNull();
-    rerender(<TopBar crumbs={NO_PAGE_CRUMBS} variant="project" user={user} project={project} active="runs" />);
-    expect(screen.queryByText(/needs you/)).toBeNull();
-  });
-  it('needsYou 1 renders "1 needs you"', () => {
-    render(
-      <TopBar crumbs={NO_PAGE_CRUMBS} variant="project" user={user} project={project} active="runs" needsYou={1} />,
-    );
-    expect(screen.getByText('1 needs you')).toBeInTheDocument();
-  });
-  it('truncates a long project name with a title', () => {
-    const name = 'x'.repeat(80);
-    render(
-      <TopBar crumbs={NO_PAGE_CRUMBS} variant="project" user={user} project={{ ...project, name }} active="desk" />,
-    );
-    const el = screen.getByText(name);
-    expect(el).toHaveAttribute('title', name);
-    expect(el.className).toMatch(/name/);
-    expect(screen.getByRole('button', { name: /^Switch project/ })).toBeInTheDocument();
-  });
-  it('opens the repo link in a new tab without giving the page access to the opener', () => {
-    render(<TopBar crumbs={NO_PAGE_CRUMBS} variant="project" user={user} project={project} active="runs" />);
-    const link = screen.getByRole('link', { name: /Repo on GitHub/ });
-    expect(link).toHaveAttribute('target', '_blank');
-    expect(link).toHaveAttribute('rel', 'noopener noreferrer');
-  });
-  it('has repo link, bell and avatar', () => {
-    render(<TopBar crumbs={NO_PAGE_CRUMBS} variant="project" user={user} project={project} active="runs" />);
-    expect(screen.getByRole('link', { name: /Repo on GitHub/ })).toHaveAttribute('href', project.repoUrl);
+  it('without org renders only the brand, the bell and the avatar', () => {
+    render(<TopBar crumbs={NO_PAGE_CRUMBS} user={user} />);
+    expect(screen.queryByRole('navigation', { name: 'Breadcrumb' })).toBeNull();
+    expect(screen.queryByRole('button', { name: /^Switch project/ })).toBeNull();
+    expect(screen.getByRole('img', { name: 'Agent Desk' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Notifications (coming soon)' })).toBeInTheDocument();
     expect(screen.getByTitle('kim-hale')).toHaveTextContent('KH');
-  });
-});
-
-const orgProps = {
-  ...orgSwitchFixtures.oneOrg,
-  orgHref: (o: { slug: string }) => `/o/${o.slug}`,
-  createHref: '/orgs/new',
-  settingsHref: '/o/acme/settings',
-};
-const orgLinks = { projects: '/o/acme/projects' };
-
-describe('TopBar org level', () => {
-  it('renders the org crumb and the Projects and Settings tabs, Projects current (BR-43)', () => {
-    render(
-      <TopBar
-        crumbs={NO_PAGE_CRUMBS}
-        variant="global"
-        user={user}
-        org={orgProps}
-        tabs="org"
-        active="projects"
-        links={orgLinks}
-      />,
-    );
-    expect(screen.getByRole('button', { name: /^Switch scope/ })).toBeInTheDocument();
-    const tabs = screen.getByRole('navigation', { name: 'Organization sections' });
-    expect(within(tabs).getByRole('link', { name: 'Projects' })).toHaveAttribute('aria-current', 'page');
-    expect(within(tabs).getByRole('link', { name: 'Projects' })).toHaveAttribute('href', '/o/acme/projects');
-    expect(within(tabs).getByRole('link', { name: 'Org settings' })).toHaveAttribute('href', '/o/acme/settings');
-    expect(within(tabs).getByRole('link', { name: 'Org settings' })).not.toHaveAttribute('aria-current');
-    expect(screen.getByRole('button', { name: 'Notifications (coming soon)' })).toBeInTheDocument();
-  });
-  it('shows only Projects without a settings link (BR-43)', () => {
-    render(
-      <TopBar
-        crumbs={NO_PAGE_CRUMBS}
-        variant="global"
-        user={user}
-        org={{ ...orgProps, settingsHref: undefined }}
-        tabs="org"
-        active="projects"
-        links={orgLinks}
-      />,
-    );
-    const tabs = screen.getByRole('navigation', { name: 'Organization sections' });
-    expect(within(tabs).getAllByRole('link')).toHaveLength(1);
-  });
-  it('tabs none renders no Main nav (BR-43)', () => {
-    render(<TopBar crumbs={NO_PAGE_CRUMBS} variant="global" user={user} org={orgProps} tabs="none" />);
-    expect(screen.queryByRole('navigation', { name: 'Organization sections' })).toBeNull();
-    expect(screen.queryByRole('navigation', { name: 'Project sections' })).toBeNull();
-    expect(screen.getByRole('button', { name: /^Switch scope/ })).toBeInTheDocument();
-  });
-  it('defaults to no tabs on the org level and keeps the brand link (BR-48)', () => {
-    render(<TopBar crumbs={NO_PAGE_CRUMBS} variant="global" user={user} org={orgProps} />);
-    expect(screen.queryByRole('navigation', { name: 'Organization sections' })).toBeNull();
-    expect(screen.queryByRole('navigation', { name: 'Project sections' })).toBeNull();
-    expect(screen.getByRole('link', { name: 'Agent Desk, all projects' })).toBeInTheDocument();
   });
   it('a no-org person sees "No organization" and the bell (BR-43)', () => {
     render(
       <TopBar
         crumbs={NO_PAGE_CRUMBS}
-        variant="global"
         user={user}
         org={{ ...orgProps, current: null, orgs: [], platformAdmin: false }}
       />,
@@ -284,133 +106,54 @@ describe('TopBar org level', () => {
     expect(screen.getByRole('button', { name: 'Notifications (coming soon)' })).toBeInTheDocument();
   });
   it('cuts a long org name with a title', () => {
-    render(
-      <TopBar
-        crumbs={NO_PAGE_CRUMBS}
-        variant="global"
-        user={user}
-        org={{ ...orgProps, ...orgSwitchFixtures.longName }}
-      />,
-    );
+    render(<TopBar crumbs={NO_PAGE_CRUMBS} user={user} org={{ ...orgProps, ...orgSwitchFixtures.longName }} />);
     const name = orgSwitchFixtures.longName.current?.name ?? '';
     expect(screen.getByText(name)).toHaveAttribute('title', name);
   });
-  it('without org renders only the brand, the bell and the avatar', () => {
-    render(<TopBar crumbs={NO_PAGE_CRUMBS} variant="global" user={user} />);
-    expect(screen.queryByRole('navigation', { name: 'Organization sections' })).toBeNull();
-    expect(screen.queryByRole('navigation', { name: 'Project sections' })).toBeNull();
-    expect(screen.queryByRole('button', { name: /^Switch project/ })).toBeNull();
-    expect(screen.getByRole('img', { name: 'Agent Desk' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Notifications (coming soon)' })).toBeInTheDocument();
+  it('truncates a long project name with a title', () => {
+    const name = 'x'.repeat(80);
+    render(<TopBar crumbs={NO_PAGE_CRUMBS} user={user} projectName={name} />);
+    const el = screen.getByText(name);
+    expect(el).toHaveAttribute('title', name);
+    expect(el.className).toMatch(/name/);
+    expect(screen.getByRole('button', { name: /^Switch project/ })).toBeInTheDocument();
   });
-});
-
-describe('TopBar platform', () => {
-  it('the platform bar has the scope crumb, page crumbs, Platform sections tabs and the bell', () => {
-    render(
-      <TopBar
-        variant="platform"
-        user={user}
-        org={{ ...orgProps, scope: 'platform' }}
-        crumbs={[{ label: 'Organizations', href: '/platform/orgs' }, { label: 'Harbor Labs' }]}
-        platformTabs={{
-          active: 'orgs',
-          links: { orgs: '/platform/orgs', admins: '/platform/admins', audit: '/platform/audit' },
-        }}
-      />,
-    );
-    expect(screen.getByRole('button', { name: 'Switch scope, currently Platform' })).toBeInTheDocument();
-    const crumbs = screen.getByRole('navigation', { name: 'Breadcrumb' });
-    expect(within(crumbs).getByRole('link', { name: 'Organizations' })).toHaveAttribute('href', '/platform/orgs');
-    expect(within(crumbs).getByText('Harbor Labs')).toBeInTheDocument();
-    const tabs = screen.getByRole('navigation', { name: 'Platform sections' });
-    expect(within(tabs).getByRole('link', { name: 'Organizations' })).toHaveAttribute('aria-current', 'page');
-    expect(screen.getByRole('button', { name: 'Notifications (coming soon)' })).toBeInTheDocument();
-    expect(document.title).toContain('Platform');
+  it('shows no org text when no org crumb is given', () => {
+    render(<TopBar crumbs={NO_PAGE_CRUMBS} user={user} projectName={projectName} />);
+    expect(screen.queryByRole('button', { name: /^Switch scope/ })).toBeNull();
+    expect(screen.getByRole('button', { name: /^Switch project/ })).toBeInTheDocument();
   });
-});
-
-describe('TopBar project level with the org crumb', () => {
-  it('renders org crumb, project crumb, Runs and Settings tabs, repo link and bell (BR-43)', () => {
-    render(
-      <TopBar
-        crumbs={NO_PAGE_CRUMBS}
-        variant="project"
-        user={user}
-        org={orgProps}
-        project={{ name: project.name, repoUrl: project.repoUrl }}
-        active="desk"
-        links={{ desk: '/desk' }}
-      />,
-    );
+  it('renders the org crumb, the project crumb and the bell', () => {
+    render(<TopBar crumbs={NO_PAGE_CRUMBS} user={user} org={orgProps} projectName={projectName} />);
     expect(screen.getByRole('button', { name: /^Switch scope/ })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Switch project, currently invoicer-api' })).toHaveTextContent(
       /^invoicer-api$/,
     );
-    const tabs = screen.getByRole('navigation', { name: 'Project sections' });
-    expect(within(tabs).getByRole('link', { name: 'Project settings' })).toHaveAttribute('aria-current', 'page');
-    expect(within(tabs).getByRole('link', { name: /Runs/ })).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: /Repo on GitHub/ })).toHaveAttribute('href', project.repoUrl);
     expect(screen.getByRole('button', { name: 'Notifications (coming soon)' })).toBeInTheDocument();
   });
-  it('shows no org text when no org crumb is given', () => {
-    render(<TopBar crumbs={NO_PAGE_CRUMBS} variant="project" user={user} project={project} active="runs" />);
-    expect(screen.queryByText('harbor-labs')).toBeNull();
-    expect(screen.queryByRole('button', { name: /^Switch scope/ })).toBeNull();
-    expect(screen.getByRole('button', { name: /^Switch project/ })).toBeInTheDocument();
-  });
-  it("the brand link goes to the org crumb's projects href when links.projects is omitted", () => {
-    render(
-      <TopBar
-        crumbs={NO_PAGE_CRUMBS}
-        variant="project"
-        user={user}
-        project={project}
-        org={{ ...orgProps, projectsHref: '/o/acme/projects' }}
-      />,
-    );
+  it('sends the logo to the given address, "/projects" without one', () => {
+    const { rerender } = render(<TopBar crumbs={NO_PAGE_CRUMBS} user={user} org={orgProps} />);
+    expect(screen.getByRole('link', { name: 'Agent Desk, all projects' })).toHaveAttribute('href', '/projects');
+    rerender(<TopBar crumbs={NO_PAGE_CRUMBS} user={user} org={orgProps} logoHref="/o/acme/projects" />);
     expect(screen.getByRole('link', { name: 'Agent Desk, all projects' })).toHaveAttribute('href', '/o/acme/projects');
   });
-});
-
-describe('TopBar run', () => {
-  const runsHref = '/o/acme/p/api/runs';
-  const runCrumbs = [{ label: 'Runs', href: runsHref }, { label: 'Run 61' }];
-  it('renders four crumbs, children and actions, no tabs and one bell', () => {
-    render(
-      <TopBar
-        variant="run"
-        user={user}
-        org={orgProps}
-        project={{ name: project.name, repoUrl: project.repoUrl }}
-        crumbs={runCrumbs}
-        actions={<button>Cancel run</button>}
-      >
-        <span>Running pill</span>
-      </TopBar>,
-    );
-    const crumbs = screen.getByRole('navigation', { name: 'Breadcrumb' });
-    expect(within(crumbs).getByRole('button', { name: /^Switch scope/ })).toBeInTheDocument();
-    expect(within(crumbs).getByRole('button', { name: /^Switch project/ })).toBeInTheDocument();
-    expect(within(crumbs).getByRole('link', { name: 'Runs' })).toHaveAttribute('href', runsHref);
-    const last = within(crumbs).getByText('Run 61');
-    expect(last).toHaveAttribute('aria-current', 'page');
-    expect(last.tagName).not.toBe('A');
-    expect(screen.queryByRole('navigation', { name: 'Organization sections' })).toBeNull();
-    expect(screen.queryByRole('navigation', { name: 'Project sections' })).toBeNull();
-    expect(screen.getAllByRole('button', { name: 'Notifications (coming soon)' })).toHaveLength(1);
-    expect(screen.getByText('Running pill')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Cancel run' })).toBeInTheDocument();
-    expect(screen.queryByText('Agent Desk')).toBeNull();
+  it('shows the "Open menu" button only with a handler, and reports the drawer state', async () => {
+    const onOpenMenu = vi.fn();
+    const { rerender } = render(<TopBar crumbs={NO_PAGE_CRUMBS} user={user} />);
+    expect(screen.queryByRole('button', { name: 'Open menu' })).toBeNull();
+    rerender(<TopBar crumbs={NO_PAGE_CRUMBS} user={user} onOpenMenu={onOpenMenu} menuOpen />);
+    const button = screen.getByRole('button', { name: 'Open menu' });
+    expect(button).toHaveAttribute('aria-expanded', 'true');
+    await userEvent.click(button);
+    expect(onOpenMenu).toHaveBeenCalledTimes(1);
   });
-  it('opens the project switcher from the run-level project crumb (TC-46.3)', async () => {
+  it('opens the project switcher from the project crumb (TC-46.3)', async () => {
     const onOpen = vi.fn();
     render(
       <TopBar
-        variant="run"
         user={user}
         org={orgProps}
-        project={{ name: project.name, repoUrl: project.repoUrl }}
+        projectName={projectName}
         projectMenu={{
           status: 'ready',
           onOpen,
@@ -419,7 +162,7 @@ describe('TopBar run', () => {
             { name: 'invoicer-web', needsYou: 0, href: '/b' },
           ],
         }}
-        crumbs={runCrumbs}
+        crumbs={[{ label: 'Runs', href: '/runs' }, { label: 'Run 61' }]}
       />,
     );
     const crumbs = screen.getByRole('navigation', { name: 'Breadcrumb' });
@@ -527,15 +270,10 @@ describe('ProjectMenu', () => {
 
 describe('TopBar account menu', () => {
   const variants = {
-    global: <TopBar crumbs={NO_PAGE_CRUMBS} variant="global" user={user} />,
-    project: <TopBar crumbs={NO_PAGE_CRUMBS} variant="project" user={user} project={project} active="runs" />,
+    scope: <TopBar crumbs={NO_PAGE_CRUMBS} user={user} />,
+    project: <TopBar crumbs={NO_PAGE_CRUMBS} user={user} projectName={projectName} />,
     run: (
-      <TopBar
-        variant="run"
-        user={user}
-        project={{ name: project.name }}
-        crumbs={[{ label: 'Runs', href: '/runs' }, { label: 'Run 61' }]}
-      />
+      <TopBar user={user} projectName={projectName} crumbs={[{ label: 'Runs', href: '/runs' }, { label: 'Run 61' }]} />
     ),
   } as const;
   const setup = (variant: keyof typeof variants) => {
@@ -571,7 +309,7 @@ describe('TopBar account menu', () => {
   );
 
   it('aria-controls on the avatar points at the role="menu" element itself', async () => {
-    const { events } = setup('global');
+    const { events } = setup('scope');
     await events.click(trigger());
     const controlled = trigger().getAttribute('aria-controls');
     expect(controlled).toBeTruthy();
@@ -579,7 +317,7 @@ describe('TopBar account menu', () => {
   });
 
   it('closes when the avatar is pressed again', async () => {
-    const { events } = setup('global');
+    const { events } = setup('scope');
     await events.click(trigger());
     expect(menu()).toBeInTheDocument();
     await events.click(trigger());
@@ -588,7 +326,7 @@ describe('TopBar account menu', () => {
   });
 
   it('shows the name with the full email directly under it, then a separator, My invitations and Logout with an icon', async () => {
-    const { events } = setup('global');
+    const { events } = setup('scope');
     await events.click(trigger());
     const m = screen.getByRole('menu', { name: 'Account' });
     const name = within(m).getByText('Kim Hale');
@@ -608,7 +346,7 @@ describe('TopBar account menu', () => {
   });
 
   it('opens from the keyboard, closes on Escape with focus back on the avatar, and closes on an outside press', async () => {
-    const { onSignOut, events } = setup('global');
+    const { onSignOut, events } = setup('scope');
     trigger().focus();
     await events.keyboard('{Enter}');
     expect(menu()).toBeInTheDocument();
@@ -625,7 +363,7 @@ describe('TopBar account menu', () => {
     const events = userEvent.setup();
     render(
       <SignOutProvider onSignOut={vi.fn()}>
-        <TopBar crumbs={NO_PAGE_CRUMBS} variant="global" user={user} />
+        <TopBar crumbs={NO_PAGE_CRUMBS} user={user} />
       </SignOutProvider>,
     );
     await events.click(trigger());
@@ -633,7 +371,7 @@ describe('TopBar account menu', () => {
   });
 
   it('keeps the avatar static when nothing can sign the user out (no provider)', () => {
-    render(<TopBar crumbs={NO_PAGE_CRUMBS} variant="global" user={user} />);
+    render(<TopBar crumbs={NO_PAGE_CRUMBS} user={user} />);
     expect(screen.queryByRole('button', { name: /^Account menu/ })).toBeNull();
     expect(screen.getByTitle('kim-hale')).toHaveTextContent('KH');
   });
@@ -645,20 +383,20 @@ describe('TopBar breadcrumb', () => {
     ...orgProps,
     current: { id: 'org-named', slug: 'named', name },
   });
-  it('every variant renders exactly one Breadcrumb nav', () => {
+  it('renders exactly one Breadcrumb nav with the org, the project and the page crumbs', () => {
     for (const bar of [
-      <TopBar key="g" variant="global" user={user} org={orgProps} crumbs={[{ label: 'Projects' }]} />,
-      <TopBar key="p" variant="project" user={user} org={orgProps} project={project} crumbs={NO_PAGE_CRUMBS} />,
-      <TopBar key="r" variant="run" user={user} org={orgProps} project={project} crumbs={runCrumbs} />,
+      <TopBar key="g" user={user} org={orgProps} crumbs={[{ label: 'Projects' }]} />,
+      <TopBar key="p" user={user} org={orgProps} projectName={projectName} crumbs={NO_PAGE_CRUMBS} />,
+      <TopBar key="r" user={user} org={orgProps} projectName={projectName} crumbs={runCrumbs} />,
     ]) {
       const { unmount } = render(bar);
       expect(screen.getAllByRole('navigation', { name: 'Breadcrumb' })).toHaveLength(1);
       unmount();
     }
   });
-  it('the project bar has no slash outside the Breadcrumb', () => {
+  it('has no slash outside the Breadcrumb', () => {
     const { container } = render(
-      <TopBar variant="project" user={user} org={orgProps} project={project} crumbs={NO_PAGE_CRUMBS} />,
+      <TopBar user={user} org={orgProps} projectName={projectName} crumbs={NO_PAGE_CRUMBS} />,
     );
     const nav = screen.getByRole('navigation', { name: 'Breadcrumb' });
     const slashes = [...container.querySelectorAll('[aria-hidden="true"]')].filter((el) => el.textContent === '/');
@@ -668,9 +406,8 @@ describe('TopBar breadcrumb', () => {
   it('page crumbs follow the scope and project crumbs; only the last has aria-current="page"', () => {
     render(
       <TopBar
-        variant="project"
         user={user}
-        project={project}
+        projectName={projectName}
         crumbs={[{ label: 'Project settings', href: '/d' }, { label: 'Skills' }]}
       />,
     );
@@ -681,33 +418,28 @@ describe('TopBar breadcrumb', () => {
     expect(current[0]?.tagName).toBe('B');
     expect(current[0]).toHaveTextContent('Skills');
   });
+  it('a run page reads org, project, a Runs link and the run, the last one current', () => {
+    render(<TopBar user={user} org={named('Harbor Labs')} projectName={projectName} crumbs={runCrumbs} />);
+    const nav = screen.getByRole('navigation', { name: 'Breadcrumb' });
+    expect(within(nav).getByRole('link', { name: 'Runs' })).toHaveAttribute('href', '/runs');
+    const last = within(nav).getByText('Run 61');
+    expect(last).toHaveAttribute('aria-current', 'page');
+    expect(last.tagName).not.toBe('A');
+  });
   it('a loading crumb is a status named "Loading organization" with no text', () => {
-    render(<TopBar variant="global" user={user} crumbs={[{ label: '', loading: true, what: 'organization' }]} />);
+    render(<TopBar user={user} crumbs={[{ label: '', loading: true, what: 'organization' }]} />);
     expect(screen.getByRole('status', { name: 'Loading organization' })).toHaveTextContent('');
-  });
-  it('sets the title from the crumbs and the scope', () => {
-    const { unmount } = render(
-      <TopBar variant="global" user={user} org={named('Harbor Labs')} crumbs={[{ label: 'Projects' }]} />,
-    );
-    expect(document.title).toBe('Projects · Harbor Labs · Agent Desk');
-    unmount();
-    render(<TopBar variant="project" user={user} project={project} crumbs={[{ label: 'Runs' }]} />);
-    expect(document.title).toBe('Runs · invoicer-api · Agent Desk');
-  });
-  it('a forbidden state sets the fixed title', () => {
-    render(<TopBar variant="global" user={user} crumbs={NO_PAGE_CRUMBS} state="forbidden" />);
-    expect(document.title).toBe("You don't have access · Agent Desk");
   });
   it('a 60-character org and project name keep ellipsis and title', () => {
     const orgName = 'o'.repeat(60);
     const name = 'p'.repeat(60);
-    render(<TopBar variant="project" user={user} org={named(orgName)} project={{ name }} crumbs={NO_PAGE_CRUMBS} />);
+    render(<TopBar user={user} org={named(orgName)} projectName={name} crumbs={NO_PAGE_CRUMBS} />);
     expect(screen.getByText(orgName)).toHaveAttribute('title', orgName);
     expect(screen.getByText(name)).toHaveAttribute('title', name);
   });
   it('requires crumbs', () => {
     // @ts-expect-error crumbs is required
-    const bar = <TopBar variant="global" user={user} />;
+    const bar = <TopBar user={user} />;
     expect(bar).toBeTruthy();
   });
 });

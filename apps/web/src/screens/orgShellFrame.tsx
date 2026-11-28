@@ -1,7 +1,7 @@
-import { useState, type ReactNode } from 'react';
-import { NO_PAGE_CRUMBS, SubNav, type OrgSwitchProps, type PageCrumb, type PageState } from '@/components';
+import type { ReactNode } from 'react';
+import { NO_PAGE_CRUMBS, ORG_SETTINGS_CRUMB, type OrgSwitchProps, type PageCrumb } from '@/components';
 import { orgMenuFixtures, user, withOrgMenuActive, type OrgMenuPage } from '@/mocks';
-import type { Actor, OrgOption } from '@/mocks/types';
+import type { Actor, OrgOption, OrgSettingsTabKey } from '@/mocks/types';
 import { ShellFrame } from './shellFrame';
 
 const harbor: OrgOption = { id: 'org-harbor', slug: 'harbor-labs', name: 'Harbor Labs' };
@@ -24,7 +24,6 @@ export interface OrgShellFrameProps {
   org?: OrgSwitchProps;
   user?: Actor;
   crumbs?: readonly PageCrumb[];
-  state?: PageState;
   /** Menu collapsed to its 48px strip. */
   collapsed?: boolean;
   height?: number;
@@ -41,22 +40,46 @@ export function OrgShellFrame({
   org = harborOrg,
   user: actor = user,
   crumbs = NO_PAGE_CRUMBS,
-  state,
-  collapsed: startCollapsed = false,
+  collapsed = false,
   height = 900,
   children,
 }: OrgShellFrameProps) {
-  const [collapsed, setCollapsed] = useState(startCollapsed);
   const fixture = orgMenuFixtures[viewer];
   const model = page === null ? fixture : withOrgMenuActive(fixture, page);
   return (
-    <ShellFrame
-      height={height}
-      menuMode={collapsed ? 'collapsed' : 'full'}
-      menu={<SubNav {...model} collapsed={collapsed} onToggleCollapsed={() => setCollapsed((c) => !c)} />}
-      topBar={{ variant: 'global', user: actor, crumbs, org, tabs: 'none', ...(state && { state }) }}
-    >
+    <ShellFrame height={height} menuModel={model} collapsed={collapsed} topBar={{ user: actor, crumbs, org }}>
       {children}
     </ShellFrame>
+  );
+}
+
+export type OrgSettingsRole = 'owner' | 'admin' | 'projectAdmin' | 'member';
+/** The settings page each story shows, in the one shell: the org menu of the role, the page current. `sideMenu: false` is the no-access page. */
+export function OrgSettingsFrame({
+  role,
+  active,
+  sideMenu = true,
+  orgName,
+  children,
+}: {
+  role: OrgSettingsRole;
+  active: OrgSettingsTabKey;
+  sideMenu?: boolean;
+  /** The org's current name in the bar, when a story shows it after a rename. */
+  orgName?: string;
+  children: ReactNode;
+}) {
+  const current =
+    harborOrg.current === null ? null : { ...harborOrg.current, ...(orgName !== undefined && { name: orgName }) };
+  const org: OrgSwitchProps = { ...harborOrg, current };
+  return (
+    <OrgShellFrame
+      viewer={role === 'admin' ? 'owner' : role}
+      page={sideMenu ? active : null}
+      org={org}
+      crumbs={[{ label: ORG_SETTINGS_CRUMB[active] }]}
+    >
+      {children}
+    </OrgShellFrame>
   );
 }

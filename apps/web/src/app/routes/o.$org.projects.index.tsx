@@ -20,7 +20,7 @@ import type { OnboardingChecklistState } from '@/components';
 import { useToast } from '@/ds';
 import { forgetProject, useDeleteProject } from '@/features/desk/mutations';
 import { orgAccessQuery, toAccess } from '@/features/access/queries';
-import { useAppBar } from '@/features/chrome/appBar';
+import { orgsQuery } from '@/features/auth/session';
 import { myInvitationsQuery } from '@/features/invitations/queries';
 import { checklistKey, checklistQuery, toChecklistSteps } from '@/features/onboarding/checklist';
 import { toConnectionStatus, toProject } from '@/features/projects/map';
@@ -71,7 +71,7 @@ function ProjectsPage() {
   const page = pageOfSearch(Route.useSearch());
   const navigate = useNavigate({ from: Route.fullPath });
   const now = useNow();
-  const bar = useAppBar(org);
+  const { data: orgs } = useSuspenseQuery(orgsQuery);
   const { data: accessDto } = useSuspenseQuery(orgAccessQuery(org));
   const access = toAccess(accessDto);
   const qc = useQueryClient();
@@ -94,7 +94,7 @@ function ProjectsPage() {
       deleting.current.delete(p.id);
     }
   };
-  const checklist = useChecklistState(org, bar.org.current?.id, can(access, 'project:create'));
+  const checklist = useChecklistState(org, orgs.find((o) => o.slug === org)?.id, can(access, 'project:create'));
   // A failed invitations list hides the banner; it never breaks the page.
   const { data: invitations } = useQuery(myInvitationsQuery);
   const pending = invitations?.total ?? 0;
@@ -127,7 +127,6 @@ function ProjectsPage() {
   };
   return (
     <Projects
-      user={bar.user}
       projects={projects}
       newHref={`${orgPath}/projects/new/repo`}
       projectHref={(p) => `${orgPath}/p/${encodeURIComponent(p.id)}/runs`}
@@ -139,7 +138,6 @@ function ProjectsPage() {
         return href === undefined ? undefined : `${href}?tab=github`;
       }}
       pagination={pagination}
-      org={bar.org}
       {...(pending > 0 && { invitationsBanner: { count: pending, href: '/invitations' } })}
       canCreate={can(access, 'project:create')}
       // Errors are handled inside onDeleteProject (toast), so the returned promise never rejects.

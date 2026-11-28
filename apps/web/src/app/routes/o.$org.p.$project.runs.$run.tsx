@@ -206,7 +206,6 @@ function RunDetailRoute() {
 
   return (
     <RunDetail
-      height="viewport"
       data={data}
       lines={stored && !transcript ? scrollbackLines(events) : undefined}
       transcript={transcript}
@@ -216,15 +215,8 @@ function RunDetailRoute() {
       reconnectOverlay={live && term.state === 'gave_up'}
       reconnectBody={live ? GAVE_UP_BODY : undefined}
       inactiveBody={live && term.state === 'inactive' ? INACTIVE_BODY : undefined}
-      projectName={page.dto.name}
-      user={page.user}
-      org={page.org}
-      projectMenu={page.projectMenu}
-      run={{ runsHref: paths.runs, label: `Run ${number}` }}
       maxRunsPerTicket={page.dto.maxRunsPerTicket}
       links={{
-        projects: paths.projects,
-        runs: paths.runs,
         ...(page.desk.skills && { skills: paths.skills }),
         ...(page.desk.rules && { rules: paths.rules }),
         ...(page.desk.setup && { setup: paths.setup }),

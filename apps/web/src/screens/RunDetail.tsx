@@ -1,20 +1,7 @@
 import type { ReactNode } from 'react';
 import { Button, CommandChip, IconButton, Popover, StatusBadge, TicketRef } from '@/ds';
-import {
-  AppShell,
-  PageHeader,
-  PopoverCard,
-  TopBar,
-  TopBarSeparator,
-  type OrgSwitchProps,
-  type ProjectSwitchMenu,
-  type TermLine,
-  type TranscriptProps,
-  useShellOwnsChrome,
-} from '@/components';
+import { PageHeader, PopoverCard, type TermLine, type TranscriptProps } from '@/components';
 import type { RunDetailData } from '@/mocks';
-import { user as boardUser } from '@/mocks';
-import type { Actor } from '@/mocks/types';
 import styles from './Screens.module.css';
 import { RunSidePanel } from './RunSidePanel';
 import { RunTerminalArea } from './RunTerminalArea';
@@ -24,9 +11,6 @@ export interface RunDetailProps {
   lines?: TermLine[];
   panelCollapsed?: boolean;
   cancelConfirmOpen?: boolean;
-  /** Board height in pixels; `'viewport'` fills the window (the app route). */
-  height?: number | 'viewport';
-  projectName?: string;
   /**
    * The run actions (Cancel, Finish, Stop session, Close session, Resume) show only for the handlers that are given:
    * the route passes one only when the viewer holds that permission on this run (a member on their own runs, never a
@@ -56,14 +40,6 @@ export interface RunDetailProps {
   reconnectBody?: ReactNode;
   /** Shows the "Terminal closed for inactivity" overlay with this text and a Reconnect button (see RunTerminalArea). */
   inactiveBody?: ReactNode;
-  /** The signed-in user in the top bar; defaults to the board's. */
-  user?: Actor;
-  /** The org crumb; with `run` the bar reads org / project / Runs / Run N, with no bell. */
-  org?: OrgSwitchProps;
-  /** The project menu behind the project crumb (with `run`); without it the crumb does nothing. */
-  projectMenu?: ProjectSwitchMenu;
-  /** The "Runs" crumb link and the current run's label; defaults to `links.runs` and "Run N". */
-  run?: { runsHref: string; label: string };
   /** The project's run limit per ticket (the chain's "max N runs"); defaults to the board's 10. */
   maxRunsPerTicket?: number;
   /** No live pod: show this Transcript in the terminal area (see RunTerminalArea). */
@@ -83,8 +59,6 @@ export interface RunDetailProps {
 }
 
 export interface RunDetailLinks {
-  projects?: string;
-  runs?: string;
   skills?: string;
   rules?: string;
   /** Desk workspace setup (the Setup row of the side panel). */
@@ -106,8 +80,6 @@ export function RunDetail({
   lines,
   panelCollapsed,
   cancelConfirmOpen,
-  height = 900,
-  projectName = 'invoicer-api',
   onCancel,
   onCancelClose,
   onCancelConfirm,
@@ -123,10 +95,6 @@ export function RunDetail({
   reconnectOverlay,
   reconnectBody,
   inactiveBody,
-  user = boardUser,
-  org,
-  projectMenu,
-  run: runCrumb,
   maxRunsPerTicket,
   transcript,
   onStopOpen,
@@ -149,20 +117,13 @@ export function RunDetail({
   const reopened = data.reopened === true;
   const starting = run.status === 'queued' || run.status === 'starting';
 
-  const owned = useShellOwnsChrome();
-  // In the shell each confirm sits inside the element wrapping its header button; on the old bar it keeps fixed offsets.
-  const anchored = (button: ReactNode, popover: ReactNode) =>
-    owned ? (
-      <span className={styles.runActionAnchor}>
-        {button}
-        {popover}
-      </span>
-    ) : (
-      <>
-        {button}
-        {popover}
-      </>
-    );
+  // Each confirm sits inside the element wrapping its header button.
+  const anchored = (button: ReactNode, popover: ReactNode) => (
+    <span className={styles.runActionAnchor}>
+      {button}
+      {popover}
+    </span>
+  );
 
   const cancelPopover = (
     <Popover
@@ -171,7 +132,7 @@ export function RunDetail({
       label={`Cancel run ${run.id}?`}
       onClose={onCancelClose}
       width={340}
-      style={owned ? { right: 0, top: 'calc(100% + 6px)' } : { right: 150, top: 56 }}
+      style={{ right: 0, top: 'calc(100% + 6px)' }}
     >
       <PopoverCard
         title={`Cancel run ${run.id}?`}
@@ -204,7 +165,7 @@ export function RunDetail({
       label="Stop the session?"
       onClose={onStopClose}
       width={340}
-      style={owned ? { right: 0, top: 'calc(100% + 6px)' } : { right: 290, top: 56 }}
+      style={{ right: 0, top: 'calc(100% + 6px)' }}
     >
       <PopoverCard
         title="Stop the session?"
@@ -269,14 +230,14 @@ export function RunDetail({
               >
                 Stop session
               </Button>,
-              owned && stopPopover,
+              stopPopover,
             )}
           {onCancel &&
             anchored(
               <Button variant="danger" icon="x" disabled={busy} onClick={onCancel}>
                 Cancel run
               </Button>,
-              owned && cancelPopover,
+              cancelPopover,
             )}
         </>
       )}
@@ -290,14 +251,6 @@ export function RunDetail({
       onClick={onTogglePanel}
     />
   );
-  const actions = (
-    <>
-      {runButtons}
-      <TopBarSeparator />
-      {panelButton}
-    </>
-  );
-
   const statusBadge = reopened ? (
     <StatusBadge status="succeeded" variant="pill">
       Succeeded · Session open
@@ -345,64 +298,33 @@ export function RunDetail({
     </>
   );
 
-  if (owned) {
-    // The shell draws the bar and the menu: one main with the page header (title, facts, run actions) over the
-    // terminal and the context panel.
-    const hasActions = reopened
-      ? onCloseSession !== undefined
-      : ended || parked
-        ? true
-        : onFinish !== undefined || (stoppable && (onStopOpen || onStop) !== undefined) || onCancel !== undefined;
-    const headerActions =
-      hasActions || onTogglePanel ? (
-        <>
-          {runButtons}
-          {onTogglePanel && panelButton}
-        </>
-      ) : undefined;
-    return (
-      <main className={styles.runShellMain}>
-        <PageHeader
-          title={`Run ${run.id}`}
-          meta={
-            <>
-              {statusBadge}
-              {facts}
-            </>
-          }
-          actions={headerActions}
-        />
-        <div className={styles.runBody}>{body}</div>
-      </main>
-    );
-  }
-
+  // The shell draws the bar and the menu: one main with the page header (title, facts, run actions) over the
+  // terminal and the context panel.
+  const hasActions = reopened
+    ? onCloseSession !== undefined
+    : ended || parked
+      ? true
+      : onFinish !== undefined || (stoppable && (onStopOpen || onStop) !== undefined) || onCancel !== undefined;
+  const headerActions =
+    hasActions || onTogglePanel ? (
+      <>
+        {runButtons}
+        {onTogglePanel && panelButton}
+      </>
+    ) : undefined;
   return (
-    <AppShell
-      height={height}
-      topBar={
-        <TopBar
-          variant="run"
-          user={user}
-          projectMenu={projectMenu}
-          links={{ projects: links?.projects }}
-          org={org}
-          // The run bar shows the name only; the repo link belongs to the project bar.
-          project={{ name: projectName }}
-          crumbs={[
-            { label: 'Runs', href: runCrumb?.runsHref ?? links?.runs ?? '/runs' },
-            { label: runCrumb?.label ?? `Run ${run.id}` },
-          ]}
-          actions={actions}
-        >
-          {statusBadge}
-          {facts}
-        </TopBar>
-      }
-    >
-      <main className={styles.runMain}>{body}</main>
-      {cancelPopover}
-      {stopPopover}
-    </AppShell>
+    <main className={styles.runShellMain}>
+      <PageHeader
+        title={`Run ${run.id}`}
+        meta={
+          <>
+            {statusBadge}
+            {facts}
+          </>
+        }
+        actions={headerActions}
+      />
+      <div className={styles.runBody}>{body}</div>
+    </main>
   );
 }

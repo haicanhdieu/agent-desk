@@ -11,7 +11,6 @@ import {
   setupTestTerminal,
   setupVersions,
   terminalByRun,
-  user,
 } from '@/mocks';
 import { DeskSetup, SETUP_SCRIPT_STARTER, type DeskSetupProps } from './DeskSetup';
 import type { DeskSetupEnvironmentProps } from './DeskSetupEnvironment';
@@ -74,7 +73,7 @@ describe('DeskSetup', () => {
     expect(screen.getByRole('textbox', { name: 'Setup script' })).toHaveValue(SETUP_SCRIPT_STARTER);
     expect(screen.getByRole('button', { name: 'Save version 1' })).toBeEnabled();
   });
-  it('splits the column between the editor and the log only when fitting the window; a board keeps its fixed editor', () => {
+  it('splits the column between the editor and the log while a test shows', () => {
     const test = {
       status: 'failed' as const,
       phases: setupPhases.failed,
@@ -85,9 +84,7 @@ describe('DeskSetup', () => {
       started: '14:31',
     };
     const editorBox = () => screen.getByRole('textbox', { name: 'Setup script' }).closest('[class*="setupTestEditor"]');
-    const { rerender } = render(<DeskSetup {...props} test={test} />);
-    expect(editorBox()?.className).not.toMatch(/Fit/);
-    rerender(<DeskSetup {...props} height="viewport" test={test} />);
+    render(<DeskSetup {...props} test={test} />);
     expect(editorBox()?.className).toMatch(/Fit/);
   });
 
@@ -212,19 +209,9 @@ describe('DeskSetup', () => {
 
   it('has loading and error states', () => {
     const { rerender } = render(<DeskSetup {...props} loading />);
-    expect(screen.getByRole('main')).toHaveAttribute('aria-busy', 'true');
+    expect(screen.getByRole('main').querySelector('[aria-busy="true"]')).not.toBeNull();
     rerender(<DeskSetup {...props} loadError="Server down" />);
     expect(screen.getByText('Could not load the setup script')).toBeInTheDocument();
-  });
-
-  it('fits the window in the loading and error states when asked to', () => {
-    const shell = () => screen.getByRole('main').closest('[class*="appViewport"]');
-    const { rerender } = render(<DeskSetup {...props} height="viewport" loading />);
-    expect(shell()).not.toBeNull();
-    rerender(<DeskSetup {...props} height="viewport" loadError="Server down" />);
-    expect(shell()).not.toBeNull();
-    rerender(<DeskSetup {...props} loadError="Server down" />);
-    expect(shell()).toBeNull();
   });
 });
 
@@ -233,7 +220,6 @@ describe('SetupWorkspace', () => {
     const onContinue = vi.fn();
     render(
       <SetupWorkspace
-        user={user}
         projectName="invoicer-api"
         repo="harbor-labs/invoicer-api"
         plugins={{ plugins: [] }}

@@ -292,17 +292,7 @@ describe('onboarding fixtures', () => {
     expect(orgOptions.length).toBeGreaterThanOrEqual(3);
     expect(orgOptions.some((o) => o.name.length === 60)).toBe(true);
     expect(Object.keys(orgSwitchFixtures).sort()).toEqual(
-      [
-        'longName',
-        'longNameSettings',
-        'oneOrg',
-        'oneOrgSettings',
-        'platformAdmin',
-        'platformAdminNoOrg',
-        'platformAdminSettings',
-        'severalOrgs',
-        'severalOrgsSettings',
-      ].sort(),
+      ['longName', 'oneOrg', 'platformAdmin', 'platformAdminNoOrg', 'severalOrgs'].sort(),
     );
     expect(orgSwitchFixtures.platformAdminNoOrg.current).toBeNull();
     expect(Object.keys(checklistSteps)).toEqual(['none', 'partial', 'complete']);
@@ -505,8 +495,6 @@ describe('tenant-admin fixtures', () => {
   it('exposes the org settings tabs per role', () => {
     expect(orgSettingsFixtures.org).toEqual({ name: 'Harbor Labs', slug: 'harbor-labs' });
     expect(orgSettingsFixtures.tabs.projectAdmin).toEqual(['invitations']);
-    expect(orgSwitchFixtures.severalOrgsSettings.settingsHref).toBe('/o/acme/settings');
-    expect(orgSwitchFixtures.severalOrgs.settingsHref).toBeUndefined();
   });
 });
 

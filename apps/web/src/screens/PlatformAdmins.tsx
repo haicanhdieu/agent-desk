@@ -8,7 +8,6 @@ import {
   PlatformAdminRow,
   RouteLoadError,
   platformAdminColumns,
-  useShellOwnsChrome,
   type AddPlatformAdminDialogProps,
   type PaginationProps,
 } from '@/components';
@@ -40,7 +39,6 @@ const noop = () => {};
 
 /** The Platform admins page: who may open the platform area. Names and emails are text, never HTML. */
 export function PlatformAdmins({ view, onAdd, onRevoke, revokeConfirm, addDialog }: PlatformAdminsProps) {
-  const owned = useShellOwnsChrome();
   const addButton = (
     <Button variant="primary" icon="plus" onClick={onAdd}>
       Add platform admin
@@ -59,7 +57,7 @@ export function PlatformAdmins({ view, onAdd, onRevoke, revokeConfirm, addDialog
   }
 
   return (
-    <main className={owned ? styles.shellMain : styles.platformMain}>
+    <main className={styles.shellMain}>
       {view.kind === 'loading' && (
         <div className={styles.platformLoading} aria-busy="true" role="status" aria-label="Loading">
           <span aria-hidden="true">
@@ -75,14 +73,7 @@ export function PlatformAdmins({ view, onAdd, onRevoke, revokeConfirm, addDialog
       {view.kind === 'error' && <RouteLoadError title={view.title} requestId={view.requestId} onRetry={view.onRetry} />}
       {view.kind === 'ready' && (
         <>
-          {owned ? (
-            <PageHeader title="Platform admins" actions={addButton} />
-          ) : (
-            <div className={styles.listHead}>
-              <h1 tabIndex={-1}>Platform admins</h1>
-              {addButton}
-            </div>
-          )}
+          <PageHeader title="Platform admins" actions={addButton} />
           {view.rows.length === 0 ? (
             <EmptyState headingLevel={2} title="No platform admins" />
           ) : (

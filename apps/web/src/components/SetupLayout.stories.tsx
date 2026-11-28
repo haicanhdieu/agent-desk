@@ -12,8 +12,6 @@ const org = {
   platformAdmin: false,
   orgHref: (o: { slug: string }) => `/o/${o.slug}/projects`,
   createHref: '/platform/orgs/new',
-  projectsHref: '#projects',
-  settingsHref: '#settings',
 };
 const steps = [
   { label: 'Add agent', detail: 'Claude Code, opus' },
@@ -37,8 +35,6 @@ type Story = StoryObj<typeof meta>;
 
 export const Skills: Story = {
   args: {
-    user,
-    org,
     projectName: 'invoicer-api',
     steps,
     current: 1,
@@ -63,8 +59,6 @@ export const Skills: Story = {
 };
 export const WithAside: Story = {
   args: {
-    user,
-    org,
     projectName: 'invoicer-api',
     steps,
     current: 2,
@@ -79,8 +73,6 @@ export const WithAside: Story = {
 export const Saving: Story = {
   args: {
     ...Skills.args,
-    user,
-    org,
     projectName: 'invoicer-api',
     steps,
     current: 1,
@@ -95,8 +87,6 @@ export const Saving: Story = {
 /** A second button before Continue and a note under the footer (the Agent step after a failed test). */
 export const ContinueAnyway: Story = {
   args: {
-    user,
-    org,
     projectName: 'invoicer-api',
     steps,
     current: 0,
@@ -116,15 +106,11 @@ export const ContinueAnyway: Story = {
 // In the shell: the stepper takes the menu slot and the layout draws only the page. Below 1024px a header row at the
 // top of the page holds the step label and "Exit setup"; the stepper moves into the drawer.
 const shellBar = {
-  variant: 'global',
   user,
   crumbs: [{ label: 'Projects', href: '#projects' }, { label: 'New project' }],
   org,
-  tabs: 'none',
 } as const;
 const shellArgs = {
-  user,
-  org,
   projectName: 'invoicer-api',
   exitHref: '#projects',
   steps,

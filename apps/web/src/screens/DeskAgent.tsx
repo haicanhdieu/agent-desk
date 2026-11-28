@@ -2,9 +2,7 @@ import { useState, type ReactNode } from 'react';
 import { TabPanel, Tabs } from '@/ds';
 import {
   AgentPane,
-  AppShell,
   PageHeader,
-  useShellOwnsChrome,
   type AgentListProps,
   type AgentPaneProps,
   type DeleteAgentDialogProps,
@@ -12,7 +10,7 @@ import {
 import { DEFAULT_POLL_INTERVAL } from '@/mocks/connection';
 import type { ConnectionStatus, PollInterval, TriggerMode } from '@/mocks/types';
 import styles from './Screens.module.css';
-import { DeskFrame, SetupWarningBanner, type DeskFrameData } from './DeskFrame';
+import { SetupWarningBanner, type DeskFrameData } from './DeskFrame';
 import {
   AgentsPanel,
   DangerPanel,
@@ -37,10 +35,8 @@ const TABS: { value: DeskAgentTab; label: string }[] = [
 ];
 
 export interface DeskAgentProps {
-  /** Top bar and Desk navigation data. */
+  /** The project, its connection and the setup warning. */
   frame: DeskFrameData;
-  /** `'viewport'` fits the page to the window (the app route): only the open tab's panel scrolls. */
-  height?: 'viewport';
   /** The open tab; without it the screen keeps its own, starting on `agents`. */
   tab?: DeskAgentTab;
   onTabChange?(tab: DeskAgentTab): void;
@@ -105,7 +101,6 @@ function LimitsTab({ limits, ...panel }: { limits: AgentLimits } & Omit<LimitsPa
 
 export function DeskAgent({
   frame,
-  height,
   tab,
   onTabChange,
   agents = NO_LIST,
@@ -150,22 +145,16 @@ export function DeskAgent({
     onTriggerChange?.(next);
   };
 
-  const owned = useShellOwnsChrome();
   const lead = frame.warning ? <SetupWarningBanner warning={frame.warning} /> : undefined;
   const strip = (
     <div className={styles.agentTabs}>
       <Tabs tabs={tabs} value={active} onChange={changeTab} label="Agent and project settings" idPrefix={TAB_PREFIX} />
     </div>
   );
-  const panels = (shell: boolean) => (
+  const panels = (
     <>
       <TabPanel value="agents" active={active} idPrefix={TAB_PREFIX}>
-        <AgentsPanel
-          list={agents}
-          pane={shell ? undefined : pane}
-          deleteDialog={deleteDialog}
-          lead={shell ? lead : undefined}
-        />
+        <AgentsPanel list={agents} deleteDialog={deleteDialog} lead={lead} />
       </TabPanel>
       <TabPanel value="github" active={active} idPrefix={TAB_PREFIX}>
         <GitHubPanel
@@ -180,7 +169,7 @@ export function DeskAgent({
           onCheckNow={onCheckNow}
           checkingNow={checkingNow}
           checkNowError={checkNowError}
-          lead={shell ? lead : undefined}
+          lead={lead}
         />
       </TabPanel>
       <TabPanel value="limits" active={active} idPrefix={TAB_PREFIX}>
@@ -191,45 +180,25 @@ export function DeskAgent({
           error={limitsError}
           saving={savingLimits}
           readOnly={limitsReadOnly}
-          lead={shell ? lead : undefined}
+          lead={lead}
         />
       </TabPanel>
       {onDeleteProject && (
         <TabPanel value="danger" active={active} idPrefix={TAB_PREFIX}>
-          <DangerPanel onDeleteProject={onDeleteProject} lead={shell ? lead : undefined} />
+          <DangerPanel onDeleteProject={onDeleteProject} lead={lead} />
         </TabPanel>
       )}
     </>
   );
-  if (owned) {
-    // The shell draws the bar and the menu: one main holding the column (header, tabs, panel) and the side pane.
-    return (
-      <main className={styles.shellSplitMain}>
-        <div className={`${styles.agentSettingsMain} ${styles.shellSplitCol}`}>
-          <PageHeader title="Agent & settings" />
-          {strip}
-          {panels(true)}
-        </div>
-        {active === 'agents' && pane && <AgentPane key={`${pane.mode}-${pane.agent?.id ?? 'new'}`} {...pane} />}
-      </main>
-    );
-  }
-  const page = (
-    <DeskFrame active="agent" {...frame} connection={connection ?? frame.connection}>
-      <main className={styles.agentSettingsMain}>
-        <div className={styles.agentHead}>
-          <h1>Agent &amp; settings</h1>
-        </div>
+  // The shell draws the bar and the menu: one main holding the column (header, tabs, panel) and the side pane.
+  return (
+    <main className={styles.shellSplitMain}>
+      <div className={`${styles.agentSettingsMain} ${styles.shellSplitCol}`}>
+        <PageHeader title="Agent & settings" />
         {strip}
-        {panels(false)}
-      </main>
-    </DeskFrame>
-  );
-  return height === 'viewport' ? (
-    <AppShell height="viewport" topBar={null}>
-      {page}
-    </AppShell>
-  ) : (
-    page
+        {panels}
+      </div>
+      {active === 'agents' && pane && <AgentPane key={`${pane.mode}-${pane.agent?.id ?? 'new'}`} {...pane} />}
+    </main>
   );
 }

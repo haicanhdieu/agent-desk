@@ -1,7 +1,5 @@
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { type OrgSwitchProps } from '@/components';
-import { orgSwitchFixtures } from '@/mocks';
 import { runDetailPrMerged, runDetails, runUsageDetails, terminalByRun, transcriptFixtures } from '@/mocks';
 import type { RunDetailKey } from '@/mocks';
 import { RunDetail as RunDetailScreen } from './RunDetail';
@@ -31,8 +29,8 @@ const show = (k: RunDetailKey, extra: Partial<React.ComponentProps<typeof RunDet
 const ended: RunDetailKey[] = ['RunSucceeded', 'RunFailed', 'RunTimedOut', 'RunCancelled', 'RunExpired'];
 const FINISH_TITLE = 'Finish is available when the agent is waiting for you';
 
-describe('RunDetail top bar', () => {
-  it('the bar reads Runs / Run 62 and the title never holds the ticket title', () => {
+describe('RunDetail page header', () => {
+  it('the header reads Run 62 and never holds the ticket title', () => {
     const data = runDetails.RunSucceeded;
     render(
       <RunDetailScreen
@@ -46,11 +44,9 @@ describe('RunDetail top bar', () => {
         }}
       />,
     );
-    const bar = within(screen.getByRole('navigation', { name: 'Breadcrumb' }));
-    expect(bar.getByRole('link', { name: 'Runs' })).toHaveAttribute('href', '/runs');
-    expect(bar.getByText('Run 62')).toHaveAttribute('aria-current', 'page');
-    expect(document.title).toBe('Run 62 · invoicer-api · Agent Desk');
-    expect(document.title).not.toContain('Export');
+    const h1 = screen.getByRole('heading', { level: 1 });
+    expect(h1).toHaveTextContent('Run 62');
+    expect(h1.closest('header')).not.toHaveTextContent('Export');
   });
 });
 
@@ -154,10 +150,11 @@ describe('RunDetail actions', () => {
     expect(screen.getAllByRole('main')).toHaveLength(1);
   });
 
-  it('top bar: breadcrumb, command on ticket, elapsed and the panel buttons', () => {
-    show('RunRunning');
-    expect(screen.getByRole('navigation', { name: 'Breadcrumb' })).toHaveTextContent('Run 61');
-    expect(within(screen.getByRole('banner')).getByText('/code-build')).toBeInTheDocument();
+  it('page header: title, command on ticket, elapsed and the panel buttons', () => {
+    show('RunRunning', { onTogglePanel: () => undefined });
+    const header = screen.getByRole('heading', { level: 1 }).closest('header') as HTMLElement;
+    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('Run 61');
+    expect(within(header).getByText('/code-build')).toBeInTheDocument();
     expect(screen.getAllByText('Issue #139').length).toBeGreaterThan(0);
     expect(screen.getAllByText('7:40').length).toBeGreaterThan(0);
     expect(screen.getByRole('button', { name: 'Collapse context panel (])' })).toBeInTheDocument();
@@ -504,22 +501,16 @@ describe('RunDetail app props', () => {
     expect(screen.queryByRole('log')).not.toBeInTheDocument();
   });
 
-  it('links set the logo, Runs crumb and Desk hrefs; cancelBody replaces the confirmation text', () => {
+  it('cancelBody replaces the confirmation text', () => {
     show('RunRunning', {
       links: {
-        projects: '/o/a/projects',
-        runs: '/o/a/p/1/runs',
         skills: '/o/a/p/1/desk/skills',
         rules: '/o/a/p/1/desk/rules',
       },
       cancelConfirmOpen: true,
       cancelBody: 'Stops the pod.',
     });
-    const crumbs = screen.getByRole('navigation', { name: 'Breadcrumb' });
-    expect(screen.getByRole('link', { name: 'Agent Desk, all projects' })).toHaveAttribute('href', '/o/a/projects');
-    expect(within(crumbs).getByRole('link', { name: 'Runs' })).toHaveAttribute('href', '/o/a/p/1/runs');
-    expect(screen.getByRole('link', { name: 'code-build' })).toHaveAttribute('href', '/o/a/p/1/desk/skills');
-    expect(screen.getByRole('dialog')).toHaveTextContent('Stops the pod.');
+    expect(screen.getByText('Stops the pod.')).toBeInTheDocument();
   });
 });
 
@@ -843,71 +834,6 @@ describe('PR state colours on Run detail', () => {
     render(<RunDetail data={runDetails.RunIdle} lines={terminalByRun[62]} panelCollapsed />);
     expect(screen.getByRole('img', { name: 'PR #148' })).toBeInTheDocument();
     expect(screen.queryByRole('img', { name: 'Merged PR #148' })).not.toBeInTheDocument();
-  });
-});
-
-describe('RunDetail under the app bar (BR-46)', () => {
-  const org: OrgSwitchProps = {
-    ...orgSwitchFixtures.oneOrgSettings,
-    orgHref: (o) => `/o/${o.slug}`,
-    createHref: '/orgs/new',
-  };
-  const run = { runsHref: '/o/acme/p/1/runs', label: 'Run 61' };
-
-  it('with org and run: the crumbs read org / project / Runs / Run 61, Runs links to run.runsHref, with the bell', () => {
-    show('RunRunning', { org, run });
-    const crumbs = screen.getByRole('navigation', { name: 'Breadcrumb' });
-    expect(crumbs).toHaveTextContent(/^Acme\/invoicer-api\/Runs\/Run 61$/);
-    expect(
-      within(crumbs).getByRole('button', { name: /^Switch scope, currently organization Acme/ }),
-    ).toBeInTheDocument();
-    expect(within(crumbs).getByRole('button', { name: /invoicer-api/ })).toBeInTheDocument();
-    expect(within(crumbs).getByRole('link', { name: 'Runs' })).toHaveAttribute('href', '/o/acme/p/1/runs');
-    expect(within(crumbs).getByText('Run 61')).toHaveAttribute('aria-current', 'page');
-    expect(screen.getByRole('button', { name: 'Notifications (coming soon)' })).toBeInTheDocument();
-  });
-
-  it('uses the given project name in the project crumb', () => {
-    show('RunRunning', { org, run, projectName: 'forecast' });
-    const crumbs = screen.getByRole('navigation', { name: 'Breadcrumb' });
-    expect(within(crumbs).getByRole('button', { name: /forecast/ })).toBeInTheDocument();
-  });
-
-  it('without org and run: the crumbs default to the project, Runs and the run number (no org menu)', () => {
-    show('RunRunning');
-    const crumbs = screen.getByRole('navigation', { name: 'Breadcrumb' });
-    expect(within(crumbs).queryByRole('button', { name: /organization/i })).toBeNull();
-    expect(within(crumbs).getByRole('button', { name: /invoicer-api/ })).toBeInTheDocument();
-    expect(within(crumbs).getByRole('link', { name: 'Runs' })).toHaveAttribute('href', '/runs');
-    expect(within(crumbs).getByText('Run 61')).toHaveAttribute('aria-current', 'page');
-  });
-
-  it('keeps one main', () => {
-    show('RunRunning', { org, run });
-    expect(screen.getAllByRole('main')).toHaveLength(1);
-  });
-
-  it('the run bar has crumbs only: no Main tab list (TC-43.5)', () => {
-    show('RunRunning', { org, run });
-    expect(screen.getByRole('navigation', { name: 'Breadcrumb' })).toBeInTheDocument();
-    expect(screen.queryByRole('navigation', { name: 'Organization sections' })).toBeNull();
-    expect(screen.queryByRole('navigation', { name: 'Project sections' })).toBeNull();
-  });
-
-  it('the project crumb opens the project switcher with projectMenu (TC-46.3)', async () => {
-    show('RunRunning', {
-      org,
-      run,
-      projectMenu: {
-        status: 'ready',
-        items: [
-          { name: 'invoicer-api', needsYou: 1, current: true, href: '/p/api' },
-          { name: 'docs-site', needsYou: 0, href: '/p/docs' },
-        ],
-      },
-    });
-    await userEvent.setup().click(screen.getByRole('button', { name: /^Switch project/ }));
-    expect(screen.getByRole('link', { name: /docs-site/ })).toHaveAttribute('href', '/p/docs');
   });
 });
 

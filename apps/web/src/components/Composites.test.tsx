@@ -477,10 +477,9 @@ describe('SettingsSection / DangerZone / SidePane / SurfaceCard / SetupLayout', 
     expect(screen.getByText('mock')).toBeInTheDocument();
     expect(container.querySelector('figcaption')).toBeNull();
   });
-  it('SetupLayout composes the chrome, stepper, heading and footer', () => {
+  it('SetupLayout composes the stepper, heading and footer', () => {
     render(
       <SetupLayout
-        user={{ login: 'kim-hale', initials: 'KH' }}
         projectName="invoicer-api"
         steps={[{ label: 'One' }, { label: 'Add agent' }, { label: 'Three' }, { label: 'Four' }]}
         current={1}
@@ -507,7 +506,6 @@ describe('SettingsSection / DangerZone / SidePane / SurfaceCard / SetupLayout', 
     const also = vi.fn();
     render(
       <SetupLayout
-        user={{ login: 'kim-hale', initials: 'KH' }}
         projectName="invoicer-api"
         steps={[{ label: 'One' }, { label: 'Two' }]}
         current={1}
@@ -531,7 +529,6 @@ describe('SettingsSection / DangerZone / SidePane / SurfaceCard / SetupLayout', 
   it('SetupLayout without back/skip renders only next', () => {
     render(
       <SetupLayout
-        user={{ login: 'k' }}
         projectName="p"
         steps={[{ label: 'One' }]}
         current={0}

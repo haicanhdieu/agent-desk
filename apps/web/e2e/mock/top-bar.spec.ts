@@ -19,7 +19,7 @@ async function open(page: Page, scenario: TenantAdminScenario, path: string): Pr
 
 const mainNav = (page: Page): Locator => page.getByRole('navigation', { name: 'Organization sections' });
 const tab = (page: Page, name: string): Locator => mainNav(page).getByRole('link', { name, exact: true });
-// The org pages are on the shell: their entries are in the org menu. Project and run pages still draw the old bar.
+// Org, project and run pages are on the shell: the org entries are in the org menu, and the old tab bar is gone.
 const orgMenu = (page: Page): Locator => page.getByRole('navigation', { name: 'Organization menu' });
 const menuLink = (page: Page, name: string): Locator => orgMenu(page).getByRole('link', { name, exact: true });
 const FULL_MENU = ['Projects', 'Members', 'Invitations', 'Audit log', 'General'];

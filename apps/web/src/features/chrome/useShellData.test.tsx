@@ -111,9 +111,9 @@ describe('useShellData: org pages', () => {
     await ready(m);
     await waitFor(() => expect(m.result.current.orgSwitch.platformAdmin).toBe(true));
     const sw = m.result.current.orgSwitch;
-    expect(sw.projectsHref).toBeUndefined();
-    expect(sw.settingsHref).toBeUndefined();
-    expect(sw.manageHref).toBeUndefined();
+    expect(sw).not.toHaveProperty('projectsHref');
+    expect(sw).not.toHaveProperty('settingsHref');
+    expect(sw).not.toHaveProperty('manageHref');
     expect(sw.platformHref).toBe('/platform');
     // The menu footer carries the platform link instead.
     await waitFor(() =>

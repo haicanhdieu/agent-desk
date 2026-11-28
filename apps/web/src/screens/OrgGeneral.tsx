@@ -1,6 +1,6 @@
 import { useEffect, useId, useRef } from 'react';
 import { Banner, Button, Field, Icon, PrefixInput, TextInput, Toast, ToastRegion } from '@/ds';
-import { PageHeader, SettingsSection, SlugChangeConfirm, useShellOwnsChrome } from '@/components';
+import { PageHeader, SettingsSection, SlugChangeConfirm } from '@/components';
 import styles from './Screens.module.css';
 
 interface FieldProps {
@@ -36,7 +36,6 @@ export function OrgGeneral({
   slugConfirm,
   notice,
 }: OrgGeneralProps) {
-  const owned = useShellOwnsChrome();
   const formRef = useRef<HTMLFormElement>(null);
   const prefixId = useId();
   const nameError = name.error;
@@ -64,9 +63,8 @@ export function OrgGeneral({
 
   return (
     <>
-      <main className={owned ? styles.shellMain : styles.generalMain}>
-        {owned ? <PageHeader title="General" banner={errorBanner} /> : <h1 tabIndex={-1}>General</h1>}
-        {!owned && errorBanner}
+      <main className={styles.shellMain}>
+        <PageHeader title="General" banner={errorBanner} />
         <form
           ref={formRef}
           noValidate

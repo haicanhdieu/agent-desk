@@ -71,8 +71,13 @@ describe('DeskAudit', () => {
   });
 
   it('BR-1: the side menu marks Audit log as the current item', () => {
-    render(<DeskAudit {...ready()} />);
-    expect(screen.getByRole('link', { name: /Audit log/ })).toHaveAttribute('aria-current', 'page');
+    render(
+      <ProjectShellFrame page="audit">
+        <DeskAudit {...ready()} />
+      </ProjectShellFrame>,
+    );
+    const menu = within(screen.getByRole('navigation', { name: 'Project menu' }));
+    expect(menu.getByRole('link', { name: /Audit log/ })).toHaveAttribute('aria-current', 'page');
   });
 });
 

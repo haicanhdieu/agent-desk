@@ -1,9 +1,8 @@
 import type { ReactNode } from 'react';
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { RouteLoadError, RouteSkeleton, type OrgSwitchProps } from '@/components';
+import { RouteLoadError, RouteSkeleton } from '@/components';
 import {
-  orgSwitchFixtures,
   ignored,
   ignoredPrStates,
   pagedIgnored,
@@ -15,10 +14,8 @@ import {
   pagedVersions,
   prStateRuns,
   prStateTickets,
-  projects,
   runs,
   ticketGroups,
-  user,
 } from '@/mocks';
 import type { TicketGroup } from '@/mocks/types';
 import { filterGroups, Runs, type RunsFilter } from './Runs';
@@ -28,11 +25,7 @@ import { ProjectShellFrame } from './projectShellFrame';
 import { expectShellOwnedPage, headerActions } from '@/test/shellAssert';
 
 const counts: Record<RunsFilter, number> = { needs_you: 1, active: 2, queued: 1, ended: 6, all: 9, ignored: 3 };
-const project = projects[0];
 const base = {
-  project,
-  user,
-  needsYou: 1,
   slots: { used: 2, total: 2 },
   today: 'Today: 9 runs, 1 failed',
   counts,
@@ -44,11 +37,6 @@ const needsYouRun = {
   href: '/runs/62',
   slotNote:
     'It holds one of your 2 slots, so Run 63 is waiting. It ends on its own after 30 minutes with nobody attached.',
-};
-const org: OrgSwitchProps = {
-  ...orgSwitchFixtures.severalOrgsSettings,
-  orgHref: (o) => `/o/${o.slug}`,
-  createHref: '/orgs/new',
 };
 const runIds = () =>
   screen.queryAllByRole('link', { name: /^Run \d+$/ }).map((a) => Number(a.textContent!.replace('Run ', '')));
@@ -496,27 +484,6 @@ describe('PR state colours on the Runs screen', () => {
     render(<Runs {...base} filter="all" groups={[ticketGroups[0]]} />);
     const header = screen.getByText(ticketGroups[0].chainNote!).closest('tr')!;
     expect(within(header).queryByRole('img')).not.toBeInTheDocument();
-  });
-});
-
-describe('Runs under the app bar (BR-43)', () => {
-  it('with org: the org crumb, the project crumb, Runs current with the needs-you count, and Settings', () => {
-    render(<Runs {...base} filter="all" org={org} links={{ desk: '/desk' }} />);
-    const bar = screen.getByRole('banner');
-    expect(within(bar).getByRole('button', { name: /^Switch scope, currently organization Acme/ })).toBeInTheDocument();
-    expect(within(bar).getByRole('button', { name: /invoicer-api/ })).toBeInTheDocument();
-    const tabs = within(bar).getByRole('navigation', { name: 'Project sections' });
-    expect(within(tabs).getByRole('link', { name: /^Runs/ })).toHaveAttribute('aria-current', 'page');
-    expect(within(tabs).getByRole('link', { name: /^Runs/ })).toHaveTextContent('1');
-    expect(within(tabs).getByRole('link', { name: 'Project settings' })).not.toHaveAttribute('aria-current');
-  });
-
-  it('without org: no org crumb and no owner text, only the project', () => {
-    render(<Runs {...base} filter="all" />);
-    const bar = screen.getByRole('banner');
-    expect(within(bar).queryByRole('button', { name: /organization/i })).toBeNull();
-    expect(within(bar).queryByText(project.org)).toBeNull();
-    expect(within(bar).getByRole('button', { name: /^Switch project/ })).toBeInTheDocument();
   });
 });
 

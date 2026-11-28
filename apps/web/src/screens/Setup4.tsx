@@ -11,14 +11,9 @@ import {
   type RuleFormProps,
   type RuleTarget,
 } from '@/components';
-import type { Actor } from '@/mocks/types';
-import type { OrgSwitchProps } from '@/components';
 import { DEFAULT_CREDENTIAL_DETAIL, setupSteps, type SetupNav } from './setupSteps';
 
 export interface Setup4Props extends SetupNav {
-  user: Actor;
-  /** The org crumb and menu in the top bar. */
-  org?: OrgSwitchProps;
   projectName: string;
   repo: string;
   rule: RuleDraft;
@@ -46,8 +41,6 @@ export interface Setup4Props extends SetupNav {
 }
 
 export function Setup4({
-  user,
-  org,
   projectName,
   exitHref,
   repo,
@@ -74,8 +67,6 @@ export function Setup4({
   const [follow, setFollow] = useState(followUp.enabled);
   return (
     <SetupLayout
-      user={user}
-      org={org}
       projectName={projectName}
       exitHref={exitHref}
       steps={setupSteps({ repo, credential: credentialDetail, skills: skills.join(', '), withWorkspace: true })}

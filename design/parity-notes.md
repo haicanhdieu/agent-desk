@@ -743,3 +743,11 @@ Boards registered (14, canvas order 441 to 454): InvitationAcceptSideMenu, Invit
 ## Needs-you page removed (BR-30)
 
 The `NeedsYou`, `NeedsYouEmpty` and `NeedsYouPaged` boards (and the `NeedsYouPaused` state story) are removed with the page; the earlier NeedsYou notes above are obsolete. `RunsNeedsYouNotFound` is registered in their place (the old address shows "Page not found" with the project menu). The full PARITY run takes hours under the 4 GiB cap, so only this pair, `RunsNotFoundSideMenu` and `Main` were rendered: the pair draws the same project menu and the same not-found card, but the story heading is smaller than the board's 28px h1 and the menu rows sit 2px lower, exactly as in `RunsNotFoundSideMenu` (same stand-in markup). Not fixed. `scripts/parity.mjs` had a misplaced parenthesis around the Run detail usage boards that made it throw before any board; fixed here.
+
+## Sidebar navigation shell: old navigation removed (Task 39)
+
+The tab rows (`OrgNav`, `ProjectNav`, `PlatformNav`), the section layouts (`DeskLayout`, `OrgSettingsLayout`, `PlatformLayout`) and every screen's own top bar are gone: the shell host draws the one bar and the menu, and each screen draws only its page. No board was added or removed. PARITY (Storybook build and the side-by-side render) was not run in this session, so no pair was checked.
+
+- Agent call: the older non-shell boards (Runs, Desk, Setup, Entry, Invitations, OrgSettings, Platform, Run detail) are drawn inside the shell stories frame (`ShellFrame` through the `*ShellFrame` helpers), with the page-header h1 and the shell's bar and menu. Their headers therefore read like the shell boards, not like the prototype's old bar with tabs. Recorded for the final parity pass, which redraws them.
+- Agent call: `SetupLayout` without a shell provider draws the stepper in place and no bar; with a provider but no slot it draws nothing in the menu.
+- Agent call: `DeskSetup` always splits the column between the editor and the log while a test shows (the route always asked for the viewport fit).

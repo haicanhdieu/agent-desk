@@ -86,7 +86,7 @@ for ref in origin/main HEAD; do
   done <<'MARKERS'
 DeskRulesAgent|design/prototype/project/canvas.json
 Setup2DefaultAgent|design/prototype/project/canvas.json
-Enter the API key for this endpoint.|apps/web/src/features/desk/agent.form.ts
+Enter the API key for this endpoint.|apps/web/src/components/AgentPane.tsx
 allAgents|apps/web/src/app/routes/o.$org.p.$project.desk.rules.tsx
 setDefaultAgent|apps/web/e2e/local/helpers.ts
 MARKERS
@@ -1456,13 +1456,13 @@ export function useShellData(input: ShellInput): ShellData;
 
 - Produces: `useShellOwnsChrome` is removed; `SetupLayout` portals when a provider gives a slot, renders nothing when the slot is missing, in place with no provider. `TopBar` has no `variant`, `tabs`, `active`, `platformTabs`, `project`, `links`, `needsYou`, `children`, `actions` or title logic. `OrgSwitchProps` has no `projectsHref`, `settingsHref`, `manageHref`. `useAppBar` is deleted once the listed callers stop passing bar data. `DeskAgent` and `DeskRules` lose their `height` prop, and no screen renders `AppShell`. If a story, test or route not listed here still uses a removed prop, typecheck names it: fix it in this PR.
 
-- [ ] **Step 0: Multi-agent gate.** Run both checks in "Multi-agent gate". If either fails, stop: write no code and report which check failed.
-- [ ] **Step 1: Write the failing guard test:** `topBarCallSites.test.ts` becomes "only the shell renders chrome": the only files that render `<TopBar`, `<SubNav` or `<AppShell` (stories and tests aside) are `app/shell/ShellHost.tsx` and `screens/shellFrame.tsx` (plus `SetupLayout.tsx` for none of them); only `ShellHost.tsx` calls `useDocumentTitle`.
-- [ ] **Step 2: Run** it. Expected: FAIL listing the legacy sites.
-- [ ] **Step 3: Delete** the components, legacy branches and legacy props. `DeskLayout` and `frame.test.ts` Desk filtering cases are removed only after confirming each has its counterpart in `nav.test.ts` (list them side by side in the PR); no case is dropped.
-- [ ] **Step 4: Rewrite** `Chrome.test.tsx`, `nav-shell.spec.ts` and `top-bar.spec.ts` down to what the shell still promises.
+- [x] **Step 0: Multi-agent gate.** Run both checks in "Multi-agent gate". If either fails, stop: write no code and report which check failed.
+- [x] **Step 1: Write the failing guard test:** `topBarCallSites.test.ts` becomes "only the shell renders chrome": the only files that render `<TopBar`, `<SubNav` or `<AppShell` (stories and tests aside) are `app/shell/ShellHost.tsx` and `screens/shellFrame.tsx` (plus `SetupLayout.tsx` for none of them); only `ShellHost.tsx` calls `useDocumentTitle`.
+- [x] **Step 2: Run** it. Expected: FAIL listing the legacy sites.
+- [x] **Step 3: Delete** the components, legacy branches and legacy props. `DeskLayout` and `frame.test.ts` Desk filtering cases are removed only after confirming each has its counterpart in `nav.test.ts` (list them side by side in the PR); no case is dropped.
+- [x] **Step 4: Rewrite** `Chrome.test.tsx`, `nav-shell.spec.ts` and `top-bar.spec.ts` down to what the shell still promises.
 - [ ] **Step 5: Run** the whole web `test`, typecheck, `grep -rnE "OrgNav|ProjectNav|PlatformNav|DeskLayout|OrgSettingsLayout|PlatformLayout" apps/web/src` (nothing), MOCK `nav-shell top-bar side-nav`, PARITY. Expected: PASS.
-- [ ] **Step 6: Commit** `refactor(web): remove the old tab and section navigation`.
+- [x] **Step 6: Commit** `refactor(web): remove the old tab and section navigation`.
 
 **Cross-scope e2e (Tasks 40 to 44).** These write cases only. A failing case is a bug in an earlier task: fix it in source with a failing Vitest test first, in the same PR. A failing access assertion means stop and ask.
 

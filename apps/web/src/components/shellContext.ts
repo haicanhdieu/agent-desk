@@ -5,8 +5,6 @@ import type { PageState } from './pageTitle';
 export type ShellPageState = PageState | 'error' | 'loading' | 'suspended';
 
 export interface ShellContextValue {
-  /** True when a shell around the page draws the top bar, the side menu and the layout. */
-  owned: boolean;
   /** Where the setup wizard draws its steps menu (inline or inside the drawer); null while there is none. */
   wizardSlot: HTMLElement | null;
   /** Tells the shell what the page shows; returns the undo, which the page calls when it stops showing it. */
@@ -16,11 +14,6 @@ export interface ShellContextValue {
 }
 
 export const ShellContext = createContext<ShellContextValue | null>(null);
-
-/** Whether a shell owns the chrome. A screen draws its own bar and layout only when this is false. */
-export function useShellOwnsChrome(): boolean {
-  return useContext(ShellContext)?.owned ?? false;
-}
 
 /** The "Go to projects" address the shell computed for the page, if a shell owns it. */
 export function useGoToProjectsHref(): string | undefined {

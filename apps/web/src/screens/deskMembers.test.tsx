@@ -138,8 +138,13 @@ describe('DeskMembers', () => {
   });
 
   it('BR-1: the side menu marks Members as the current item', () => {
-    render(<DeskMembers {...ready()} />);
-    expect(screen.getByRole('link', { name: /Members/ })).toHaveAttribute('aria-current', 'page');
+    render(
+      <ProjectShellFrame page="members">
+        <DeskMembers {...ready()} />
+      </ProjectShellFrame>,
+    );
+    const menu = within(screen.getByRole('navigation', { name: 'Project menu' }));
+    expect(menu.getByRole('link', { name: /Members/ })).toHaveAttribute('aria-current', 'page');
   });
 
   it('shows the notice toast and renders dialogs passed as children', () => {

@@ -1,31 +1,21 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import type { ReactNode } from 'react';
 import { userEvent, waitFor, within } from 'storybook/test';
-import {
-  AppShell,
-  EmptyState,
-  RouteLoadError,
-  RouteSkeleton,
-  type OrgSwitchProps,
-  type PaginationProps,
-} from '@/components';
+import { EmptyState, RouteLoadError, RouteSkeleton, type PaginationProps } from '@/components';
 import {
   connectionWarnings,
   ignored,
   ignoredPrStates,
   linkedGroups,
-  orgSwitchFixtures,
   pagedIgnored,
   pagedRuns,
   projectSwitchFixtures,
   prStateRuns,
-  projects,
   runs,
   ticketGroups,
   tickets,
   usageCellPage2,
   usageCellPage3,
-  user,
 } from '@/mocks';
 import type { TicketGroup } from '@/mocks/types';
 import { Runs as RunsScreen } from './Runs';
@@ -48,26 +38,14 @@ type Story = StoryObj<typeof meta>;
 const artboard = (height: number): NonNullable<Story['decorators']> => [
   (S) => (
     <div style={{ width: 1440, height }}>
-      <AppShell height={height} topBar={null}>
+      <ProjectShellFrame page="runs" height={height} crumbs={[{ label: 'Runs' }]}>
         <S />
-      </AppShell>
+      </ProjectShellFrame>
     </div>
   ),
 ];
 
-const project = projects[0];
-/** The app bar of an owner: the org crumb with Settings, the account menu, and the Runs and Settings tabs. */
-const org: OrgSwitchProps = {
-  ...orgSwitchFixtures.severalOrgsSettings,
-  orgHref: (o) => `#${o.slug}`,
-  createHref: '#new-org',
-};
 const common = {
-  project,
-  user,
-  org,
-  links: { desk: '#desk' },
-  needsYou: 1,
   slots: { used: 2, total: 2 },
   today: 'Today: 9 runs, 1 failed',
 };
@@ -220,7 +198,7 @@ const lastPageGroups: TicketGroup[] = [
     runs: lastPageRuns.slice(2).map((r) => ({ ...r, ticket: tickets.issue131 })),
   },
 ];
-const pagedCommon = { ...common, needsYou: 1, today: 'Today: 9 runs, 1 failed' };
+const pagedCommon = { ...common, today: 'Today: 9 runs, 1 failed' };
 const pagedCounts: Record<RunsFilter, number> = { needs_you: 1, active: 2, queued: 1, ended: 59, all: 63, ignored: 3 };
 const pagedNeedsYouRun = {
   run: runs.find((r) => r.id === 62)!,
@@ -258,7 +236,6 @@ export const RunsFlatPaged: Story = {
     <RunsScreen
       search={search}
       {...pagedCommon}
-      needsYou={0}
       slots={{ used: 0, total: 2 }}
       filter="all"
       grouped={false}
@@ -412,7 +389,6 @@ export const RunsEmpty: Story = {
     <RunsScreen
       search={search}
       {...pagedCommon}
-      needsYou={0}
       slots={{ used: 0, total: 2 }}
       filter="active"
       counts={{ needs_you: 0, active: 0, queued: 0, ended: 63, all: 63, ignored: 3 }}
@@ -647,7 +623,7 @@ export const RunsNotFoundSideMenu: Story = {
   name: 'Runs, project not found: organization menu',
   globals: viewport(1440, 900),
   render: () => (
-    <OrgShellFrame viewer="owner" page={null} state="notFound">
+    <OrgShellFrame viewer="owner" page={null}>
       <main className={styles.shellMain}>
         <EmptyState
           title="Page not found"
@@ -668,7 +644,7 @@ export const RunsNeedsYouNotFound: Story = {
   name: 'Runs, removed needs-you address: not found',
   globals: viewport(1440, 900),
   render: () => (
-    <ProjectShellFrame page={null} state="notFound">
+    <ProjectShellFrame page={null}>
       <main className={styles.shellMain}>
         <EmptyState
           title="Page not found"

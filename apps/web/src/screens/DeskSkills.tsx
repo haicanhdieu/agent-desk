@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { Banner, Button, CommandChip, IconButton, LabelChip, SegmentedControl } from '@/ds';
 import {
-  AppShell,
   CodeEditor,
   CommitBar,
   ConfirmDeleteDialog,
@@ -12,7 +11,6 @@ import {
   SkillPreviewPane,
   type SkillPreviewPaneProps,
   type PaginationProps,
-  useShellOwnsChrome,
 } from '@/components';
 import type { Skill } from '@/mocks/types';
 import styles from './Screens.module.css';
@@ -33,10 +31,8 @@ export interface SkillSubmission {
 const isWebUrl = (url: string) => /^https?:\/\//i.test(url);
 
 export interface DeskSkillsProps {
-  /** Top bar and Desk navigation data. */
+  /** The project, its connection and the setup warning. */
   frame: DeskFrameData;
-  /** `'viewport'` fits the page to the window (the app route): the page does not scroll, each of the three columns does. */
-  height?: 'viewport';
   skills: Skill[];
   activeName?: string;
   /** The editor's skill. Defaults to the one named `activeName` in `skills`, else the first; pass it when the list is a page that may not hold it. */
@@ -242,7 +238,6 @@ function SubmissionNotice({ submission, onDismiss }: { submission: SkillSubmissi
 
 export function DeskSkills({
   frame,
-  height,
   skills,
   activeName,
   active: activeSkill,
@@ -273,33 +268,29 @@ export function DeskSkills({
 }: DeskSkillsProps) {
   const active = activeSkill ?? skills.find((s) => s.name === activeName) ?? skills[0];
   const branchLabel = defaultBranch ?? 'the default branch';
-  const owned = useShellOwnsChrome();
   // A Discard starts a new draft (a new editor): it opens on the view the person was on.
   const [kept, setKept] = useState<{ name: string; view: View }>();
   // Another skill ends it: coming back to this one starts on the default view again.
   if (kept !== undefined && active !== undefined && kept.name !== active.name) setKept(undefined);
-  const Body = owned ? 'div' : 'main';
   const doomed = deleting ? skills.find((s) => s.name === deleting) : undefined;
   const page = (
     <>
       <DeskFrame
         active="skills"
         {...frame}
-        {...(owned && {
-          title: 'Skills',
-          meta: `${folders ? folders.map((f) => `${f}/`).join(' or ') : 'Skill folders'} on ${branchLabel}`,
-          actions: (
-            <Button variant="primary" icon="plus">
-              New skill
-            </Button>
-          ),
-          fill: true,
-        })}
+        title="Skills"
+        meta={`${folders ? folders.map((f) => `${f}/`).join(' or ') : 'Skill folders'} on ${branchLabel}`}
+        actions={
+          <Button variant="primary" icon="plus">
+            New skill
+          </Button>
+        }
+        fill
       >
         <div className={styles.deskRow}>
           <SkillList
             branch={branchLabel}
-            hideHeader={owned}
+            hideHeader
             folders={folders}
             activeName={active?.name}
             skills={skills.map((s) => ({
@@ -311,7 +302,7 @@ export function DeskSkills({
             onSelect={onSelect}
             footer={skills.length > 0 && pagination ? <Pagination {...pagination} /> : undefined}
           />
-          <Body className={styles.skillsMain}>
+          <div className={styles.skillsMain}>
             {submission && <SubmissionNotice submission={submission} onDismiss={onDismissSubmission} />}
             {active ? (
               <SkillEditor
@@ -334,6 +325,7 @@ export function DeskSkills({
             ) : (
               <EmptyState
                 title="No skills yet"
+                headingLevel={2}
                 body={
                   <>
                     A skill is a <span className="mono">SKILL.md</span> file under{' '}
@@ -345,16 +337,9 @@ export function DeskSkills({
                     . Start from one of the starter templates, or create a skill from scratch.
                   </>
                 }
-                action={
-                  owned ? undefined : (
-                    <Button variant="primary" icon="plus">
-                      New skill
-                    </Button>
-                  )
-                }
               />
             )}
-          </Body>
+          </div>
         </div>
       </DeskFrame>
       {doomed && (
@@ -387,11 +372,5 @@ export function DeskSkills({
       )}
     </>
   );
-  return height === 'viewport' && !owned ? (
-    <AppShell height="viewport" topBar={null}>
-      {page}
-    </AppShell>
-  ) : (
-    page
-  );
+  return page;
 }

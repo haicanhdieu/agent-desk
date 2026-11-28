@@ -248,29 +248,6 @@
 }
 
 /* runs boards */
-.runsMain {
-  flex: 1;
-  padding: 24px 32px;
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-  overflow: hidden;
-}
-.runsMainBanners {
-  gap: 14px;
-}
-.runsHead {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  flex-wrap: wrap;
-}
-.runsTitle {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-}
 .runsMeta {
   display: flex;
   align-items: center;
@@ -287,11 +264,6 @@
   font-size: var(--fs-12_5);
   font-variant-numeric: tabular-nums;
   color: var(--text);
-}
-.runsTools {
-  display: flex;
-  align-items: center;
-  gap: 8px;
 }
 .chipRow {
   display: flex;
@@ -581,10 +553,6 @@
   background: var(--panel);
 }
 
-.deskWarning {
-  padding: 12px 24px 0;
-}
-
 /* RunTranscriptStates board: the transcript in the other stopped and ended states, side by side */
 .stateGrid {
   display: grid;
@@ -786,14 +754,6 @@
 }
 
 /* platform admin area: the page next to the side menu */
-.platformMain {
-  flex: 1;
-  min-width: 0;
-  padding: 24px 40px;
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
-}
 .platformLoading {
   display: flex;
   flex-direction: column;

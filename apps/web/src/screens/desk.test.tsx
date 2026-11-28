@@ -1,15 +1,6 @@
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import {
-  agentKindViews,
-  agentPaneAgents,
-  agentRowViews,
-  connections,
-  deskFrame,
-  orgSwitchFixtures,
-  rules,
-  skills,
-} from '@/mocks';
+import { agentKindViews, agentPaneAgents, agentRowViews, connections, deskFrame, rules, skills } from '@/mocks';
 import type { ReactElement } from 'react';
 import { DeskSkills } from './DeskSkills';
 import { ProjectShellFrame } from './projectShellFrame';
@@ -335,11 +326,6 @@ describe('DeskRules', () => {
     expect(screen.queryByRole('complementary')).toBeNull();
   });
 
-  it('fits the window: height="viewport" reaches the shell (BR-61)', () => {
-    const { container } = render(<DeskRules frame={deskFrame} rules={rules} {...base} height="viewport" />);
-    expect(container.querySelector('[class*="appViewport"]')).not.toBeNull();
-  });
-
   it('the header is pinned outside the list, and the list is a focusable named scroll area (BR-61)', () => {
     render(<DeskRules frame={deskFrame} rules={rules} {...base} />);
     const scroll = screen.getByRole('region', { name: 'Rules list' });
@@ -505,11 +491,6 @@ describe('DeskAgent', () => {
     expect(screen.getByLabelText('End idle runs after')).toHaveValue(String(base.limits.idleEndMinutes));
   });
 
-  it('fits the window: height="viewport" reaches the shell (BR-61)', () => {
-    const { container } = render(<DeskAgent {...base} height="viewport" />);
-    expect(container.querySelector('[class*="appViewport"]')).not.toBeNull();
-  });
-
   it('the panel is the one scroll area: focusable, named, and the Pagination sits outside it (BR-61)', () => {
     render(<DeskAgent {...base} agents={{ ...agentList, pagination: { ...agentList.pagination, total: 45 } }} />);
     const scroll = screen.getByRole('region', { name: 'Agents list' });
@@ -535,7 +516,9 @@ describe('DeskAgent', () => {
       />,
     );
     const pane = screen.getByRole('complementary', { name: 'Edit agent' });
-    expect(screen.getByRole('tabpanel')).toContainElement(pane);
+    // The pane is a column of the page's main, beside the heading, tabs and list column.
+    expect(screen.getByRole('main')).toContainElement(pane);
+    expect(screen.getByRole('tabpanel').contains(pane)).toBe(false);
     expect(screen.getByRole('region', { name: 'Agents list' }).contains(pane)).toBe(false);
   });
 
@@ -567,7 +550,6 @@ describe('DeskAgent', () => {
       expect(screen.queryByRole('radiogroup', { name: 'Check every' })).toBeNull();
       expect(screen.queryByRole('button', { name: 'Send test ping' })).toBeNull();
       expect(screen.queryByRole('link', { name: /Manage installation/ })).toBeNull();
-      expect(screen.getByText('Connected')).toBeInTheDocument();
     });
 
     it('switching to polling shows the interval and reports the change', async () => {
@@ -596,10 +578,9 @@ describe('DeskAgent', () => {
       expect(screen.getByRole('button', { name: 'Check now' })).toBeEnabled();
     });
 
-    it('a polling project starts in polling mode and shows its status in the side nav', () => {
+    it('a polling project starts in polling mode', () => {
       open({ connection: connections.pollingRevoked });
       expect(screen.getByRole('radio', { name: 'Polling' })).toHaveAttribute('aria-checked', 'true');
-      expect(screen.getByText('Polling failed: token revoked').closest('.inline-status')).toHaveClass('err');
     });
 
     it('a controlled trigger shows the given mode with its error', () => {
@@ -796,25 +777,6 @@ describe('Desk lists with pagination', () => {
     render(<DeskSkills frame={deskFrame} skills={[]} pagination={pagination(0)} />);
     expect(screen.getByRole('heading', { name: /No skills yet/ })).toBeInTheDocument();
     expect(screen.queryByRole('navigation', { name: 'Pagination' })).toBeNull();
-  });
-});
-
-describe('Desk under the app bar (BR-43)', () => {
-  const links = { projects: '/p', runs: '/r', desk: '/d', skills: 's', rules: 'r', agent: 'a' };
-  const org = { ...orgSwitchFixtures.oneOrgSettings, orgHref: () => '/o', createHref: '/new' };
-
-  it('with org: the org crumb, the project crumb, Runs and Settings tabs with Settings current', () => {
-    render(<DeskSkills frame={{ ...deskFrame, org, links }} skills={skills} activeName="code-build" />);
-    const bar = screen.getByRole('banner');
-    expect(within(bar).getByRole('button', { name: /^Switch scope, currently organization Acme/ })).toBeInTheDocument();
-    const tabs = within(bar).getByRole('navigation', { name: 'Project sections' });
-    expect(within(tabs).getByRole('link', { name: 'Project settings' })).toHaveAttribute('aria-current', 'page');
-    expect(within(tabs).getByRole('link', { name: /^Runs/ })).not.toHaveAttribute('aria-current');
-  });
-
-  it('without org: no org menu', () => {
-    render(<DeskSkills frame={{ ...deskFrame, links }} skills={skills} activeName="code-build" />);
-    expect(within(screen.getByRole('banner')).queryByRole('button', { name: /organization/i })).toBeNull();
   });
 });
 

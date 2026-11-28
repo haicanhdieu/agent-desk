@@ -1,10 +1,6 @@
 import { can, type Access } from '@agentdesk/contracts';
-import { useQuery, useSuspenseQuery } from '@tanstack/react-query';
-import type { OrgSwitchProps } from '@/components';
-import type { Actor, OrgSettingsTabKey } from '@/mocks/types';
-import { canInvite, orgAccessQuery, platformAdminQuery, sessionAccessQuery, toAccess } from '../access/queries';
-import { orgsQuery, sessionQuery } from '../auth/session';
-import { toOrgSwitch } from '../orgs/orgSwitch';
+import type { OrgSettingsTabKey } from '@/mocks/types';
+import { canInvite } from '../access/queries';
 
 /** The order of the settings pages: the side menu lists them so, and `/settings` opens the first the caller may open. */
 export const ORG_SETTINGS_ORDER = [
@@ -50,43 +46,4 @@ export function openOrgHref(
 ): string | undefined {
   const m = memberships.find((o) => o.id === orgId);
   return m === undefined ? undefined : `/o/${encodeURIComponent(m.slug)}/projects`;
-}
-
-export interface AppBarData {
-  user: Actor;
-  org: OrgSwitchProps;
-}
-
-/** Org pages pass the URL slug (access `['org', slug, 'access']`); personal pages pass null (the session's active org, `['session','access']`). */
-export function useAppBar(orgSlug: string | null): AppBarData {
-  const { data: session } = useSuspenseQuery(sessionQuery);
-  const { data: orgs } = useSuspenseQuery(orgsQuery);
-  // Only one of the two access queries runs; a pending or failed one leaves the Settings item out.
-  const orgAccess = useQuery({ ...orgAccessQuery(orgSlug ?? ''), enabled: orgSlug !== null });
-  const sessionAccess = useQuery({ ...sessionAccessQuery, enabled: orgSlug === null });
-  const accessDto = (orgSlug === null ? sessionAccess : orgAccess).data;
-  // The platform-admin flag has its own query: the access one is refused for a suspended org. A failure hides the item.
-  const platformAdmin = useQuery(platformAdminQuery).data?.platformAdmin ?? false;
-
-  const slug = orgSlug ?? orgs.find((o) => o.id === session?.activeOrganizationId)?.slug ?? null;
-  const switchData = toOrgSwitch(orgs, slug, platformAdmin);
-  const base = slug === null ? undefined : `/o/${encodeURIComponent(slug)}`;
-  const showSettings = base !== undefined && accessDto !== undefined && canOpenSettings(toAccess(accessDto));
-  const handle = session?.user.handle ?? '';
-
-  return {
-    user: { login: handle, initials: handle.slice(0, 2).toUpperCase() },
-    org: {
-      ...switchData,
-      orgHref: (o) => `/o/${encodeURIComponent(o.slug)}/projects`,
-      createHref: '/platform/orgs/new',
-      ...(platformAdmin && { platformHref: '/platform' }),
-      ...(platformAdmin &&
-        switchData.current !== null && { manageHref: `/platform/orgs/${encodeURIComponent(switchData.current.id)}` }),
-      ...(base !== undefined && { projectsHref: `${base}/projects` }),
-      // A platform admin who belongs to no org has no org page to land on: the logo opens Platform > Organizations.
-      ...(base === undefined && platformAdmin && orgs.length === 0 && { projectsHref: '/platform/orgs' }),
-      ...(showSettings && { settingsHref: `${base}/settings` }),
-    },
-  };
 }

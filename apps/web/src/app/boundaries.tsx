@@ -4,14 +4,10 @@ import { useRouter, useRouterState, type ErrorComponentProps } from '@tanstack/r
 import { useEffect, type ReactNode } from 'react';
 import {
   EmptyState,
-  NO_PAGE_CRUMBS,
   RouteLoadError,
   RouteSkeleton,
-  pageTitle,
-  useDocumentTitle,
   useGoToProjectsHref,
   useReportPageState,
-  useShellOwnsChrome,
   type ShellPageState,
 } from '@/components';
 import { Button, type ToastInput } from '@/ds';
@@ -57,9 +53,6 @@ function StatePage({
 }
 
 export function NotFound() {
-  const owned = useShellOwnsChrome();
-  // Under a shell the host owns the title and reads the reported state; without one the page sets its own.
-  useDocumentTitle(owned ? undefined : pageTitle({ crumbs: NO_PAGE_CRUMBS, state: 'notFound' }));
   return (
     <StatePage state="notFound" centered>
       <EmptyState
@@ -73,8 +66,6 @@ export function NotFound() {
 }
 
 export function Forbidden() {
-  const owned = useShellOwnsChrome();
-  useDocumentTitle(!owned ? pageTitle({ crumbs: NO_PAGE_CRUMBS, state: 'forbidden' }) : undefined);
   return (
     <StatePage state="forbidden" centered>
       <EmptyState

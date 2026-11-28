@@ -1,14 +1,6 @@
 import { Button, Skeleton } from '@/ds';
-import {
-  EmptyState,
-  InvitationCard,
-  PageHeader,
-  RouteLoadError,
-  TopBar,
-  useShellOwnsChrome,
-  type OrgSwitchProps,
-} from '@/components';
-import type { Actor, InvitationCardView } from '@/mocks/types';
+import { EmptyState, InvitationCard, PageHeader, RouteLoadError } from '@/components';
+import type { InvitationCardView } from '@/mocks/types';
 import styles from './Screens.module.css';
 
 export type MyInvitationsState =
@@ -18,8 +10,6 @@ export type MyInvitationsState =
   | { kind: 'empty'; member: boolean; email: string; platformAdmin: boolean; createHref: string };
 
 export interface MyInvitationsProps {
-  user: Actor;
-  org?: OrgSwitchProps;
   state: MyInvitationsState;
   onAccept: (id: string) => void;
   onDecline: (id: string) => void;
@@ -27,76 +17,24 @@ export interface MyInvitationsProps {
 }
 
 /** The welcome page: the signed-in person's pending invitations, or what to do when there are none. */
-export function MyInvitations({ user, org, state, onAccept, onDecline, onSignOut }: MyInvitationsProps) {
-  const owned = useShellOwnsChrome();
-  if (owned) return shellBody(state, onAccept, onDecline, onSignOut);
-  return (
-    <>
-      <TopBar
-        variant="global"
-        crumbs={[{ label: 'Invitations' }]}
-        user={user}
-        org={org}
-        tabs={org?.current ? 'org' : 'none'}
-      />
-      <main className={styles.emptyMain}>{body(state, onAccept, onDecline, onSignOut)}</main>
-    </>
-  );
+export function MyInvitations({ state, onAccept, onDecline, onSignOut }: MyInvitationsProps) {
+  return shellBody(state, onAccept, onDecline, onSignOut);
 }
 
-function body(
+const noticeMember = (email: string) => (
+  <EmptyState headingLevel={2} title="No pending invitations" body={`No invitations for ${email}.`} />
+);
+
+/** In the shell the bar and menu are the shell's: this draws only the page, one main, no h1 while loading or failed. */
+function shellBody(
   state: MyInvitationsState,
   onAccept: (id: string) => void,
   onDecline: (id: string) => void,
   onSignOut: () => void,
 ) {
-  switch (state.kind) {
-    case 'loading':
-      return (
-        <div className={styles.welcomeCol}>
-          <div className={styles.welcomeLoading} aria-busy="true" role="status" aria-label="Loading">
-            <Skeleton variant="block" height={32} width={200} />
-            <span className={styles.welcomeLoadingList} aria-hidden="true">
-              <Skeleton variant="block" height={98} width="100%" />
-              <Skeleton variant="block" height={98} width="100%" />
-            </span>
-          </div>
-        </div>
-      );
-    case 'error':
-      return (
-        <div className={styles.welcomeCol}>
-          <RouteLoadError title="Internal server error" requestId={state.requestId} onRetry={state.onRetry} />
-        </div>
-      );
-    case 'list':
-      return (
-        <div className={styles.welcomeCol}>
-          <h1>Invitations</h1>
-          <ul className={styles.welcomeList}>
-            {state.cards.map((card) => (
-              <li key={card.id}>
-                <InvitationCard
-                  card={card}
-                  pending={state.pending?.id === card.id ? state.pending.action : null}
-                  onAccept={() => onAccept(card.id)}
-                  onDecline={() => onDecline(card.id)}
-                />
-              </li>
-            ))}
-          </ul>
-        </div>
-      );
-    case 'empty':
-      if (state.member) {
-        return (
-          <div className={styles.emptyNoticeCol}>
-            <h1>No pending invitations</h1>
-            <p className="muted">No invitations for {state.email}.</p>
-          </div>
-        );
-      }
-      return (
+  if (state.kind === 'empty' && !state.member) {
+    return (
+      <main className={styles.emptyNotice}>
         <div className={styles.emptyNoticeCol}>
           <h1>You&apos;re not a member of any organization</h1>
           <p className="muted">
@@ -115,23 +53,8 @@ function body(
             </Button>
           </div>
         </div>
-      );
-  }
-}
-
-const noticeMember = (email: string) => (
-  <EmptyState headingLevel={2} title="No pending invitations" body={`No invitations for ${email}.`} />
-);
-
-/** In the shell the bar and menu are the shell's: this draws only the page, one main, no h1 while loading or failed. */
-function shellBody(
-  state: MyInvitationsState,
-  onAccept: (id: string) => void,
-  onDecline: (id: string) => void,
-  onSignOut: () => void,
-) {
-  if (state.kind === 'empty' && !state.member) {
-    return <main className={styles.emptyNotice}>{body(state, onAccept, onDecline, onSignOut)}</main>;
+      </main>
+    );
   }
   return (
     <main className={styles.shellMain}>

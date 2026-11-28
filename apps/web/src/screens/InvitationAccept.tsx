@@ -1,15 +1,7 @@
 import type { ReactNode } from 'react';
 import { Button, Dialog, Skeleton } from '@/ds';
-import {
-  KeyValue,
-  PageHeader,
-  RouteLoadError,
-  SurfaceCard,
-  TopBar,
-  useShellOwnsChrome,
-  type OrgSwitchProps,
-} from '@/components';
-import type { Actor, InvitationDetailsView } from '@/mocks/types';
+import { KeyValue, PageHeader, RouteLoadError, SurfaceCard } from '@/components';
+import type { InvitationDetailsView } from '@/mocks/types';
 import styles from './Screens.module.css';
 
 export type InvitationAcceptState =
@@ -23,8 +15,6 @@ export type InvitationAcceptState =
   | { kind: 'error'; requestId?: string; onRetry: () => void };
 
 export interface InvitationAcceptProps {
-  user: Actor;
-  org?: OrgSwitchProps;
   state: InvitationAcceptState;
   onAccept: () => void;
   onDecline: () => void;
@@ -34,26 +24,13 @@ export interface InvitationAcceptProps {
 }
 
 /** The invitation link page: the invitee's own invitation with Accept and Decline, or why it cannot be answered. */
-export function InvitationAccept({ user, org, state, ...handlers }: InvitationAcceptProps) {
-  const owned = useShellOwnsChrome();
-  if (owned) return shellBody(state, handlers);
-  return (
-    <>
-      <TopBar
-        variant="global"
-        crumbs={[{ label: 'Invitation' }]}
-        user={user}
-        org={org}
-        tabs={org?.current ? 'org' : 'none'}
-      />
-      <main className={styles.emptyMain}>{body(state, handlers)}</main>
-    </>
-  );
+export function InvitationAccept({ state, ...handlers }: InvitationAcceptProps) {
+  return shellBody(state, handlers);
 }
 
 const noop = () => {};
 
-type Handlers = Omit<InvitationAcceptProps, 'user' | 'org' | 'state'>;
+type Handlers = Omit<InvitationAcceptProps, 'state'>;
 
 function notice(shell: boolean, title: string, text?: string, actions?: ReactNode) {
   if (shell) return shellNotice(title, text, actions);

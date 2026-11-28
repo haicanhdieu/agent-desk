@@ -36,8 +36,6 @@ function WelcomePage() {
   const [declining, setDeclining] = useState<{ id: string; orgName: string } | null>(null);
 
   const email = session?.user.email ?? '';
-  // Unused while the shell owns the page (the bar is the shell's); the screen's own fallback bar still takes it.
-  const handle = session?.user.handle ?? '';
   const platformAdmin = access.data?.platformAdmin ?? false;
 
   const pending = accept.isPending
@@ -88,7 +86,6 @@ function WelcomePage() {
   return (
     <>
       <MyInvitations
-        user={{ login: handle, initials: handle.slice(0, 2).toUpperCase() }}
         state={state}
         onAccept={(id) => accept.mutate(id, { onError: (e) => toast.show(toastFromError(e)) })}
         onDecline={(id) => {

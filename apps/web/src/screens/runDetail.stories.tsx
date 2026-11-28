@@ -1,7 +1,6 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import {
   autoResumedTerminal,
-  orgSwitchFixtures,
   runDetailPrMerged,
   runDetails,
   runUsageDetails,
@@ -30,13 +29,11 @@ const meta = {
     onStop: () => undefined,
     onCloseSession: () => undefined,
   },
-  // Under the app bar: org / project / Runs / Run N (no bell) and the account menu. Run N comes from the story's run.
+  // Inside the shell: the bar (org / project / Runs / Run N), the project menu and the page header. Run N comes from the story's run.
   render: (args) => (
-    <RunDetail
-      {...args}
-      org={{ ...orgSwitchFixtures.severalOrgsSettings, orgHref: (o) => `#${o.slug}`, createHref: '#new-org' }}
-      run={{ runsHref: '#runs', label: `Run ${args.data.run.id}` }}
-    />
+    <ProjectShellFrame page="runs" fill crumbs={runCrumbs(args.data.run.id)}>
+      <RunDetail {...args} />
+    </ProjectShellFrame>
   ),
 } satisfies Meta<typeof RunDetail>;
 export default meta;
@@ -83,7 +80,7 @@ export const RunIdleReadOnly: Story = {
 export const RunReconnect: Story = {
   decorators: artboard(1280, 800),
   globals: viewport(1280, 800),
-  args: { data: runDetails.RunReconnect, lines: terminalByRun[61], panelCollapsed: true, height: 800 },
+  args: { data: runDetails.RunReconnect, lines: terminalByRun[61], panelCollapsed: true },
 };
 export const RunSucceeded: Story = {
   decorators: artboard(1440, 900),

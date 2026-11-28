@@ -1,7 +1,6 @@
 import type { ReactNode } from 'react';
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import { userEvent, within } from 'storybook/test';
-import { AppShell } from '@/components';
 import { ShellFrame } from './shellFrame';
 import { CommandChip } from '@/ds';
 import {
@@ -28,7 +27,7 @@ import { SetupWorkspace as SetupWorkspaceScreen } from './SetupWorkspace';
 import { viewport } from './viewports';
 
 // Artboards come from canvas.json: Setup1, Setup1Polling, Setup1PollingOk, SetupWorkspace 1440x1000; the rest 1440x900.
-// SetupLayout renders its own top bar and the single <main>.
+// The shell draws the bar; SetupLayout puts the stepper in the shell's menu slot and draws the single <main>.
 const meta = {
   title: 'Screens/Setup',
   globals: viewport(1440, 900),
@@ -36,13 +35,13 @@ const meta = {
   decorators: [
     (S, ctx) => {
       const h = ctx.parameters.artboardHeight as number;
-      // A story with `parameters.shell` brings its own ShellFrame; the others sit in the old bare frame.
+      // A story with `parameters.shell` brings its own ShellFrame; the others sit in the wizard shell.
       if (ctx.parameters.shell) return <S />;
       return (
         <div style={{ width: 1440, height: h }}>
-          <AppShell height={h} topBar={null}>
+          <WizardFrame height={h}>
             <S />
-          </AppShell>
+          </WizardFrame>
         </div>
       );
     },
@@ -51,19 +50,14 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-/** The org bar of an owner or admin: the Projects tab (active) and the Settings tab. */
 const harbor = { id: 'org-harbor', slug: 'harbor-labs', name: 'Harbor Labs' };
-const bar = {
-  account: { name: 'Kim Hale', handle: 'kim-hale', invitationsHref: '#invitations' },
-  org: {
-    current: harbor,
-    orgs: [harbor],
-    platformAdmin: false,
-    orgHref: (o: { slug: string }) => `/o/${o.slug}/projects`,
-    createHref: '/platform/orgs/new',
-    projectsHref: '#projects',
-    settingsHref: '#settings',
-  },
+/** The scope crumb of the wizard's bar: an owner of one org. */
+const org = {
+  current: harbor,
+  orgs: [harbor],
+  platformAdmin: false,
+  orgHref: (o: { slug: string }) => `/o/${o.slug}/projects`,
+  createHref: '/platform/orgs/new',
 };
 
 const tall = { parameters: { artboardHeight: 1000 }, globals: viewport(1440, 1000) };
@@ -75,8 +69,6 @@ const rule = rules[0];
 const manageUrl = 'https://github.com/organizations/harbor-labs/settings/installations/1001';
 
 const setup1 = {
-  user,
-  ...bar,
   projectName,
   repos: [
     { name: repo, meta: 'Private, updated 2 hours ago', manageUrl },
@@ -181,8 +173,6 @@ const liveModels = toModelList({ status: 'success', data: agentModelsFixtures.li
 const noCredentialModels = toModelList({ status: 'success', data: agentModelsFixtures.noCredential }, null);
 
 const setup2Props = {
-  user,
-  ...bar,
   projectName,
   repo,
   kinds: agentKindViews,
@@ -310,7 +300,7 @@ export const Setup2AgentNoneChosen: Story = {
   },
 };
 
-const workspace = { user, ...bar, projectName, repo, plugins: { plugins: setupPlugins.planned } };
+const workspace = { projectName, repo, plugins: { plugins: setupPlugins.planned } };
 
 /** New optional step between the credential and skills (five steps once it ships). */
 export const SetupWorkspace: Story = {
@@ -368,8 +358,6 @@ export const Setup3: Story = {
   name: 'Setup 3, skills',
   render: () => (
     <Setup3Screen
-      user={user}
-      {...bar}
       projectName={projectName}
       repo={repo}
       branch="main"
@@ -384,8 +372,6 @@ export const Setup4: Story = {
   name: 'Setup 4, first rule',
   render: () => (
     <Setup4Screen
-      user={user}
-      {...bar}
       projectName={projectName}
       repo={repo}
       rule={rule}
@@ -404,8 +390,6 @@ export const Setup4Skip: Story = {
   name: 'Setup 4, first rule, optional with Skip',
   render: () => (
     <Setup4Screen
-      user={user}
-      {...bar}
       projectName={projectName}
       repo={repo}
       rule={rule}
@@ -427,8 +411,6 @@ export const Setup4Prompt: Story = {
   globals: viewport(1440, 1080),
   render: () => (
     <Setup4Screen
-      user={user}
-      {...bar}
       projectName={projectName}
       repo={repo}
       rule={{ ...rule, command: 'triage', labels: [], skill: '', kind: 'prompt', prompt: TRIAGE_PROMPT }}
@@ -459,8 +441,6 @@ const readySummary = (trigger: string) => [
 ];
 
 const ready = {
-  user,
-  ...bar,
   projectName,
   repo,
   label: { name: 'user-story', color: '#7C8FD8' },
@@ -530,11 +510,9 @@ function WizardFrame({ height = 900, children }: { height?: number; children: Re
       wizard
       height={height}
       topBar={{
-        variant: 'global',
         user,
         crumbs: [{ label: 'Projects', href: '#projects' }, { label: 'New project' }],
-        org: bar.org,
-        tabs: 'none',
+        org,
       }}
     >
       {children}
@@ -543,8 +521,6 @@ function WizardFrame({ height = 900, children }: { height?: number; children: Re
 }
 const wizardSkills = (
   <Setup3Screen
-    user={user}
-    {...bar}
     projectName={projectName}
     repo={repo}
     branch="main"
@@ -571,35 +547,29 @@ export const Setup3PreviewDialog: Story = wizardStory({
 export const Setup4ExitSetup: Story = wizardStory({
   name: 'Setup 4, first rule, in the shell with Exit setup',
   render: () => (
-    <WizardFrame>
-      <Setup4Screen
-        user={user}
-        {...bar}
-        projectName={projectName}
-        repo={repo}
-        rule={rule}
-        skills={['code-build', 'code-review']}
-        followUp={{ command: 'code-review', target: 'pr', skill: 'code-review', enabled: true }}
-        maxRunsPerTicket={agentSettings.maxRunsPerTicket}
-        promptPreview={{ state: 'ready', systemLines: promptSystemLines }}
-        modelList={liveModels}
-        defaultAgentName="Claude"
-        exitHref="#projects"
-      />
-    </WizardFrame>
+    <Setup4Screen
+      projectName={projectName}
+      repo={repo}
+      rule={rule}
+      skills={['code-build', 'code-review']}
+      followUp={{ command: 'code-review', target: 'pr', skill: 'code-review', enabled: true }}
+      maxRunsPerTicket={agentSettings.maxRunsPerTicket}
+      promptPreview={{ state: 'ready', systemLines: promptSystemLines }}
+      modelList={liveModels}
+      defaultAgentName="Claude"
+      exitHref="#projects"
+    />
   ),
 });
 
 export const SetupReadyExitSetup: Story = wizardStory({
   name: 'Setup, ready, in the shell with Exit setup',
   render: () => (
-    <WizardFrame>
-      <SetupReadyScreen
-        {...ready}
-        lastEvent={{ mode: 'webhook', at: 'ping, 14:01:37' }}
-        summary={readySummary(connectionCopy.triggerSummary('webhook'))}
-        exitHref="#projects"
-      />
-    </WizardFrame>
+    <SetupReadyScreen
+      {...ready}
+      lastEvent={{ mode: 'webhook', at: 'ping, 14:01:37' }}
+      summary={readySummary(connectionCopy.triggerSummary('webhook'))}
+      exitHref="#projects"
+    />
   ),
 });

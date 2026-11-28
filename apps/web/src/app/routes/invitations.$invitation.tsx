@@ -40,8 +40,6 @@ function InvitationLinkPage() {
   const [conflicted, setConflicted] = useState(false);
 
   const email = session?.user.email ?? '';
-  // Unused while the shell owns the page (the bar is the shell's); the screen's own fallback bar still takes it.
-  const handle = session?.user.handle ?? '';
 
   const retry = () => {
     setConflicted(false);
@@ -98,7 +96,6 @@ function InvitationLinkPage() {
 
   return (
     <InvitationAccept
-      user={{ login: handle, initials: handle.slice(0, 2).toUpperCase() }}
       state={state}
       onAccept={onAccept}
       onDecline={() => setConfirmDecline(true)}

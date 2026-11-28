@@ -5,7 +5,7 @@ import { act, render, screen, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { setViewportWidth } from '@/test/fakeMatchMedia';
 import { AppShell, type MenuMode } from './AppShell';
-import { ShellContext, useReportPageState, useShellOwnsChrome, type ShellContextValue } from './shellContext';
+import { ShellContext, useReportPageState, type ShellContextValue } from './shellContext';
 import { ShellFrame } from '@/screens/shellFrame';
 import { TopBar } from './TopBar';
 import { NO_PAGE_CRUMBS } from './pageTitle';
@@ -183,14 +183,14 @@ describe('AppShell fill mode', () => {
 
   it('marks fill through ShellFrame fill, and lets a given height win', () => {
     const { container, rerender } = render(
-      <ShellFrame fill topBar={{ variant: 'global', user, crumbs: NO_PAGE_CRUMBS }}>
+      <ShellFrame fill topBar={{ user, crumbs: NO_PAGE_CRUMBS }}>
         <p>page</p>
       </ShellFrame>,
     );
     expect(container.querySelector('.appViewport')).not.toBeNull();
     expect(content(container)).toHaveClass('contentFill');
     rerender(
-      <ShellFrame fill height={600} topBar={{ variant: 'global', user, crumbs: NO_PAGE_CRUMBS }}>
+      <ShellFrame fill height={600} topBar={{ user, crumbs: NO_PAGE_CRUMBS }}>
         <p>page</p>
       </ShellFrame>,
     );
@@ -217,27 +217,12 @@ describe('AppShell fill mode', () => {
 });
 
 describe('shell context', () => {
-  function Owns() {
-    return <p>{String(useShellOwnsChrome())}</p>;
-  }
-  it('says the shell owns the chrome only inside a provider that says so', () => {
-    const { rerender } = render(<Owns />);
-    expect(screen.getByText('false')).toBeInTheDocument();
-    const value: ShellContextValue = { owned: true, wizardSlot: null, reportPageState: () => () => {} };
-    rerender(
-      <ShellContext.Provider value={value}>
-        <Owns />
-      </ShellContext.Provider>,
-    );
-    expect(screen.getByText('true')).toBeInTheDocument();
-  });
-
   function Report({ state }: { state: 'error' | 'loading' | 'notFound' | undefined }) {
     useReportPageState(state);
     return null;
   }
   const wrap = (reportPageState: ShellContextValue['reportPageState'], child: ReactNode) => (
-    <ShellContext.Provider value={{ owned: true, wizardSlot: null, reportPageState }}>{child}</ShellContext.Provider>
+    <ShellContext.Provider value={{ wizardSlot: null, reportPageState }}>{child}</ShellContext.Provider>
   );
 
   it('reports a page state and undoes it on unmount', () => {
@@ -259,7 +244,7 @@ describe('shell context', () => {
 });
 
 describe('TopBar in the shell', () => {
-  const base = { variant: 'global', user, crumbs: NO_PAGE_CRUMBS } as const;
+  const base = { user, crumbs: NO_PAGE_CRUMBS } as const;
   it('shows Open menu only with onOpenMenu, with aria-expanded', () => {
     const { rerender } = render(<TopBar {...base} />);
     expect(screen.queryByRole('button', { name: 'Open menu' })).toBeNull();

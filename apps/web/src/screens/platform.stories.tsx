@@ -51,7 +51,7 @@ import {
 import { PlatformOrgMembers as PlatformOrgMembersScreen, type PlatformOrgMembersProps } from './PlatformOrgMembers';
 import { PlatformOrgProjects as PlatformOrgProjectsScreen, type ListView } from './PlatformOrgProjects';
 import { PlatformOrgs as PlatformOrgsScreen, type PlatformOrgsProps } from './PlatformOrgs';
-import { PlatformFrame } from './platformFrame';
+import { PlatformFrame } from './platformShellFrame';
 import { PlatformShellFrame } from './platformShellFrame';
 import { CreateOrg as CreateOrgScreen } from './CreateOrg';
 import { viewport } from './viewports';
@@ -788,7 +788,7 @@ export const PlatformOrgMembersSideMenuLoading: Story = shellStory({
 export const PlatformOrgOverviewSideMenuNotFound: Story = shellStory({
   name: 'Platform organization not found: platform menu with Organizations',
   render: () => (
-    <PlatformShellFrame menu={{ page: 'orgs' }} crumbs={[orgsCrumb, { label: 'Not found' }]} state="notFound">
+    <PlatformShellFrame menu={{ page: 'orgs' }} crumbs={[orgsCrumb, { label: 'Not found' }]}>
       <PlatformOrgDetailScreen view={{ kind: 'notFound', backHref: '/platform/orgs' }} />
     </PlatformShellFrame>
   ),

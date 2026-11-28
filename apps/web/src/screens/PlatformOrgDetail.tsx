@@ -9,7 +9,6 @@ import {
   RouteLoadError,
   SlugChangeConfirm,
   SuspendOrgDialog,
-  useShellOwnsChrome,
   type EditOrgDialogProps,
   type PlatformOrgHeaderProps,
   type SlugChangeConfirmProps,
@@ -47,9 +46,8 @@ export function PlatformOrgDetail({
   editSlot,
   children,
 }: PlatformOrgDetailProps) {
-  const owned = useShellOwnsChrome();
   return (
-    <main className={owned ? styles.shellMain : styles.platformMain}>
+    <main className={styles.shellMain}>
       {view.kind === 'loading' && (
         <div className={styles.platformLoading} aria-busy="true" role="status" aria-label="Loading">
           <span aria-hidden="true">
