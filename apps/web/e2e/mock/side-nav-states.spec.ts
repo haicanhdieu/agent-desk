@@ -6,6 +6,7 @@ import {
   OTHER_PROJECT,
   SESSION_MOCK_NOW,
   holdReads,
+  release,
   seedOnboarding,
   seedPlatform,
   seedProjectSpace,
@@ -300,5 +301,192 @@ test.describe('BR-16: "Go to projects" never leads back to the refused address',
 
     await expect(page).toHaveURL(/\/invitations$/);
     await expect(notFound(page)).toHaveCount(0);
+  });
+});
+
+/*
+ * Loading and failure states of the shell (same spec, "E2E requirements": BR-8 load error, BR-11 loading, BR-14 error and
+ * collapsed landmarks, BR-15 a menu that fails to load). Failing reads are retried with growing pauses, so the first
+ * appearance of an error waits up to RETRIED.
+ */
+const RETRIED = 15_000;
+const orgProjectsUrl = `/o/${ORG}/projects`;
+const menuError = (menu: Locator): Locator => menu.getByText('Could not load the menu.');
+const GATED =
+  /^(Members|Invitations|Audit log|General|Manage in Platform|Configure|Access|Routing rules|Skills|Workspace setup)/;
+
+test.describe('BR-8: a page that failed to load, after Retry', () => {
+  test('TC-8.5: after Retry the loaded Runs page has exactly one h1 at the standard position and size', async ({
+    page,
+  }) => {
+    await holdReads(page, { projectRuns: 'fail' });
+    await seedProjectSpace(page, { role: 'owner' });
+    await page.goto(runsUrl(INVOICER_API));
+
+    const main = page.getByRole('main');
+    await expect(main.getByRole('button', { name: 'Retry' })).toBeVisible({ timeout: RETRIED });
+    await setRead(page, 'projectRuns', undefined);
+    await main.getByRole('button', { name: 'Retry' }).click();
+
+    const h1 = main.getByRole('heading', { level: 1 });
+    await expect(h1).toHaveCount(1);
+    await expect(h1).toBeVisible();
+    const onRuns = await h1.evaluate((el) => {
+      const r = el.getBoundingClientRect();
+      return { x: r.x, y: r.y, size: getComputedStyle(el).fontSize };
+    });
+
+    // The standard: the h1 of another loaded page, reached from the same menu.
+    await projectMenu(page).getByRole('link', { name: 'Routing rules' }).click();
+    const other = main.getByRole('heading', { level: 1 });
+    await expect(other).toHaveCount(1);
+    await expect(other).toBeVisible();
+    const onRules = await other.evaluate((el) => {
+      const r = el.getBoundingClientRect();
+      return { x: r.x, y: r.y, size: getComputedStyle(el).fontSize };
+    });
+    expect(onRuns).toEqual(onRules);
+  });
+});
+
+test.describe('BR-11: loading keeps the top bar and the side menu', () => {
+  test('TC-11.1: while the Members list is held the bar and menu stay and the loading state is in the main only', async ({
+    page,
+  }) => {
+    await holdReads(page, { members: 'hold' });
+    await seedProjectSpace(page, { role: 'owner' });
+    await page.goto(orgProjectsUrl);
+    await orgMenu(page).getByRole('link', { name: 'Members', exact: true }).click();
+
+    await expect(page.getByRole('main').locator('[aria-busy="true"]').first()).toBeVisible();
+    await expect(bar(page)).toBeVisible();
+    await expect(orgMenu(page)).toBeVisible();
+    await expect(orgMenu(page).getByRole('link', { name: 'Members', exact: true })).toBeVisible();
+    await expect(orgMenu(page).locator('[aria-busy="true"]')).toHaveCount(0);
+
+    await release(page, 'members');
+    await expect(page.getByRole('main').locator('[aria-busy="true"]')).toHaveCount(0);
+    await expect(page.getByRole('main').getByRole('table')).toBeVisible();
+  });
+
+  test('TC-11.2: a project page opened by address with its content held shows the bar and a menu region around the loading state', async ({
+    page,
+  }) => {
+    await holdReads(page, { projectRuns: 'hold' });
+    await seedProjectSpace(page, { role: 'owner' });
+    await page.goto(runsUrl(INVOICER_API));
+
+    await expect(page.getByRole('main').locator('[aria-busy="true"]').first()).toBeVisible();
+    await expect(bar(page)).toBeVisible();
+    await expect(anyMenu(page)).toBeVisible();
+  });
+});
+
+test.describe('BR-14: landmarks on a collapsed menu and on a failed page', () => {
+  test('TC-14.3: a run page (collapsed menu) and a failed page each have one banner, one main and a menu named "Project menu"', async ({
+    page,
+  }) => {
+    await holdReads(page, { rules: 'fail' });
+    await seedProjectSpace(page, { role: 'owner' });
+    await page.goto(`/o/${ORG}/p/${INVOICER_API}/runs/62`);
+    await expect(page.getByRole('button', { name: 'Expand menu' })).toBeVisible();
+    await expect(page.getByRole('banner')).toHaveCount(1);
+    await expect(page.getByRole('main')).toHaveCount(1);
+    await expect(projectMenu(page)).toHaveCount(1);
+
+    await page.goto(rulesUrl(INVOICER_API));
+    await expect(page.getByRole('main').getByRole('button', { name: 'Retry' })).toBeVisible({ timeout: RETRIED });
+    await expect(page.getByRole('banner')).toHaveCount(1);
+    await expect(page.getByRole('main')).toHaveCount(1);
+    await expect(projectMenu(page)).toHaveCount(1);
+    await page.getByRole('button', { name: 'Collapse menu' }).click();
+    await expect(page.getByRole('button', { name: 'Expand menu' })).toBeVisible();
+    await expect(page.getByRole('banner')).toHaveCount(1);
+    await expect(page.getByRole('main')).toHaveCount(1);
+    await expect(projectMenu(page)).toHaveCount(1);
+  });
+});
+
+test.describe('BR-15: the data that decides the menu fails to load', () => {
+  test('TC-15.1: a failed org access read leaves Projects and "Could not load the menu." with Retry and no gated item', async ({
+    page,
+  }) => {
+    await holdReads(page, { orgAccess: 'fail' });
+    await seedProjectSpace(page, { role: 'owner' });
+    await page.goto(orgProjectsUrl);
+
+    const menu = orgMenu(page);
+    await expect(menu.getByRole('link', { name: 'Projects', exact: true })).toBeVisible();
+    await expect(menuError(menu)).toBeVisible({ timeout: RETRIED });
+    await expect(menu.getByRole('button', { name: 'Retry' })).toBeVisible();
+    await expect(menu.getByRole('link', { name: GATED })).toHaveCount(0);
+    await expect(menu.getByText('Settings', { exact: true })).toHaveCount(0);
+  });
+
+  test('TC-15.2: a failed project read leaves Runs and the menu error with no project name, repository block, Configure or Access', async ({
+    page,
+  }) => {
+    await holdReads(page, { projectDetail: 'fail' });
+    await seedProjectSpace(page, { role: 'owner' });
+    await page.goto(runsUrl(INVOICER_API));
+
+    const menu = projectMenu(page);
+    await expect(menu.getByRole('link', { name: 'Runs', exact: true })).toBeVisible();
+    await expect(menuError(menu)).toBeVisible({ timeout: RETRIED });
+    await expect(menu.getByRole('button', { name: 'Retry' })).toBeVisible();
+    await expect(menu).not.toContainText('invoicer-api');
+    await expect(menu.getByRole('link', { name: 'Open repository' })).toHaveCount(0);
+    await expect(menu.getByText(/^(Configure|Access)$/)).toHaveCount(0);
+    await expect(menu.getByRole('link', { name: GATED })).toHaveCount(0);
+  });
+
+  test("TC-15.3: Retry in the failed menu clears the error and shows the owner's full org menu", async ({ page }) => {
+    await holdReads(page, { orgAccess: 'fail' });
+    await seedProjectSpace(page, { role: 'owner' });
+    await page.goto(orgProjectsUrl);
+    const menu = orgMenu(page);
+    await expect(menuError(menu)).toBeVisible({ timeout: RETRIED });
+
+    await setRead(page, 'orgAccess', undefined);
+    await menu.getByRole('button', { name: 'Retry' }).click();
+
+    await expect(menuError(menu)).toHaveCount(0);
+    for (const name of ['Members', 'Invitations', 'Audit log', 'General']) {
+      await expect(menu.getByRole('link', { name, exact: true })).toBeVisible();
+    }
+  });
+
+  test('TC-15.4: a member on /invitations with the session access read failing sees the menu error, Retry and no gated item', async ({
+    page,
+  }) => {
+    await seedOnboarding(page, 'member');
+    await holdReads(page, { sessionAccess: 'fail' });
+    await page.goto('/invitations');
+
+    const menu = anyMenu(page);
+    await expect(menuError(menu)).toBeVisible({ timeout: RETRIED });
+    await expect(menu.getByRole('button', { name: 'Retry' })).toBeVisible();
+    await expect(menu.getByRole('link', { name: GATED })).toHaveCount(0);
+  });
+
+  test('TC-15.5: a platform admin on an org page whose platform check fails sees no platform item, no menu error and no Retry', async ({
+    page,
+  }) => {
+    await seedOnboarding(page, 'platformAdminOneOrg');
+    await holdReads(page, { platformAdmin: 'fail' });
+    let answered = 0;
+    page.on('response', (response) => {
+      if (new URL(response.url()).pathname === '/api/me/platform') answered += 1;
+    });
+    await page.goto(orgProjectsUrl);
+
+    const menu = orgMenu(page);
+    await expect(menu.getByRole('link', { name: 'Projects', exact: true })).toBeVisible();
+    // The failing check is tried twice more with growing pauses before it settles as failed: wait for the third answer.
+    await expect.poll(() => answered, { timeout: RETRIED }).toBeGreaterThanOrEqual(3);
+    await expect(menu.getByRole('link', { name: 'Manage in Platform' })).toHaveCount(0);
+    await expect(page.getByRole('link', { name: 'Platform', exact: true })).toHaveCount(0);
+    await expect(menuError(menu)).toHaveCount(0);
+    await expect(menu.getByRole('button', { name: 'Retry' })).toHaveCount(0);
   });
 });

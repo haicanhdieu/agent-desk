@@ -1481,10 +1481,10 @@ export function useShellData(input: ShellInput): ShellData;
 - Consumes: the wired shell; `openSideMenu`, `ORG`, `INVOICER_API`, `IDLE_RUN`, `SESSION_MOCK_NOW`.
 - Covers: BR-1, BR-2, BR-3, BR-6, BR-7, BR-8, BR-10, BR-14, BR-43.
 
-- [ ] **Step 0: Multi-agent gate.** Run both checks in "Multi-agent gate". If either fails, stop: write no code and report which check failed.
-- [ ] **Step 1: Add** "TC-1.1", "TC-1.2", "TC-2.1", "TC-2.2", "TC-3.1", "TC-3.2", "TC-6.1", "TC-6.2", "TC-6.3", "TC-7.1", "TC-7.2", "TC-8.1" (h1 box position and font size equal within 1px across loaded side-menu pages), "TC-8.2", "TC-8.3" (wizard: one h1, same size, position not compared), "TC-8.4" (one h1 on forbidden, not-found and crash), "TC-10.1" (exact names; the tab strip name "Agent and project settings" and the "Agent Desk" brand are not counted), "TC-10.2", "TC-10.3", "TC-10.4", "TC-14.1", "TC-14.2", "TC-43.1", "TC-43.2". TC-14.1 queries landmarks by role (`banner`, `navigation` named per scope, `main`) and runs the existing `axe-core` dev dependency in the page (`page.addScriptTag` with its resolved `axe.min.js`, then `axe.run` limited to the landmark rules `landmark-*` and `region`): no violation. No new dependency.
+- [x] **Step 0: Multi-agent gate.** Run both checks in "Multi-agent gate". If either fails, stop: write no code and report which check failed.
+- [x] **Step 1: Add** "TC-1.1", "TC-1.2", "TC-2.1", "TC-2.2", "TC-3.1", "TC-3.2", "TC-6.1", "TC-6.2", "TC-6.3", "TC-7.1", "TC-7.2", "TC-8.1" (h1 box position and font size equal within 1px across loaded side-menu pages), "TC-8.2", "TC-8.3" (wizard: one h1, same size, position not compared), "TC-8.4" (one h1 on forbidden, not-found and crash), "TC-10.1" (exact names; the tab strip name "Agent and project settings" and the "Agent Desk" brand are not counted), "TC-10.2", "TC-10.3", "TC-10.4", "TC-14.1", "TC-14.2", "TC-43.1", "TC-43.2". TC-14.1 queries landmarks by role (`banner`, `navigation` named per scope, `main`) and runs the existing `axe-core` dev dependency in the page (`page.addScriptTag` with its resolved `axe.min.js`, then `axe.run` limited to the landmark rules `landmark-*` and `region`): no violation. No new dependency.
 - [ ] **Step 2: Run** MOCK `side-nav`. Expected: PASS, three times in a row.
-- [ ] **Step 3: Commit** `test(web): shell chrome and page header e2e`.
+- [x] **Step 3: Commit** `test(web): shell chrome and page header e2e`.
 
 ### Task 41: E2E, loading and menu failure states (after the multi-agent gate)
 
@@ -1501,10 +1501,10 @@ export function useShellData(input: ShellInput): ShellData;
 - Consumes: `holdReads`, `release`.
 - Covers: BR-8 (load error), BR-11, BR-14 (error and collapsed), BR-15.
 
-- [ ] **Step 0: Multi-agent gate.** Run both checks in "Multi-agent gate". If either fails, stop: write no code and report which check failed.
-- [ ] **Step 1: Add** "TC-8.5" (no title asserted while loading or failed; after Retry one title at the standard position), "TC-11.1", "TC-11.2", "TC-14.3", "TC-15.1", "TC-15.2", "TC-15.3", "TC-15.4", "TC-15.5" (no menu error or Retry when only the platform check fails).
+- [x] **Step 0: Multi-agent gate.** Run both checks in "Multi-agent gate". If either fails, stop: write no code and report which check failed.
+- [x] **Step 1: Add** "TC-8.5" (no title asserted while loading or failed; after Retry one title at the standard position), "TC-11.1", "TC-11.2", "TC-14.3", "TC-15.1", "TC-15.2", "TC-15.3", "TC-15.4", "TC-15.5" (no menu error or Retry when only the platform check fails).
 - [ ] **Step 2: Run** MOCK `side-nav-states`. Expected: PASS, three times in a row.
-- [ ] **Step 3: Commit** `test(web): shell loading and failure e2e`.
+- [x] **Step 3: Commit** `test(web): shell loading and failure e2e`.
 
 ### Task 42: E2E, the drawer below 1024px (after the multi-agent gate)
 
@@ -1520,10 +1520,10 @@ export function useShellData(input: ShellInput): ShellData;
 
 - Covers: BR-59, BR-61, BR-62 (TC-62.5, which needs the phone add pane, is in Task 57).
 
-- [ ] **Step 0: Multi-agent gate.** Run both checks in "Multi-agent gate". If either fails, stop: write no code and report which check failed.
-- [ ] **Step 1: Write** "TC-59.1", "TC-59.2", "TC-59.3", "TC-59.4", "TC-61.1", "TC-61.2", "TC-61.3", "TC-61.4", "TC-62.1", "TC-62.2", "TC-62.3", "TC-62.4", with `hasTouch` at 390; expect the end state of drawer transitions, no sleeps.
+- [x] **Step 0: Multi-agent gate.** Run both checks in "Multi-agent gate". If either fails, stop: write no code and report which check failed.
+- [x] **Step 1: Write** "TC-59.1", "TC-59.2", "TC-59.3", "TC-59.4", "TC-61.1", "TC-61.2", "TC-61.3", "TC-61.4", "TC-62.1", "TC-62.2", "TC-62.3", "TC-62.4", with `hasTouch` at 390; expect the end state of drawer transitions, no sleeps.
 - [ ] **Step 2: Run** MOCK `drawer`. Expected: PASS, three times in a row.
-- [ ] **Step 3: Commit** `test(web): drawer e2e`.
+- [x] **Step 3: Commit** `test(web): drawer e2e`.
 
 ### Task 43: Local e2e, organization and platform access by role (after the multi-agent gate)
 

@@ -1,5 +1,7 @@
+import { createRequire } from 'node:module';
 import { expect, test, type Locator, type Page } from '@playwright/test';
 import { agentListId, ids } from '../../src/mocks/dto/ids';
+import { MARKER } from '../../src/mocks/msw/shellScenarios';
 import type { PlatformScenario } from '../../src/mocks/msw/platformScenarios';
 import type { TenantAdminScenario } from '../../src/mocks/msw/tenantAdminScenarios';
 import {
@@ -24,6 +26,7 @@ import {
   seedProjectSpace,
   seedShell,
   seedTenantAdmin,
+  startSignedOut,
 } from './mock';
 
 /*
@@ -1977,4 +1980,484 @@ test('Review Focus 5: the Cancel run confirm survives a resize across 1024, Keep
   await expect(terminal).toHaveAttribute('data-keep', 'same');
   await expect(terminal).toContainText('agent-desk fake terminal');
   await expect(page.getByText(/Connection to the terminal lost|Reconnecting/)).toHaveCount(0);
+});
+
+/*
+ * One chrome and one header on every page (spec 2026-11-25-sidebar-navigation-shell-design.md "E2E requirements": TC-1.1,
+ * TC-1.2, TC-2.1, TC-2.2, TC-3.1, TC-3.2, TC-6.1 to TC-6.3, TC-7.1, TC-7.2, TC-8.1 to TC-8.4, TC-10.1 to TC-10.4,
+ * TC-14.1, TC-14.2, TC-43.1, TC-43.2). TC-6.4, TC-7.5, TC-7.6, TC-8.6 and TC-10.5 are above. The signed-in user is an
+ * org owner who is also a platform admin (`platformAdminMemberOrg`), unless a case says otherwise.
+ */
+const PLATFORM_OWNER = 'platformAdminMemberOrg' as const;
+const orgUrl = (path: string) => `/o/${ORG}/${path}`;
+const bannerOf = (page: Page): Locator => page.getByRole('banner');
+const anySideMenu = (page: Page): Locator => page.getByRole('navigation', { name: SIDE_MENU_NAME });
+
+async function openAsPlatformOwner(page: Page, path: string, width = 1440, height = 900): Promise<void> {
+  await page.setViewportSize({ width, height });
+  await page.goto(path);
+}
+
+test.describe('BR-1, BR-2, BR-3: the top bar, the sign-in page and the deeper scope', () => {
+  const BAR_BUTTON = /^(Switch scope|Switch project|Notifications \(coming soon\)|Account menu for )/;
+
+  /** The names of the banner's links outside the breadcrumb, and of all its buttons. */
+  async function barControls(page: Page): Promise<{ links: string[]; buttons: string[]; tabs: number }> {
+    const bar = bannerOf(page);
+    const links = await bar
+      .getByRole('link')
+      .evaluateAll((els) =>
+        els.filter((el) => !el.closest('nav[aria-label="Breadcrumb"]')).map((el) => el.textContent?.trim() ?? ''),
+      );
+    const buttons = await bar
+      .getByRole('button')
+      .evaluateAll((els) => els.map((el) => el.getAttribute('aria-label') ?? el.textContent?.trim() ?? ''));
+    return { links, buttons, tabs: await bar.getByRole('tab').count() };
+  }
+
+  test('TC-1.1: on org, project, run, platform and invitations pages the top bar holds only logo, switchers and breadcrumb, bell and account menu', async ({
+    page,
+  }) => {
+    await seedPlatform(page, PLATFORM_OWNER);
+    for (const path of [
+      orgUrl('projects'),
+      orgUrl('settings/members'),
+      runsUrl(),
+      runUrl(IDLE_RUN),
+      '/platform/orgs',
+      '/invitations',
+    ]) {
+      await openAsPlatformOwner(page, path);
+      await expect(bannerOf(page).getByRole('button', { name: /^Account menu for / })).toBeVisible();
+      const { links, buttons, tabs } = await barControls(page);
+      expect(links, path).toHaveLength(1);
+      expect(links[0], path).toMatch(/Agent Desk/);
+      expect(tabs, path).toBe(0);
+      for (const name of buttons) expect(name, path).toMatch(BAR_BUTTON);
+      await expect(bannerOf(page).getByRole('button', { name: 'Notifications (coming soon)' })).toBeVisible();
+    }
+  });
+
+  test('TC-1.2: on Routing rules and platform Organizations the top bar has no section link, tab, run action or repository button, and the side menu is present', async ({
+    page,
+  }) => {
+    await seedPlatform(page, PLATFORM_OWNER);
+    const SECTION =
+      /^(Projects|Org settings|Project settings|Desk|Organizations|Platform admins|Audit log|Open repository)$/;
+    for (const [path, menu] of [
+      [deskUrl('rules'), 'Project menu'],
+      ['/platform/orgs', 'Platform menu'],
+    ] as const) {
+      await openAsPlatformOwner(page, path);
+      await expect(page.getByRole('navigation', { name: menu })).toBeVisible();
+      const { links, buttons, tabs } = await barControls(page);
+      expect(tabs, path).toBe(0);
+      for (const name of [...links.slice(1), ...buttons]) expect(name, path).not.toMatch(SECTION);
+      for (const name of buttons) expect(name, path).not.toMatch(RUN_ACTION);
+      await expect(bannerOf(page).getByRole('link', { name: /repository/i })).toHaveCount(0);
+    }
+  });
+
+  test('TC-2.1: signed out, /sign-in shows the "Sign in with GitHub" button', async ({ page }) => {
+    await startSignedOut(page);
+    await page.goto('/sign-in');
+    await expect(page.getByRole('link', { name: 'Sign in with GitHub' })).toBeVisible();
+  });
+
+  test('TC-2.2: signed out, /sign-in has no top bar, side menu or menu button at 1440 and at 390', async ({ page }) => {
+    await startSignedOut(page);
+    for (const width of [1440, 390]) {
+      await page.setViewportSize({ width, height: 900 });
+      await page.goto('/sign-in');
+      await expect(page.getByRole('link', { name: 'Sign in with GitHub' })).toBeVisible();
+      await expect(bannerOf(page)).toHaveCount(0);
+      await expect(page.getByRole('navigation')).toHaveCount(0);
+      await expect(page.getByRole('button', { name: /^(Open|Expand|Collapse) menu$/ })).toHaveCount(0);
+    }
+  });
+
+  test('TC-3.1: from org Projects into a project only the Project menu shows, with no org menu items', async ({
+    page,
+  }) => {
+    await seedTenantAdmin(page, 'twoOwners');
+    await openAsPlatformOwner(page, orgUrl('projects'));
+    await expect(anySideMenu(page)).toHaveCount(1);
+    await expect(orgMenu(page)).toBeVisible();
+    await page.getByRole('main').getByRole('link', { name: 'invoicer-api', exact: true }).click();
+    await expect(page).toHaveURL(new RegExp(`/o/${ORG}/p/${P1}/`));
+    await expect(projectMenu(page)).toBeVisible();
+    await expect(anySideMenu(page)).toHaveCount(1);
+    await expect(orgMenu(page)).toHaveCount(0);
+    await expect(page.getByText('Settings', { exact: true })).toHaveCount(0);
+    await expect(page.getByRole('link', { name: 'Invitations', exact: true })).toHaveCount(0);
+  });
+
+  test('TC-3.2: from platform Organizations into one organization the one-org menu replaces the Platform menu', async ({
+    page,
+  }) => {
+    await seedPlatform(page, 'platformAdminOrgs');
+    await openAsPlatformOwner(page, ORGS);
+    await expect(anySideMenu(page)).toHaveCount(1);
+    await expect(platformMenu(page).getByRole('link')).toHaveText(['Organizations', 'Platform admins', 'Audit log']);
+    await page.getByRole('main').getByRole('link', { name: 'Acme', exact: true }).click();
+    await expect(page).toHaveURL(new RegExp(`${ORG_BASE}$`));
+    const menu = platformMenu(page);
+    await expect(menu.getByRole('link', { name: /Organizations/ })).toBeVisible();
+    await expect(menu.getByText('Acme', { exact: true })).toBeVisible();
+    await expect(itemsOf(menu)).toHaveText(['Overview', 'Projects', 'Members', 'Invitations']);
+    await expect(menu.getByRole('link', { name: 'Platform admins' })).toHaveCount(0);
+    await expect(anySideMenu(page)).toHaveCount(1);
+  });
+});
+
+test.describe('BR-6: the side menu stays in place', () => {
+  /** The side menu's box, and how far the page scrolled. */
+  async function scrollToEnd(page: Page, menu: Locator) {
+    const before = await box(menu);
+    await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+    const scrolled = await page.evaluate(() => window.scrollY);
+    return { before, after: await box(menu), scrolled };
+  }
+
+  for (const width of [1024, 1440]) {
+    test(`TC-6.${width === 1024 ? 1 : 2}: at ${width} wide the menu keeps its place and full height while a long page scrolls`, async ({
+      page,
+    }) => {
+      await seedTenantAdmin(page, 'membersPaged');
+      await page.setViewportSize({ width, height: 700 });
+      await page.goto(orgUrl('settings/members'));
+      await expect(page.getByRole('heading', { level: 1, name: 'Members' })).toBeVisible();
+      const menu = orgMenu(page);
+      await expect(menu).toBeVisible();
+      const barBottom = (await box(bannerOf(page))).y + (await box(bannerOf(page))).height;
+      const { before, after, scrolled } = await scrollToEnd(page, menu);
+      expect(scrolled).toBeGreaterThan(0);
+      expect(after.y).toBe(before.y);
+      expect(Math.abs(after.y - barBottom)).toBeLessThanOrEqual(1);
+      expect(Math.abs(after.y + after.height - 700)).toBeLessThanOrEqual(1);
+    });
+  }
+
+  test('TC-6.3: at 1280x360 the project menu scrolls on its own to the repository block while the page does not move', async ({
+    page,
+  }) => {
+    await seedProjectSpace(page, { role: 'owner' });
+    await page.setViewportSize({ width: 1280, height: 360 });
+    await page.goto(runsUrl());
+    const menu = projectMenu(page);
+    await expect(menu.getByRole('link', { name: 'Runs' })).toBeVisible();
+    const heading = page.getByRole('heading', { level: 1, name: 'Runs' });
+    const before = await box(heading);
+    const open = menu.getByRole('link', { name: 'Open repository' });
+    await open.scrollIntoViewIfNeeded();
+    await expect(open).toBeInViewport();
+    await expect(menu.getByRole('region', { name: 'Repository' })).toBeInViewport();
+    expect(await page.evaluate(() => window.scrollY)).toBe(0);
+    expect(await box(heading)).toEqual(before);
+  });
+});
+
+test.describe('BR-7: the current item', () => {
+  test('TC-7.1: on org Projects, Members, Invitations, Audit log and General exactly the matching item is current', async ({
+    page,
+  }) => {
+    await seedTenantAdmin(page, 'twoOwners');
+    await page.setViewportSize({ width: 1440, height: 900 });
+    for (const [name, path] of [
+      ['Projects', 'projects'],
+      ['Members', 'settings/members'],
+      ['Invitations', 'settings/invitations'],
+      ['Audit log', 'settings/audit'],
+      ['General', 'settings/general'],
+    ] as const) {
+      await page.goto(orgUrl(path));
+      await expect(page.getByRole('heading', { level: 1, name })).toBeVisible();
+      await expect(orgMenu(page).locator('[aria-current]')).toHaveCount(1);
+      await expect(orgMenu(page).getByRole('link', { name, exact: true })).toHaveAttribute('aria-current', 'page');
+    }
+  });
+
+  test('TC-7.2: on each project page exactly the matching project menu item is current', async ({ page }) => {
+    await seedProjectSpace(page, { role: 'owner' });
+    await page.setViewportSize({ width: 1440, height: 900 });
+    for (const [name, path] of [
+      ['Runs', 'runs'],
+      ['Routing rules', 'desk/rules'],
+      ['Skills', 'desk/skills'],
+      ['Workspace setup', 'desk/setup'],
+      ['Agent & settings', 'desk/agent'],
+      ['Members', 'desk/members'],
+      ['Audit log', 'desk/audit'],
+    ] as const) {
+      await page.goto(`/o/${ORG}/p/${P1}/${path}`);
+      await expect(page.getByRole('heading', { level: 1, name })).toBeVisible();
+      const menu = projectMenu(page);
+      await expect(menu.locator('[aria-current]')).toHaveCount(1);
+      await expect(menu.getByRole('link', { name: new RegExp(`^${name.replace(/[&]/g, '\\$&')}`) })).toHaveAttribute(
+        'aria-current',
+        'page',
+      );
+    }
+  });
+});
+
+test.describe('BR-8: one page header', () => {
+  test.use({ viewport: { width: 1440, height: 900 } });
+
+  /** Waits for the one h1 and returns its offset in main and its font size. */
+  async function metrics(page: Page, name: string) {
+    const h1 = page.getByRole('heading', { level: 1 });
+    await expect(h1).toHaveCount(1);
+    await expect(h1).toHaveText(name);
+    await page.evaluate(() => document.fonts.ready);
+    const main = await box(page.getByRole('main'));
+    const b = await box(h1);
+    const fontSize = await h1.evaluate((el) => getComputedStyle(el).fontSize);
+    return { x: b.x - main.x, y: b.y - main.y, fontSize };
+  }
+
+  test('TC-8.1: ten loaded side-menu pages each have one h1 at the same offset and size', async ({ page }) => {
+    await seedPlatform(page, PLATFORM_OWNER);
+    const pages = [
+      [orgUrl('projects'), 'Projects'],
+      [orgUrl('settings/members'), 'Members'],
+      [runsUrl(), 'Runs'],
+      [deskUrl('rules'), 'Routing rules'],
+      [deskUrl('skills'), 'Skills'],
+      [deskUrl('setup'), 'Workspace setup'],
+      [deskUrl('agent'), 'Agent & settings'],
+      [runUrl(IDLE_RUN), `Run ${IDLE_RUN}`],
+      [ORGS, 'Organizations'],
+      [ORG_BASE, 'Acme'],
+    ] as const;
+    const seen: Array<{ path: string; x: number; y: number; fontSize: string }> = [];
+    for (const [path, name] of pages) {
+      await page.goto(path);
+      seen.push({ path, ...(await metrics(page, name)) });
+    }
+    const [first, ...rest] = seen;
+    if (!first) throw new Error('no page measured');
+    for (const s of rest) {
+      expect(Math.abs(s.x - first.x), s.path).toBeLessThanOrEqual(1);
+      expect(Math.abs(s.y - first.y), s.path).toBeLessThanOrEqual(1);
+      expect(s.fontSize, s.path).toBe(first.fontSize);
+    }
+  });
+
+  test('TC-8.2: Skills has "New skill" and Workspace setup has "Test setup" on the right of the h1', async ({
+    page,
+  }) => {
+    await seedProjectSpace(page, { role: 'owner' });
+    for (const [path, title, action] of [
+      [deskUrl('skills'), 'Skills', 'New skill'],
+      [deskUrl('setup'), 'Workspace setup', 'Test setup'],
+    ] as const) {
+      await page.goto(path);
+      const h1 = page.getByRole('heading', { level: 1, name: title });
+      await expect(h1).toBeVisible();
+      const control = page.getByRole('main').getByText(action, { exact: true }).first();
+      await expect(control).toBeVisible();
+      const [h, a] = [await box(h1), await box(control)];
+      expect(a.x).toBeGreaterThanOrEqual(h.x + h.width);
+      expect(a.y).toBeLessThan(h.y + h.height);
+      expect(a.y + a.height).toBeGreaterThan(h.y);
+    }
+  });
+
+  test('TC-8.3: a wizard step has exactly one h1 of the same size as on other pages', async ({ page }) => {
+    await seedTenantAdmin(page, 'twoOwners');
+    await page.goto(orgUrl('projects'));
+    const standard = await metrics(page, 'Projects');
+    await page.goto(orgUrl('projects/new/repo'));
+    const h1 = page.getByRole('heading', { level: 1 });
+    await expect(h1).toHaveCount(1);
+    await expect(h1).toBeVisible();
+    await page.evaluate(() => document.fonts.ready);
+    expect(await h1.evaluate((el) => getComputedStyle(el).fontSize)).toBe(standard.fontSize);
+  });
+
+  test('TC-8.4 (a): a forbidden page has exactly one h1, its title', async ({ page }) => {
+    await seedProjectSpace(page, { role: 'member' });
+    await page.goto(deskUrl('skills'));
+    await expect(page.getByRole('heading', { level: 1 })).toHaveCount(1);
+    await expect(page.getByRole('heading', { level: 1, name: "You don't have access" })).toBeVisible();
+  });
+
+  test('TC-8.4 (b): an unknown address has exactly one h1, "Page not found"', async ({ page }) => {
+    await page.goto(orgUrl('this-address-does-not-exist'));
+    await expect(page.getByRole('heading', { level: 1 })).toHaveCount(1);
+    await expect(page.getByRole('heading', { level: 1, name: 'Page not found' })).toBeVisible();
+  });
+
+  test('TC-8.4 (c): a crashing page has exactly one h1, "Something went wrong"', async ({ page }) => {
+    await holdReads(page, { rules: 'crash' });
+    await seedProjectSpace(page, { role: 'owner' });
+    await page.goto(deskUrl('rules'));
+    await expect(page.getByRole('heading', { level: 1 })).toHaveCount(1);
+    await expect(page.getByRole('heading', { level: 1, name: 'Something went wrong' })).toBeVisible();
+  });
+});
+
+test.describe('BR-10: no old crumbs; the document title', () => {
+  test.use({ viewport: { width: 1440, height: 900 } });
+
+  test('TC-10.1: no "Org settings", "Project settings" or "Desk" crumb, tab or menu heading; the menu headings are the new ones', async ({
+    page,
+  }) => {
+    await seedProjectSpace(page, { role: 'owner' });
+    const OLD = /^(Org settings|Project settings|Desk)$/;
+    const pages = [
+      ...['settings/members', 'settings/invitations', 'settings/audit', 'settings/general'].map(
+        (p) => [orgUrl(p), 'Organization menu', ['Settings']] as const,
+      ),
+      ...['desk/rules', 'desk/skills', 'desk/setup', 'desk/agent', 'desk/members', 'desk/audit'].map(
+        (p) => [`/o/${ORG}/p/${P1}/${p}`, 'Project menu', ['Configure', 'Access']] as const,
+      ),
+    ];
+    for (const [path, menuName, headings] of pages) {
+      await page.goto(path);
+      const menu = page.getByRole('navigation', { name: menuName });
+      await expect(menu).toBeVisible();
+      for (const h of headings) await expect(menu.getByText(h, { exact: true })).toBeVisible();
+      await expect(bannerOf(page).getByRole('navigation', { name: 'Breadcrumb' })).toBeVisible();
+      for (const role of ['link', 'tab', 'button', 'heading'] as const) {
+        await expect(page.getByRole(role, { name: OLD }), `${role} on ${path}`).toHaveCount(0);
+      }
+      await expect(bannerOf(page).getByText(OLD)).toHaveCount(0);
+      await expect(menu.getByText(OLD)).toHaveCount(0);
+    }
+  });
+
+  test('TC-10.2: the titles are "Members · Alice · Agent Desk" and "Routing rules · invoicer-api · Agent Desk"', async ({
+    page,
+  }) => {
+    await seedProjectSpace(page, { role: 'owner' });
+    await page.goto(orgUrl('settings/members'));
+    await expect(page).toHaveTitle('Members · Alice · Agent Desk');
+    await page.goto(deskUrl('rules'));
+    await expect(page).toHaveTitle('Routing rules · invoicer-api · Agent Desk');
+  });
+
+  test('TC-10.3: the title of run 62 holds none of the ticket marker text, which shows as plain text', async ({
+    page,
+  }) => {
+    await seedShell(page, 'markerTicket');
+    await page.goto(runUrl(IDLE_RUN));
+    const header = runHeader(page);
+    await expect(header.getByRole('heading', { level: 1, name: `Run ${IDLE_RUN}` })).toBeVisible();
+    await expect(page).toHaveTitle(`Run ${IDLE_RUN} · invoicer-api · Agent Desk`);
+    expect(await page.title()).not.toContain(MARKER);
+    await expect(header.getByText(MARKER)).toBeVisible();
+    await expect(page.locator('main img[src="x"]')).toHaveCount(0);
+    await expect(page.locator('main b', { hasText: 'bold' })).toHaveCount(0);
+  });
+
+  test('TC-10.4: the platform titles are "Organizations · Platform · Agent Desk" and "Members · Platform · Agent Desk"', async ({
+    page,
+  }) => {
+    await seedPlatform(page, 'platformAdminOrgs');
+    await page.goto(ORGS);
+    await expect(page).toHaveTitle('Organizations · Platform · Agent Desk');
+    await page.goto(`${ORG_BASE}/members`);
+    await expect(page.getByRole('heading', { name: 'Members', level: 2 })).toBeVisible();
+    await expect(page).toHaveTitle('Members · Platform · Agent Desk');
+  });
+});
+
+test.describe('BR-14: landmarks and menu names', () => {
+  test.use({ viewport: { width: 1440, height: 900 } });
+
+  async function landmarks(page: Page, menuName: string): Promise<void> {
+    await expect(bannerOf(page)).toHaveCount(1);
+    await expect(page.getByRole('main')).toHaveCount(1);
+    await expect(page.getByRole('navigation', { name: SIDE_MENU_NAME })).toHaveCount(1);
+    await expect(page.getByRole('navigation', { name: menuName })).toHaveCount(1);
+  }
+
+  test('TC-14.1: org Projects, project Runs and a platform page each have one banner, one named side navigation and one main, and axe reports no landmark violation', async ({
+    page,
+  }) => {
+    await seedPlatform(page, PLATFORM_OWNER);
+    const axePath = createRequire(import.meta.url).resolve('axe-core/axe.min.js');
+    for (const [path, menu] of [
+      [orgUrl('projects'), 'Organization menu'],
+      [runsUrl(), 'Project menu'],
+      [ORGS, 'Platform menu'],
+    ] as const) {
+      await page.goto(path);
+      await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
+      await landmarks(page, menu);
+      await page.addScriptTag({ path: axePath });
+      const violations = await page.evaluate(async () => {
+        interface Axe {
+          getRules(): Array<{ ruleId: string }>;
+          run(
+            ctx: Document,
+            opts: { runOnly: { type: 'rule'; values: string[] } },
+          ): Promise<{ violations: Array<{ id: string }> }>;
+        }
+        const axe = (window as unknown as { axe: Axe }).axe;
+        const values = axe
+          .getRules()
+          .map((r) => r.ruleId)
+          .filter((id) => id === 'region' || id.startsWith('landmark-'));
+        const result = await axe.run(document, { runOnly: { type: 'rule', values } });
+        return result.violations.map((v) => v.id);
+      });
+      expect(violations, path).toEqual([]);
+    }
+  });
+
+  test('TC-14.2: the Configure, Access and Settings groups are lists labelled by their headings', async ({ page }) => {
+    await seedProjectSpace(page, { role: 'owner' });
+    await page.goto(runsUrl());
+    for (const group of ['Configure', 'Access']) {
+      await expect(projectMenu(page).getByRole('list', { name: group })).toBeVisible();
+    }
+    await page.goto(orgUrl('settings/members'));
+    await expect(orgMenu(page).getByRole('list', { name: 'Settings' })).toBeVisible();
+  });
+});
+
+test.describe('BR-43: the disabled bell', () => {
+  test.use({ viewport: { width: 1440, height: 900 } });
+  const PAGES = [orgUrl('projects'), runsUrl(), runUrl(IDLE_RUN), '/platform/orgs', '/invitations'];
+
+  test('TC-43.1: on an org, project, run, platform and invitations page the bell is disabled, named "coming soon", unfocusable and inert', async ({
+    page,
+  }) => {
+    await seedPlatform(page, PLATFORM_OWNER);
+    for (const path of PAGES) {
+      await page.goto(path);
+      const bell = bannerOf(page).getByRole('button', { name: 'Notifications (coming soon)', exact: true });
+      await expect(bell, path).toBeVisible();
+      await expect(bell, path).toBeDisabled();
+      await expect(bell, path).toHaveAttribute('title', 'Notifications (coming soon)');
+      // Tab through the page from the top until focus reaches the account menu: the bell is never on the way.
+      const account = bannerOf(page).getByRole('button', { name: /^Account menu for / });
+      await page.locator('body').click({ position: { x: 0, y: 0 } });
+      for (let i = 0; i < 40; i += 1) {
+        await page.keyboard.press('Tab');
+        await expect(bell, path).not.toBeFocused();
+        if (await account.evaluate((el) => el === document.activeElement)) break;
+      }
+      await expect(account, path).toBeFocused();
+      const url = page.url();
+      await bell.click({ force: true });
+      expect(page.url()).toBe(url);
+      await expect(page.getByRole('dialog')).toHaveCount(0);
+      await expect(page.getByRole('menu')).toHaveCount(0);
+    }
+  });
+
+  test('TC-43.2: "Notifications on" appears nowhere on those pages', async ({ page }) => {
+    await seedPlatform(page, PLATFORM_OWNER);
+    for (const path of PAGES) {
+      await page.goto(path);
+      await expect(bannerOf(page).getByRole('button', { name: /^Account menu for / })).toBeVisible();
+      await expect(page.getByText('Notifications on')).toHaveCount(0);
+      await expect(page.getByRole('button', { name: /Notifications on/ })).toHaveCount(0);
+      await expect(page.locator('[title*="Notifications on"], [aria-label*="Notifications on"]')).toHaveCount(0);
+    }
+  });
 });
