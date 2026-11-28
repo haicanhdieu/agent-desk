@@ -1582,12 +1582,12 @@ export function useShellData(input: ShellInput): ShellData;
 
 - Produces: `DataTable` gains `cards?: boolean` (default true): below 640px each row is a card, a cell shows `data-label` through `::before`, `thead` is visually hidden. Rows opt in with `data-label="<column header>"` on each `td`; Tasks 47, 48, 52 and 53 add it to their rows. `SidePane` is full width below 640px.
 
-- [ ] **Step 0: Multi-agent gate.** Run both checks in "Multi-agent gate". If either fails, stop: write no code and report which check failed.
-- [ ] **Step 1: Write failing tests:** `DataTable.test.tsx` checks `thead` is still in the accessibility tree and `MemberRow` cells carry their labels; e2e "TC-63.1", "TC-63.2", "TC-64.1", "TC-64.2", "TC-64.3", "TC-65.27" (table at 640, cards at 639).
+- [x] **Step 0: Multi-agent gate.** Run both checks in "Multi-agent gate". If either fails, stop: write no code and report which check failed.
+- [x] **Step 1: Write failing tests:** `DataTable.test.tsx` checks `thead` is still in the accessibility tree and `MemberRow` cells carry their labels; e2e "TC-63.1", "TC-63.2", "TC-64.1", "TC-64.2", "TC-64.3", "TC-65.27" (table at 640, cards at 639).
 - [ ] **Step 2: Run** VITEST and MOCK `phone-pages`. Expected: FAIL.
-- [ ] **Step 3: Implement** the card pattern, `.pane` full width, popovers at viewport minus 16px gutters with inner scroll, and any top bar overlap TC-63 finds.
+- [x] **Step 3: Implement** the card pattern, `.pane` full width, popovers at viewport minus 16px gutters with inner scroll, and any top bar overlap TC-63 finds.
 - [ ] **Step 4: Run** both and PARITY. Expected: PASS.
-- [ ] **Step 5: Commit** `feat(web): phone card tables and narrow popovers`.
+- [x] **Step 5: Commit** `feat(web): phone card tables and narrow popovers`.
 
 ### Task 46: Phone, sign-in, invitations, create organization, errors and suspended (after the multi-agent gate)
 
@@ -1605,11 +1605,11 @@ export function useShellData(input: ShellInput): ShellData;
 - Boards: `SignInPhone`, `CreateOrgPhone`, `InvitationAcceptPhone`, `MyInvitationsPhone`, `OrgSuspendedPhone`, `RouteErrorPhone` (no h1) (expected count 458).
 - Covers: TC-65.1, TC-65.23 to TC-65.26.
 
-- [ ] **Step 0: Multi-agent gate.** Run both checks in "Multi-agent gate". If either fails, stop: write no code and report which check failed.
+- [x] **Step 0: Multi-agent gate.** Run both checks in "Multi-agent gate". If either fails, stop: write no code and report which check failed.
 - [ ] **Step 1: Write** "TC-65.1", "TC-65.23", "TC-65.24", "TC-65.25", "TC-65.26". Run MOCK `phone-pages`. Expected: FAIL.
-- [ ] **Step 2: Implement** (sign-in one column with "One ticket, two runs" below).
+- [x] **Step 2: Implement** (sign-in one column with "One ticket, two runs" below).
 - [ ] **Step 3: Stories and REG;** run MOCK `phone-pages`, coverage and smoke tests, PARITY. Expected: PASS.
-- [ ] **Step 4: Commit** `feat(web): phone layouts for entry and error pages`.
+- [x] **Step 4: Commit** `feat(web): phone layouts for entry and error pages`.
 
 ### Task 47: Phone, Projects and the wizard (after the multi-agent gate)
 

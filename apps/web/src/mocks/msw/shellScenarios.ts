@@ -39,6 +39,7 @@ export const SHELL_SCENARIOS = [
   'adminTwoOrgsOneSuspended',
   'memberOwnsRuns',
   'memberOthersRuns',
+  'phoneLongNames',
 ] as const;
 export type ShellScenario = (typeof SHELL_SCENARIOS)[number];
 
@@ -308,6 +309,32 @@ const seeders: Record<ShellScenario, () => void> = {
   memberOthersRuns() {
     seeders.memberP1ViewerP2();
     for (const run of state().runs.filter((r) => r.projectId === P1)) run.ownerUserId = 'user-someone-else';
+  },
+  // A platform admin with a very long email, long org names and many long project names, for the phone checks of the top bar and the popovers.
+  phoneLongNames() {
+    applyOnboardingScenario('twoOrgs');
+    const me = state().users[0];
+    if (me) {
+      me.platformAdmin = true;
+      me.email = 'a.person.with.a.very.long.email.address.for.checks@a-very-long-company-domain-name.example.com';
+    }
+    const orgNames = [
+      'Harbor Labs Platform Engineering and Infrastructure Reliability Organization',
+      'Acme Industrial Holdings International Procurement and Logistics Organization',
+    ];
+    state().orgs.forEach((o, i) => {
+      o.name = orgNames[i] ?? `${orgNames[0]} ${i}`;
+    });
+    const first = projectOf(P1);
+    first.name = 'invoicer-api-with-a-very-long-name-that-keeps-going-until-it-has-to-be-cut-short';
+    for (let i = 1; i <= 8; i += 1) {
+      state().projects.push({
+        ...structuredClone(first),
+        id: agentListId(800 + i),
+        name: `project-number-${i}-with-a-very-long-name-that-keeps-going-until-it-has-to-be-cut-short`,
+        repoPath: `acme/project-${i}`,
+      });
+    }
   },
   // An org and a project alice is not in: they must show nowhere.
   foreignOrg() {

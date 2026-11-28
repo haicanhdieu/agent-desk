@@ -81,3 +81,10 @@
   gap: 8px;
   margin-top: 4px;
 }
+
+/* Phone (BR-65): a card's buttons wrap instead of leaving the card. */
+@media (max-width: 639px) {
+  .cardActions {
+    flex-wrap: wrap;
+  }
+}

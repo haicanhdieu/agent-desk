@@ -1,0 +1,377 @@
+import { expect, test, type Locator, type Page } from '@playwright/test';
+import { INVITATIONS_MOCK_NOW } from '../../src/mocks/dto/invitations';
+import { FOREIGN } from '../../src/mocks/msw/shellScenarios';
+import {
+  IDLE_RUN,
+  INVOICER_API,
+  ORG,
+  SESSION_MOCK_NOW,
+  holdReads,
+  seedOnboarding,
+  seedPlatform,
+  seedProjectSpace,
+  seedShell,
+  seedTenantAdmin,
+  startSignedOut,
+} from './mock';
+
+/*
+ * Phone and narrow-window layout (spec 2026-11-25-sidebar-navigation-shell-design.md "E2E requirements": TC-63.1,
+ * TC-63.2, TC-64.1 to TC-64.3, TC-65.1, TC-65.23 to TC-65.27). Layout only: sizes and boxes, never the content of a page.
+ *
+ * `phoneLongNames` (shellScenarios.ts) is a platform admin with a long email, two orgs with long names and many
+ * projects with long names.
+ */
+test.describe.configure({ timeout: 90_000 });
+test.use({ timezoneId: 'UTC', locale: 'en-US', hasTouch: true });
+
+const ACME = 'b8000000-0000-4000-8000-000000000001';
+const bar = (page: Page): Locator => page.getByRole('banner').first();
+
+interface Box {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+async function boxOf(l: Locator): Promise<Box> {
+  const b = await l.boundingBox();
+  if (!b) throw new Error('an element has no box');
+  return b;
+}
+
+const overlaps = (a: Box, b: Box): boolean =>
+  a.x < b.x + b.width - 1 && b.x < a.x + a.width - 1 && a.y < b.y + b.height - 1 && b.y < a.y + a.height - 1;
+
+/** Every visible control of the top bar lies inside the window and no two of them overlap. */
+async function expectBarFits(page: Page, width: number): Promise<void> {
+  await page.evaluate(() => document.fonts.ready);
+  const controls = bar(page).locator('a:visible, button:visible');
+  const boxes: Box[] = [];
+  for (let i = 0; i < (await controls.count()); i += 1) boxes.push(await boxOf(controls.nth(i)));
+  expect(boxes.length).toBeGreaterThan(0);
+  for (const b of boxes) {
+    expect(b.width).toBeGreaterThan(0);
+    expect(b.x).toBeGreaterThanOrEqual(-1);
+    expect(b.x + b.width).toBeLessThanOrEqual(width + 1);
+  }
+  boxes.forEach((a, i) => boxes.slice(i + 1).forEach((b) => expect(overlaps(a, b)).toBe(false)));
+}
+
+/** The switcher shows a readable name: some text, and a box wider than its padding. */
+async function expectNamed(button: Locator): Promise<void> {
+  await expect(button).toBeVisible();
+  expect(((await button.innerText()).trim() || '').length).toBeGreaterThan(0);
+  expect((await boxOf(button)).width).toBeGreaterThan(40);
+}
+
+/** Each switcher present in the bar, or the scope's plain name when it is not a button, is readable and non-empty. */
+async function expectBarNamed(page: Page): Promise<void> {
+  const switchers = bar(page).getByRole('button', { name: /^Switch (scope|project)/ });
+  const count = await switchers.count();
+  for (let i = 0; i < count; i += 1) await expectNamed(switchers.nth(i));
+  if (count === 0) {
+    const plain = bar(page).locator('[class*="plain"]').first();
+    await expect(plain).toBeVisible();
+    expect((await plain.innerText()).trim().length).toBeGreaterThan(0);
+    expect((await boxOf(plain)).width).toBeGreaterThan(40);
+  }
+}
+
+const inside = (b: Box, width: number, height: number): void => {
+  expect(b.x).toBeGreaterThanOrEqual(16 - 1);
+  expect(width - (b.x + b.width)).toBeGreaterThanOrEqual(16 - 1);
+  expect(b.y).toBeGreaterThanOrEqual(-1);
+  expect(b.y + b.height).toBeLessThanOrEqual(height + 1);
+};
+
+test.describe('BR-63: top bar from 390 to 1023', () => {
+  test('TC-63.1: no overlap and a readable name at 390, 639, 640 and 1023', async ({ page }) => {
+    await seedShell(page, 'phoneLongNames');
+    const pages = [
+      `/o/${ORG}/p/${INVOICER_API}/runs/${IDLE_RUN}`,
+      `/o/${ORG}/p/${INVOICER_API}/runs`,
+      `/o/${ORG}/settings/members`,
+    ];
+    for (const path of pages) {
+      await page.goto(path);
+      for (const width of [390, 639, 640, 1023]) {
+        await page.setViewportSize({ width, height: 844 });
+        await expectBarFits(page, width);
+        await expectNamed(bar(page).getByRole('button', { name: /^Switch scope/ }));
+        if (path.includes('/p/')) await expectNamed(bar(page).getByRole('button', { name: /^Switch project/ }));
+      }
+    }
+  });
+
+  test('TC-63.2: the platform org page and /invitations with no org fit at 390', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await seedPlatform(page, 'platformAdminOrgs');
+    await page.goto(`/platform/orgs/${ACME}`);
+    await expectBarFits(page, 390);
+    await expectBarNamed(page);
+  });
+
+  test('TC-63.2: /invitations for a person with no org fits at 390', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await seedOnboarding(page, 'noOrgInvited');
+    await page.goto('/invitations');
+    await expectBarFits(page, 390);
+    await expectBarNamed(page);
+  });
+});
+
+test.describe('BR-64: popovers stay on screen at 390', () => {
+  test.use({ viewport: { width: 390, height: 844 } });
+
+  test('TC-64.1: the org switcher is inside the window and scrolls inside when long', async ({ page }) => {
+    await seedShell(page, 'phoneLongNames');
+    await page.goto(`/o/${ORG}/projects`);
+    await page.evaluate(() => document.fonts.ready);
+    await bar(page)
+      .getByRole('button', { name: /^Switch scope/ })
+      .click();
+    const popover = page.getByRole('dialog', { name: 'Scope' });
+    await expect(popover).toBeVisible();
+    inside(await boxOf(popover), 390, 844);
+    const links = popover.getByRole('link');
+    const total = await links.count();
+    expect(total).toBeGreaterThan(0);
+    for (let i = 0; i < total; i += 1) {
+      await links.nth(i).scrollIntoViewIfNeeded();
+      await expect(links.nth(i)).toBeVisible();
+      inside(await boxOf(popover), 390, 844);
+    }
+  });
+
+  test('TC-64.2: the project switcher is inside the window and reaches All projects and New project', async ({
+    page,
+  }) => {
+    await seedShell(page, 'phoneLongNames');
+    await page.goto(`/o/${ORG}/p/${INVOICER_API}/runs`);
+    await page.evaluate(() => document.fonts.ready);
+    await bar(page)
+      .getByRole('button', { name: /^Switch project/ })
+      .click();
+    const popover = page.getByRole('dialog', { name: 'Projects' });
+    await expect(popover).toBeVisible();
+    for (const name of ['All projects', 'New project']) {
+      const link = popover.getByRole('link', { name });
+      await link.scrollIntoViewIfNeeded();
+      await expect(link).toBeVisible();
+    }
+    inside(await boxOf(popover), 390, 844);
+  });
+
+  test('TC-64.3: the account menu is inside the window with a long email', async ({ page }) => {
+    await seedShell(page, 'phoneLongNames');
+    await page.goto(`/o/${ORG}/projects`);
+    await page.evaluate(() => document.fonts.ready);
+    await bar(page)
+      .getByRole('button', { name: /^Account menu for / })
+      .click();
+    const menu = page.getByRole('menu', { name: 'Account' });
+    await expect(menu).toBeVisible();
+    inside(await boxOf(menu), 390, 844);
+  });
+});
+
+test.describe('BR-65: card tables', () => {
+  test('TC-65.27: Members is a table at 640 and cards at 639 that keep each label and every row action', async ({
+    page,
+  }) => {
+    await seedTenantAdmin(page, 'twoOwners');
+    await page.setViewportSize({ width: 640, height: 900 });
+    await page.goto(`/o/${ORG}/settings/members`);
+    const row = page.locator('tbody tr').first();
+    await expect(row).toBeVisible();
+    expect(await row.evaluate((el) => getComputedStyle(el).display)).toBe('table-row');
+    await expect(page.getByRole('columnheader', { name: 'Name' })).toBeVisible();
+
+    await page.setViewportSize({ width: 639, height: 900 });
+    expect(await row.evaluate((el) => getComputedStyle(el).display)).toBe('block');
+    // The header is only visually hidden: still there for a screen reader.
+    await expect(page.getByRole('columnheader', { name: 'Name' })).toHaveCount(1);
+    const labels = await row
+      .locator('td[data-label]')
+      .evaluateAll((cells) => cells.map((c) => getComputedStyle(c, '::before').content));
+    expect(labels).toEqual(['"Name"', '"Access"']);
+    await expect(row.getByRole('button', { name: /^Actions for / })).toBeVisible();
+    const box = await boxOf(row);
+    expect(box.x + box.width).toBeLessThanOrEqual(639 + 1);
+    expect(
+      await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth),
+    ).toBeLessThanOrEqual(1);
+  });
+});
+
+/**
+ * The page fits at `width`: the document and the page's main do not scroll sideways, and the main's content keeps a
+ * 16px gutter on each side (the content, not the main's own box, which may run edge to edge).
+ */
+async function expectPageFits(page: Page, width: number): Promise<void> {
+  await page.evaluate(() => document.fonts.ready);
+  expect(
+    await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth),
+  ).toBeLessThanOrEqual(1);
+  const main = page.getByRole('main').first();
+  expect(await main.evaluate((el) => el.scrollWidth - el.clientWidth)).toBeLessThanOrEqual(1);
+  const content = main.locator('h1, h2, form, dl, input, a:visible, button:visible, [role="alert"]');
+  const count = await content.count();
+  expect(count).toBeGreaterThan(0);
+  for (let i = 0; i < count; i += 1) {
+    const b = await content.nth(i).boundingBox();
+    if (!b) continue;
+    expect(b.width).toBeGreaterThan(0);
+    expect(b.x).toBeGreaterThanOrEqual(16 - 1);
+    expect(width - (b.x + b.width)).toBeGreaterThanOrEqual(16 - 1);
+  }
+}
+
+test.describe('BR-65: entry, invitation and error pages at 390', () => {
+  test.use({ viewport: { width: 390, height: 844 } });
+
+  test('TC-65.1: sign-in is one column with "One ticket, two runs" below the block and no top bar', async ({
+    page,
+  }) => {
+    await startSignedOut(page);
+    await page.goto('/sign-in');
+    const signIn = page.getByRole('link', { name: 'Sign in with GitHub' });
+    await expect(signIn).toBeVisible();
+    await signIn.scrollIntoViewIfNeeded();
+    await expect(signIn).toBeEnabled();
+    await expect(page.getByRole('banner')).toHaveCount(0);
+    const kicker = page.getByText('One ticket, two runs', { exact: true });
+    await kicker.scrollIntoViewIfNeeded();
+    await expect(kicker).toBeVisible();
+    expect((await boxOf(kicker)).y).toBeGreaterThan((await boxOf(signIn)).y);
+    expect(
+      await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth),
+    ).toBeLessThanOrEqual(1);
+    for (const l of [signIn, kicker]) {
+      const b = await boxOf(l);
+      expect(b.x).toBeGreaterThanOrEqual(15);
+      expect(b.x + b.width).toBeLessThanOrEqual(390 + 1);
+    }
+  });
+
+  test('TC-65.23: create organization is one column with 16px gutters and the form submits', async ({ page }) => {
+    await seedOnboarding(page, 'platformAdminNoOrg');
+    await page.goto('/platform/orgs/new');
+    await expect(page.getByRole('heading', { name: 'Create an organization', level: 1 })).toBeVisible();
+    await expectPageFits(page, 390);
+    const fieldBoxes: Box[] = [];
+    for (const name of [/^Name/, /^URL/, /^First owner email/])
+      fieldBoxes.push(await boxOf(page.getByRole('textbox', { name })));
+    fieldBoxes.forEach((b, i) => {
+      expect(Math.abs(b.x - fieldBoxes[0].x)).toBeLessThanOrEqual(1);
+      expect(Math.abs(b.width - fieldBoxes[0].width)).toBeLessThanOrEqual(1);
+      if (i > 0) expect(b.y).toBeGreaterThanOrEqual(fieldBoxes[i - 1].y + fieldBoxes[i - 1].height - 1);
+    });
+    await page.getByRole('textbox', { name: /^Name/ }).fill('Phone Org');
+    await page.getByRole('textbox', { name: /^URL/ }).fill('phone-org');
+    await page.getByRole('textbox', { name: /^First owner email/ }).fill('owner@dev.local');
+    await page.getByRole('button', { name: 'Create organization' }).click();
+    await expect(page.getByRole('heading', { name: 'Organization created' })).toBeVisible();
+    await expectPageFits(page, 390);
+  });
+
+  test('TC-65.24: My invitations and the link page are one column and Accept and Decline are usable', async ({
+    page,
+  }) => {
+    await seedOnboarding(page, 'noOrgInvited');
+    await page.clock.setFixedTime(new Date(Date.parse(INVITATIONS_MOCK_NOW) - 60 * 60_000));
+    await page.goto('/invitations');
+    await expect(page.getByRole('heading', { level: 1, name: 'My invitations' })).toBeVisible();
+    await expectPageFits(page, 390);
+    await page.goto(`/invitations/b4000000-0000-4000-8000-${String(1).padStart(12, '0')}`);
+    await expect(page.getByRole('heading', { level: 1, name: 'Join Acme Robotics' })).toBeVisible();
+    await expectPageFits(page, 390);
+    const decline = page.getByRole('button', { name: 'Decline' });
+    await expect(decline).toBeVisible();
+    await expect(decline).toBeEnabled();
+    await page.getByRole('button', { name: 'Accept' }).click();
+    await expect(page).not.toHaveURL(/\/invitations\//);
+  });
+
+  test('TC-65.25: forbidden, not-found, 500 and crash pages are one column with a usable control', async ({
+    browser,
+  }) => {
+    const fresh = async (setup: (p: Page) => Promise<void>, path: string): Promise<Page> => {
+      const ctx = await browser.newContext({
+        viewport: { width: 390, height: 844 },
+        hasTouch: true,
+        timezoneId: 'UTC',
+        locale: 'en-US',
+      });
+      const p = await ctx.newPage();
+      await setup(p);
+      await p.goto(path);
+      return p;
+    };
+
+    const forbidden = await fresh((p) => seedPlatform(p, 'ownerNoPlatform'), '/platform/orgs');
+    await expect(forbidden.getByRole('heading', { name: "You don't have access", level: 1 })).toBeVisible();
+    await expectPageFits(forbidden, 390);
+    await forbidden.getByRole('link', { name: 'Go to projects' }).click();
+    await expect(forbidden.getByRole('heading', { name: 'Projects', level: 1 })).toBeVisible();
+    await forbidden.context().close();
+
+    const missing = await fresh((p) => seedShell(p, 'foreignOrg'), `/o/${FOREIGN.orgSlug}/projects`);
+    await expect(missing.getByRole('heading', { name: 'Page not found' })).toBeVisible();
+    await expectPageFits(missing, 390);
+    await missing.getByRole('link', { name: 'Go to projects' }).click();
+    await expect(missing.getByRole('heading', { name: 'Projects', level: 1 })).toBeVisible();
+    await missing.context().close();
+
+    const rules = `/o/${ORG}/p/${INVOICER_API}/desk/rules`;
+    const failed = await fresh(async (p) => {
+      await holdReads(p, { rules: 'fail' });
+      await seedProjectSpace(p, { role: 'owner' });
+    }, rules);
+    const retry = failed.getByRole('main').getByRole('button', { name: 'Retry' });
+    await expect(retry).toBeVisible();
+    await expectPageFits(failed, 390);
+    await retry.click();
+    await expect(retry).toBeVisible();
+    await failed.context().close();
+
+    const crashed = await fresh(async (p) => {
+      await holdReads(p, { rules: 'crash' });
+      await seedProjectSpace(p, { role: 'owner' });
+    }, rules);
+    await expect(crashed.getByRole('heading', { name: 'Something went wrong' })).toBeVisible();
+    await expectPageFits(crashed, 390);
+    const reload = crashed.getByRole('main').getByRole('button', { name: 'Reload' });
+    await expect(reload).toBeEnabled();
+    const rb = await boxOf(reload);
+    // Not covered by anything: the element at its centre is the button itself.
+    expect(
+      await reload.evaluate((el, pt) => el.contains(document.elementFromPoint(pt.x, pt.y)), {
+        x: rb.x + rb.width / 2,
+        y: rb.y + rb.height / 2,
+      }),
+    ).toBe(true);
+    await reload.click();
+    await expect(crashed.getByRole('heading', { name: 'Something went wrong' })).toBeVisible();
+    await crashed.context().close();
+  });
+
+  test('TC-65.26: a suspended org page shows the message and the account menu, its way out, inside the window', async ({
+    page,
+  }) => {
+    await page.clock.install({ time: new Date(SESSION_MOCK_NOW) });
+    await seedShell(page, 'suspendedOnly');
+    await page.goto(`/o/${ORG}/projects`);
+    await expect(page.getByRole('heading', { name: 'This organization is suspended', level: 1 })).toBeVisible();
+    await expectPageFits(page, 390);
+    await bar(page)
+      .getByRole('button', { name: /^Account menu for / })
+      .click();
+    const menu = page.getByRole('menu', { name: 'Account' });
+    await expect(menu).toBeVisible();
+    inside(await boxOf(menu), 390, 844);
+    await expect(menu.getByRole('menuitem', { name: 'Logout' })).toBeVisible();
+  });
+});

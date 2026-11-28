@@ -31,7 +31,7 @@ export function MemberRow({ row, busy, onChangeRole, onRemove }: MemberRowProps)
 
   return (
     <tr>
-      <td className={styles.nameCell}>
+      <td className={styles.nameCell} data-label="Name">
         <span className={styles.name}>
           {hasName ? (
             <>
@@ -46,7 +46,7 @@ export function MemberRow({ row, busy, onChangeRole, onRemove }: MemberRowProps)
           {row.you && <LabelChip name="You" />}
         </span>
       </td>
-      <td className={styles.accessCell}>
+      <td className={styles.accessCell} data-label="Access">
         <ul className={styles.grants} aria-label={`Access of ${row.name}`}>
           {row.role === null && (
             <li>

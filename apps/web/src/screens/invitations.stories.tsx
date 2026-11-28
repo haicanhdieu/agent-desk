@@ -658,3 +658,19 @@ export const InvitationAcceptNotAvailableNoMenu: Story = shellStory({
   name: 'Invitation not available, no active organization',
   render: () => noMenu(accept({ kind: 'notAvailable', email: 'jo.marsh@example.org' }), noOrg, jo),
 });
+
+// BR-65: the entry pages at 390x844 (phone boards). The same screens, in the phone frame.
+const phoneStory = (story: Story): Story => ({ ...shellStory(story), globals: viewport(390, 844) });
+
+export const MyInvitationsPhone: Story = phoneStory({
+  name: 'Phone: my invitations',
+  render: () => withMenu(screen({ kind: 'list', cards, pending: null })),
+});
+export const InvitationAcceptPhone: Story = phoneStory({
+  name: 'Phone: invitation link',
+  render: () => withMenu(accept(pendingState())),
+});
+export const CreateOrgPhone: Story = phoneStory({
+  name: 'Phone: create organization',
+  render: () => createOrg(createForm(emptyOrgValues)),
+});

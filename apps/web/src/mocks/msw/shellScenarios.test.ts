@@ -64,6 +64,7 @@ it('the key and every scenario name', () => {
     'adminTwoOrgsOneSuspended',
     'memberOwnsRuns',
     'memberOthersRuns',
+    'phoneLongNames',
   ]);
   expect(parseShellScenario('longNames')).toBe('longNames');
   expect(parseShellScenario('nope')).toBeUndefined();
@@ -220,6 +221,19 @@ describe('the defining facts', () => {
     apply('longNames');
     expect((await orgList())[0]?.name.length).toBeGreaterThanOrEqual(60);
     expect((await projectById(P1)).name.length).toBeGreaterThanOrEqual(60);
+  });
+
+  it('phoneLongNames: a platform admin with a long email, long org names and many long project names', async () => {
+    apply('phoneLongNames');
+    expect((await api.me.platform()).platformAdmin).toBe(true);
+    const names = (await orgList()).map((o) => o.name);
+    expect(names.length).toBeGreaterThanOrEqual(2);
+    for (const name of names) expect(name.length).toBeGreaterThanOrEqual(60);
+    const list = await projects();
+    const long = list.filter((p) => p.name.length >= 60);
+    expect(long.length).toBeGreaterThanOrEqual(8);
+    expect(new Set(long.map((p) => p.name)).size).toBe(long.length);
+    expect((await session())?.user.email.length).toBeGreaterThanOrEqual(50);
   });
 
   it('auditOnly: audit:read is the only right', async () => {

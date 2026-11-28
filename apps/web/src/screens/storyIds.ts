@@ -472,6 +472,12 @@ export const boardStories = {
   OrgSuspendedNoMenu: { title: entry, exportName: 'OrgSuspendedNoMenu' },
   OrgSuspendedPlainName: { title: entry, exportName: 'OrgSuspendedPlainName' },
   MyInvitationsEmptyMember: { title: invitations, exportName: 'MyInvitationsEmptyMember' },
+  SignInPhone: { title: entry, exportName: 'SignInPhone' },
+  CreateOrgPhone: { title: invitations, exportName: 'CreateOrgPhone' },
+  InvitationAcceptPhone: { title: invitations, exportName: 'InvitationAcceptPhone' },
+  MyInvitationsPhone: { title: invitations, exportName: 'MyInvitationsPhone' },
+  OrgSuspendedPhone: { title: entry, exportName: 'OrgSuspendedPhone' },
+  RouteErrorPhone: { title: entry, exportName: 'RouteErrorPhone' },
 } as const satisfies Record<string, BoardStory>;
 
 export type BoardName = keyof typeof boardStories;

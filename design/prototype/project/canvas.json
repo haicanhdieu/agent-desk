@@ -3625,6 +3625,54 @@
    "h": 900,
    "title": "My invitations in the shell: member with none pending",
    "expand": "fill"
+  },
+  "SignInPhone.dc.html": {
+   "x": 0,
+   "y": 101460,
+   "w": 390,
+   "h": 844,
+   "title": "Phone: sign in",
+   "expand": "fill"
+  },
+  "CreateOrgPhone.dc.html": {
+   "x": 470,
+   "y": 101460,
+   "w": 390,
+   "h": 844,
+   "title": "Phone: create organization",
+   "expand": "fill"
+  },
+  "InvitationAcceptPhone.dc.html": {
+   "x": 940,
+   "y": 101460,
+   "w": 390,
+   "h": 844,
+   "title": "Phone: invitation link",
+   "expand": "fill"
+  },
+  "MyInvitationsPhone.dc.html": {
+   "x": 1410,
+   "y": 101460,
+   "w": 390,
+   "h": 844,
+   "title": "Phone: my invitations",
+   "expand": "fill"
+  },
+  "OrgSuspendedPhone.dc.html": {
+   "x": 1880,
+   "y": 101460,
+   "w": 390,
+   "h": 844,
+   "title": "Phone: organization suspended",
+   "expand": "fill"
+  },
+  "RouteErrorPhone.dc.html": {
+   "x": 2350,
+   "y": 101460,
+   "w": 390,
+   "h": 844,
+   "title": "Phone: page failed to load",
+   "expand": "fill"
   }
  },
  "order": [
@@ -4079,7 +4127,13 @@
   "RouteLoadingSideMenu.dc.html",
   "OrgSuspendedNoMenu.dc.html",
   "OrgSuspendedPlainName.dc.html",
-  "MyInvitationsEmptyMember.dc.html"
+  "MyInvitationsEmptyMember.dc.html",
+  "SignInPhone.dc.html",
+  "CreateOrgPhone.dc.html",
+  "InvitationAcceptPhone.dc.html",
+  "MyInvitationsPhone.dc.html",
+  "OrgSuspendedPhone.dc.html",
+  "RouteErrorPhone.dc.html"
  ],
  "notes": {
   "t-intro": {

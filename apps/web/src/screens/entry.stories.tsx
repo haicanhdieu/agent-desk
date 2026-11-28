@@ -553,3 +553,19 @@ export const OrgSuspendedPlainName: Story = shellStory({
   name: 'Suspended only organization: plain name',
   render: () => suspendedShell(orgOf(suspendedOrg, [suspendedOrg])),
 });
+
+// BR-65: the entry and error pages at 390x844 (phone boards).
+const phoneStory = (story: Story): Story => ({ ...shellStory(story), globals: viewport(390, 844) });
+
+export const SignInPhone: Story = phoneStory({
+  name: 'Phone: sign in',
+  render: () => <SignInScreen signInHref="#" />,
+});
+export const OrgSuspendedPhone: Story = phoneStory({
+  name: 'Phone: organization suspended',
+  render: () => suspendedShell(orgOf(suspendedOrg, suspendedOrgs)),
+});
+export const RouteErrorPhone: Story = phoneStory({
+  name: 'Phone: page failed to load',
+  render: () => inProject(<RouteLoadError title="Internal server error" requestId="req_01JD7Q3M8V2K" onRetry={noop} />),
+});

@@ -594,6 +594,13 @@
   overflow: hidden;
   max-width: 100%;
 }
+/* Phone: a side pane takes the whole width (its inline width is a desktop size). */
+@media (max-width: 639px) {
+  .pane {
+    width: 100% !important;
+    border-left: 0;
+  }
+}
 .paneHead {
   flex: 0 0 auto;
   display: flex;

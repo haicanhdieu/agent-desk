@@ -990,3 +990,42 @@
   align-items: center;
   gap: 12px;
 }
+
+/* Phone (BR-65): one column with 16px gutters. Sign in stacks the hero and "One ticket, two runs", and scrolls inside. */
+@media (max-width: 639px) {
+  .signIn {
+    grid-template-columns: minmax(0, 1fr);
+    grid-auto-rows: max-content;
+    overflow-y: auto;
+  }
+  .signInLeft {
+    padding: 24px 16px;
+    gap: 32px;
+    border-right: 0;
+    border-bottom: 1px solid var(--line);
+  }
+  .signInCopy h1 {
+    font-size: var(--fs-28);
+  }
+  .signInRight {
+    padding: 24px 16px;
+  }
+  .emptyMain,
+  .emptyNotice {
+    padding: 48px 16px;
+  }
+  .shellMain,
+  .shellMainFill {
+    padding: 24px 16px;
+  }
+  .createOrgCol,
+  .shellPending {
+    max-width: 100%;
+    min-width: 0;
+  }
+  .shellNoticeActions,
+  .acceptActions,
+  .createOrgActions {
+    flex-wrap: wrap;
+  }
+}

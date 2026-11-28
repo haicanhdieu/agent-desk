@@ -229,3 +229,49 @@ a.fchip:hover {
   font-size: var(--fs-12_5);
   color: var(--muted);
 }
+
+/* Phone card tables (DataTable cards): each row is a card, a cell shows its data-label before the value, and the header
+   row stays in the accessibility tree, only visually hidden. */
+@media (max-width: 639px) {
+  .cards thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+  .cards,
+  .cards tbody,
+  .cards tr {
+    display: block;
+    width: 100%;
+  }
+  .cards tr {
+    margin-bottom: 12px;
+    padding: 4px 0;
+    border: 1px solid var(--line2);
+    border-radius: var(--radius-10);
+  }
+  .cards td {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    min-width: 0;
+    max-width: none;
+    border-bottom: 0;
+    padding: 6px 12px;
+  }
+  .cards td[data-label]::before {
+    content: attr(data-label);
+    flex: 0 0 auto;
+    min-width: 72px;
+    font-size: var(--fs-12_5);
+    font-weight: 500;
+    color: var(--muted);
+  }
+  .cards .grp td {
+    max-width: none;
+  }
+}

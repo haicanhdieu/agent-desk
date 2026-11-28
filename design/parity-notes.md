@@ -751,3 +751,18 @@ The tab rows (`OrgNav`, `ProjectNav`, `PlatformNav`), the section layouts (`Desk
 - Agent call: the older non-shell boards (Runs, Desk, Setup, Entry, Invitations, OrgSettings, Platform, Run detail) are drawn inside the shell stories frame (`ShellFrame` through the `*ShellFrame` helpers), with the page-header h1 and the shell's bar and menu. Their headers therefore read like the shell boards, not like the prototype's old bar with tabs. Recorded for the final parity pass, which redraws them.
 - Agent call: `SetupLayout` without a shell provider draws the stepper in place and no bar; with a provider but no slot it draws nothing in the menu.
 - Agent call: `DeskSetup` always splits the column between the editor and the log while a test shows (the route always asked for the viewport fit).
+
+## Sidebar navigation shell: phone card tables and narrow popovers (Task 45)
+
+No board was added or removed. PARITY was not run in this session (no browser), so no pair was checked.
+
+- Agent call: `DataTable` takes `cards` (default true). Below 640px its rows are cards, `thead` is visually hidden but stays in the accessibility tree, and a `td` with `data-label` shows it through `::before`. Only `MemberRow` carries labels so far; the other rows get theirs in Tasks 47, 48, 52 and 53, and until then their cells stack without a label.
+- Agent call: the actions cell of `MemberRow` has no label (its button already names the member); every other cell is labelled.
+- Agent call: the switcher and account popovers get an inner scroll (`max-height: calc(100dvh - 128px)`) below 640px, since the shared popover already takes the viewport minus 16px gutters; `SidePane` is full width below 640px.
+
+## Sidebar navigation shell: phone entry, invitation and error pages (Task 46)
+
+Six boards are registered: `SignInPhone`, `CreateOrgPhone`, `InvitationAcceptPhone`, `MyInvitationsPhone`, `OrgSuspendedPhone` and `RouteErrorPhone` (no h1), 458 in all. PARITY was not run in this session (no browser), so no pair was checked; the six boards are unchecked. `scripts/parity.mjs` needed no change: it reads the board list from `canvas.json` and `storyIds.ts`.
+
+- Agent call: the phone stories reuse the desktop stories' frames at a 390x844 viewport, so the bar, menu and drawer are the real phone shell; the board's own drawn bar is not copied.
+- Agent call: below 640px the shared `shellMain` padding is 24px 16px (a 16px gutter for every page in the shell), not only for these pages.

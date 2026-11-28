@@ -338,7 +338,15 @@
   display: flex;
   flex-direction: column;
   gap: 4px;
-  min-width: 260px;
+  min-width: min(260px, calc(100vw - 32px));
+  max-width: calc(100vw - 32px);
+}
+/* Phone: a long project list scrolls inside the popover, which stays inside the window under the two-row bar. */
+@media (max-width: 639px) {
+  .menu {
+    max-height: calc(100dvh - 128px);
+    overflow-y: auto;
+  }
 }
 .menuItem {
   display: flex;

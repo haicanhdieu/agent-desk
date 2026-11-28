@@ -28,3 +28,25 @@ export const Projects: Story = {
     ),
   },
 };
+
+/** Below 640px (narrow the story) each row is a card and each value shows its column label. */
+export const Cards: Story = {
+  args: {
+    columns: [
+      { key: 'repo', header: 'Repository' },
+      { key: 'runs', header: 'Active runs', align: 'right' },
+    ],
+    children: (
+      <tr>
+        <td data-label="Repository">acme/billing-service</td>
+        <td data-label="Active runs" style={{ textAlign: 'right' }}>
+          2
+        </td>
+      </tr>
+    ),
+  },
+  parameters: { viewport: { defaultViewport: 'mobile1' } },
+};
+
+/** A table that opts out of the card layout. */
+export const NoCards: Story = { args: { ...Projects.args, cards: false } };

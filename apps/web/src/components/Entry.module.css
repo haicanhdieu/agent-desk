@@ -105,3 +105,11 @@
 .glyph {
   display: inline-flex;
 }
+
+/* Phone (BR-65): long link text and step text wrap inside the column. */
+@media (max-width: 639px) {
+  .stepBody {
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+}
