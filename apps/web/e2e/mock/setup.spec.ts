@@ -269,7 +269,10 @@ test.describe('BR-37: Exit setup', () => {
     const inRow = await page
       .getByRole('main')
       .locator('a, button, span, b')
-      .evaluateAll((els, y) => els.filter((e) => Math.abs(e.getBoundingClientRect().y - y) < 6).map((e) => e.textContent), row?.y ?? 0);
+      .evaluateAll(
+        (els, y) => els.filter((e) => Math.abs(e.getBoundingClientRect().y - y) < 6).map((e) => e.textContent),
+        row?.y ?? 0,
+      );
     expect(inRow.filter((t) => t && t.trim() !== '' && t.trim() !== 'Exit setup')).toEqual([]);
     await exitSetup(page).click();
     await expect(page).toHaveURL(new RegExp(`/o/${ORG}/projects$`));
