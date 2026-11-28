@@ -245,12 +245,12 @@ test.describe('BR-44: long entries are cut', () => {
   test('TC-44.2 a reply of 8,001 bytes is cut and ends with … (cut)', async ({ page }) => {
     await openLive(page, '--fake-long-replies');
     await stopIdle(page);
-    const cut = log(page)
-      .locator('p')
-      .filter({ hasText: /^b+ … \(cut\)$/ });
-    await expect(cut).toHaveCount(1);
-    await expect(cut.locator('span').filter({ hasText: '… (cut)' })).toBeVisible();
-    expect(await cut.innerText()).toMatch(/^b{1,8000} … \(cut\)$/);
+    // The marker is a block sibling after the Markdown text, not inside its <p> (Transcript.tsx, #210): read the entry.
+    const marker = log(page).getByText('… (cut)', { exact: true });
+    await expect(marker).toHaveCount(1);
+    await expect(marker).toBeVisible();
+    const entry = marker.locator('xpath=..');
+    expect(await entry.innerText()).toMatch(/^b{1,8000}\s+… \(cut\)$/);
   });
 });
 
