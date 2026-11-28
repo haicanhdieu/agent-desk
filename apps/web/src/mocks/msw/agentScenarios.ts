@@ -88,7 +88,7 @@ export function applyAgentScenario(name: AgentScenario): void {
           id: mockDb.nextId(),
           number: 900,
           status: 'paused',
-          agent: { id: codex.id, name: codex.name, model: codex.model },
+          agent: { id: codex.id, name: codex.name, model: codex.model, provider: codex.provider },
         });
       }
       return;

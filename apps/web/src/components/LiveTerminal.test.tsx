@@ -19,6 +19,40 @@ describe('LiveTerminal', () => {
     expect(onResize).toHaveBeenLastCalledWith({ cols: 120, rows: 40 });
   });
 
+  // OpenCode and Claude Code turn on mouse reporting, so a plain drag goes to the program. xterm still selects on a
+  // modifier drag, but on macOS only when this option is on (Option-drag; Shift-drag works elsewhere).
+  it('lets Option-drag select while the program owns the mouse (macOS)', () => {
+    render(<LiveTerminal />);
+    expect(FakeXterm.latest().options.macOptionClickForcesSelection).toBe(true);
+  });
+
+  // OpenCode paints every cell with palette colour 232 (near black), which is not the dark theme's terminal background
+  // and showed as a darker box in the pane. Palette entry 232 is index 216 of extendedAnsi (it starts at colour 16).
+  it('draws the colour OpenCode paints its background with as the terminal background', () => {
+    document.documentElement.style.setProperty('--term', '#0f1216');
+    try {
+      render(<LiveTerminal agentKind="opencode" />);
+    } finally {
+      document.documentElement.style.removeProperty('--term');
+    }
+    const ansi = FakeXterm.latest().options.theme?.['extendedAnsi'];
+    expect(ansi?.[216]).toBe('#0f1216');
+    expect(ansi?.[215]).toBe(''); // the neighbours keep xterm's own palette (an unparsable entry falls back to it)
+  });
+
+  it.each([['claude' as const], [undefined]])(
+    'keeps xterm colour 232 when the run agent is %s, not OpenCode',
+    (agentKind) => {
+      document.documentElement.style.setProperty('--term', '#0f1216');
+      try {
+        render(<LiveTerminal {...(agentKind !== undefined && { agentKind })} />);
+      } finally {
+        document.documentElement.style.removeProperty('--term');
+      }
+      expect(FakeXterm.latest().options.theme?.['extendedAnsi']).toBeUndefined();
+    },
+  );
+
   it('a terminal mounted hidden sends no resize', () => {
     const onResize = vi.fn();
     FakeXterm.hostSize = { width: 0, height: 0 };

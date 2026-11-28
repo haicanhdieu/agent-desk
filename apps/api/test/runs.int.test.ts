@@ -652,6 +652,35 @@ describe('resume, paused and kept sessions', () => {
     expect(t.temporal.callsOfKind('update')).toMatchObject([{ workflowId: `run-${run.id}`, args: [UPDATE.resumeRun] }]);
   });
 
+  it('agent.provider is the run agent provider on runs.get and runs.list, null once the agent row is gone', async () => {
+    const mk = async (name: string, provider: 'claude' | 'opencode') => {
+      const id = (
+        await withOrg(t.db, orgId, async (tx) => {
+          const [row] = await tx
+            .insert(agents)
+            .values({ orgId, projectId, name, provider, model: '', isDefault: false })
+            .returning({ id: agents.id });
+          return row;
+        })
+      )?.id;
+      if (!id) throw new Error('no agent');
+      return id;
+    };
+    const ocId = await mk('ProvOpenCode', 'opencode');
+    const clId = await mk('ProvClaude', 'claude');
+    const oc = await insertRun({ agentId: ocId, agentName: 'ProvOpenCode' });
+    const cl = await insertRun({ agentId: clId, agentName: 'ProvClaude' });
+    const viaGet = async (id: string) =>
+      (expectContract('runs.get', await get(`/api/runs/${id}`)) as RunDto).agent.provider;
+    const viaList = async (id: string) =>
+      (expectContract('runs.list', await listRuns('')) as RunListResponse).items.find((i) => i.id === id)?.agent
+        .provider;
+    expect([await viaGet(oc.id), await viaList(oc.id)]).toEqual(['opencode', 'opencode']);
+    expect([await viaGet(cl.id), await viaList(cl.id)]).toEqual(['claude', 'claude']);
+    await withOrg(t.db, orgId, (tx) => tx.delete(agents).where(eq(agents.id, ocId)));
+    expect([await viaGet(oc.id), await viaList(oc.id)]).toEqual([null, null]);
+  });
+
   it('resume on a run whose session is ending but has no agent credential is still a 409', async () => {
     const agentId = await agentWithCredential(false);
     const run = await insertRun({ status: 'idle', workflowId: 'run-x', agentId, sessionEndingAt: new Date() });

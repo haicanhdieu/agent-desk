@@ -662,6 +662,23 @@ describe('run detail terminal', () => {
     expect(screen.getByRole('group', { name: 'Claude Code terminal' })).toBeInTheDocument();
   });
 
+  // The remap needs a terminal background token, which jsdom has no stylesheet for.
+  beforeEach(() => document.documentElement.style.setProperty('--term', '#0f1216'));
+  afterEach(() => document.documentElement.style.removeProperty('--term'));
+
+  it('an OpenCode run (agent.provider) gets the colour 232 remap', async () => {
+    await renderRoute(`${base}/runs/62`);
+    await socket();
+    expect(liveXterm()?.options.theme?.['extendedAnsi']).toBeDefined();
+  });
+
+  it('a Claude run does not get the colour 232 remap', async () => {
+    await renderRoute(`${base}/runs/61`);
+    await socket();
+    expect(liveXterm()).toBeDefined();
+    expect(liveXterm()?.options.theme?.['extendedAnsi']).toBeUndefined();
+  });
+
   it('Review Focus 4: 4409 → the run is refetched and its final scrollback shows read-only, no reconnect', async () => {
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'], shouldAdvanceTime: true });
     const { queryClient } = await renderRoute(`${base}/runs/62`);

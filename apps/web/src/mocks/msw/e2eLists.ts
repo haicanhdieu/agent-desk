@@ -120,7 +120,7 @@ function runOf(spec: RunSpec): RunDto {
     skillName: 'code-build',
     prompt: null,
     finalPrompt: null,
-    agent: { id: null, name: 'Claude', model: 'opus' },
+    agent: { id: null, name: 'Claude', model: 'opus', provider: null },
     ticket: {
       ref: String(ticketNumber),
       kind: 'issue',

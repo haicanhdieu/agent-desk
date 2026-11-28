@@ -74,7 +74,7 @@ function fromSummary(r: RunSummary): MockRun {
     prompt: null,
     // Run 60 recorded its final prompt; the older runs started before prompts were recorded ("Not recorded").
     finalPrompt: r.id === 60 ? RUN_60_FINAL_PROMPT : null,
-    agent: { id: agentListId(1), name: r.agent, model: r.model },
+    agent: { id: agentListId(1), name: r.agent, model: r.model, provider: r.provider ?? 'claude' },
     ticket: ticketDto(r.ticket),
     args: null,
     status: r.status,
@@ -122,7 +122,12 @@ const ended = (
   skillName: 'code-build',
   prompt: null,
   finalPrompt: null,
-  agent: { id: projectId === ids.project.invoicerApi ? agentListId(1) : null, name: 'Claude', model: 'opus' },
+  agent: {
+    id: projectId === ids.project.invoicerApi ? agentListId(1) : null,
+    name: 'Claude',
+    model: 'opus',
+    provider: projectId === ids.project.invoicerApi ? 'claude' : null,
+  },
   ticket: ticketDto(ticket, repo),
   args: null,
   status: 'succeeded',

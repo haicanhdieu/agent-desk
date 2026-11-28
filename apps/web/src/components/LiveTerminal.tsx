@@ -1,3 +1,4 @@
+import type { AgentKind } from '@agentdesk/contracts';
 import '@xterm/xterm/css/xterm.css';
 import { FitAddon } from '@xterm/addon-fit';
 import { WebglAddon } from '@xterm/addon-webgl';
@@ -35,6 +36,8 @@ export interface LiveTerminalProps {
   initial?: string;
   /** No input (stdin disabled): a finished run's scrollback. Fixed for the component's lifetime. */
   readOnly?: boolean;
+  /** The run's agent: the terminal adapts to what that agent draws. Fixed for the component's lifetime. */
+  agentKind?: AgentKind | null;
   'aria-label'?: string;
   ref?: Ref<LiveTerminalHandle>;
 }
@@ -70,6 +73,7 @@ export default function LiveTerminal({
   onResize,
   initial,
   readOnly = false,
+  agentKind,
   'aria-label': label = 'Claude Code terminal',
   ref,
 }: LiveTerminalProps) {
@@ -77,7 +81,7 @@ export default function LiveTerminal({
   const termRef = useRef<XTerm | null>(null);
   // The terminal is created once; these hold the props it reads later.
   const callbacks = useRef({ onData, onResize });
-  const opening = useRef({ initial, readOnly });
+  const opening = useRef({ initial, readOnly, agentKind });
 
   useEffect(() => {
     callbacks.current = { onData, onResize };
@@ -98,14 +102,17 @@ export default function LiveTerminal({
   useEffect(() => {
     const host = hostRef.current;
     if (!host) return undefined;
-    const { initial: text, readOnly: noInput } = opening.current;
+    const { initial: text, readOnly: noInput, agentKind: kind } = opening.current;
     const term = new XTerm({
-      theme: terminalTheme(host),
+      theme: terminalTheme(host, kind),
       ...terminalFont(host),
       screenReaderMode: true,
       disableStdin: noInput,
       cursorBlink: !noInput,
       scrollback: SCROLLBACK_LINES,
+      // Programs like OpenCode and Claude Code own the mouse, so a plain drag goes to them. xterm selects on a modifier
+      // drag instead: Shift, and on macOS Option only with this on.
+      macOptionClickForcesSelection: true,
     });
     const fit = new FitAddon();
     term.loadAddon(fit);

@@ -198,13 +198,25 @@ function RunDetailRoute() {
   } else if (live) {
     terminal = (
       <Suspense fallback={<TerminalLoading />}>
-        <LiveTerminal key={`live:${dto.id}`} ref={attachTerm} onData={term.onData} onResize={term.onResize} />
+        <LiveTerminal
+          key={`live:${dto.id}`}
+          ref={attachTerm}
+          agentKind={dto.agent.provider}
+          onData={term.onData}
+          onResize={term.onResize}
+        />
       </Suspense>
     );
   } else if (scrollback !== undefined) {
     terminal = (
       <Suspense fallback={<TerminalLoading />}>
-        <LiveTerminal key={`final:${dto.id}:${scrollbackSeq}`} ref={attachTerm} readOnly initial={scrollback} />
+        <LiveTerminal
+          key={`final:${dto.id}:${scrollbackSeq}`}
+          ref={attachTerm}
+          readOnly
+          initial={scrollback}
+          agentKind={dto.agent.provider}
+        />
       </Suspense>
     );
   }

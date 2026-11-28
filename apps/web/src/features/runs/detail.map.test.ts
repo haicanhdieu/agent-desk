@@ -792,7 +792,7 @@ describe('toRunDetail', () => {
           exitCode: null,
           failureReason: 'createRunSecretAndJob failed: the agent has no credential set',
           failureCode: 'no_credential',
-          agent: { id: AGENT, name: 'Claude', model: 'opus' },
+          agent: { id: AGENT, name: 'Claude', model: 'opus', provider: 'claude' },
           ...over,
         });
       const replace = { label: 'Replace credential', href: `${links.agent}?agent=${AGENT}`, icon: 'key' };
@@ -812,7 +812,9 @@ describe('toRunDetail', () => {
         const labels = (r: RunDto, l: RunDetailLinks = links) =>
           toRunDetail(r, [], project, [r], now, l).endNote?.actions.map((a) => a.label);
         expect(labels(noCred({ failureCode: null }))).toEqual(['Open issue #139']);
-        expect(labels(noCred({ agent: { id: null, name: 'Gone', model: 'opus' } }))).toEqual(['Open issue #139']);
+        expect(labels(noCred({ agent: { id: null, name: 'Gone', model: 'opus', provider: null } }))).toEqual([
+          'Open issue #139',
+        ]);
         expect(labels(noCred(), { runs: links.runs })).toEqual(['Open issue #139']);
       });
     });

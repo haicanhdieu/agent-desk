@@ -1,3 +1,4 @@
+import { inflateSync } from 'node:zlib';
 import { expect, test, type Page } from '@playwright/test';
 import {
   CRASHED_RUN,
@@ -366,6 +367,98 @@ test('in a live run terminal an OSC 52 sequence with no user gesture leaves the 
   await printInTerminal(page, 'after the sequence');
   await expect(terminal).toContainText('after the sequence');
   expect(await page.evaluate(() => navigator.clipboard.readText())).toBe('stale');
+});
+
+// OpenCode (an agent in the run terminal) draws a full-screen app on the alternate screen: it turns on every mouse
+// reporting mode (?1000h ?1002h ?1003h ?1006h) and paints every cell with its own near-black background. The bytes are
+// what tmux sends a client for it (captured from the real agent): the background arrives as palette colour 232.
+const OPENCODE_SCREEN =
+  '\x1b[?1049h\x1b[?1000h\x1b[?1002h\x1b[?1003h\x1b[?1006h\x1b[38;5;231m\x1b[48;5;232m\x1b[H\x1b[2J\x1b[Hselectable opencode text here';
+
+/** Opens the idle run's terminal and makes it show OpenCode's screen. */
+async function showOpenCodeScreen(page: Page) {
+  const frames = await recordTerminalFrames(page);
+  await page.goto(runUrl(IDLE_RUN));
+  const terminal = page.getByRole('group', { name: 'Claude Code terminal' });
+  await expect(terminal).toContainText('agent-desk fake terminal');
+  await printInTerminal(page, OPENCODE_SCREEN);
+  await expect(terminal).toContainText('selectable opencode text here');
+  const box = await terminal.locator('.xterm-screen').boundingBox();
+  if (!box) throw new Error('terminal has no screen');
+  return { frames, terminal, box };
+}
+
+/** Drags across the first row of the terminal screen with `modifier` held (the gesture that selects while a program owns the mouse). */
+async function dragAcrossFirstRow(page: Page, box: { x: number; y: number }, modifier: 'Alt' | 'Shift'): Promise<void> {
+  await page.keyboard.down(modifier);
+  await page.mouse.move(box.x + 2, box.y + 6);
+  await page.mouse.down();
+  await page.mouse.move(box.x + 150, box.y + 6, { steps: 5 });
+  await page.mouse.up();
+  await page.keyboard.up(modifier);
+}
+
+test('OpenCode owns the mouse: Shift-drag selects the screen text and Ctrl+C copies it instead of interrupting', async ({
+  context,
+  page,
+}) => {
+  await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+  const { frames, box } = await showOpenCodeScreen(page);
+  await page.evaluate(() => navigator.clipboard.writeText('stale'));
+
+  await dragAcrossFirstRow(page, box, 'Shift');
+  await page.keyboard.press('Control+C');
+  await expect.poll(() => page.evaluate(() => navigator.clipboard.readText())).toContain('selectable');
+  expect(await frames()).not.toContain('\x03');
+});
+
+// On macOS xterm only lets Option-drag select while the program owns the mouse when macOptionClickForcesSelection is on;
+// Shift-drag is not the gesture there. The mac platform is emulated, as xterm reads navigator.platform when it loads.
+test('OpenCode owns the mouse on a Mac: Option-drag selects the screen text and Cmd+C copies it instead of sending it to the program', async ({
+  context,
+  page,
+}) => {
+  await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+  await page.addInitScript(() => Object.defineProperty(navigator, 'platform', { get: () => 'MacIntel' }));
+  const { frames, box } = await showOpenCodeScreen(page);
+  await page.evaluate(() => navigator.clipboard.writeText('stale'));
+
+  await dragAcrossFirstRow(page, box, 'Alt');
+  await page.keyboard.press('Meta+C');
+  await expect.poll(() => page.evaluate(() => navigator.clipboard.readText())).toContain('selectable');
+  // The drag was a selection, not mouse input for the program: it saw no press with Alt held.
+  expect((await frames()).filter((f) => f.startsWith('\x1b[<8;'))).toEqual([]);
+});
+
+/** The RGB of the page pixel at (x, y): a 1x1 screenshot, decoded (one pixel's scanline is always its raw bytes). */
+async function pixelAt(page: Page, x: number, y: number): Promise<string> {
+  const png = await page.screenshot({ clip: { x, y, width: 1, height: 1 } });
+  const idat: Buffer[] = [];
+  for (let at = 8; at < png.length;) {
+    const length = png.readUInt32BE(at);
+    if (png.toString('latin1', at + 4, at + 8) === 'IDAT') idat.push(png.subarray(at + 8, at + 8 + length));
+    at += 12 + length;
+  }
+  const raw = inflateSync(Buffer.concat(idat));
+  return `rgb(${raw[1]}, ${raw[2]}, ${raw[3]})`;
+}
+
+test('OpenCode paints its own background: its cells show the terminal background of the dark theme, like the area around them', async ({
+  page,
+}) => {
+  const { terminal, box } = await showOpenCodeScreen(page);
+  const hostBackground = await terminal.evaluate((el) => getComputedStyle(el).backgroundColor);
+  // The padding around the screen is the host's own background.
+  expect(await pixelAt(page, box.x - 6, box.y + 60)).toBe(hostBackground);
+  // A cell OpenCode painted (palette colour 232) is the same colour, so the screen has no darker box inside the pane.
+  expect(await pixelAt(page, box.x + box.width / 2, box.y + 60)).toBe(hostBackground);
+
+  // Only that colour changes: OpenCode's panel colour (palette 235, #262626) keeps xterm's own value.
+  await printInTerminal(page, '\x1b[2;1H\x1b[48;5;235m      ');
+  expect(await pixelAt(page, box.x + 6, box.y + 26)).toBe('rgb(38, 38, 38)');
+  // The entries before it stay empty too, so they keep xterm's own colours rather than drawing black (231 is white).
+  await printInTerminal(page, '\x1b[3;1H\x1b[48;5;231m      ');
+  expect(await pixelAt(page, box.x + 6, box.y + 46)).toBe('rgb(255, 255, 255)');
 });
 
 /** The run detail Usage section (spec 2026-11-24-run-token-usage-cost, BR-2 to BR-6, BR-11, BR-15, BR-17). */

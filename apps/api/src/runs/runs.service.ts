@@ -70,6 +70,7 @@ interface AgentInfo {
   id: string;
   name: string;
   model: string;
+  provider: string;
 }
 /** The project-wide limits every run of the project follows. */
 interface ProjectLimits {
@@ -130,6 +131,7 @@ export class RunsService {
         id: agent?.id ?? null,
         name: agent?.name ?? row.agentName ?? '(deleted agent)',
         model: row.model ?? agent?.model ?? 'unknown',
+        provider: agent === undefined ? null : AgentKind.parse(agent.provider),
       },
       ticket: {
         ref: row.ticketRef,
@@ -176,6 +178,7 @@ export class RunsService {
         id: agents.id,
         name: agents.name,
         model: agents.model,
+        provider: agents.provider,
         projectId: agents.projectId,
       })
       .from(agents)

@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { PauseReason, RuleKind, RunListFilter, RunStatus, TicketKind, TriggerSource } from '../enums';
+import { AgentKind, PauseReason, RuleKind, RunListFilter, RunStatus, TicketKind, TriggerSource } from '../enums';
 import { AgentNote, WaitingOn } from './agent-state';
 import { Id, Timestamp } from './common';
 import { PageQuery, pageOf } from './page';
@@ -32,8 +32,8 @@ export const RunDto = z.object({
   skillName: z.string().nullable(),
   prompt: z.string().nullable(),
   finalPrompt: z.string().nullable(),
-  /** `id` is the run's agent; null when the agent row is gone. */
-  agent: z.object({ id: Id.nullable(), name: z.string(), model: z.string() }),
+  /** `id` and `provider` are the run's agent; null when the agent row is gone. */
+  agent: z.object({ id: Id.nullable(), name: z.string(), model: z.string(), provider: AgentKind.nullable() }),
   ticket: TicketDto,
   args: z.string().nullable(),
   status: RunStatus,
