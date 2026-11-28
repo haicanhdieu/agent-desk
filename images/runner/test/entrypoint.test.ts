@@ -843,6 +843,18 @@ describe('entrypoint stop request and agent exit file', () => {
     expect(start.indexOf('set-clipboard on')).toBeLessThan(start.indexOf('new-session'));
   });
 
+  // OpenCode runs inside tmux, so it wraps its OSC 52 in tmux's passthrough envelope (ESC P tmux; ...). tmux drops
+  // that envelope unless allow-passthrough is on, so the browser never sees the copy (issue #329).
+  it('lets tmux pass an application clipboard wrapped in the passthrough envelope (OpenCode) to the terminal', async () => {
+    const r = await runEntrypoint({ STUB_TMUX_MODE: 'alive', AGENTDESK_RUN_DIR: runDirWith({ stop: '' }) }, {});
+    const start =
+      tmuxCalls(r)
+        .find((c) => c.argv.includes('new-session'))
+        ?.argv.join(' ') ?? '';
+    expect(start).toContain('set-option -g allow-passthrough on');
+    expect(start.indexOf('allow-passthrough on')).toBeLessThan(start.indexOf('new-session'));
+  });
+
   it('runs the fixed session command through agentdesk-session and passes only that command', async () => {
     const r = await runEntrypoint({ STUB_TMUX_MODE: 'alive', AGENTDESK_RUN_DIR: runDirWith({ stop: '' }) }, {});
     const argv = tmuxCalls(r).find((c) => c.argv.includes('new-session'))?.argv ?? [];
