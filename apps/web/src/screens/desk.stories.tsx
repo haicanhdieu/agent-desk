@@ -1,13 +1,10 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
-import type { ComponentProps, ReactElement } from 'react';
+import type { ComponentProps, ReactElement, ReactNode } from 'react';
 import { fn, userEvent, within } from 'storybook/test';
 import {
   AddProjectMemberDialog,
-  AppShell,
   ChangeRoleDialog,
   InviteDialog,
-  NO_PAGE_CRUMBS,
-  TopBar,
   type AddProjectMemberDialogProps,
   type ChangeRoleDialogProps,
   type InviteDialogStep,
@@ -21,7 +18,7 @@ import {
   type RuleDraft,
 } from '@/components';
 import { ruleAgentWarning, type RuleAgentOption } from '@/components/RuleSentence';
-import type { Actor, AgentPaneAgent, ProjectMemberRowView, Rule } from '@/mocks/types';
+import type { AgentPaneAgent, ProjectMemberRowView, Rule } from '@/mocks/types';
 import type { DeskFrameData } from './DeskFrame';
 import {
   agentKindViews,
@@ -39,7 +36,6 @@ import {
   envPagedSecretRows,
   envPagedVariableRows,
   envVariableRows,
-  orgSwitchFixtures,
   pagedRules,
   pagedSkills,
   pagedVersions,
@@ -78,6 +74,7 @@ import { DeskSkills as DeskSkillsScreen, type DeskSkillsProps } from './DeskSkil
 import { toModelList } from '@/components';
 import { agentModelsFixtures } from '@/mocks/dto/agentModels';
 import { StatusIcon, Toast, ToastRegion } from '@/ds';
+import { ProjectShellFrame } from './projectShellFrame';
 import { viewport } from './viewports';
 
 // Artboards come from canvas.json: DeskSkills, DeskSkillDelete, the DeskRulesAgent* boards, DeskSetup, DeskSetupTest 1440x900; every Agent & settings board 1440x900 (the panel scrolls inside);
@@ -89,31 +86,32 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
+/** The project shell around the Routing rules board: the page draws only its own header and body. */
+const RulesShell = ({ children }: { children: ReactNode }) => (
+  <ProjectShellFrame page="rules" fill crumbs={[{ label: 'Routing rules' }]}>
+    {children}
+  </ProjectShellFrame>
+);
+
+/** The project shell around an Agent & settings board. */
+const AgentShell = ({ children }: { children: ReactNode }) => (
+  <ProjectShellFrame page="agents" fill crumbs={[{ label: 'Agent & settings' }]}>
+    {children}
+  </ProjectShellFrame>
+);
+
 const artboard = (height: number): NonNullable<Story['decorators']> => [
   (S) => (
     <div style={{ width: 1440, height }}>
-      <AppShell height={height} topBar={null}>
+      <ProjectShellFrame page={null} height={height} crumbs={[{ label: 'Agent & settings' }]}>
         <S />
-      </AppShell>
+      </ProjectShellFrame>
     </div>
   ),
 ];
 
-/** The Desk boards under the app bar: the org crumb, the account menu, and the Runs and Settings tabs with Settings active. */
-const deskFrame: DeskFrameData = {
-  ...plainDeskFrame,
-  org: { ...orgSwitchFixtures.severalOrgsSettings, orgHref: (o) => `#${o.slug}`, createHref: '#new-org' },
-  links: {
-    projects: '#projects',
-    runs: '#runs',
-    desk: '#desk',
-    skills: '#skills',
-    rules: '#rules',
-    agent: '#agent',
-    members: '#members',
-    audit: '#audit',
-  },
-};
+/** The project, connection and warning of the Desk boards; the shell around them is the artboard's. */
+const deskFrame: DeskFrameData = plainDeskFrame;
 
 // The Danger zone shows only when the caller can delete the project, so the owner boards pass a handler.
 const DeskAgentScreen = (props: DeskAgentProps) => <DeskAgentBase onDeleteProject={() => undefined} {...props} />;
@@ -356,29 +354,29 @@ const agentRuleDraft = (patch: Partial<RuleDraft>): RuleDraft => ({
 });
 
 const rulesAgentBoard = (pane: Partial<ComponentProps<typeof RulePane>> & { value: RuleDraft }): Story => ({
-  decorators: artboard(900),
-  globals: viewport(1440, 900),
   render: () => (
-    <DeskRulesScreen
-      frame={deskFrame}
-      rules={agentRules}
-      skills={skills.map((s) => s.name)}
-      editingId="r6"
-      maxRunsPerTicket={agentSettings.maxRunsPerTicket}
-      form={
-        <RulePane
-          title="Edit rule"
-          skills={skills.map((s) => s.name)}
-          modelField={modelField}
-          promptPreview={promptReady}
-          onChange={() => undefined}
-          onClose={() => undefined}
-          onSave={() => undefined}
-          onDelete={() => undefined}
-          {...pane}
-        />
-      }
-    />
+    <RulesShell>
+      <DeskRulesScreen
+        frame={deskFrame}
+        rules={agentRules}
+        skills={skills.map((s) => s.name)}
+        editingId="r6"
+        maxRunsPerTicket={agentSettings.maxRunsPerTicket}
+        form={
+          <RulePane
+            title="Edit rule"
+            skills={skills.map((s) => s.name)}
+            modelField={modelField}
+            promptPreview={promptReady}
+            onChange={() => undefined}
+            onClose={() => undefined}
+            onSave={() => undefined}
+            onDelete={() => undefined}
+            {...pane}
+          />
+        }
+      />
+    </RulesShell>
   ),
 });
 
@@ -436,14 +434,15 @@ export const DeskRulesAgentFitsViewport: Story = {
   ],
   globals: viewport(1440, 900),
   render: () => (
-    <DeskRulesScreen
-      frame={deskFrame}
-      height="viewport"
-      rules={pagedRules(20)}
-      skills={skills.map((s) => s.name)}
-      maxRunsPerTicket={agentSettings.maxRunsPerTicket}
-      pagination={pagination(1, 24)}
-    />
+    <RulesShell>
+      <DeskRulesScreen
+        frame={deskFrame}
+        rules={pagedRules(20)}
+        skills={skills.map((s) => s.name)}
+        maxRunsPerTicket={agentSettings.maxRunsPerTicket}
+        pagination={pagination(1, 24)}
+      />
+    </RulesShell>
   ),
 };
 
@@ -452,130 +451,130 @@ const promptReady = { state: 'ready', systemLines: promptSystemLines } as const;
 /** Editing a custom prompt rule: the prompt, its counter and the read-only lines Agent Desk adds. */
 export const DeskRulesAgentPrompt: Story = {
   name: 'Routing rules, custom prompt',
-  decorators: artboard(1080),
-  globals: viewport(1440, 1080),
   render: () => (
-    <DeskRulesScreen
-      frame={deskFrame}
-      rules={rules}
-      skills={skills.map((s) => s.name)}
-      editingId="r6"
-      maxRunsPerTicket={agentSettings.maxRunsPerTicket}
-      promptPreview={promptReady}
-      modelField={modelField}
-    />
+    <RulesShell>
+      <DeskRulesScreen
+        frame={deskFrame}
+        rules={rules}
+        skills={skills.map((s) => s.name)}
+        editingId="r6"
+        maxRunsPerTicket={agentSettings.maxRunsPerTicket}
+        promptPreview={promptReady}
+        modelField={modelField}
+      />
+    </RulesShell>
   ),
 };
 
 /** New custom prompt rule: nothing typed yet, the system lines still loading. */
 export const DeskRulesAgentPromptNew: Story = {
   name: 'Routing rules, new custom prompt',
-  decorators: artboard(1080),
-  globals: viewport(1440, 1080),
   render: () => (
-    <DeskRulesScreen
-      frame={deskFrame}
-      rules={rules}
-      skills={skills.map((s) => s.name)}
-      maxRunsPerTicket={agentSettings.maxRunsPerTicket}
-      form={
-        <RulePane
-          title="New rule"
-          value={{
-            command: 'release-notes',
-            target: 'pr',
-            labels: [],
-            skill: '',
-            kind: 'prompt',
-            prompt: '',
-            agentId: 'agent-claude',
-            agentLabel: 'Claude',
-            enabled: true,
-          }}
-          skills={skills.map((s) => s.name)}
-          modelField={modelField}
-          promptPreview={{ state: 'loading' }}
-          onChange={() => undefined}
-          onClose={() => undefined}
-          onSave={() => undefined}
-        />
-      }
-    />
+    <RulesShell>
+      <DeskRulesScreen
+        frame={deskFrame}
+        rules={rules}
+        skills={skills.map((s) => s.name)}
+        maxRunsPerTicket={agentSettings.maxRunsPerTicket}
+        form={
+          <RulePane
+            title="New rule"
+            value={{
+              command: 'release-notes',
+              target: 'pr',
+              labels: [],
+              skill: '',
+              kind: 'prompt',
+              prompt: '',
+              agentId: 'agent-claude',
+              agentLabel: 'Claude',
+              enabled: true,
+            }}
+            skills={skills.map((s) => s.name)}
+            modelField={modelField}
+            promptPreview={{ state: 'loading' }}
+            onChange={() => undefined}
+            onClose={() => undefined}
+            onSave={() => undefined}
+          />
+        }
+      />
+    </RulesShell>
   ),
 };
 
 /** Prompt over the limit, and the system lines failed to load. */
 export const DeskRulesAgentPromptError: Story = {
   name: 'Routing rules, custom prompt errors',
-  decorators: artboard(1080),
-  globals: viewport(1440, 1080),
   render: () => (
-    <DeskRulesScreen
-      frame={deskFrame}
-      rules={rules}
-      skills={skills.map((s) => s.name)}
-      editingId="r6"
-      maxRunsPerTicket={agentSettings.maxRunsPerTicket}
-      form={
-        <RulePane
-          title="Edit rule"
-          value={{
-            command: 'triage',
-            target: 'issue',
-            labels: [],
-            skill: '',
-            kind: 'prompt',
-            prompt: `${TRIAGE_PROMPT}\n${'Check every linked issue as well. '.repeat(120)}`,
-            agentId: 'agent-claude',
-            agentLabel: 'Claude',
-            enabled: true,
-          }}
-          skills={skills.map((s) => s.name)}
-          modelField={modelField}
-          promptPreview={{ state: 'error', onRetry: () => undefined }}
-          errors={{ prompt: 'Keep the prompt to 4000 characters or fewer.' }}
-          onChange={() => undefined}
-          onClose={() => undefined}
-          onSave={() => undefined}
-          onDelete={() => undefined}
-        />
-      }
-    />
+    <RulesShell>
+      <DeskRulesScreen
+        frame={deskFrame}
+        rules={rules}
+        skills={skills.map((s) => s.name)}
+        editingId="r6"
+        maxRunsPerTicket={agentSettings.maxRunsPerTicket}
+        form={
+          <RulePane
+            title="Edit rule"
+            value={{
+              command: 'triage',
+              target: 'issue',
+              labels: [],
+              skill: '',
+              kind: 'prompt',
+              prompt: `${TRIAGE_PROMPT}\n${'Check every linked issue as well. '.repeat(120)}`,
+              agentId: 'agent-claude',
+              agentLabel: 'Claude',
+              enabled: true,
+            }}
+            skills={skills.map((s) => s.name)}
+            modelField={modelField}
+            promptPreview={{ state: 'error', onRetry: () => undefined }}
+            errors={{ prompt: 'Keep the prompt to 4000 characters or fewer.' }}
+            onChange={() => undefined}
+            onClose={() => undefined}
+            onSave={() => undefined}
+            onDelete={() => undefined}
+          />
+        }
+      />
+    </RulesShell>
   ),
 };
 
 /** New rule pane after a save the server refused: a duplicate command (409 with pointer /command). */
 export const DeskRulesAgentNewRuleError: Story = {
   name: 'Routing rules, new rule refused',
-  decorators: artboard(900),
-  globals: viewport(1440, 900),
   render: () => (
-    <DeskRulesScreen
-      frame={deskFrame}
-      rules={rules}
-      skills={skills.map((s) => s.name)}
-      maxRunsPerTicket={agentSettings.maxRunsPerTicket}
-      form={
-        <RulePane
-          title="New rule"
-          value={{
-            command: 'code-build',
-            target: 'pr',
-            labels: [],
-            skill: 'code-build',
-            agentId: 'agent-claude',
-            agentLabel: 'Claude',
-            enabled: true,
-          }}
-          skills={skills.map((s) => s.name)}
-          modelField={modelField}
-          errors={{ command: 'A rule for /code-build already exists in this project.' }}
-          onChange={() => undefined}
-          onClose={() => undefined}
-          onSave={() => undefined}
-        />
-      }
-    />
+    <RulesShell>
+      <DeskRulesScreen
+        frame={deskFrame}
+        rules={rules}
+        skills={skills.map((s) => s.name)}
+        maxRunsPerTicket={agentSettings.maxRunsPerTicket}
+        form={
+          <RulePane
+            title="New rule"
+            value={{
+              command: 'code-build',
+              target: 'pr',
+              labels: [],
+              skill: 'code-build',
+              agentId: 'agent-claude',
+              agentLabel: 'Claude',
+              enabled: true,
+            }}
+            skills={skills.map((s) => s.name)}
+            modelField={modelField}
+            errors={{ command: 'A rule for /code-build already exists in this project.' }}
+            onChange={() => undefined}
+            onClose={() => undefined}
+            onSave={() => undefined}
+          />
+        }
+      />
+    </RulesShell>
   ),
 };
 
@@ -681,10 +680,10 @@ const pickRadio = (c: Canvas, name: string) => userEvent.click(c.getByRole('radi
 /** An Agent & settings board: the Agents tab unless the board says otherwise. One 1440x900 artboard; the panel scrolls. */
 const agentBoard = (name: string, props: Partial<DeskAgentProps>, play?: Story['play']): Story => ({
   name,
-  decorators: artboard(900),
-  globals: viewport(1440, 900),
   render: () => (
-    <DeskAgentScreen frame={deskFrame} limits={agentLimits} github={agentGithub} agents={agentList()} {...props} />
+    <AgentShell>
+      <DeskAgentScreen frame={deskFrame} limits={agentLimits} github={agentGithub} agents={agentList()} {...props} />
+    </AgentShell>
   ),
   play,
 });
@@ -709,13 +708,7 @@ export const DeskAgentListPaged: Story = agentsBoard('Agents tab, second page', 
 export const DeskAgentListProjectAdmin: Story = {
   ...agentsBoard('Agents tab, project admin (no Danger zone)', {}),
   render: () => (
-    <DeskAgentBase
-      frame={{ ...deskFrame, user: { login: 'lee-park', initials: 'LP' } }}
-      limits={agentLimits}
-      github={agentGithub}
-      agents={agentList()}
-      tab="agents"
-    />
+    <DeskAgentBase frame={deskFrame} limits={agentLimits} github={agentGithub} agents={agentList()} tab="agents" />
   ),
 };
 export const DeskAgentListReadOnly: Story = agentsBoard('Agents tab, read-only', {
@@ -901,14 +894,15 @@ export const DeskAgentListFitsViewport: Story = {
   ],
   globals: viewport(1440, 900),
   render: () => (
-    <DeskAgentScreen
-      frame={deskFrame}
-      height="viewport"
-      limits={agentLimits}
-      github={agentGithub}
-      tab="agents"
-      agents={agentList({ rows: manyAgents(20).map(agentRowView), pagination: paging(45) })}
-    />
+    <AgentShell>
+      <DeskAgentScreen
+        frame={deskFrame}
+        limits={agentLimits}
+        github={agentGithub}
+        tab="agents"
+        agents={agentList({ rows: manyAgents(20).map(agentRowView), pagination: paging(45) })}
+      />
+    </AgentShell>
   ),
 };
 
@@ -1028,32 +1022,32 @@ const pagination = (page: number, total: number): PaginationProps => ({
 /** Page 2 of 2 of 24 routing rules: the control sits between the list and the guards card. */
 export const DeskRulesAgentPaged: Story = {
   name: 'Routing rules, page 2 of 2',
-  decorators: artboard(900),
-  globals: viewport(1440, 900),
   render: () => (
-    <DeskRulesScreen
-      frame={deskFrame}
-      rules={pagedRules(24).slice(20)}
-      skills={skills.map((s) => s.name)}
-      maxRunsPerTicket={agentSettings.maxRunsPerTicket}
-      pagination={pagination(2, 24)}
-    />
+    <RulesShell>
+      <DeskRulesScreen
+        frame={deskFrame}
+        rules={pagedRules(24).slice(20)}
+        skills={skills.map((s) => s.name)}
+        maxRunsPerTicket={agentSettings.maxRunsPerTicket}
+        pagination={pagination(2, 24)}
+      />
+    </RulesShell>
   ),
 };
 
 /** No routing rules: the empty state, no control. */
 export const DeskRulesAgentEmpty: Story = {
   name: 'Routing rules, empty',
-  decorators: artboard(900),
-  globals: viewport(1440, 900),
   render: () => (
-    <DeskRulesScreen
-      frame={deskFrame}
-      rules={[]}
-      skills={skills.map((s) => s.name)}
-      maxRunsPerTicket={agentSettings.maxRunsPerTicket}
-      pagination={pagination(1, 0)}
-    />
+    <RulesShell>
+      <DeskRulesScreen
+        frame={deskFrame}
+        rules={[]}
+        skills={skills.map((s) => s.name)}
+        maxRunsPerTicket={agentSettings.maxRunsPerTicket}
+        pagination={pagination(1, 0)}
+      />
+    </RulesShell>
   ),
 };
 
@@ -1143,15 +1137,11 @@ export const DeskAuditInvitationExpired: Story = {
   ...audit({ kind: 'ready', rows: projectAuditRowsExpired }),
 };
 
-// The project Members page (Settings > Access > Members), 1440x900 boards. Lee Park (project admin) is signed in
-// unless a board says otherwise.
-const LEE: Actor = { login: 'lee-park', initials: 'LP' };
-const MIRA: Actor = { login: 'mira-chen', initials: 'MC' };
-const leeFrame: DeskFrameData = { ...deskFrame, user: LEE };
+// The project Members page (Settings > Access > Members), 1440x900 boards.
 const members = (
   state: DeskMembersProps['state'],
   props: Partial<Omit<DeskMembersProps, 'state'>> = {},
-  frame: DeskFrameData = leeFrame,
+  frame: DeskFrameData = deskFrame,
 ): Story => ({
   decorators: artboard(900),
   globals: viewport(1440, 900),
@@ -1197,17 +1187,6 @@ export const DeskMembersForbidden: Story = {
   globals: viewport(1440, 900),
   render: () => (
     <>
-      <TopBar
-        variant="project"
-        crumbs={NO_PAGE_CRUMBS}
-        state="forbidden"
-        active="runs"
-        user={MIRA}
-        org={deskFrame.org}
-        needsYou={deskFrame.project.needsYou}
-        project={{ name: deskFrame.project.name, repoUrl: `https://github.com/${deskFrame.project.repo}` }}
-        links={{ projects: '#projects', runs: '#runs' }}
-      />
       <main className={screenStyles.emptyNotice}>
         <div className={screenStyles.emptyNoticeCol}>
           <h1>You don&apos;t have access</h1>
@@ -1683,4 +1662,222 @@ export const DeskSetupEnvironmentTesting: Story = {
         },
       },
     ),
+};
+
+// The project Desk pages in the one shell: the "Project menu" beside a page that draws only its header and body.
+const deskShellStory = (story: Story): Story => ({ ...story, parameters: { ...story.parameters, shell: true } });
+
+export const DeskSkillsSideMenu: Story = deskShellStory({
+  name: 'Skills, side menu',
+  render: () => (
+    <ProjectShellFrame page="skills" fill crumbs={[{ label: 'Skills' }]}>
+      <DeskSkillsScreen {...skillsProps} />
+    </ProjectShellFrame>
+  ),
+});
+
+export const DeskSetupSideMenu: Story = deskShellStory({
+  name: 'Workspace setup, side menu',
+  render: () => (
+    <ProjectShellFrame page="setup" fill crumbs={[{ label: 'Workspace setup' }]}>
+      <DeskSetupScreen {...setupProps} />
+    </ProjectShellFrame>
+  ),
+});
+
+export const DeskRulesForbiddenSideMenu: Story = deskShellStory({
+  name: 'Routing rules URL opened without access: project menu, no active item',
+  render: () => (
+    <ProjectShellFrame page={null}>
+      <main className={screenStyles.emptyNotice}>
+        <div className={screenStyles.emptyNoticeCol}>
+          <h1>You don&apos;t have access</h1>
+          <p className="muted">Ask an owner of this organization to give you access.</p>
+        </div>
+      </main>
+    </ProjectShellFrame>
+  ),
+});
+
+const rulesShellProps = {
+  rules: agentRules,
+  skills: skills.map((s) => s.name),
+  maxRunsPerTicket: agentSettings.maxRunsPerTicket,
+};
+
+export const DeskRulesSideMenu: Story = deskShellStory({
+  name: 'Routing rules, side menu',
+  render: () => (
+    <ProjectShellFrame page="rules" fill crumbs={[{ label: 'Routing rules' }]}>
+      <DeskRulesScreen frame={deskFrame} {...rulesShellProps} />
+    </ProjectShellFrame>
+  ),
+});
+
+export const DeskRulesSideMenuSetupWarning: Story = deskShellStory({
+  name: 'Routing rules, side menu, setup warning',
+  render: () => (
+    <ProjectShellFrame page="rules" fill crumbs={[{ label: 'Routing rules' }]}>
+      <DeskRulesScreen
+        frame={{
+          ...deskFrame,
+          warning: {
+            title: 'The setup script changed since the last passing test',
+            detail: 'Runs use the saved script as it is. Test it again to be sure it still works.',
+            href: '#',
+          },
+        }}
+        {...rulesShellProps}
+      />
+    </ProjectShellFrame>
+  ),
+});
+
+export const DeskAgentSideMenu: Story = deskShellStory({
+  name: 'Agent & settings, side menu',
+  render: () => (
+    <ProjectShellFrame page="agents" fill crumbs={[{ label: 'Agent & settings' }]}>
+      <DeskAgentScreen frame={deskFrame} tab="agents" limits={agentLimits} github={agentGithub} agents={agentList()} />
+    </ProjectShellFrame>
+  ),
+});
+
+// BR-65, BR-83: Routing rules and Skills at 390x844 (phone boards). The rules are one column with their run line under
+// the rule's text; an open rule pane takes the place of the list under the page header; the skills list sits above the
+// editor with its own scroll. The real shell frame draws the bar and the menu, not the board's own copy.
+const deskPhoneArtboard = (
+  page: 'rules' | 'skills' | 'agents' | 'setup' | 'members' | 'audit',
+  crumb: string,
+): NonNullable<Story['decorators']> => [
+  (S) => (
+    <div style={{ width: 390, height: 844 }}>
+      <ProjectShellFrame page={page} fill height={844} crumbs={[{ label: crumb }]}>
+        <S />
+      </ProjectShellFrame>
+    </div>
+  ),
+];
+
+export const DeskRulesPhone: Story = {
+  name: 'Phone: routing rules, one column',
+  decorators: deskPhoneArtboard('rules', 'Routing rules'),
+  globals: viewport(390, 844),
+  render: () => <DeskRulesScreen frame={deskFrame} {...rulesShellProps} />,
+};
+
+export const DeskRulesPromptPhone: Story = {
+  name: 'Phone: routing rule pane in place of the list',
+  decorators: deskPhoneArtboard('rules', 'Routing rules'),
+  globals: viewport(390, 844),
+  render: () => (
+    <DeskRulesScreen
+      frame={deskFrame}
+      {...rulesShellProps}
+      editingId="r6"
+      modelField={modelField}
+      promptPreview={promptReady}
+    />
+  ),
+};
+
+export const DeskSkillsPhone: Story = {
+  name: 'Phone: skills, list above the editor',
+  decorators: deskPhoneArtboard('skills', 'Skills'),
+  globals: viewport(390, 844),
+  render: () => <DeskSkillsScreen {...skillsProps} />,
+};
+
+// BR-65: Agent & settings at 390x844 (phone boards). The tab strip is one row that scrolls inside itself, the agent rows
+// stack, an open add or edit pane takes the place of the list under the strip, the delete dialog and the row menu stay
+// inside the window, and Limits is one column with Save limits pinned. The real shell frame draws the bar and the menu.
+const agentPhone = (name: string, props: Partial<DeskAgentProps>, play?: Story['play']): Story => ({
+  name,
+  decorators: deskPhoneArtboard('agents', 'Agent & settings'),
+  globals: viewport(390, 844),
+  render: () => (
+    <DeskAgentScreen frame={deskFrame} limits={agentLimits} github={agentGithub} agents={agentList()} {...props} />
+  ),
+  play,
+});
+
+export const DeskAgentPhone: Story = agentPhone('Phone: agents, rows stacked under the tab strip', {
+  tab: 'agents',
+  agents: agentList({
+    rows: [
+      ...agentRowViews.slice(0, 2),
+      { ...agentRowViews[2], name: `Agent ${'with-a-very-long-name-'.repeat(11)}`.slice(0, 256) },
+      ...agentRowViews.slice(3, 5),
+    ],
+    pagination: paging(24),
+  }),
+});
+export const DeskAgentAddPhone: Story = agentPhone(
+  'Phone: add agent, pane in place of the list',
+  { tab: 'agents', pane: agentPane() },
+  async ({ canvasElement }) => pickRadio(within(canvasElement), 'OpenCode'),
+);
+export const DeskAgentEditPhone: Story = agentPhone('Phone: edit agent, pane in place of the list', {
+  tab: 'agents',
+  pane: editPane('Claude - Personal'),
+});
+export const DeskAgentRowMenuPhone: Story = agentPhone(
+  'Phone: agent row menu inside the window',
+  { tab: 'agents' },
+  async ({ canvasElement }) => {
+    await userEvent.click(within(canvasElement).getByRole('button', { name: `Actions for ${agentRowViews[1].name}` }));
+  },
+);
+export const DeskAgentDeletePhone: Story = agentPhone('Phone: delete agent dialog, full width', {
+  tab: 'agents',
+  ...toDelete({ ...deleteBase, state: 'confirm' }),
+});
+export const DeskAgentGitHubPhone: Story = agentPhone(
+  'Phone: GitHub connection, rows stacked, strip scrolled to the tab',
+  {
+    tab: 'github',
+  },
+);
+export const DeskAgentLimitsPhone: Story = agentPhone('Phone: limits, one column with Save limits pinned', {
+  tab: 'limits',
+});
+
+// BR-65: Workspace setup at 390x844 (phone board). The editor is full width with a usable height, the plugins and the
+// version history come below it, and the content area scrolls, not the document.
+export const DeskSetupPhone: Story = {
+  name: 'Phone: workspace setup',
+  decorators: deskPhoneArtboard('setup', 'Workspace setup'),
+  globals: viewport(390, 844),
+  render: () => <DeskSetupScreen {...setupProps} />,
+};
+
+// BR-65: the project Members and Audit log at 390x844 (phone boards): each row is a card with its value labels, the row
+// menu and the pager are kept.
+export const DeskMembersPhone: Story = {
+  name: 'Phone: project members as cards with labels',
+  decorators: deskPhoneArtboard('members', 'Members'),
+  globals: viewport(390, 844),
+  render: () => (
+    <DeskMembersScreen
+      frame={deskFrame}
+      orgName="Harbor Labs"
+      projectName="invoicer-api"
+      state={membersReady(pagedProjectMemberRows.slice(0, 5), { pagination: pagination(1, 25) })}
+      onAdd={noop}
+      onInvite={noop}
+      onChangeRole={noop}
+      onRemove={noop}
+    />
+  ),
+};
+
+export const DeskAuditPhone: Story = {
+  name: 'Phone: project audit log as cards with labels',
+  decorators: deskPhoneArtboard('audit', 'Audit log'),
+  globals: viewport(390, 844),
+  render: () => (
+    <DeskAuditScreen
+      frame={deskFrame}
+      state={{ kind: 'ready', rows: projectAuditRows, pagination: pagination(1, 25) }}
+    />
+  ),
 };

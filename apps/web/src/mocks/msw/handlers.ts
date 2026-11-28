@@ -155,15 +155,22 @@ function session(): { user: MockUser; orgId: string } {
 function accessOf(user: MockUser): AccessDto {
   const orgId = mockDb.auth.activeOrganizationId;
   const seat = db().memberships.find((m) => m.userId === user.id && m.orgId === orgId);
-  const role = roleFixtures.find((r) => r.key === seat?.roleKey);
-  const assignments =
-    !seat || !role
-      ? []
-      : (seat.projectIds ?? [undefined]).map((projectId) => ({
-          roleKey: role.key,
-          scope: projectId === undefined ? ({ type: 'org' } as const) : ({ type: 'project', projectId } as const),
-          permissions: role.permissions,
-        }));
+  // A seat with `projectRoles` holds a different role on each project; otherwise one role over its projects (or the org).
+  const held = !seat
+    ? []
+    : (seat.projectRoles ??
+      (seat.projectIds ?? [undefined]).map((projectId) => ({ projectId, roleKey: seat.roleKey })));
+  const assignments = held.flatMap(({ projectId, roleKey }) => {
+    const role = roleFixtures.find((r) => r.key === roleKey);
+    if (!role) return [];
+    return [
+      {
+        roleKey: role.key,
+        scope: projectId === undefined ? ({ type: 'org' } as const) : ({ type: 'project', projectId } as const),
+        permissions: role.permissions,
+      },
+    ];
+  });
   return { userId: user.id, platformAdmin: user.platformAdmin, assignments };
 }
 
@@ -742,10 +749,13 @@ const impl: Impl = {
   },
 
   'projects.list': ({ query }) => {
-    const { orgId } = session();
-    // As the API: creation order, ties broken by id.
+    const { user, orgId } = session();
+    // As the API: creation order, ties broken by id. A seat with a role per project (the shell scenarios) lists only
+    // its projects, as the API scopes lists with `visibleProjects`; the older single-role seats still list all.
+    const seat = db().memberships.find((m) => m.userId === user.id && m.orgId === orgId);
+    const reach = seat?.projectRoles === undefined ? undefined : seat.projectIds;
     const rows = db()
-      .projects.filter((p) => p.orgId === orgId)
+      .projects.filter((p) => p.orgId === orgId && (reach === undefined || reach.includes(p.id)))
       .sort((a, b) => (a.createdAt < b.createdAt ? -1 : a.createdAt > b.createdAt ? 1 : a.id < b.id ? -1 : 1));
     const page = slicePage(rows, query);
     return { ...page, items: page.items.map(toProjectDto) };
@@ -830,7 +840,12 @@ const impl: Impl = {
     });
     return toProjectDto(row);
   },
-  'projects.get': ({ params }) => toProjectDto(projectRow(params.projectId)),
+  // A project the caller's seat does not reach is a 404, as from the API: the shell reads it on every project page and
+  // shows no name when it answers 404. (The Projects list is not scoped in the mock, so the connection read stays open.)
+  'projects.get': ({ params }) => {
+    projectInScope(params.projectId);
+    return toProjectDto(projectRow(params.projectId));
+  },
   'projects.update': ({ params, body }) => {
     const row = projectRow(params.projectId);
     Object.assign(row, Object.fromEntries(Object.entries(body).filter(([, v]) => v !== undefined)));
@@ -1145,9 +1160,10 @@ const impl: Impl = {
           query.q,
         ),
       )
-      .sort((a, b) => b.number - a.number)
-      .map((r) => withTicketRunCount(withAgentIdleEnd(r)));
-    return slicePage(matching, query);
+      .sort((a, b) => b.number - a.number);
+    // Only the page is mapped: counting the runs of each ticket for every run would be quadratic in the project's runs.
+    const page = slicePage(matching, query);
+    return { ...page, items: page.items.map((r) => withTicketRunCount(withAgentIdleEnd(r))) };
   },
   // Before byNumber, as in the API: `stats` is not a run number.
   'runs.stats': ({ params, query }) => {

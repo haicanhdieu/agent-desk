@@ -103,6 +103,20 @@ describe('Popover', () => {
     expect(onClose).not.toHaveBeenCalled();
   });
 
+  it('calls onKeyDown for a key pressed while focus is inside the popover', async () => {
+    const user = userEvent.setup();
+    const onKeyDown = vi.fn();
+    render(
+      <Popover open label="L" onKeyDown={onKeyDown}>
+        <button>a</button>
+      </Popover>,
+    );
+    expect(screen.getByRole('button', { name: 'a' })).toHaveFocus();
+    await user.keyboard('{ArrowDown}');
+    expect(onKeyDown).toHaveBeenCalledTimes(1);
+    expect(onKeyDown.mock.calls[0]?.[0]).toMatchObject({ key: 'ArrowDown' });
+  });
+
   it('removes the listener after unmount', async () => {
     const user = userEvent.setup();
     const onClose = vi.fn();

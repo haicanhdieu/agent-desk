@@ -30,6 +30,7 @@ import { PlatformOrgInvitations, type ListView } from '@/screens';
 // organization or to some projects. Links are built from the invitation id when shown and never cached. A 403 from a
 // read (rights lost since) shows the shell's forbidden state. UI only: the API is the authority.
 export const Route = createFileRoute('/platform/orgs/$orgId/invitations')({
+  staticData: { chrome: { mode: 'standard', scope: 'platformOrg', item: 'orgInvitations' } },
   validateSearch: InvitationsSearch,
   component: PlatformOrgInvitationsPage,
 });

@@ -50,14 +50,10 @@ const roleCell = (row: Locator): Locator => row.getByRole('cell').nth(1);
 const okToast = (page: Page, title: string): Locator => page.getByRole('status').filter({ hasText: title });
 const runsUrl = (): string => `/o/${cast.slug}/p/${cast.p1}/runs`;
 
-/** Opens P1 → Settings → Members through the Settings tab and the Desk side menu. */
+/** Opens P1 → Settings → Members through the Project menu. */
 async function openMembers(who: Actor): Promise<void> {
   await who.page.goto(runsUrl());
-  await who.page
-    .getByRole('navigation', { name: 'Project sections' })
-    .getByRole('link', { name: 'Project settings', exact: true })
-    .click();
-  await who.page.getByRole('navigation', { name: 'Desk' }).getByRole('link', { name: 'Members' }).click();
+  await who.page.getByRole('navigation', { name: 'Project menu' }).getByRole('link', { name: 'Members' }).click();
   await expect(membersHeading(who.page)).toBeVisible();
 }
 
@@ -325,11 +321,7 @@ test.describe('BR-5: A adds an org member to P1', () => {
       await expect(roleCell(rowOf(a.page, d.handle))).toHaveText('Admin');
 
       await d.page.goto(runsUrl());
-      await d.page
-        .getByRole('navigation', { name: 'Project sections' })
-        .getByRole('link', { name: 'Project settings', exact: true })
-        .click();
-      const menu = d.page.getByRole('navigation', { name: 'Desk' });
+      const menu = d.page.getByRole('navigation', { name: 'Project menu' });
       await expect(menu.getByRole('link', { name: 'Members' })).toBeVisible();
       await expect(menu.getByRole('link', { name: 'Audit log' })).toBeVisible();
     } finally {

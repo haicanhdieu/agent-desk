@@ -1,6 +1,7 @@
+import type { ReactNode } from 'react';
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import { userEvent, within } from 'storybook/test';
-import { AppShell } from '@/components';
+import { ShellFrame } from './shellFrame';
 import { CommandChip } from '@/ds';
 import {
   agentKindViews,
@@ -26,7 +27,7 @@ import { SetupWorkspace as SetupWorkspaceScreen } from './SetupWorkspace';
 import { viewport } from './viewports';
 
 // Artboards come from canvas.json: Setup1, Setup1Polling, Setup1PollingOk, SetupWorkspace 1440x1000; the rest 1440x900.
-// SetupLayout renders its own top bar and the single <main>.
+// The shell draws the bar; SetupLayout puts the stepper in the shell's menu slot and draws the single <main>.
 const meta = {
   title: 'Screens/Setup',
   globals: viewport(1440, 900),
@@ -34,11 +35,13 @@ const meta = {
   decorators: [
     (S, ctx) => {
       const h = ctx.parameters.artboardHeight as number;
+      // A story with `parameters.shell` brings its own ShellFrame; the others sit in the wizard shell.
+      if (ctx.parameters.shell) return <S />;
       return (
         <div style={{ width: 1440, height: h }}>
-          <AppShell height={h} topBar={null}>
+          <WizardFrame height={h}>
             <S />
-          </AppShell>
+          </WizardFrame>
         </div>
       );
     },
@@ -47,19 +50,14 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-/** The org bar of an owner or admin: the Projects tab (active) and the Settings tab. */
 const harbor = { id: 'org-harbor', slug: 'harbor-labs', name: 'Harbor Labs' };
-const bar = {
-  account: { name: 'Kim Hale', handle: 'kim-hale', invitationsHref: '#invitations' },
-  org: {
-    current: harbor,
-    orgs: [harbor],
-    platformAdmin: false,
-    orgHref: (o: { slug: string }) => `/o/${o.slug}/projects`,
-    createHref: '/platform/orgs/new',
-    projectsHref: '#projects',
-    settingsHref: '#settings',
-  },
+/** The scope crumb of the wizard's bar: an owner of one org. */
+const org = {
+  current: harbor,
+  orgs: [harbor],
+  platformAdmin: false,
+  orgHref: (o: { slug: string }) => `/o/${o.slug}/projects`,
+  createHref: '/platform/orgs/new',
 };
 
 const tall = { parameters: { artboardHeight: 1000 }, globals: viewport(1440, 1000) };
@@ -71,8 +69,6 @@ const rule = rules[0];
 const manageUrl = 'https://github.com/organizations/harbor-labs/settings/installations/1001';
 
 const setup1 = {
-  user,
-  ...bar,
   projectName,
   repos: [
     { name: repo, meta: 'Private, updated 2 hours ago', manageUrl },
@@ -177,8 +173,6 @@ const liveModels = toModelList({ status: 'success', data: agentModelsFixtures.li
 const noCredentialModels = toModelList({ status: 'success', data: agentModelsFixtures.noCredential }, null);
 
 const setup2Props = {
-  user,
-  ...bar,
   projectName,
   repo,
   kinds: agentKindViews,
@@ -306,7 +300,7 @@ export const Setup2AgentNoneChosen: Story = {
   },
 };
 
-const workspace = { user, ...bar, projectName, repo, plugins: { plugins: setupPlugins.planned } };
+const workspace = { projectName, repo, plugins: { plugins: setupPlugins.planned } };
 
 /** New optional step between the credential and skills (five steps once it ships). */
 export const SetupWorkspace: Story = {
@@ -364,8 +358,6 @@ export const Setup3: Story = {
   name: 'Setup 3, skills',
   render: () => (
     <Setup3Screen
-      user={user}
-      {...bar}
       projectName={projectName}
       repo={repo}
       branch="main"
@@ -380,8 +372,6 @@ export const Setup4: Story = {
   name: 'Setup 4, first rule',
   render: () => (
     <Setup4Screen
-      user={user}
-      {...bar}
       projectName={projectName}
       repo={repo}
       rule={rule}
@@ -400,8 +390,6 @@ export const Setup4Skip: Story = {
   name: 'Setup 4, first rule, optional with Skip',
   render: () => (
     <Setup4Screen
-      user={user}
-      {...bar}
       projectName={projectName}
       repo={repo}
       rule={rule}
@@ -423,8 +411,6 @@ export const Setup4Prompt: Story = {
   globals: viewport(1440, 1080),
   render: () => (
     <Setup4Screen
-      user={user}
-      {...bar}
       projectName={projectName}
       repo={repo}
       rule={{ ...rule, command: 'triage', labels: [], skill: '', kind: 'prompt', prompt: TRIAGE_PROMPT }}
@@ -455,8 +441,6 @@ const readySummary = (trigger: string) => [
 ];
 
 const ready = {
-  user,
-  ...bar,
   projectName,
   repo,
   label: { name: 'user-story', color: '#7C8FD8' },
@@ -513,3 +497,190 @@ export const SetupReadyNoRule: Story = {
     />
   ),
 };
+
+// The wizard in the one shell: the stepper takes the menu slot (the drawer below 1024px) and the page draws its own
+// main, with "Exit setup" in the stepper column, or in a header row at the top of the page below 1024px.
+const wizardStory = (story: Story): Story => ({
+  ...story,
+  parameters: { ...story.parameters, shell: true },
+});
+function WizardFrame({ height = 900, children }: { height?: number; children: ReactNode }) {
+  return (
+    <ShellFrame
+      wizard
+      height={height}
+      topBar={{
+        user,
+        crumbs: [{ label: 'Projects', href: '#projects' }, { label: 'New project' }],
+        org,
+      }}
+    >
+      {children}
+    </ShellFrame>
+  );
+}
+const wizardSkills = (
+  <Setup3Screen
+    projectName={projectName}
+    repo={repo}
+    branch="main"
+    templates={skillTemplates}
+    selected={skillTemplates.map((t) => t.name)}
+    commitMessage="Add Agent Desk skills: code-build, code-review"
+    exitHref="#projects"
+  />
+);
+
+export const Setup3ExitSetup: Story = wizardStory({
+  name: 'Setup 3, skills, in the shell with Exit setup',
+  render: () => <WizardFrame>{wizardSkills}</WizardFrame>,
+});
+
+export const Setup3PreviewDialog: Story = wizardStory({
+  name: 'Setup 3, skills, template preview dialog',
+  render: () => <WizardFrame>{wizardSkills}</WizardFrame>,
+  play: async ({ canvasElement }) => {
+    await userEvent.click(within(canvasElement).getAllByRole('button', { name: /^Preview / })[0]);
+  },
+});
+
+export const Setup4ExitSetup: Story = wizardStory({
+  name: 'Setup 4, first rule, in the shell with Exit setup',
+  render: () => (
+    <Setup4Screen
+      projectName={projectName}
+      repo={repo}
+      rule={rule}
+      skills={['code-build', 'code-review']}
+      followUp={{ command: 'code-review', target: 'pr', skill: 'code-review', enabled: true }}
+      maxRunsPerTicket={agentSettings.maxRunsPerTicket}
+      promptPreview={{ state: 'ready', systemLines: promptSystemLines }}
+      modelList={liveModels}
+      defaultAgentName="Claude"
+      exitHref="#projects"
+    />
+  ),
+});
+
+export const SetupReadyExitSetup: Story = wizardStory({
+  name: 'Setup, ready, in the shell with Exit setup',
+  render: () => (
+    <SetupReadyScreen
+      {...ready}
+      lastEvent={{ mode: 'webhook', at: 'ping, 14:01:37' }}
+      summary={readySummary(connectionCopy.triggerSummary('webhook'))}
+      exitHref="#projects"
+    />
+  ),
+});
+
+// BR-65: the wizard at 390x844 (phone boards). The stepper is in the menu drawer; the page is one column with the
+// footer wrapping and the aside under the main column.
+const phoneWizard = (story: Story): Story => ({ ...wizardStory(story), globals: story.globals ?? viewport(390, 844) });
+const PhoneFrame = ({ height = 844, children }: { height?: number; children: ReactNode }) => (
+  <WizardFrame height={height}>{children}</WizardFrame>
+);
+const openMenu: Story['play'] = async ({ canvasElement }) => {
+  await userEvent.click(within(canvasElement).getByRole('button', { name: 'Open menu' }));
+};
+
+export const Setup1Phone: Story = phoneWizard({
+  name: 'Phone: setup 1, connect repository',
+  render: () => (
+    <PhoneFrame>
+      <Setup1Screen {...setup1} pingAt="14:01:37" exitHref="#projects" />
+    </PhoneFrame>
+  ),
+});
+export const Setup2Phone: Story = phoneWizard({
+  name: 'Phone: setup 2, add agent, nothing picked',
+  render: () => (
+    <PhoneFrame>
+      <Setup2Screen {...setup2Props} exitHref="#projects" />
+    </PhoneFrame>
+  ),
+});
+/** OpenCode with an endpoint and key: the longest form. */
+export const Setup2AgentPickedPhone: Story = phoneWizard({
+  name: 'Phone: setup 2, OpenCode, API endpoint and key',
+  render: () => (
+    <PhoneFrame>
+      <Setup2Screen {...setup2Props} exitHref="#projects" />
+    </PhoneFrame>
+  ),
+  play: async ({ canvasElement }) => {
+    const c = within(canvasElement);
+    await pickRadio(c, 'OpenCode');
+    await pickRadio(c, 'API endpoint and key');
+  },
+});
+export const Setup2AgentRejectedPhone: Story = phoneWizard({
+  name: 'Phone: setup 2, the test failed, Continue anyway',
+  render: () => (
+    <PhoneFrame>
+      <Setup2Screen
+        {...setup2Props}
+        exitHref="#projects"
+        onContinueAnyway={() => undefined}
+        testFailed={{
+          status: 'Credential rejected',
+          message: 'The provider refused the saved credential. Replace it, then test again.',
+        }}
+      />
+    </PhoneFrame>
+  ),
+  play: async ({ canvasElement }) => {
+    const c = within(canvasElement);
+    await pickRadio(c, 'Claude Code');
+    await pickRadio(c, 'API key');
+  },
+});
+export const Setup3Phone: Story = phoneWizard({
+  name: 'Phone: setup 3, skills',
+  globals: viewport(390, 980),
+  render: () => <PhoneFrame height={980}>{wizardSkills}</PhoneFrame>,
+});
+export const Setup3PhoneDrawer: Story = phoneWizard({
+  name: 'Phone: setup 3, skills, stepper drawer open',
+  render: () => <PhoneFrame>{wizardSkills}</PhoneFrame>,
+  play: openMenu,
+});
+export const Setup3PreviewDialogPhone: Story = phoneWizard({
+  name: 'Phone: setup 3, template preview dialog',
+  render: () => <PhoneFrame>{wizardSkills}</PhoneFrame>,
+  play: async ({ canvasElement }) => {
+    await userEvent.click(within(canvasElement).getAllByRole('button', { name: /^Preview / })[0]);
+  },
+});
+export const Setup4Phone: Story = phoneWizard({
+  name: 'Phone: setup 4, first rule',
+  render: () => (
+    <PhoneFrame>
+      <Setup4Screen
+        projectName={projectName}
+        repo={repo}
+        rule={rule}
+        skills={['code-build', 'code-review']}
+        followUp={{ command: 'code-review', target: 'pr', skill: 'code-review', enabled: true }}
+        maxRunsPerTicket={agentSettings.maxRunsPerTicket}
+        promptPreview={{ state: 'ready', systemLines: promptSystemLines }}
+        modelList={liveModels}
+        defaultAgentName="Claude"
+        exitHref="#projects"
+      />
+    </PhoneFrame>
+  ),
+});
+export const SetupReadyPhone: Story = phoneWizard({
+  name: 'Phone: setup, ready',
+  render: () => (
+    <PhoneFrame>
+      <SetupReadyScreen
+        {...ready}
+        lastEvent={{ mode: 'webhook', at: 'ping, 14:01:37' }}
+        summary={readySummary(connectionCopy.triggerSummary('webhook'))}
+        exitHref="#projects"
+      />
+    </PhoneFrame>
+  ),
+});

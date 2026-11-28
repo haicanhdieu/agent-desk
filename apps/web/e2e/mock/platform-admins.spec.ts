@@ -298,13 +298,12 @@ test.describe('BR-15: revoking your own platform access with another working adm
 
     // Home: `/` hands over to the active org's projects, so the browser has left /platform for the org.
     await expect(page).toHaveURL(new RegExp(`/o/${ORG}/projects`));
-    await page.getByRole('button', { name: /^Switch scope/ }).click();
-    const orgs = page.getByRole('dialog', { name: 'Scope' });
-    await expect(orgs).toBeVisible();
-    await expect(orgs.getByText('Platform admin')).toHaveCount(0);
+    // One org and no platform role: the org place is plain text, so there is no switcher and no Platform entry to open.
+    await expect(page.getByRole('banner').getByText('Alice', { exact: true })).toBeVisible();
+    await expect(page.getByRole('button', { name: /^Switch scope/ })).toHaveCount(0);
+    await expect(page.getByRole('banner').getByText('Platform admin')).toHaveCount(0);
 
     // Typing the address: the mock store reseeds on a page load, so the path is entered through the router history.
-    await page.keyboard.press('Escape');
     await page.evaluate(() => {
       window.history.pushState({}, '', '/platform/admins');
       window.dispatchEvent(new PopStateEvent('popstate'));

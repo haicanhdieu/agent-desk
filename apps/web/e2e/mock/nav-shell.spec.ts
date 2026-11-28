@@ -44,9 +44,11 @@ test.describe('breadcrumb and title', () => {
     await seedOnboarding(page, 'owner');
     await page.goto('/o/acme/projects');
     await expect(crumbs(page).locator('b[aria-current="page"]')).toHaveText('Projects');
-    const org = (await crumbs(page).getByRole('button').first().textContent())?.trim() ?? '';
+    // One org has no switch button: the bar shows its name as text, and the title carries the same name.
+    await expect(page).toHaveTitle(/^Projects · .+ · Agent Desk$/);
+    const org = /^Projects · (.+) · Agent Desk$/.exec(await page.title())?.[1] ?? '';
     expect(org).not.toBe('');
-    await expect(page).toHaveTitle(`Projects · ${org} · Agent Desk`);
+    await expect(crumbs(page)).toContainText(org);
   });
 
   test('a run page reads Runs / Run N with Runs linking to the project runs', async ({ page }) => {
@@ -61,11 +63,12 @@ test.describe('breadcrumb and title', () => {
     await expect(page).toHaveTitle('Runs · invoicer-api · Agent Desk');
   });
 
-  test('a Desk page reads Project settings / Skills', async ({ page }) => {
+  test('a Desk page reads Skills, with no "Project settings" crumb (BR-10)', async ({ page }) => {
     await seedOnboarding(page, 'owner');
     await page.goto(`/o/acme/p/${INVOICER_API}/desk/skills`);
-    await expect(crumbs(page).getByText('Project settings', { exact: true })).toBeVisible();
-    await expect(crumbs(page).locator('b[aria-current="page"]')).toHaveText('Skills');
+    await expect(crumbs(page).locator('[aria-current="page"]')).toHaveText('Skills');
+    await expect(crumbs(page).getByText('Project settings', { exact: true })).toHaveCount(0);
+    await expect(page).toHaveTitle('Skills · invoicer-api · Agent Desk');
   });
 
   test('a platform org members page reads Organizations / <org> / Members and every crumb but the last is a link', async ({
@@ -83,56 +86,53 @@ test.describe('breadcrumb and title', () => {
 });
 
 test.describe('tab names', () => {
-  test('the org tabs read Projects and Org settings, the project tabs Runs and Project settings', async ({ page }) => {
+  test('the org menu reads Projects and the four Settings items, the project menu Runs and its Configure items, with no section tabs', async ({
+    page,
+  }) => {
     await seedOnboarding(page, 'owner');
     await page.goto('/o/acme/projects');
-    const orgTabs = page.getByRole('navigation', { name: 'Organization sections' });
-    await expect(orgTabs.getByRole('link', { name: 'Projects', exact: true })).toBeVisible();
-    await expect(orgTabs.getByRole('link', { name: 'Org settings', exact: true })).toBeVisible();
-    await expect(orgTabs.getByRole('link', { name: 'Settings', exact: true })).toHaveCount(0);
+    const orgMenu = page.getByRole('navigation', { name: 'Organization menu' });
+    await expect(orgMenu.getByRole('link')).toHaveText(['Projects', 'Members', 'Invitations', 'Audit log', 'General']);
+    await expect(orgMenu.getByRole('link', { name: 'Org settings', exact: true })).toHaveCount(0);
+    await expect(orgMenu.getByRole('link', { name: 'Settings', exact: true })).toHaveCount(0);
 
     await page.goto(`/o/acme/p/${INVOICER_API}/runs`);
-    const projectTabs = page.getByRole('navigation', { name: 'Project sections' });
-    await expect(projectTabs.getByRole('link', { name: /^Runs/ })).toBeVisible();
-    await expect(projectTabs.getByRole('link', { name: 'Project settings', exact: true })).toBeVisible();
-    await expect(projectTabs.getByRole('link', { name: 'Settings', exact: true })).toHaveCount(0);
+    const projectMenu = page.getByRole('navigation', { name: 'Project menu' });
+    await expect(projectMenu.getByRole('link', { name: /^Runs/ })).toBeVisible();
+    await expect(projectMenu.getByRole('link', { name: 'Routing rules', exact: true })).toBeVisible();
+    await expect(projectMenu.getByRole('link', { name: 'Project settings', exact: true })).toHaveCount(0);
+    await expect(projectMenu.getByRole('link', { name: 'Settings', exact: true })).toHaveCount(0);
+    await expect(page.getByRole('navigation', { name: 'Project sections' })).toHaveCount(0);
   });
 });
 
 test.describe('roles', () => {
-  const scopeMenu = (page: Page): Locator => page.getByRole('dialog', { name: 'Scope' });
-  const openScopeMenu = async (page: Page): Promise<void> => {
-    await page.getByRole('button', { name: /^Switch scope/ }).click();
-    await expect(scopeMenu(page)).toBeVisible();
-  };
+  const orgMenu = (page: Page): Locator => page.getByRole('navigation', { name: 'Organization menu' });
 
-  test('an org admin without the platform role sees no Platform group and no "Manage this org in Platform"', async ({
+  test('an org admin without the platform role sees no Platform entry and no "Manage in Platform"', async ({
     page,
   }) => {
     await seedOnboarding(page, 'orgAdmin');
     await page.goto('/o/acme/projects');
-    await openScopeMenu(page);
-    await expect(scopeMenu(page).getByRole('group', { name: 'Platform' })).toHaveCount(0);
-    await expect(scopeMenu(page).getByRole('link', { name: 'Platform admin' })).toHaveCount(0);
-    await expect(scopeMenu(page).getByText('Manage this org in Platform')).toHaveCount(0);
+    await expect(orgMenu(page).getByRole('link', { name: 'Projects', exact: true })).toBeVisible();
+    await expect(page.getByRole('link', { name: 'Platform', exact: true })).toHaveCount(0);
+    await expect(page.getByRole('link', { name: 'Manage in Platform' })).toHaveCount(0);
   });
 
-  test('a project admin sees no Platform group and the Org settings tab opens Invitations only', async ({ page }) => {
+  test('a project admin sees no Platform entry and the org menu opens Invitations only', async ({ page }) => {
     await seedOnboarding(page, 'projectAdmin');
     await page.goto('/o/acme/projects');
-    await openScopeMenu(page);
-    await expect(scopeMenu(page).getByRole('group', { name: 'Platform' })).toHaveCount(0);
-    await expect(scopeMenu(page).getByText('Manage this org in Platform')).toHaveCount(0);
-    await page.keyboard.press('Escape');
+    await expect(orgMenu(page).getByRole('link', { name: 'Projects', exact: true })).toBeVisible();
+    await expect(page.getByRole('link', { name: 'Platform', exact: true })).toHaveCount(0);
+    await expect(page.getByRole('link', { name: 'Manage in Platform' })).toHaveCount(0);
 
-    await page
-      .getByRole('navigation', { name: 'Organization sections' })
-      .getByRole('link', { name: 'Org settings' })
-      .click();
-    const side = page.getByRole('navigation', { name: 'Organization settings' });
-    await expect(side.getByRole('link', { name: 'Invitations', exact: true })).toBeVisible();
+    await orgMenu(page).getByRole('link', { name: 'Invitations', exact: true }).click();
+    await expect(orgMenu(page).getByRole('link', { name: 'Invitations', exact: true })).toHaveAttribute(
+      'aria-current',
+      'page',
+    );
     for (const name of ['General', 'Members', 'Audit log']) {
-      await expect(side.getByRole('link', { name, exact: true })).toHaveCount(0);
+      await expect(orgMenu(page).getByRole('link', { name, exact: true })).toHaveCount(0);
     }
   });
 });

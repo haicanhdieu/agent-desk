@@ -78,11 +78,13 @@ export function PlatformOrgInvitations({
             </Button>
           </div>
           <p className="muted">Platform view: names and emails only. Tickets, runs and secrets are never shown here.</p>
-          <FilterChips aria-label="Filter by status">
-            {CHIPS.map((c) => (
-              <FilterChip key={c.value} label={c.label} on={status === c.value} onClick={() => onStatus(c.value)} />
-            ))}
-          </FilterChips>
+          <div className={styles.invitationChips}>
+            <FilterChips aria-label="Filter by status">
+              {CHIPS.map((c) => (
+                <FilterChip key={c.value} label={c.label} on={status === c.value} onClick={() => onStatus(c.value)} />
+              ))}
+            </FilterChips>
+          </div>
           <DataTable columns={columns} busy={view.busy ?? view.pagination.busy}>
             {view.rows.map((row) => (
               <InvitationRow key={row.id} row={row} busy={resendingId === row.id} {...rowActions(row)} />

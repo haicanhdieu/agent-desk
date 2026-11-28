@@ -111,6 +111,21 @@ export {
   projectAuditRowsExpired,
 } from './projectMembers';
 export { orgSettingsFixtures } from './orgSettings';
+export {
+  orgMenuFixtures,
+  platformMenuFixture,
+  projectMenuFixtures,
+  projectSwitchFixtures,
+  platformOrgMenuFixtures,
+  withOrgMenuActive,
+  withPlatformMenuActive,
+  withPlatformOrgMenuActive,
+  withProjectMenuActive,
+  type OrgMenuPage,
+  type PlatformMenuPage,
+  type PlatformOrgMenuPage,
+  type ProjectMenuPage,
+} from './shellMenus';
 export { checklistSteps, pendingInvitationsCount } from './onboarding';
 export {
   invitationCards,

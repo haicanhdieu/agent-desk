@@ -17,6 +17,49 @@
   display: flex;
   min-height: 0;
 }
+/* The content slot: the page inside it decides what scrolls. */
+.content {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.contentFill {
+  flex: 1;
+  min-height: 0;
+}
+/* The inline side menu: sticky under the 52px bar with its own scroll; the extra bottom padding keeps its last item
+   above the fold, since the box is as tall as the window while its top sits under the bar. */
+.menuSlot {
+  position: sticky;
+  top: 52px;
+  align-self: flex-start;
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  max-height: 100vh;
+  max-height: 100dvh;
+  box-sizing: border-box;
+  padding-bottom: 52px;
+  overflow-y: auto;
+  background: var(--bg);
+}
+.menuSlot > .subnav {
+  flex: 1 1 auto;
+}
+/* A root with a fixed height: the body is exactly the space under the bar, so the menu fills it and scrolls on its own. */
+.appFixed .menuSlot {
+  position: static;
+  align-self: stretch;
+  max-height: none;
+  padding-bottom: 0;
+}
+.wizardSlot {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
 .main {
   flex: 1;
   min-width: 0;
@@ -91,30 +134,6 @@
   flex: 0 0 auto;
 }
 
-.tabs {
-  display: flex;
-  gap: 2px;
-  height: 100%;
-}
-.tabs a {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  padding: 0 12px;
-  color: var(--muted);
-  border-bottom: 2px solid transparent;
-  height: 100%;
-  font-weight: 500;
-}
-.tabs a:hover {
-  color: var(--text);
-  text-decoration: none;
-}
-.tabs a.on {
-  color: var(--text);
-  border-bottom-color: var(--text);
-}
-
 .crumbs {
   flex: 0 1 auto;
   display: flex;
@@ -148,33 +167,12 @@
   align-items: center;
   min-width: 0;
 }
-.crumbText {
-  color: var(--muted);
-  white-space: nowrap;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  max-width: 240px;
-}
 .crumbs .sepch {
   flex: 0 0 auto;
   color: var(--faint);
 }
 .crumbs b {
   font-weight: 600;
-}
-.runExtra {
-  flex: 0 1 auto;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  min-width: 0;
-  margin-left: 6px;
-  font-size: var(--fs-13);
-  color: var(--muted);
 }
 
 .subnav {
@@ -219,6 +217,91 @@
 .subnav > .grpH:first-child {
   padding-top: 2px;
 }
+.subnavList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.subnavLabel {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.subnavTop {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+.subnavTop .subnavBack {
+  flex: 1;
+  min-width: 0;
+}
+.subnavToggle {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: 0;
+  border-radius: var(--radius-6);
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+.subnavToggle:hover {
+  color: var(--text);
+  background: var(--raised);
+}
+.subnavCollapsed {
+  width: 48px;
+  flex-basis: 48px;
+  padding: 16px 8px;
+  align-items: center;
+}
+.subnavLoading {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 10px;
+}
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+.subnavError {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  font-size: var(--fs-12_5);
+  color: var(--err);
+}
+.subnavRetry {
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  text-decoration: underline;
+  cursor: pointer;
+  font: inherit;
+}
+.subnavFooter {
+  margin-top: auto;
+  padding-top: 12px;
+}
+.repoBlock {
+  min-width: 0;
+}
 .grpBody {
   padding: 4px 10px;
   display: flex;
@@ -255,7 +338,15 @@
   display: flex;
   flex-direction: column;
   gap: 4px;
-  min-width: 260px;
+  min-width: min(260px, calc(100vw - 32px));
+  max-width: calc(100vw - 32px);
+}
+/* Phone: a long project list scrolls inside the popover, which stays inside the window under the two-row bar. */
+@media (max-width: 639px) {
+  .menu {
+    max-height: calc(100dvh - 128px);
+    overflow-y: auto;
+  }
 }
 .menuItem {
   display: flex;
@@ -285,9 +376,6 @@
 .menuZero {
   color: var(--faint);
 }
-.stripBare {
-  border-bottom: 0;
-}
 
 .switchWrap {
   position: relative;
@@ -311,4 +399,62 @@
   height: 14px;
   border-radius: 4px;
   background: var(--line);
+}
+
+/* Phone: two rows in one fixed bar height. Row 1: menu button, logo mark, bell, account. Row 2: both switchers
+   sharing the width (ellipsis, never empty). Page crumbs are hidden. */
+@media (max-width: 639px) {
+  .topShell {
+    height: 96px;
+    flex: 0 0 96px;
+    flex-wrap: wrap;
+    align-content: center;
+    gap: 6px 10px;
+    padding: 0 12px;
+  }
+  .topShell > .sep {
+    display: none;
+  }
+  .topShell > .crumbs {
+    order: 3;
+    flex: 1 1 100%;
+  }
+  .topShell .crumbs .crumb,
+  .topShell .crumbs .sepch {
+    display: none;
+  }
+  .topShell .crumbs .crumbControl {
+    flex: 1 1 0;
+    min-width: 0;
+  }
+  .topShell .crumbs .switchWrap,
+  .topShell .crumbs .switch {
+    flex: 1 1 0;
+    width: 100%;
+    max-width: none;
+    min-width: 0;
+  }
+}
+
+.menuTitle {
+  padding: 10px 16px 0;
+  font-size: var(--fs-12);
+  color: var(--muted);
+}
+.menuDivider {
+  height: 1px;
+  margin: 0 16px;
+  background: var(--line);
+}
+.menuFooter {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 16px 10px;
+}
+.menuLabel {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }

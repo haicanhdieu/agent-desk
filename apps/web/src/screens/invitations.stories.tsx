@@ -1,5 +1,7 @@
+import type { ReactNode } from 'react';
 import type { Meta, StoryObj } from '@storybook/react-vite';
-import { userEvent, within } from 'storybook/test';
+import { useEffect, useState } from 'react';
+import { userEvent, waitFor, within } from 'storybook/test';
 import {
   AppShell,
   InviteDialog,
@@ -18,24 +20,17 @@ import {
   pagedInvitationRows,
 } from '@/mocks';
 import type { Actor, InvitationCardView, InvitationDetailsView } from '@/mocks/types';
-import {
-  MyInvitations as MyInvitationsScreen,
-  type MyInvitationsProps,
-  type MyInvitationsState,
-} from './MyInvitations';
-import {
-  InvitationAccept as InvitationAcceptScreen,
-  type InvitationAcceptProps,
-  type InvitationAcceptState,
-} from './InvitationAccept';
+import { MyInvitations as MyInvitationsScreen, type MyInvitationsState } from './MyInvitations';
+import { InvitationAccept as InvitationAcceptScreen, type InvitationAcceptState } from './InvitationAccept';
 import {
   OrgInvitations as OrgInvitationsScreen,
   type InvitationFilter,
   type OrgInvitationsProps,
 } from './OrgInvitations';
 import { CreateOrg as CreateOrgScreen, type CreateOrgState, type CreateOrgValues } from './CreateOrg';
-import { OrgSettingsFrame } from './orgSettingsFrame';
-import { PlatformFrame } from './platformFrame';
+import { PlatformFrame } from './platformShellFrame';
+import { OrgSettingsFrame, OrgShellFrame } from './orgShellFrame';
+import { ShellFrame } from './shellFrame';
 import { viewport } from './viewports';
 
 const noop = () => undefined;
@@ -67,11 +62,15 @@ const meta = {
   parameters: { layout: 'fullscreen' },
   globals: viewport(1440, 900),
   decorators: [
-    (S) => (
-      <AppShell height={900} topBar={null}>
+    // A story with `parameters.shell` brings its own ShellFrame; the others sit in the old bare frame.
+    (S, { parameters }) =>
+      parameters.shell ? (
         <S />
-      </AppShell>
-    ),
+      ) : (
+        <AppShell height={900} topBar={null}>
+          <S />
+        </AppShell>
+      ),
   ],
 } satisfies Meta;
 export default meta;
@@ -98,27 +97,33 @@ const harborBar: OrgSwitchProps = {
   platformAdmin: false,
   orgHref: (o) => `/o/${o.slug}/projects`,
   createHref: '/platform/orgs/new',
-  projectsHref: '#projects',
-  settingsHref: '#settings',
 };
 
-const screen = (state: MyInvitationsState, user: Actor = dana, org: MyInvitationsProps['org'] = harborBar) => (
-  <MyInvitationsScreen user={user} org={org} state={state} onAccept={noop} onDecline={noop} onSignOut={noop} />
+const legacyScreen = (state: MyInvitationsState, user: Actor = dana, org: OrgSwitchProps = harborBar) => (
+  <OrgShellFrame page={null} user={user} org={org} crumbs={[{ label: 'My invitations' }]}>
+    <MyInvitationsScreen state={state} onAccept={noop} onDecline={noop} onSignOut={noop} />
+  </OrgShellFrame>
 );
 
 export const MyInvitations: Story = {
   name: 'Welcome, pending invitations',
-  render: () => screen({ kind: 'list', cards, pending: null }),
+  render: () => legacyScreen({ kind: 'list', cards, pending: null }),
 };
 export const MyInvitationsAccepting: Story = {
   name: 'Welcome, accepting one invitation',
-  render: () => screen({ kind: 'list', cards, pending: { id: cards[0].id, action: 'accept' } }),
+  render: () => legacyScreen({ kind: 'list', cards, pending: { id: cards[0].id, action: 'accept' } }),
 };
 export const MyInvitationsEmpty: Story = {
   name: 'Welcome, no org, no invitations',
   render: () =>
-    screen(
-      { kind: 'empty', email: 'dana.ortiz@example.com', platformAdmin: false, createHref: '/platform/orgs/new' },
+    legacyScreen(
+      {
+        kind: 'empty',
+        member: false,
+        email: 'dana.ortiz@example.com',
+        platformAdmin: false,
+        createHref: '/platform/orgs/new',
+      },
       dana,
       noOrg,
     ),
@@ -126,8 +131,8 @@ export const MyInvitationsEmpty: Story = {
 export const MyInvitationsEmptyPlatformAdmin: Story = {
   name: 'Welcome, platform admin, no org',
   render: () =>
-    screen(
-      { kind: 'empty', email: 'ops@example.com', platformAdmin: true, createHref: '/platform/orgs/new' },
+    legacyScreen(
+      { kind: 'empty', member: false, email: 'ops@example.com', platformAdmin: true, createHref: '/platform/orgs/new' },
       opsAdmin,
       adminOrg,
     ),
@@ -135,8 +140,8 @@ export const MyInvitationsEmptyPlatformAdmin: Story = {
 export const MyInvitationsEmptyPlatformAdminMenu: Story = {
   name: 'Welcome, platform admin, no org, menu open with Platform admin',
   render: () =>
-    screen(
-      { kind: 'empty', email: 'ops@example.com', platformAdmin: true, createHref: '/platform/orgs/new' },
+    legacyScreen(
+      { kind: 'empty', member: false, email: 'ops@example.com', platformAdmin: true, createHref: '/platform/orgs/new' },
       opsAdmin,
       {
         ...adminOrg,
@@ -149,11 +154,11 @@ export const MyInvitationsEmptyPlatformAdminMenu: Story = {
 };
 export const MyInvitationsError: Story = {
   name: 'Welcome, failed to load',
-  render: () => screen({ kind: 'error', requestId: 'req_01JD7Q3M8V2K', onRetry: noop }),
+  render: () => legacyScreen({ kind: 'error', requestId: 'req_01JD7Q3M8V2K', onRetry: noop }),
 };
 export const MyInvitationsLoading: Story = {
   name: 'Welcome, loading',
-  render: () => screen({ kind: 'loading' }),
+  render: () => legacyScreen({ kind: 'loading' }),
 };
 
 const harbor: InvitationDetailsView = {
@@ -163,10 +168,24 @@ const harbor: InvitationDetailsView = {
 };
 const jo: Actor = { login: 'jo-marsh', initials: 'JM' };
 
-const accept = (state: InvitationAcceptState, user: Actor = dana, org: InvitationAcceptProps['org'] = harborBar) => (
+const legacyAccept = (state: InvitationAcceptState, user: Actor = dana, org: OrgSwitchProps = harborBar) => (
+  <OrgShellFrame page={null} user={user} org={org} crumbs={[{ label: 'Invitation' }]}>
+    <InvitationAcceptScreen
+      state={state}
+      onAccept={noop}
+      onDecline={noop}
+      onConfirmDecline={noop}
+      onCancelDecline={noop}
+      onSignOut={noop}
+    />
+  </OrgShellFrame>
+);
+/** The bare pages, for the stories that bring their own shell. */
+const screen = (state: MyInvitationsState) => (
+  <MyInvitationsScreen state={state} onAccept={noop} onDecline={noop} onSignOut={noop} />
+);
+const accept = (state: InvitationAcceptState) => (
   <InvitationAcceptScreen
-    user={user}
-    org={org}
     state={state}
     onAccept={noop}
     onDecline={noop}
@@ -184,51 +203,51 @@ const pendingState = (busy: 'accept' | 'decline' | null = null, confirmDecline =
 
 export const InvitationAccept: Story = {
   name: 'Invitation, pending',
-  render: () => accept(pendingState()),
+  render: () => legacyAccept(pendingState()),
 };
 export const InvitationAcceptAccepted: Story = {
   name: 'Invitation, already joined',
-  render: () => accept({ kind: 'accepted', orgName: 'Harbor Labs', orgHref: '/o/harbor-labs/projects' }, dana),
+  render: () => legacyAccept({ kind: 'accepted', orgName: 'Harbor Labs', orgHref: '/o/harbor-labs/projects' }, dana),
 };
 export const InvitationAcceptAccepting: Story = {
   name: 'Invitation, accepting',
-  render: () => accept(pendingState('accept')),
+  render: () => legacyAccept(pendingState('accept')),
 };
 export const InvitationAcceptDeclineConfirm: Story = {
   name: 'Invitation, decline confirm',
-  render: () => accept(pendingState(null, true)),
+  render: () => legacyAccept(pendingState(null, true)),
 };
 export const InvitationAcceptDeclined: Story = {
   name: 'Invitation, declined',
-  render: () => accept({ kind: 'declined', invitationsHref: '/invitations' }),
+  render: () => legacyAccept({ kind: 'declined', invitationsHref: '/invitations' }),
 };
 export const InvitationAcceptDeclining: Story = {
   name: 'Invitation, declining',
-  render: () => accept(pendingState('decline', true)),
+  render: () => legacyAccept(pendingState('decline', true)),
 };
 export const InvitationAcceptError: Story = {
   name: 'Invitation, failed to load',
-  render: () => accept({ kind: 'error', requestId: 'req_01JD7Q3M8V2K', onRetry: noop }),
+  render: () => legacyAccept({ kind: 'error', requestId: 'req_01JD7Q3M8V2K', onRetry: noop }),
 };
 export const InvitationAcceptExpired: Story = {
   name: 'Invitation, expired',
-  render: () => accept({ kind: 'expired', orgName: 'Harbor Labs', inviter: 'Kim Hale' }),
+  render: () => legacyAccept({ kind: 'expired', orgName: 'Harbor Labs', inviter: 'Kim Hale' }),
 };
 export const InvitationAcceptExpiredInviterDeleted: Story = {
   name: 'Invitation, expired, inviter deleted',
-  render: () => accept({ kind: 'expired', orgName: 'Harbor Labs', inviter: null }),
+  render: () => legacyAccept({ kind: 'expired', orgName: 'Harbor Labs', inviter: null }),
 };
 export const InvitationAcceptLoading: Story = {
   name: 'Invitation, loading',
-  render: () => accept({ kind: 'loading' }),
+  render: () => legacyAccept({ kind: 'loading' }),
 };
 export const InvitationAcceptNotAvailable: Story = {
   name: 'Invitation, not available',
-  render: () => accept({ kind: 'notAvailable', email: 'jo.marsh@example.org' }, jo, noOrg),
+  render: () => legacyAccept({ kind: 'notAvailable', email: 'jo.marsh@example.org' }, jo, noOrg),
 };
 export const InvitationAcceptRevoked: Story = {
   name: 'Invitation, revoked',
-  render: () => accept({ kind: 'revoked' }),
+  render: () => legacyAccept({ kind: 'revoked' }),
 };
 
 const byStatus = (status: InvitationFilter) => orgInvitationRows.filter((r) => status === 'all' || r.status === status);
@@ -553,4 +572,132 @@ export const CreateOrgSlugEdited: Story = {
 export const CreateOrgSlugTaken: Story = {
   name: 'Create organization, URL taken',
   render: () => createOrg(createForm(northwind, { errors: { slug: 'This URL is taken. Try another.' } })),
+};
+
+/** A project admin's organization menu: Projects and, under Settings, only Invitations. */
+export const OrgInvitationsSettingsSideMenuProjectAdmin: Story = {
+  name: 'Organization invitations, menu for an admin of projects only',
+  parameters: { shell: true },
+  render: () => (
+    <OrgShellFrame viewer="projectAdmin" page="invitations" crumbs={[{ label: 'Invitations' }]}>
+      <OrgInvitationsScreen
+        filter="pending"
+        onFilterChange={() => undefined}
+        state={{ kind: 'ready', rows: orgInvitationRows, busyRowId: null }}
+        onInvite={() => undefined}
+        onCopy={() => undefined}
+        onResend={() => undefined}
+        onRevoke={() => undefined}
+      />
+    </OrgShellFrame>
+  ),
+};
+
+// The invitation pages in the one shell: the page draws only its own main. The menu is the active org's, with no
+// current item (BR-56); a person with no org, or only a suspended one, has none.
+const shellStory = (story: Story): Story => ({ ...story, parameters: { ...story.parameters, shell: true } });
+const invitationsCrumbs = [{ label: 'My invitations' }];
+const withMenu = (page: ReactNode, user: Actor = dana) => (
+  <OrgShellFrame page={null} user={user} org={harborBar} crumbs={invitationsCrumbs}>
+    {page}
+  </OrgShellFrame>
+);
+const noMenu = (page: ReactNode, org: OrgSwitchProps = noOrg, user: Actor = dana) => (
+  <ShellFrame topBar={{ user, crumbs: invitationsCrumbs, org }}>{page}</ShellFrame>
+);
+const memberEmpty: MyInvitationsState = {
+  kind: 'empty',
+  member: true,
+  email: 'dana.ortiz@example.com',
+  platformAdmin: false,
+  createHref: '/platform/orgs/new',
+};
+const noOrgEmpty: MyInvitationsState = { ...memberEmpty, member: false };
+
+export const MyInvitationsSideMenu: Story = shellStory({
+  name: 'My invitations, organization menu',
+  render: () => withMenu(screen({ kind: 'list', cards, pending: null })),
+});
+export const MyInvitationsEmptyMember: Story = shellStory({
+  name: 'My invitations, member with none pending',
+  render: () => withMenu(screen(memberEmpty)),
+});
+export const MyInvitationsEmptyNoOrg: Story = shellStory({
+  name: 'My invitations with no organization',
+  render: () => noMenu(screen(noOrgEmpty)),
+});
+
+/** Opened while the org list loads, then the list arrives empty: the switcher stays a button until it is closed. */
+function HeldNoOrg() {
+  const [loaded, setLoaded] = useState(false);
+  useEffect(() => {
+    const t = setTimeout(() => setLoaded(true), 50);
+    return () => clearTimeout(t);
+  }, []);
+  const org: OrgSwitchProps = loaded ? noOrg : { ...noOrg, list: { status: 'loading' } };
+  return noMenu(screen(noOrgEmpty), org);
+}
+export const MyInvitationsEmptySideSwitcherHeld: Story = shellStory({
+  name: 'No organization: switcher held open',
+  render: () => <HeldNoOrg />,
+  play: async ({ canvasElement }) => {
+    await userEvent.click(within(canvasElement).getByRole('button', { name: /^Switch scope/ }));
+    await waitFor(() => within(canvasElement).getByText('No organization'));
+  },
+});
+
+export const InvitationAcceptSideMenu: Story = shellStory({
+  name: 'Invitation, organization menu',
+  render: () => withMenu(accept(pendingState())),
+});
+export const InvitationAcceptErrorSideMenu: Story = shellStory({
+  name: 'Invitation load error keeps the organization menu',
+  render: () => withMenu(accept({ kind: 'error', requestId: 'req_01JD7Q3M8V2K', onRetry: noop })),
+});
+export const InvitationAcceptNotAvailableNoMenu: Story = shellStory({
+  name: 'Invitation not available, no active organization',
+  render: () => noMenu(accept({ kind: 'notAvailable', email: 'jo.marsh@example.org' }), noOrg, jo),
+});
+
+// BR-65: the entry pages at 390x844 (phone boards). The same screens, in the phone frame.
+const phoneStory = (story: Story): Story => ({ ...shellStory(story), globals: viewport(390, 844) });
+
+export const MyInvitationsPhone: Story = phoneStory({
+  name: 'Phone: my invitations',
+  render: () => withMenu(screen({ kind: 'list', cards, pending: null })),
+});
+export const InvitationAcceptPhone: Story = phoneStory({
+  name: 'Phone: invitation link',
+  render: () => withMenu(accept(pendingState())),
+});
+export const CreateOrgPhone: Story = phoneStory({
+  name: 'Phone: create organization',
+  render: () => createOrg(createForm(emptyOrgValues)),
+});
+
+// BR-65: org Invitations at 390x844 (phone board): cards with labels, the status chips in their own scrolling row, the
+// row menu and the pager kept. The real shell frame draws the bar and the menu.
+export const OrgInvitationsSettingsPhone: Story = {
+  name: 'Phone: invitations as cards, status chips scroll',
+  decorators: [
+    (S) => (
+      <div style={{ width: 390, height: 844 }}>
+        <OrgShellFrame viewer="owner" page="invitations" height={844} crumbs={[{ label: 'Invitations' }]}>
+          <S />
+        </OrgShellFrame>
+      </div>
+    ),
+  ],
+  globals: viewport(390, 844),
+  render: () => (
+    <OrgInvitationsScreen
+      filter="pending"
+      onFilterChange={noop}
+      state={ready(pendingRows, { page: 1, pageSize: 20, total: 25, onPageChange: noop, onPageSizeChange: noop })}
+      onInvite={noop}
+      onCopy={noop}
+      onResend={noop}
+      onRevoke={noop}
+    />
+  ),
 };

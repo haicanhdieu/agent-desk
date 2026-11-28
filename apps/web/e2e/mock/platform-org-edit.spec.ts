@@ -48,8 +48,8 @@ async function openEdit(page: Page, id: string, name: string, scenario: Platform
 
 async function directoryRow(page: Page, name: string): Promise<Locator> {
   await page
-    .getByRole('navigation', { name: 'Platform sections' })
-    .getByRole('link', { name: 'Organizations' })
+    .getByRole('navigation', { name: 'Platform menu' })
+    .getByRole('link', { name: /Organizations/ })
     .click();
   const row = page.locator('tbody tr').filter({ hasText: name }).first();
   await expect(row).toBeVisible();

@@ -21,3 +21,28 @@ export const Default: Story = {
     ],
   },
 };
+
+const groups = [
+  {
+    heading: 'Desk',
+    items: [
+      { label: 'Runs', href: '#', icon: 'runs' as const, active: true, badge: 3 },
+      { label: 'Routing rules', href: '#', icon: 'rule' as const },
+    ],
+  },
+];
+
+export const WithBadge: Story = { args: { 'aria-label': 'Desk', groups } };
+export const WithBackLink: Story = {
+  args: { 'aria-label': 'Desk', groups, back: { label: 'All projects', href: '#' }, onToggleCollapsed: () => {} },
+};
+export const WithHeaderAndFooter: Story = {
+  args: { 'aria-label': 'Desk', groups, header: <strong>invoicer-api</strong>, footer: <span>v1.2</span> },
+};
+export const Loading: Story = {
+  args: { 'aria-label': 'Desk', groups, state: 'loading', back: { label: 'All projects', href: '#' } },
+};
+export const ErrorState: Story = { args: { 'aria-label': 'Desk', groups, state: 'error', onRetry: () => {} } };
+export const Collapsed: Story = {
+  args: { 'aria-label': 'Desk', groups, collapsed: true, onToggleCollapsed: () => {} },
+};

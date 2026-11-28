@@ -7,6 +7,7 @@ export const artboards = [
   [1440, 1320],
   [1440, 1480],
   [1280, 800],
+  [390, 844],
 ] as const;
 
 export const viewportId = (width: number, height: number) => `desktop${width}x${height}`;

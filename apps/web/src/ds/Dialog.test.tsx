@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 import { Dialog } from './Dialog';
 
@@ -39,7 +41,7 @@ describe('Dialog', () => {
     expect(screen.queryByRole('dialog')).toBeNull();
   });
 
-  it('is a modal dialog named by its h2 title, absolutely positioned (no portal)', () => {
+  it('is a modal dialog named by its h2 title, not portalled', () => {
     const { container } = render(
       <Dialog open title="Delete it?" onClose={() => {}}>
         x
@@ -50,6 +52,25 @@ describe('Dialog', () => {
     expect(screen.getByRole('heading', { level: 2, name: 'Delete it?' })).toBeInTheDocument();
     expect(container.contains(dlg)).toBe(true);
     expect(dlg.parentElement).toHaveClass('overlay');
+  });
+
+  it('overlay is fixed to the viewport, so it covers the page however far it is scrolled', () => {
+    const css = readFileSync(resolve(__dirname, 'Overlay.module.css'), 'utf8');
+    expect(css).toMatch(/\.overlay\s*\{[^}]*position:\s*fixed/);
+  });
+
+  it('below 640px the dialog is full width and the popover spans the viewport inside 16px gutters', () => {
+    const css = readFileSync(resolve(__dirname, 'Overlay.module.css'), 'utf8');
+    expect(css).toMatch(/@media\s*\(max-width:\s*639px\)\s*\{[^]*\.dialog\s*\{[^}]*width:\s*100%/);
+    expect(css).toMatch(/@media\s*\(max-width:\s*639px\)\s*\{[^]*\.pop\s*\{[^}]*left:\s*16px[^}]*right:\s*16px/);
+    expect(css).toMatch(/@media\s*\(max-width:\s*639px\)\s*\{[^]*\.pop\s*\{[^}]*overflow-y:\s*auto/);
+  });
+
+  it('below 640px the top override skips popovers that opt out with an inline fixed position or transform', () => {
+    const css = readFileSync(resolve(__dirname, 'Overlay.module.css'), 'utf8');
+    expect(css).toMatch(
+      /@media\s*\(max-width:\s*639px\)\s*\{[^]*\.pop:not\(\[style\*='position: fixed'\]\):not\(\[style\*='transform'\]\)\s*\{[^}]*top:\s*auto\s*!important/,
+    );
   });
 
   it('opened by keyboard: focus moves in, Escape closes once, focus returns to opener', async () => {

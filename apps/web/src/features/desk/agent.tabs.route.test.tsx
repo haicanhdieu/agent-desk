@@ -1,10 +1,11 @@
-import { fireEvent, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, describe, expect, it } from 'vitest';
 import { ids } from '@/mocks/dto/ids';
 import { mockDb } from '@/mocks/msw/db';
 import { server } from '@/mocks/msw/node';
 import { applyProjectSpace, type ProjectSpaceRole } from '@/mocks/msw/projectSpaceScenarios';
 import { scenarios } from '@/mocks/msw/scenarios';
+import { setViewportWidth } from '@/test/fakeMatchMedia';
 import { renderRoute } from '@/test/renderRoute';
 
 const projectId = ids.project.invoicerApi;
@@ -171,5 +172,82 @@ describe('Agent & settings tabs, own data (BR-59)', () => {
     await user.click(screen.getByRole('tab', { name: 'Agents' }));
     await screen.findByText('Claude');
     expect(agentListGets(gets).length).toBeGreaterThan(0);
+  });
+});
+
+describe('Agent & settings in the app shell (BR-7, BR-10, BR-44)', () => {
+  const menu = () => screen.getByRole('navigation', { name: 'Project menu' });
+  const currentItems = () =>
+    within(menu())
+      .getAllByRole('link')
+      .filter((a) => a.getAttribute('aria-current') === 'page')
+      .map((a) => a.textContent);
+  const crumbs = () =>
+    screen
+      .getAllByRole('banner')
+      .filter((b) => !b.closest('main'))
+      .flatMap((b) => within(b).queryAllByText('Agent & settings'));
+  const agentId = () => {
+    const agent = mockDb.state.agents.find((a) => a.projectId === projectId);
+    if (!agent) throw new Error('agent missing');
+    return agent.id;
+  };
+
+  it('BR-7, BR-10: Agent & settings is the one current item, with one title and crumb, on every tab and pane', async () => {
+    const { router } = await open();
+    const title = document.title;
+    const variants = [
+      agentPage,
+      `${agentPage}?tab=github`,
+      `${agentPage}?tab=limits`,
+      `${agentPage}?tab=danger`,
+      `${agentPage}?agent=new`,
+      `${agentPage}?agent=${agentId()}`,
+    ];
+    for (const href of variants) {
+      await act(async () => {
+        await router.navigate({ href });
+      });
+      await screen.findByRole('heading', { level: 1, name: 'Agent & settings' });
+      await waitFor(() => expect(currentItems()).toEqual(['Agent & settings']));
+      expect(document.title).toBe(title);
+      expect(crumbs()).toHaveLength(1);
+    }
+  });
+
+  it('BR-44: the webhook GitHub tab has no Send test ping, no Manage installation and no Check now', async () => {
+    await open(`${agentPage}?tab=github`);
+    await screen.findByRole('radio', { name: 'Webhook' });
+    expect(await screen.findByText('Trigger mode')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Send test ping' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: /Manage installation/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Check now' })).not.toBeInTheDocument();
+  });
+
+  it('BR-44: the polling GitHub tab has Check now and none of the removed controls', async () => {
+    await open(`${agentPage}?tab=github`, () => {
+      const row = mockDb.state.projects.find((p) => p.id === projectId);
+      if (!row) throw new Error('project missing');
+      Object.assign(row, { triggerMode: 'polling', pollIntervalSeconds: 300 });
+    });
+    expect(await screen.findByRole('button', { name: 'Check now' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Send test ping' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: /Manage installation/ })).not.toBeInTheDocument();
+  });
+
+  it('an open add pane keeps its typed name and token through the drawer and across 1024', async () => {
+    const { user } = await open(`${agentPage}?agent=new`);
+    await screen.findByRole('heading', { level: 2, name: 'Add agent' });
+    await user.click(await screen.findByRole('radio', { name: 'Claude Code' }));
+    await user.type(screen.getByLabelText('Name'), 'Typed name');
+    await user.type(screen.getByLabelText('Subscription token'), 'fake-token-0123456789');
+    act(() => setViewportWidth(1023));
+    await user.click(await screen.findByRole('button', { name: 'Open menu' }));
+    await user.click(await screen.findByRole('button', { name: 'Close menu' }));
+    act(() => setViewportWidth(1440));
+    act(() => setViewportWidth(1023));
+    act(() => setViewportWidth(1280));
+    expect(screen.getByLabelText('Name')).toHaveValue('Typed name');
+    expect(screen.getByLabelText('Subscription token')).toHaveValue('fake-token-0123456789');
   });
 });

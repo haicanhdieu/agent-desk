@@ -16,6 +16,7 @@ import type { PlatformProjectRowView } from '@/mocks';
 // The Projects of one organization: id and name only, its own `?page=N`. A 403 from the read (rights lost since) shows
 // the shell's forbidden state. UI only: the API is the authority.
 export const Route = createFileRoute('/platform/orgs/$orgId/projects')({
+  staticData: { chrome: { mode: 'standard', scope: 'platformOrg', item: 'orgProjects' } },
   validateSearch: PageSearch,
   component: PlatformOrgProjectsPage,
 });

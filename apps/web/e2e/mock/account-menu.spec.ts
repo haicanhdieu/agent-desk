@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { IDLE_RUN, INVOICER_API, ORG } from './mock';
+import { IDLE_RUN, INVOICER_API, ORG, seedOnboarding } from './mock';
 
 /*
  * The account menu behind the top bar avatar (issues #213, #227, #229): the avatar is a menu button that opens the identity header (name, full email) and Logout,
@@ -43,7 +43,7 @@ test('Escape and an outside press close the account menu', async ({ page }) => {
   await expect(menu(page)).toHaveCount(0);
 });
 
-test('the account menu shows the name with the full email under it, Logout with an icon below a separator, and no My invitations or Settings', async ({
+test('the account menu shows the name with the full email under it, My invitations above Logout (Logout with an icon) below a separator, and no Settings', async ({
   page,
 }) => {
   await page.goto(`/o/${ORG}/projects`);
@@ -53,10 +53,11 @@ test('the account menu shows the name with the full email under it, Logout with 
   await expect(m).toBeVisible();
   await expect(m.getByText('Alice', { exact: true })).toBeVisible();
   await expect(m.getByText('alice@example.com', { exact: true })).toBeVisible();
-  await expect(m.getByRole('menuitem')).toHaveText(['Logout']);
+  await expect(m.getByRole('menuitem')).toHaveText(['My invitations', 'Logout']);
   await expect(m.getByRole('menuitem', { name: 'Logout' }).locator('svg')).toHaveCount(1);
   await expect(m.getByRole('separator')).toHaveCount(1);
-  await expect(m.getByRole('menuitem', { name: /Settings|invitations/i })).toHaveCount(0);
+  await expect(m.getByRole('menuitem', { name: 'My invitations' })).toHaveAttribute('href', '/invitations');
+  await expect(m.getByRole('menuitem', { name: /Settings/i })).toHaveCount(0);
   expect((await m.boundingBox())?.width).toBe(240);
 });
 
@@ -65,4 +66,83 @@ test('the top bar brand is the horizontal logo lockup, with the name drawn insid
   const brand = page.getByRole('link', { name: 'Agent Desk, all projects' });
   await expect(brand.locator('svg[viewBox="0 0 480 120"]')).toBeVisible();
   await expect(brand.locator('svg text')).toHaveText(['Agent Desk']);
+});
+
+test.describe('sidebar Task 11: the popover fits a phone', () => {
+  test.use({ viewport: { width: 390, height: 844 }, hasTouch: true });
+
+  test('sidebar Task 11: the account menu stays inside a 390px viewport with gutters of at least 16px', async ({
+    page,
+  }) => {
+    await page.goto(`/o/${ORG}/projects`);
+    await expect(avatar(page)).toBeVisible();
+    await page.evaluate(() => document.fonts.ready);
+    await avatar(page).click();
+    await expect(menu(page)).toBeVisible();
+    const box = await menu(page).boundingBox();
+    if (!box) throw new Error('the account menu has no box');
+    expect(box.x).toBeGreaterThanOrEqual(16 - 1);
+    expect(390 - (box.x + box.width)).toBeGreaterThanOrEqual(16 - 1);
+    expect(box.y).toBeGreaterThanOrEqual(-1);
+    expect(box.y + box.height).toBeLessThanOrEqual(844 + 1);
+    // Not collapsed: the menu spans the viewport minus the gutters, and Logout is reachable.
+    expect(box.width).toBeGreaterThanOrEqual(240);
+    const logout = menu(page).getByRole('menuitem', { name: 'Logout' });
+    await expect(logout).toBeVisible();
+    const item = await logout.boundingBox();
+    if (!item) throw new Error('Logout has no box');
+    expect(item.x).toBeGreaterThanOrEqual(0);
+    expect(item.y).toBeGreaterThanOrEqual(0);
+    expect(item.x + item.width).toBeLessThanOrEqual(390);
+    expect(item.y + item.height).toBeLessThanOrEqual(844);
+  });
+});
+
+// BR-55: "My invitations" opens /invitations from any page, with no pending count.
+test.describe('BR-55: My invitations in the account menu', () => {
+  const openInvitations = async (page: Page): Promise<void> => {
+    await avatar(page).click();
+    await menu(page).getByRole('menuitem', { name: 'My invitations' }).click();
+    await expect(page).toHaveURL(/\/invitations$/);
+    await expect(page.getByRole('heading', { level: 1, name: 'My invitations' })).toBeVisible();
+  };
+
+  test('TC-55.1: from an org, project, run, platform and wizard page, My invitations opens /invitations', async ({
+    page,
+  }) => {
+    await seedOnboarding(page, 'platformAdminOneOrg');
+    for (const path of [
+      `/o/${ORG}/projects`,
+      `/o/${ORG}/p/${INVOICER_API}/runs`,
+      `/o/${ORG}/p/${INVOICER_API}/runs/${IDLE_RUN}`,
+      '/platform/orgs',
+      `/o/${ORG}/projects/new/repo`,
+    ]) {
+      await page.goto(path);
+      await expect(avatar(page)).toBeVisible();
+      await openInvitations(page);
+    }
+  });
+
+  test('TC-55.2: with two pending invitations the item shows no count or badge', async ({ page }) => {
+    await seedOnboarding(page, 'singleOrgTwoPending');
+    await page.clock.setFixedTime(new Date('2026-11-21T12:00:00.000Z'));
+    await page.goto(`/o/${ORG}/projects`);
+    await avatar(page).click();
+    const m = menu(page);
+    await expect(m.getByText('Alice', { exact: true })).toBeVisible();
+    await expect(m.getByText('alice@example.com', { exact: true })).toBeVisible();
+    await expect(m.getByRole('menuitem')).toHaveText(['My invitations', 'Logout']);
+    await expect(m.getByRole('menuitem', { name: 'My invitations' })).toHaveText('My invitations');
+    await expect(
+      m.getByRole('menuitem', { name: 'My invitations' }).locator('[class*="badge" i], [class*="count" i]'),
+    ).toHaveCount(0);
+  });
+
+  test('TC-55.3: on an error page My invitations opens /invitations', async ({ page }) => {
+    await seedOnboarding(page, 'singleOrg');
+    await page.goto(`/o/${ORG}/this-address-does-not-exist`);
+    await expect(page.getByRole('heading', { name: 'Page not found' })).toBeVisible();
+    await openInvitations(page);
+  });
 });

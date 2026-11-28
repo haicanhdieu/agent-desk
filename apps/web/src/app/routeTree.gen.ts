@@ -37,8 +37,9 @@ import { Route as PlatformOrgsOrgIdIndexRouteImport } from './routes/platform.or
 import { Route as PlatformOrgsOrgIdInvitationsRouteImport } from './routes/platform.orgs.$orgId.invitations';
 import { Route as PlatformOrgsOrgIdMembersRouteImport } from './routes/platform.orgs.$orgId.members';
 import { Route as PlatformOrgsOrgIdProjectsRouteImport } from './routes/platform.orgs.$orgId.projects';
-import { Route as OOrgPProjectNeedsYouRouteImport } from './routes/o.$org.p.$project.needs-you';
+import { Route as OOrgPProjectIndexRouteImport } from './routes/o.$org.p.$project.index';
 import { Route as OOrgProjectsNewStepRouteImport } from './routes/o.$org.projects.new.$step';
+import { Route as OOrgPProjectDeskIndexRouteImport } from './routes/o.$org.p.$project.desk.index';
 import { Route as OOrgPProjectDeskAgentRouteImport } from './routes/o.$org.p.$project.desk.agent';
 import { Route as OOrgPProjectDeskAuditRouteImport } from './routes/o.$org.p.$project.desk.audit';
 import { Route as OOrgPProjectDeskMembersRouteImport } from './routes/o.$org.p.$project.desk.members';
@@ -191,15 +192,20 @@ const PlatformOrgsOrgIdProjectsRoute =
     path: '/projects',
     getParentRoute: () => PlatformOrgsOrgIdRoute,
   } as any);
-const OOrgPProjectNeedsYouRoute = OOrgPProjectNeedsYouRouteImport.update({
-  id: '/needs-you',
-  path: '/needs-you',
+const OOrgPProjectIndexRoute = OOrgPProjectIndexRouteImport.update({
+  id: '/',
+  path: '/',
   getParentRoute: () => OOrgPProjectRoute,
 } as any);
 const OOrgProjectsNewStepRoute = OOrgProjectsNewStepRouteImport.update({
   id: '/projects/new/$step',
   path: '/projects/new/$step',
   getParentRoute: () => OOrgRoute,
+} as any);
+const OOrgPProjectDeskIndexRoute = OOrgPProjectDeskIndexRouteImport.update({
+  id: '/desk/',
+  path: '/desk/',
+  getParentRoute: () => OOrgPProjectRoute,
 } as any);
 const OOrgPProjectDeskAgentRoute = OOrgPProjectDeskAgentRouteImport.update({
   id: '/desk/agent',
@@ -271,8 +277,8 @@ export interface FileRoutesByFullPath {
   '/o/$org/projects/': typeof OOrgProjectsIndexRoute;
   '/o/$org/settings/': typeof OOrgSettingsIndexRoute;
   '/platform/orgs/$orgId/': typeof PlatformOrgsOrgIdIndexRoute;
-  '/o/$org/p/$project/needs-you': typeof OOrgPProjectNeedsYouRoute;
   '/o/$org/projects/new/$step': typeof OOrgProjectsNewStepRoute;
+  '/o/$org/p/$project/': typeof OOrgPProjectIndexRoute;
   '/o/$org/p/$project/desk/agent': typeof OOrgPProjectDeskAgentRoute;
   '/o/$org/p/$project/desk/audit': typeof OOrgPProjectDeskAuditRoute;
   '/o/$org/p/$project/desk/members': typeof OOrgPProjectDeskMembersRoute;
@@ -280,6 +286,7 @@ export interface FileRoutesByFullPath {
   '/o/$org/p/$project/desk/setup': typeof OOrgPProjectDeskSetupRoute;
   '/o/$org/p/$project/desk/skills': typeof OOrgPProjectDeskSkillsRoute;
   '/o/$org/p/$project/runs/$run': typeof OOrgPProjectRunsRunRoute;
+  '/o/$org/p/$project/desk/': typeof OOrgPProjectDeskIndexRoute;
   '/o/$org/p/$project/runs/': typeof OOrgPProjectRunsIndexRoute;
 }
 export interface FileRoutesByTo {
@@ -296,7 +303,6 @@ export interface FileRoutesByTo {
   '/platform/orgs/new': typeof PlatformOrgsNewRoute;
   '/o/$org': typeof OOrgIndexRoute;
   '/platform/orgs': typeof PlatformOrgsIndexRoute;
-  '/o/$org/p/$project': typeof OOrgPProjectRouteWithChildren;
   '/o/$org/settings/audit': typeof OOrgSettingsAuditRoute;
   '/o/$org/settings/general': typeof OOrgSettingsGeneralRoute;
   '/o/$org/settings/invitations': typeof OOrgSettingsInvitationsRoute;
@@ -307,8 +313,8 @@ export interface FileRoutesByTo {
   '/o/$org/projects': typeof OOrgProjectsIndexRoute;
   '/o/$org/settings': typeof OOrgSettingsIndexRoute;
   '/platform/orgs/$orgId': typeof PlatformOrgsOrgIdIndexRoute;
-  '/o/$org/p/$project/needs-you': typeof OOrgPProjectNeedsYouRoute;
   '/o/$org/projects/new/$step': typeof OOrgProjectsNewStepRoute;
+  '/o/$org/p/$project': typeof OOrgPProjectIndexRoute;
   '/o/$org/p/$project/desk/agent': typeof OOrgPProjectDeskAgentRoute;
   '/o/$org/p/$project/desk/audit': typeof OOrgPProjectDeskAuditRoute;
   '/o/$org/p/$project/desk/members': typeof OOrgPProjectDeskMembersRoute;
@@ -316,6 +322,7 @@ export interface FileRoutesByTo {
   '/o/$org/p/$project/desk/setup': typeof OOrgPProjectDeskSetupRoute;
   '/o/$org/p/$project/desk/skills': typeof OOrgPProjectDeskSkillsRoute;
   '/o/$org/p/$project/runs/$run': typeof OOrgPProjectRunsRunRoute;
+  '/o/$org/p/$project/desk': typeof OOrgPProjectDeskIndexRoute;
   '/o/$org/p/$project/runs': typeof OOrgPProjectRunsIndexRoute;
 }
 export interface FileRoutesById {
@@ -348,8 +355,8 @@ export interface FileRoutesById {
   '/o/$org/projects/': typeof OOrgProjectsIndexRoute;
   '/o/$org/settings/': typeof OOrgSettingsIndexRoute;
   '/platform/orgs/$orgId/': typeof PlatformOrgsOrgIdIndexRoute;
-  '/o/$org/p/$project/needs-you': typeof OOrgPProjectNeedsYouRoute;
   '/o/$org/projects/new/$step': typeof OOrgProjectsNewStepRoute;
+  '/o/$org/p/$project/': typeof OOrgPProjectIndexRoute;
   '/o/$org/p/$project/desk/agent': typeof OOrgPProjectDeskAgentRoute;
   '/o/$org/p/$project/desk/audit': typeof OOrgPProjectDeskAuditRoute;
   '/o/$org/p/$project/desk/members': typeof OOrgPProjectDeskMembersRoute;
@@ -357,6 +364,7 @@ export interface FileRoutesById {
   '/o/$org/p/$project/desk/setup': typeof OOrgPProjectDeskSetupRoute;
   '/o/$org/p/$project/desk/skills': typeof OOrgPProjectDeskSkillsRoute;
   '/o/$org/p/$project/runs/$run': typeof OOrgPProjectRunsRunRoute;
+  '/o/$org/p/$project/desk/': typeof OOrgPProjectDeskIndexRoute;
   '/o/$org/p/$project/runs/': typeof OOrgPProjectRunsIndexRoute;
 }
 export interface FileRouteTypes {
@@ -390,8 +398,8 @@ export interface FileRouteTypes {
     | '/o/$org/projects/'
     | '/o/$org/settings/'
     | '/platform/orgs/$orgId/'
-    | '/o/$org/p/$project/needs-you'
     | '/o/$org/projects/new/$step'
+    | '/o/$org/p/$project/'
     | '/o/$org/p/$project/desk/agent'
     | '/o/$org/p/$project/desk/audit'
     | '/o/$org/p/$project/desk/members'
@@ -399,6 +407,7 @@ export interface FileRouteTypes {
     | '/o/$org/p/$project/desk/setup'
     | '/o/$org/p/$project/desk/skills'
     | '/o/$org/p/$project/runs/$run'
+    | '/o/$org/p/$project/desk/'
     | '/o/$org/p/$project/runs/';
   fileRoutesByTo: FileRoutesByTo;
   to:
@@ -415,7 +424,6 @@ export interface FileRouteTypes {
     | '/platform/orgs/new'
     | '/o/$org'
     | '/platform/orgs'
-    | '/o/$org/p/$project'
     | '/o/$org/settings/audit'
     | '/o/$org/settings/general'
     | '/o/$org/settings/invitations'
@@ -426,8 +434,8 @@ export interface FileRouteTypes {
     | '/o/$org/projects'
     | '/o/$org/settings'
     | '/platform/orgs/$orgId'
-    | '/o/$org/p/$project/needs-you'
     | '/o/$org/projects/new/$step'
+    | '/o/$org/p/$project'
     | '/o/$org/p/$project/desk/agent'
     | '/o/$org/p/$project/desk/audit'
     | '/o/$org/p/$project/desk/members'
@@ -435,6 +443,7 @@ export interface FileRouteTypes {
     | '/o/$org/p/$project/desk/setup'
     | '/o/$org/p/$project/desk/skills'
     | '/o/$org/p/$project/runs/$run'
+    | '/o/$org/p/$project/desk'
     | '/o/$org/p/$project/runs';
   id:
     | '__root__'
@@ -466,8 +475,8 @@ export interface FileRouteTypes {
     | '/o/$org/projects/'
     | '/o/$org/settings/'
     | '/platform/orgs/$orgId/'
-    | '/o/$org/p/$project/needs-you'
     | '/o/$org/projects/new/$step'
+    | '/o/$org/p/$project/'
     | '/o/$org/p/$project/desk/agent'
     | '/o/$org/p/$project/desk/audit'
     | '/o/$org/p/$project/desk/members'
@@ -475,6 +484,7 @@ export interface FileRouteTypes {
     | '/o/$org/p/$project/desk/setup'
     | '/o/$org/p/$project/desk/skills'
     | '/o/$org/p/$project/runs/$run'
+    | '/o/$org/p/$project/desk/'
     | '/o/$org/p/$project/runs/';
   fileRoutesById: FileRoutesById;
 }
@@ -687,11 +697,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PlatformOrgsOrgIdProjectsRouteImport;
       parentRoute: typeof PlatformOrgsOrgIdRoute;
     };
-    '/o/$org/p/$project/needs-you': {
-      id: '/o/$org/p/$project/needs-you';
-      path: '/needs-you';
-      fullPath: '/o/$org/p/$project/needs-you';
-      preLoaderRoute: typeof OOrgPProjectNeedsYouRouteImport;
+    '/o/$org/p/$project/': {
+      id: '/o/$org/p/$project/';
+      path: '/';
+      fullPath: '/o/$org/p/$project/';
+      preLoaderRoute: typeof OOrgPProjectIndexRouteImport;
       parentRoute: typeof OOrgPProjectRoute;
     };
     '/o/$org/projects/new/$step': {
@@ -700,6 +710,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/o/$org/projects/new/$step';
       preLoaderRoute: typeof OOrgProjectsNewStepRouteImport;
       parentRoute: typeof OOrgRoute;
+    };
+    '/o/$org/p/$project/desk/': {
+      id: '/o/$org/p/$project/desk/';
+      path: '/desk';
+      fullPath: '/o/$org/p/$project/desk/';
+      preLoaderRoute: typeof OOrgPProjectDeskIndexRouteImport;
+      parentRoute: typeof OOrgPProjectRoute;
     };
     '/o/$org/p/$project/desk/agent': {
       id: '/o/$org/p/$project/desk/agent';
@@ -820,7 +837,7 @@ const OOrgSettingsRouteWithChildren = OOrgSettingsRoute._addFileChildren(
 );
 
 interface OOrgPProjectRouteChildren {
-  OOrgPProjectNeedsYouRoute: typeof OOrgPProjectNeedsYouRoute;
+  OOrgPProjectIndexRoute: typeof OOrgPProjectIndexRoute;
   OOrgPProjectDeskAgentRoute: typeof OOrgPProjectDeskAgentRoute;
   OOrgPProjectDeskAuditRoute: typeof OOrgPProjectDeskAuditRoute;
   OOrgPProjectDeskMembersRoute: typeof OOrgPProjectDeskMembersRoute;
@@ -828,11 +845,12 @@ interface OOrgPProjectRouteChildren {
   OOrgPProjectDeskSetupRoute: typeof OOrgPProjectDeskSetupRoute;
   OOrgPProjectDeskSkillsRoute: typeof OOrgPProjectDeskSkillsRoute;
   OOrgPProjectRunsRunRoute: typeof OOrgPProjectRunsRunRoute;
+  OOrgPProjectDeskIndexRoute: typeof OOrgPProjectDeskIndexRoute;
   OOrgPProjectRunsIndexRoute: typeof OOrgPProjectRunsIndexRoute;
 }
 
 const OOrgPProjectRouteChildren: OOrgPProjectRouteChildren = {
-  OOrgPProjectNeedsYouRoute: OOrgPProjectNeedsYouRoute,
+  OOrgPProjectIndexRoute: OOrgPProjectIndexRoute,
   OOrgPProjectDeskAgentRoute: OOrgPProjectDeskAgentRoute,
   OOrgPProjectDeskAuditRoute: OOrgPProjectDeskAuditRoute,
   OOrgPProjectDeskMembersRoute: OOrgPProjectDeskMembersRoute,
@@ -840,6 +858,7 @@ const OOrgPProjectRouteChildren: OOrgPProjectRouteChildren = {
   OOrgPProjectDeskSetupRoute: OOrgPProjectDeskSetupRoute,
   OOrgPProjectDeskSkillsRoute: OOrgPProjectDeskSkillsRoute,
   OOrgPProjectRunsRunRoute: OOrgPProjectRunsRunRoute,
+  OOrgPProjectDeskIndexRoute: OOrgPProjectDeskIndexRoute,
   OOrgPProjectRunsIndexRoute: OOrgPProjectRunsIndexRoute,
 };
 

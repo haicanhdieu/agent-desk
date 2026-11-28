@@ -49,9 +49,11 @@ async function waitForWizardList(page: Page) {
   await expect(wizardModel(page).locator('option')).toHaveText([...BUILTIN, OTHER]);
 }
 
-/** The Agent step of a project, opened by its address: the page a person lands on when resuming the wizard. */
-async function openAgentStep(page: Page, handle: string, projectId: string) {
-  await page.goto(`/o/${handle}/projects/new/agent?project=${projectId}`);
+/** The Agent step of a project, reached as a person does when resuming: "Resume setup" on the list, then Back. */
+async function resumeAgentStep(page: Page) {
+  await page.getByRole('link', { name: /^Resume setup for / }).click();
+  await expect(page.getByRole('heading', { name: 'Prepare the workspace', level: 1 })).toBeVisible();
+  await page.getByRole('link', { name: 'Back' }).click();
   await expect(agentStepHeading(page)).toBeVisible();
   await waitForWizardList(page);
 }
@@ -69,11 +71,11 @@ async function continueLeaveAndResume(page: Page, pickModel: () => Promise<void>
   await pickModel();
   await continueAgentStep(page);
 
-  // Go to the project list: a full page load, so nothing of the step is kept in the browser. The row of the project
-  // is there; the list has no link back into the wizard, so the Agent step is opened by its address.
+  // Go to the project list: a full page load, so nothing of the step is kept in the browser. The project is saved on
+  // the workspace step: "Resume setup" opens it there and Back reaches the Agent step.
   await page.goto(`/o/${handle}/projects`);
   await expect(page.locator(`a[href="/o/${handle}/p/${projectId}/runs"]`)).toBeVisible();
-  await openAgentStep(page, handle, projectId);
+  await resumeAgentStep(page);
   return { handle, projectId };
 }
 
@@ -102,11 +104,7 @@ test('TC-19.5 with live lists off, the Agent step of a new project lists opus, s
   await expect(wizardModel(page)).not.toHaveAttribute('aria-invalid', 'true');
 });
 
-// Human ruling (issue #122 run): BR-21's premise (resume from the project list; the wizard step shows the credential as
-// set) is not product behaviour: users do not go back into setup; the case text should be corrected by a human. This
-// test checks the saved model and address on the step after leaving, resumed through the setup URL, and the credential
-// as set via the API and Desk → Agent & settings.
-test('TC-21.1 the Agent step keeps haiku and the address after Continue and leaving; the credential is set (stand-in: resumed through the setup URL)', async ({
+test('TC-21.1 the Agent step keeps haiku and the address after Continue and leaving; the credential is set', async ({
   page,
 }) => {
   const { handle, projectId } = await continueLeaveAndResume(page, async () => {
@@ -118,8 +116,7 @@ test('TC-21.1 the Agent step keeps haiku and the address after Continue and leav
   await expectCredentialSet(page, handle, projectId);
 });
 
-// Stand-in for TC-21.2, same human ruling as TC-21.1 above.
-test('TC-21.2 the Agent step keeps Other model… with vendor/model and the address after Continue and leaving; the credential is set (stand-in: resumed through the setup URL)', async ({
+test('TC-21.2 the Agent step keeps Other model… with vendor/model and the address after Continue and leaving; the credential is set', async ({
   page,
 }) => {
   const { handle, projectId } = await continueLeaveAndResume(page, async () => {

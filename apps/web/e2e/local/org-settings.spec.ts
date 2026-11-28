@@ -91,12 +91,11 @@ async function orgAsOwnerSees(w: World): Promise<{ name: string; slug: string }>
 const generalUrl = (slug: string): string => `/o/${slug}/settings/general`;
 const projectsUrl = (slug: string): string => `/o/${slug}/projects`;
 const membersUrl = (slug: string): string => `/o/${slug}/settings/members`;
-const mainNav = (page: Page): Locator => page.getByRole('navigation', { name: 'Organization sections' });
-const settingsTab = (page: Page): Locator => mainNav(page).getByRole('link', { name: 'Org settings', exact: true });
-const sideMenu = (page: Page): Locator => page.getByRole('navigation', { name: 'Organization settings' });
-const crumb = (page: Page, name: string): Locator =>
-  page.getByRole('button', { name: `Switch scope, currently organization ${name}` });
-const orgMenu = (page: Page): Locator => page.getByRole('dialog', { name: 'Scope' });
+/** The org menu of the shell: Projects and the Settings group the role may open. */
+const orgMenu = (page: Page): Locator => page.getByRole('navigation', { name: 'Organization menu' });
+const menuLink = (page: Page, name: string): Locator => orgMenu(page).getByRole('link', { name, exact: true });
+/** The org's name in the top bar (a person of one org has no switch button, so the name is plain text). */
+const crumb = (page: Page, name: string): Locator => page.getByRole('banner').first().getByText(name, { exact: true });
 const h1 = (page: Page, name: string): Locator => page.getByRole('heading', { level: 1, name });
 const nameInput = (page: Page): Locator => page.getByLabel('Name', { exact: true });
 const slugInput = (page: Page): Locator => page.getByLabel('URL', { exact: true });
@@ -111,16 +110,7 @@ async function openProjects(page: Page, slug: string): Promise<void> {
   await expect(h1(page, 'Projects')).toBeVisible();
 }
 
-/** Opens the org menu and checks it lists Projects (the positive control for "no Settings item"). */
-async function openOrgMenu(page: Page, orgName: string): Promise<Locator> {
-  await crumb(page, orgName).click();
-  const menu = orgMenu(page);
-  await expect(menu).toBeVisible();
-  await expect(menu.getByRole('link', { name: 'Projects' })).toBeVisible();
-  return menu;
-}
-
-test('TC-2.4: member B and viewer V see no Settings tab or item, and the typed members URL shows no access', async ({
+test('TC-2.4: member B and viewer V see no Settings group in the org menu, and the typed members URL shows no access', async ({
   browser,
 }) => {
   await withWorld(browser, async (w) => {
@@ -128,29 +118,26 @@ test('TC-2.4: member B and viewer V see no Settings tab or item, and the typed m
       await join(w.scope, browser, w.org, 'b', 'member'),
       await join(w.scope, browser, w.org, 'v', 'viewer'),
     ];
-    // Control: the owner does have the Settings tab, so a missing tab below is not a page that never rendered it.
+    // Control: the owner does have the Settings items, so a missing group below is not a menu that never rendered it.
     await openProjects(w.o.page, w.org.slug);
-    await expect(settingsTab(w.o.page)).toBeVisible();
+    await expect(menuLink(w.o.page, 'Members')).toBeVisible();
 
     for (const who of people) {
       const page = who.page;
       await openProjects(page, w.org.slug);
-      await expect(mainNav(page).getByRole('link', { name: 'Projects', exact: true })).toBeVisible();
-      await expect(settingsTab(page)).toHaveCount(0);
-      const menu = await openOrgMenu(page, w.org.name);
-      await expect(menu.getByRole('link', { name: 'Org settings' })).toHaveCount(0);
-      await page.keyboard.press('Escape');
+      await expect(orgMenu(page).getByRole('link')).toHaveText(['Projects']);
+      await expect(orgMenu(page).getByText('Settings', { exact: true })).toHaveCount(0);
 
       await page.goto(membersUrl(w.org.slug));
       await expect(page.getByRole('heading', { name: "You don't have access" })).toBeVisible();
       await expect(page.getByText('Ask an owner of this organization to give you access.')).toBeVisible();
-      await expect(sideMenu(page)).toHaveCount(0);
+      await expect(orgMenu(page).getByRole('link')).toHaveText(['Projects']);
       await expect(page.locator('tbody tr')).toHaveCount(0);
     }
   });
 });
 
-test('TC-2.5: project admin P1A presses Settings: Invitations opens with only Invitations in the menu and only the P1 invitation', async ({
+test('TC-2.5: project admin P1A presses Invitations in the org menu: it opens with only Projects and Invitations in the menu and only the P1 invitation', async ({
   browser,
 }) => {
   await withWorld(browser, async (w) => {
@@ -163,11 +150,11 @@ test('TC-2.5: project admin P1A presses Settings: Invitations opens with only In
 
     const page = p1a.page;
     await openProjects(page, w.org.slug);
-    await settingsTab(page).click();
+    await menuLink(page, 'Invitations').click();
     await expect(page).toHaveURL(new RegExp(`/o/${w.org.slug}/settings/invitations$`));
     await expect(h1(page, 'Invitations')).toBeVisible();
-    await expect(sideMenu(page).getByRole('link')).toHaveText(['Invitations']);
-    await expect(sideMenu(page).getByRole('link', { name: 'Invitations' })).toHaveAttribute('aria-current', 'page');
+    await expect(orgMenu(page).getByRole('link')).toHaveText(['Projects', 'Invitations']);
+    await expect(menuLink(page, 'Invitations')).toHaveAttribute('aria-current', 'page');
     await expect(rowOf(page, onP1)).toHaveCount(1);
     await expect(cell(rowOf(page, onP1), STATUS)).toHaveText('Pending');
     await expect(rowOf(page, onP2)).toHaveCount(0);
@@ -177,16 +164,14 @@ test('TC-2.5: project admin P1A presses Settings: Invitations opens with only In
 
 const cell = (row: Locator, index: number): Locator => row.getByRole('cell').nth(index);
 
-test('TC-13.9: O presses Settings, then Invitations, invites a person as Member, and the invitation shows as pending', async ({
+test('TC-13.9: O opens Invitations from the org menu, invites a person as Member, and the invitation shows as pending', async ({
   browser,
 }) => {
   await withWorld(browser, async (w) => {
     const page = w.o.page;
     const email = w.scope.email('invitee');
     await openProjects(page, w.org.slug);
-    await settingsTab(page).click();
-    await expect(h1(page, 'General')).toBeVisible();
-    await sideMenu(page).getByRole('link', { name: 'Invitations', exact: true }).click();
+    await menuLink(page, 'Invitations').click();
     await expect(page).toHaveURL(new RegExp(`/o/${w.org.slug}/settings/invitations$`));
     await expect(h1(page, 'Invitations')).toBeVisible();
     await expect(rowOf(page, email)).toHaveCount(0);
@@ -231,9 +216,8 @@ test('TC-14.1: O changes the Name on General and saves: the toast shows and afte
     await expect(h1(page, 'General')).toBeVisible();
     await expect(nameInput(page)).toHaveValue(renamed);
     await expect(crumb(page, renamed)).toBeVisible();
-    const menu = await openOrgMenu(page, renamed);
-    await expect(menu.getByText(renamed, { exact: true })).toBeVisible();
-    await expect(menu.getByText(w.org.name, { exact: true })).toHaveCount(0);
+    await expect(crumb(page, w.org.name)).toHaveCount(0);
+    await expect(page).toHaveTitle(`General · ${renamed} · Agent Desk`);
   });
 });
 
@@ -251,9 +235,8 @@ test('TC-14.2: after the rename, B reloads an org page and the top bar and the o
     await b.page.reload();
     await expect(h1(b.page, 'Projects')).toBeVisible();
     await expect(crumb(b.page, renamed)).toBeVisible();
-    const menu = await openOrgMenu(b.page, renamed);
-    await expect(menu.getByText(renamed, { exact: true })).toBeVisible();
-    await expect(menu.getByText(w.org.name, { exact: true })).toHaveCount(0);
+    await expect(crumb(b.page, w.org.name)).toHaveCount(0);
+    await expect(b.page).toHaveTitle(`Projects · ${renamed} · Agent Desk`);
   });
 });
 

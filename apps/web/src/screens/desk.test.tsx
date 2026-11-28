@@ -1,16 +1,10 @@
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import {
-  agentKindViews,
-  agentPaneAgents,
-  agentRowViews,
-  connections,
-  deskFrame,
-  orgSwitchFixtures,
-  rules,
-  skills,
-} from '@/mocks';
+import { agentKindViews, agentPaneAgents, agentRowViews, connections, deskFrame, rules, skills } from '@/mocks';
+import { useState, type ReactElement } from 'react';
 import { DeskSkills } from './DeskSkills';
+import { ProjectShellFrame } from './projectShellFrame';
+import { expectShellOwnedPage, headerActions } from '@/test/shellAssert';
 import { DeskRules } from './DeskRules';
 import { DeskAgent } from './DeskAgent';
 import { vi } from 'vitest';
@@ -197,11 +191,10 @@ describe('DeskSkills', () => {
     expect(link).toHaveAttribute('rel', 'noopener noreferrer');
   });
 
-  it('disables History with an explanation when the file URL is unknown', () => {
+  it('draws no History control when the file URL is unknown', () => {
     render(<DeskSkills frame={deskFrame} skills={skills} activeName="code-build" />);
-    const button = screen.getByRole('button', { name: 'History' });
-    expect(button).toBeDisabled();
-    expect(button).toHaveAttribute('title', expect.stringContaining('connected repository'));
+    expect(screen.queryByRole('link', { name: 'History' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'History' })).toBeNull();
   });
 
   const submission = {
@@ -332,11 +325,6 @@ describe('DeskRules', () => {
     expect(screen.queryByRole('complementary')).toBeNull();
   });
 
-  it('fits the window: height="viewport" reaches the shell (BR-61)', () => {
-    const { container } = render(<DeskRules frame={deskFrame} rules={rules} {...base} height="viewport" />);
-    expect(container.querySelector('[class*="appViewport"]')).not.toBeNull();
-  });
-
   it('the header is pinned outside the list, and the list is a focusable named scroll area (BR-61)', () => {
     render(<DeskRules frame={deskFrame} rules={rules} {...base} />);
     const scroll = screen.getByRole('region', { name: 'Rules list' });
@@ -360,6 +348,39 @@ describe('DeskRules', () => {
     expect(onToggle).toHaveBeenLastCalledWith('r1', false);
     await userEvent.click(screen.getByRole('switch', { name: 'Enable rule /qa-e2e' }));
     expect(onToggle).toHaveBeenLastCalledWith('r5', true);
+  });
+
+  it('marks the main while a rule pane is open, so a narrow window shows the pane in place of the list (BR-65)', () => {
+    const { rerender } = render(<DeskRules frame={deskFrame} rules={rules} {...base} />);
+    expect(screen.getByRole('main')).not.toHaveAttribute('data-pane-open');
+    rerender(<DeskRules frame={deskFrame} rules={rules} {...base} editingId="r2" />);
+    expect(screen.getByRole('main')).toHaveAttribute('data-pane-open', 'true');
+    // The list stays in the page (hidden by the layout), so focus can return to its opener.
+    expect(screen.getByRole('button', { name: 'Edit rule /code-review' })).toBeInTheDocument();
+  });
+
+  it('closing the pane returns focus to the control that opened it (TC-65.36)', async () => {
+    function Host() {
+      const [id, setId] = useState<string>();
+      return (
+        <DeskRules
+          frame={deskFrame}
+          rules={rules}
+          {...base}
+          editingId={id}
+          onCreate={() => setId(undefined)}
+          onEdit={setId}
+          onClose={() => setId(undefined)}
+        />
+      );
+    }
+    render(<Host />);
+    const opener = screen.getByRole('button', { name: 'Edit rule /code-review' });
+    await userEvent.click(opener);
+    expect(screen.getByRole('complementary', { name: 'Edit rule' })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Close' }));
+    expect(screen.queryByRole('complementary')).toBeNull();
+    expect(opener).toHaveFocus();
   });
 
   it('editingId opens the Edit rule pane and marks that row selected', () => {
@@ -502,9 +523,68 @@ describe('DeskAgent', () => {
     expect(screen.getByLabelText('End idle runs after')).toHaveValue(String(base.limits.idleEndMinutes));
   });
 
-  it('fits the window: height="viewport" reaches the shell (BR-61)', () => {
-    const { container } = render(<DeskAgent {...base} height="viewport" />);
-    expect(container.querySelector('[class*="appViewport"]')).not.toBeNull();
+  describe('the selected tab is scrolled into view in the strip (TC-65.34)', () => {
+    const original = Element.prototype.scrollIntoView;
+    const shown: { tab: string | null; options: unknown }[] = [];
+    beforeEach(() => {
+      shown.length = 0;
+      Element.prototype.scrollIntoView = function (this: Element, options?: boolean | ScrollIntoViewOptions) {
+        shown.push({ tab: this.textContent, options });
+      };
+    });
+    afterEach(() => {
+      Element.prototype.scrollIntoView = original;
+    });
+    const nearest = { block: 'nearest', inline: 'nearest' };
+
+    it('scrolls the tab the screen opens on', () => {
+      render(<DeskAgent {...base} onDeleteProject={vi.fn()} tab="danger" />);
+      expect(shown.at(-1)).toEqual({ tab: 'Danger zone', options: nearest });
+    });
+
+    it('scrolls the tab the caller changes to', () => {
+      const { rerender } = render(<DeskAgent {...base} onDeleteProject={vi.fn()} tab="agents" />);
+      expect(shown.at(-1)).toEqual({ tab: 'Agents', options: nearest });
+      rerender(<DeskAgent {...base} onDeleteProject={vi.fn()} tab="limits" />);
+      expect(shown.at(-1)).toEqual({ tab: 'Limits', options: nearest });
+    });
+
+    it('scrolls the tab that is clicked when the screen keeps its own tab', async () => {
+      render(<DeskAgent {...base} />);
+      await userEvent.click(screen.getByRole('tab', { name: 'GitHub connection' }));
+      expect(shown.at(-1)).toEqual({ tab: 'GitHub connection', options: nearest });
+    });
+
+    it('Arrow, Home and End still move between the tabs', async () => {
+      render(<DeskAgent {...base} onDeleteProject={vi.fn()} />);
+      screen.getByRole('tab', { name: 'Agents' }).focus();
+      await userEvent.keyboard('{ArrowRight}');
+      expect(screen.getByRole('tab', { name: 'GitHub connection' })).toHaveAttribute('aria-selected', 'true');
+      await userEvent.keyboard('{End}');
+      expect(screen.getByRole('tab', { name: 'Danger zone' })).toHaveAttribute('aria-selected', 'true');
+      expect(shown.at(-1)).toEqual({ tab: 'Danger zone', options: nearest });
+      await userEvent.keyboard('{Home}');
+      expect(screen.getByRole('tab', { name: 'Agents' })).toHaveAttribute('aria-selected', 'true');
+      expect(screen.getByRole('tab', { name: 'Agents' })).toHaveFocus();
+    });
+  });
+
+  it('marks the main while the add or edit pane is open, so a narrow window shows the pane in place of the list (BR-65)', () => {
+    const pane = {
+      mode: 'edit' as const,
+      kinds: agentKindViews,
+      providers: [],
+      agent: agentPaneAgents[0],
+      modelList: toModelList({ status: 'success' as const, data: agentModelsFixtures.live }, null),
+      onClose: vi.fn(),
+    };
+    const { rerender } = render(<DeskAgent {...base} />);
+    expect(screen.getByRole('main')).not.toHaveAttribute('data-pane-open');
+    rerender(<DeskAgent {...base} pane={pane} />);
+    expect(screen.getByRole('main')).toHaveAttribute('data-pane-open', 'true');
+    // The list and the tab strip stay in the page (hidden or kept by the layout), so focus can return to the opener.
+    expect(screen.getByRole('button', { name: `Edit ${agentRowViews[0].name}` })).toBeInTheDocument();
+    expect(screen.getByRole('tablist', { name: 'Agent and project settings' })).toBeInTheDocument();
   });
 
   it('the panel is the one scroll area: focusable, named, and the Pagination sits outside it (BR-61)', () => {
@@ -532,7 +612,9 @@ describe('DeskAgent', () => {
       />,
     );
     const pane = screen.getByRole('complementary', { name: 'Edit agent' });
-    expect(screen.getByRole('tabpanel')).toContainElement(pane);
+    // The pane is a column of the page's main, beside the heading, tabs and list column.
+    expect(screen.getByRole('main')).toContainElement(pane);
+    expect(screen.getByRole('tabpanel').contains(pane)).toBe(false);
     expect(screen.getByRole('region', { name: 'Agents list' }).contains(pane)).toBe(false);
   });
 
@@ -562,8 +644,8 @@ describe('DeskAgent', () => {
       expect(terms.slice(0, 3)).toEqual(['Repository', 'Trigger mode', 'Last event']);
       expect(screen.getByRole('radio', { name: 'Webhook' })).toHaveAttribute('aria-checked', 'true');
       expect(screen.queryByRole('radiogroup', { name: 'Check every' })).toBeNull();
-      expect(screen.getByRole('button', { name: 'Send test ping' })).toBeInTheDocument();
-      expect(screen.getByText('Connected')).toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: 'Send test ping' })).toBeNull();
+      expect(screen.queryByRole('link', { name: /Manage installation/ })).toBeNull();
     });
 
     it('switching to polling shows the interval and reports the change', async () => {
@@ -592,10 +674,9 @@ describe('DeskAgent', () => {
       expect(screen.getByRole('button', { name: 'Check now' })).toBeEnabled();
     });
 
-    it('a polling project starts in polling mode and shows its status in the side nav', () => {
+    it('a polling project starts in polling mode', () => {
       open({ connection: connections.pollingRevoked });
       expect(screen.getByRole('radio', { name: 'Polling' })).toHaveAttribute('aria-checked', 'true');
-      expect(screen.getByText('Polling failed: token revoked').closest('.inline-status')).toHaveClass('err');
     });
 
     it('a controlled trigger shows the given mode with its error', () => {
@@ -751,7 +832,7 @@ describe('Desk lists with pagination', () => {
     onPageSizeChange: () => undefined,
   });
 
-  it('DeskRules pins the control under the scrolling list, which ends with Guards (BR-61)', () => {
+  it('DeskRules pins the control in the scrolling list, between the last rule and the Guards (TC-29.2, BR-61)', () => {
     render(
       <DeskRules
         frame={deskFrame}
@@ -768,8 +849,9 @@ describe('Desk lists with pagination', () => {
     expect(scroll).toContainElement(lastRule);
     expect(scroll).toContainElement(guards);
     expect(lastRule.compareDocumentPosition(guards) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(scroll.contains(nav)).toBe(false);
-    expect(guards.compareDocumentPosition(nav) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(scroll).toContainElement(nav);
+    expect(lastRule.compareDocumentPosition(nav) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(nav.compareDocumentPosition(guards) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
   it('DeskRules with no rules shows No routing rules yet and no control', () => {
@@ -794,21 +876,158 @@ describe('Desk lists with pagination', () => {
   });
 });
 
-describe('Desk under the app bar (BR-43)', () => {
-  const links = { projects: '/p', runs: '/r', desk: '/d', skills: 's', rules: 'r', agent: 'a' };
-  const org = { ...orgSwitchFixtures.oneOrgSettings, orgHref: () => '/o', createHref: '/new' };
+describe('DeskSkills in the shell', () => {
+  const menu = 'Project menu';
+  const inShell = (ui: ReactElement) =>
+    render(
+      <ProjectShellFrame page="skills" fill>
+        {ui}
+      </ProjectShellFrame>,
+    );
+  const warning = { title: 'Workspace setup needs attention', detail: 'The last test failed.', href: '#setup' };
 
-  it('with org: the org crumb, the project crumb, Runs and Settings tabs with Settings current', () => {
-    render(<DeskSkills frame={{ ...deskFrame, org, links }} skills={skills} activeName="code-build" />);
-    const bar = screen.getByRole('banner');
-    expect(within(bar).getByRole('button', { name: /^Switch scope, currently organization Acme/ })).toBeInTheDocument();
-    const tabs = within(bar).getByRole('navigation', { name: 'Project sections' });
-    expect(within(tabs).getByRole('link', { name: 'Project settings' })).toHaveAttribute('aria-current', 'page');
-    expect(within(tabs).getByRole('link', { name: /^Runs/ })).not.toHaveAttribute('aria-current');
+  it('draws one main with the h1 Skills, the folder line and New skill in the header', () => {
+    inShell(<DeskSkills frame={deskFrame} skills={skills} activeName="code-build" folders={['.claude/skills']} />);
+    const main = expectShellOwnedPage('Skills', { menu });
+    const header = screen.getByRole('heading', { level: 1 }).closest('header')!;
+    expect(within(header).getByText('.claude/skills/ on main')).toBeInTheDocument();
+    expect(within(headerActions(main)).getByRole('button', { name: 'New skill' })).toBeInTheDocument();
+    expect(within(main).getByRole('heading', { level: 2, name: 'code-build' })).toBeInTheDocument();
   });
 
-  it('without org: no org menu', () => {
-    render(<DeskSkills frame={{ ...deskFrame, links }} skills={skills} activeName="code-build" />);
-    expect(within(screen.getByRole('banner')).queryByRole('button', { name: /organization/i })).toBeNull();
+  it('joins several skill folders with "or" in the header line', () => {
+    inShell(
+      <DeskSkills
+        frame={deskFrame}
+        skills={skills}
+        activeName="code-build"
+        folders={['.claude/skills', '.agent/skills']}
+      />,
+    );
+    expectShellOwnedPage('Skills', { menu });
+    const header = screen.getByRole('heading', { level: 1 }).closest('header')!;
+    expect(within(header).getByText('.claude/skills/ or .agent/skills/ on main')).toBeInTheDocument();
+  });
+
+  it('has no History control without a file URL and, empty, no second New skill button', () => {
+    const { unmount } = inShell(<DeskSkills frame={deskFrame} skills={skills} activeName="code-build" />);
+    expect(screen.queryByRole('link', { name: 'History' })).toBeNull();
+    unmount();
+    inShell(<DeskSkills frame={deskFrame} skills={[]} />);
+    expect(screen.getAllByRole('button', { name: 'New skill' })).toHaveLength(1);
+  });
+
+  it('the setup warning follows the h1', () => {
+    inShell(<DeskSkills frame={{ ...deskFrame, warning }} skills={skills} activeName="code-build" />);
+    expectShellOwnedPage('Skills', { menu });
+    const header = screen.getByRole('heading', { level: 1 }).closest('header')!;
+    expect(within(header).getByText('Workspace setup needs attention')).toBeInTheDocument();
+  });
+
+  it('outside the shell History is absent until the repository file is known', () => {
+    render(<DeskSkills frame={deskFrame} skills={skills} activeName="code-build" />);
+    expect(screen.queryByRole('link', { name: 'History' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'History' })).toBeNull();
+  });
+});
+
+describe('DeskAgent and DeskRules in the shell', () => {
+  const warning = { title: 'Workspace setup needs attention', detail: 'The last test failed.', href: '#setup' };
+  const warned = { ...deskFrame, warning };
+  const pane = {
+    mode: 'edit' as const,
+    kinds: agentKindViews,
+    providers: [],
+    agent: agentPaneAgents[0],
+    modelList: toModelList({ status: 'success', data: agentModelsFixtures.live }, null),
+    onClose: vi.fn(),
+  };
+  const agentInShell = (props: Partial<React.ComponentProps<typeof DeskAgent>> = {}) =>
+    render(
+      <ProjectShellFrame page="agents" fill>
+        <DeskAgent {...base} {...props} />
+      </ProjectShellFrame>,
+    );
+  const rulesInShell = (props: Partial<React.ComponentProps<typeof DeskRules>> = {}) =>
+    render(
+      <ProjectShellFrame page="rules" fill>
+        <DeskRules frame={deskFrame} rules={rules} skills={skillNames} maxRunsPerTicket={10} {...props} />
+      </ProjectShellFrame>,
+    );
+  const menu = 'Project menu';
+  const column = () => screen.getByRole('heading', { level: 1 }).closest('header')!.parentElement!;
+  const actionRow = () =>
+    screen.getByRole('region', { name: 'GitHub connection' }).querySelector('[class*="deskActions"]');
+
+  it.each(['agents', 'github', 'limits', 'danger'] as const)(
+    'the %s tab has one h1, the header and tab strip outside the scroll area, and the setup warning first in it',
+    (tab) => {
+      agentInShell({ tab, frame: warned, onDeleteProject: vi.fn() });
+      const main = expectShellOwnedPage('Agent & settings', { menu });
+      const header = screen.getByRole('heading', { level: 1 }).closest('header')!;
+      expect(within(header).queryByText(warning.title)).toBeNull();
+      const strip = screen.getByRole('tablist').parentElement!;
+      expect(header.nextElementSibling).toBe(strip);
+      const scroll = within(screen.getByRole('tabpanel')).getAllByRole('region', {
+        name: /^(Agents list|GitHub connection|Limits|Danger zone)$/,
+      })[0]!;
+      expect(scroll.contains(header)).toBe(false);
+      expect(scroll.contains(strip)).toBe(false);
+      expect(scroll.firstElementChild).toContainElement(screen.getByText(warning.title));
+      expect(within(main).getAllByText(warning.title)).toHaveLength(1);
+    },
+  );
+
+  it.each(['add', 'edit'] as const)('with the %s pane open the pane is beside the main column', (mode) => {
+    agentInShell({ pane: { ...pane, mode, agent: mode === 'edit' ? pane.agent : undefined } });
+    const main = expectShellOwnedPage('Agent & settings', { menu });
+    const side = within(main).getByRole('complementary');
+    expect(column().contains(side)).toBe(false);
+  });
+
+  it('a project admin has three tabs', () => {
+    agentInShell();
+    expect(screen.getAllByRole('tab').map((t) => t.textContent)).toEqual(['Agents', 'GitHub connection', 'Limits']);
+  });
+
+  it('BR-44: the GitHub tab has no Send test ping, Manage installation or empty action row', () => {
+    agentInShell({ tab: 'github' });
+    expect(screen.getByText('Trigger mode')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Send test ping' })).toBeNull();
+    expect(screen.queryByRole('link', { name: /Manage installation/ })).toBeNull();
+    expect(actionRow()).toBeNull();
+  });
+
+  it('BR-44: polling keeps Check now', () => {
+    agentInShell({ tab: 'github', connection: connections.pollingRevoked });
+    expect(screen.getByRole('button', { name: 'Check now' })).toBeInTheDocument();
+  });
+
+  it('BR-44: webhooks have no button and no action row outside the shell either', () => {
+    render(<DeskAgent {...base} tab="github" />);
+    expect(screen.queryByRole('button', { name: 'Send test ping' })).toBeNull();
+    expect(screen.queryByRole('link', { name: /Manage installation/ })).toBeNull();
+    expect(actionRow()).toBeNull();
+  });
+
+  it('Routing rules: one h1 with the help line and New rule in the header, the warning first in the scroll area', () => {
+    rulesInShell({ frame: warned });
+    const main = expectShellOwnedPage('Routing rules', { menu });
+    const header = screen.getByRole('heading', { level: 1 }).closest('header')!;
+    expect(within(header).getByText(/A comment whose first line is a command/)).toBeInTheDocument();
+    expect(within(headerActions(main)).getByRole('button', { name: 'New rule' })).toBeInTheDocument();
+    expect(within(header).queryByText(warning.title)).toBeNull();
+    const scroll = screen.getByRole('region', { name: 'Rules list' });
+    expect(scroll.firstElementChild).toContainElement(screen.getByText(warning.title));
+    expect(within(main).getAllByText(warning.title)).toHaveLength(1);
+  });
+
+  it('Routing rules: empty has one New rule button, and an open pane is beside the column', () => {
+    const { unmount } = rulesInShell({ rules: [] });
+    expect(screen.getAllByRole('button', { name: 'New rule' })).toHaveLength(1);
+    unmount();
+    rulesInShell({ editingId: rules[0]!.id });
+    const side = within(screen.getByRole('main')).getByRole('complementary');
+    expect(column().contains(side)).toBe(false);
   });
 });

@@ -46,3 +46,17 @@
   min-width: 160px;
   justify-content: flex-start;
 }
+
+/* Phone (BR-65, TC-65.15): a row is a card (DataTable cards); the cells size to their content and the menu sits at the end. */
+@media (max-width: 639px) {
+  tr > td.nameCell,
+  tr > td.accessCell {
+    width: auto;
+  }
+  .grants {
+    justify-content: flex-end;
+  }
+  tr > td.actionsCell {
+    justify-content: flex-end;
+  }
+}

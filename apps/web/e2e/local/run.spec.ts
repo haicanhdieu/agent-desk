@@ -12,6 +12,7 @@ import {
   ok,
   setAutoResumeMax,
   signInAndCreateProject,
+  runHeader,
 } from './helpers';
 
 /*
@@ -68,7 +69,7 @@ test('a comment on the fake board becomes a live run: idle, terminal echo, finis
   await expect(runLink).toBeVisible({ timeout: 30_000 });
   await runLink.click();
 
-  const header = page.getByRole('banner');
+  const header = runHeader(page);
   const status = (label: string) => header.getByText(label, { exact: true });
   await expect(status('Needs you')).toBeVisible({ timeout: 60_000 });
 
@@ -123,7 +124,7 @@ test('a --fake-done run shows Done and Finish closes it as succeeded', async ({ 
   await runLink.click();
 
   // The fake pod declares `done` at the end of its first turn: the Done status and its banner, not Needs you.
-  const header = page.getByRole('banner');
+  const header = runHeader(page);
   await expect(header.getByText('Done', { exact: true })).toBeVisible({ timeout: 60_000 });
   await expect(header.getByText('Needs you', { exact: true })).toHaveCount(0);
   await expect(page.getByText('The agent says the task is done')).toBeVisible();
@@ -148,7 +149,7 @@ test('a --fake-fail run pauses with "agent crashed (exit code 3)" and offers Res
   expect(run.pauseReason).toBe('agent_crashed');
 
   await page.goto(`/o/${handle}/p/${projectId}/runs/${number}`);
-  await expect(page.getByRole('banner').getByText('Paused', { exact: true })).toBeVisible({ timeout: 15_000 });
+  await expect(runHeader(page).getByText('Paused', { exact: true })).toBeVisible({ timeout: 15_000 });
   await expect(page.getByText('Paused: agent crashed (exit code 3)')).toBeVisible();
   await expect(page.getByRole('button', { name: 'Resume' })).toBeVisible();
 
@@ -203,7 +204,7 @@ test.describe('pause and resume', () => {
     // Resume it from the run page. It queues behind the second run until that one pauses too.
     const firstNumber = RunDto.parse(await ok(await page.request.get(`/api/runs/${first}`), 200, 'run')).number;
     await page.goto(`/o/${handle}/p/${projectId}/runs/${firstNumber}`);
-    const header = page.getByRole('banner');
+    const header = runHeader(page);
     await expect(header.getByText('Paused', { exact: true })).toBeVisible({ timeout: 15_000 });
     await page.getByRole('button', { name: 'Resume' }).click();
     await expect(header.getByText('Needs you', { exact: true })).toBeVisible({ timeout: waitMs });
@@ -258,7 +259,7 @@ test.describe('pause and resume', () => {
     expect(existsSync(`${FAKE_STATE_DIR}/kube/run-${runId}`), 'the paused run still has a pod').toBe(false);
 
     await page.goto(`/o/${handle}/p/${projectId}/runs/${number}`);
-    const header = page.getByRole('banner');
+    const header = runHeader(page);
     await expect(header.getByText('Paused', { exact: true })).toBeVisible({ timeout: 15_000 });
     await expect(page.getByText('Paused: waiting for your answer.')).toBeVisible();
     await expect(page.getByText(/Paused .*, after .* with nobody attached/)).toBeVisible();
@@ -401,7 +402,7 @@ test.describe('cluster outage', () => {
     await expect.poll(() => existsSync(`${FAKE_STATE_DIR}/kube/run-${runId}`), { timeout: 30_000 }).toBe(false);
 
     await page.goto(`/o/${handle}/p/${projectId}/runs/${number}`);
-    const header = page.getByRole('banner');
+    const header = runHeader(page);
     await expect(header.getByText('Paused', { exact: true })).toBeVisible({ timeout: 15_000 });
     await page.getByRole('button', { name: 'Resume' }).click();
     await expect(header.getByText('Needs you', { exact: true })).toBeVisible({ timeout: 60_000 });

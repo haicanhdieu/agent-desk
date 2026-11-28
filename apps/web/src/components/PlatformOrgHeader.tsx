@@ -2,6 +2,7 @@ import { useId, useRef, useState } from 'react';
 import { AppLink, Button, Icon, Popover } from '@/ds';
 import type { OrgStatusView } from '@/mocks/platform/orgs';
 import { OrgStatus } from './OrgStatus';
+import { PageHeader } from './PageHeader';
 import styles from './PlatformOrgHeader.module.css';
 import { useMenuNav } from './useMenuNav';
 
@@ -41,81 +42,81 @@ export function PlatformOrgHeader({
   const close = () => setOpen(false);
 
   return (
-    <div className={styles.header}>
-      <div className={styles.title}>
-        <h1 className={styles.h1} tabIndex={-1}>
-          {name}
-        </h1>
-        <div className={styles.meta}>
+    <PageHeader
+      title={name}
+      meta={
+        <>
           <span className={styles.slug}>/o/{slug}</span>
           <OrgStatus status={status} />
-        </div>
-      </div>
-      <div className={styles.actions}>
-        {onEdit && <Button onClick={onEdit}>Edit organization</Button>}
-        <div ref={wrapRef} className={styles.more}>
-          <Button
-            className={styles.trigger}
-            aria-label="More actions"
-            title="More actions"
-            aria-haspopup="menu"
-            aria-expanded={open}
-            aria-controls={open ? menuId : undefined}
-            onClick={() => setOpen((o) => !o)}
-            onKeyDown={onTriggerKeyDown}
-          >
-            <Icon name="more" size={16} />
-          </Button>
-          <Popover
-            open={open}
-            id={menuId}
-            role="menu"
-            label="More actions"
-            width={220}
-            onClose={close}
-            style={{ top: 'calc(100% + 8px)', right: 0, padding: 0, gap: 0 }}
-          >
-            {/* The Popover is the menu (it carries the id); this wrapper handles the arrow keys. */}
-            <div className={styles.menu} onKeyDown={onMenuKeyDown}>
-              {status === 'active' ? (
-                <button
-                  type="button"
-                  role="menuitem"
-                  className={`${styles.item} ${styles.danger}`}
-                  onClick={() => {
-                    close();
-                    onSuspend();
-                  }}
-                >
-                  Suspend organization
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  role="menuitem"
-                  className={styles.item}
-                  onClick={() => {
-                    close();
-                    onReactivate();
-                  }}
-                >
-                  Reactivate organization
-                </button>
-              )}
-              <div role="separator" className={styles.separator} />
-              <AppLink href={auditHref} role="menuitem" className={styles.item} onClick={close}>
-                View audit log
-              </AppLink>
-              {openHref !== undefined && (
-                <AppLink href={openHref} role="menuitem" className={styles.item} onClick={close}>
-                  Open organization
-                  <Icon name="external" size={13} />
+        </>
+      }
+      actions={
+        <>
+          {onEdit && <Button onClick={onEdit}>Edit organization</Button>}
+          <div ref={wrapRef} className={styles.more}>
+            <Button
+              className={styles.trigger}
+              aria-label="More actions"
+              title="More actions"
+              aria-haspopup="menu"
+              aria-expanded={open}
+              aria-controls={open ? menuId : undefined}
+              onClick={() => setOpen((o) => !o)}
+              onKeyDown={onTriggerKeyDown}
+            >
+              <Icon name="more" size={16} />
+            </Button>
+            <Popover
+              open={open}
+              id={menuId}
+              role="menu"
+              label="More actions"
+              width={220}
+              onClose={close}
+              style={{ top: 'calc(100% + 8px)', right: 0, padding: 0, gap: 0 }}
+            >
+              {/* The Popover is the menu (it carries the id); this wrapper handles the arrow keys. */}
+              <div className={styles.menu} onKeyDown={onMenuKeyDown}>
+                {status === 'active' ? (
+                  <button
+                    type="button"
+                    role="menuitem"
+                    className={`${styles.item} ${styles.danger}`}
+                    onClick={() => {
+                      close();
+                      onSuspend();
+                    }}
+                  >
+                    Suspend organization
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    role="menuitem"
+                    className={styles.item}
+                    onClick={() => {
+                      close();
+                      onReactivate();
+                    }}
+                  >
+                    Reactivate organization
+                  </button>
+                )}
+                <div role="separator" className={styles.separator} />
+                <AppLink href={auditHref} role="menuitem" className={styles.item} onClick={close}>
+                  View audit log
                 </AppLink>
-              )}
-            </div>
-          </Popover>
-        </div>
-      </div>
-    </div>
+                {openHref !== undefined && (
+                  <AppLink href={openHref} role="menuitem" className={styles.item} onClick={close}>
+                    Open organization
+                    <Icon name="external" size={13} />
+                  </AppLink>
+                )}
+              </div>
+            </Popover>
+          </div>
+        </>
+      }
+    />
   );
 }

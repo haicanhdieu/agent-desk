@@ -1,7 +1,19 @@
 import { queryOptions } from '@tanstack/react-query';
 import type { PageQuery } from '@agentdesk/contracts';
+import { ApiError } from '@agentdesk/contracts/client';
 import { WHOLE_SET } from '@/app/pagination';
 import { api } from '../api';
+
+/** Projects this tab has deleted: their detail read answering 404 afterwards is expected, never a page error. */
+const deletedProjects = new Set<string>();
+
+export function markProjectDeleted(projectId: string): void {
+  deletedProjects.add(projectId);
+}
+
+export function unmarkProjectDeleted(projectId: string): void {
+  deletedProjects.delete(projectId);
+}
 
 const projectKey = (org: string, projectId: string) => ['org', org, 'projects', projectId] as const;
 
@@ -24,6 +36,12 @@ export const projectsQueries = {
       // The detail carries `counts` (needs you, running, queued): an aggregate of the runs, shown next to the runs
       // lists (chips, slots, the needs-you badge). It refetches on focus like the runs queries so the two agree.
       refetchOnWindowFocus: true,
+      // A project that stops being readable (access removed, project gone) must not stay on screen from the cache:
+      // the answer reaches the page's boundary even though old data is held. Readers that must not throw (the shell) pass `throwOnError: false`.
+      throwOnError: (error, query) =>
+        error instanceof ApiError &&
+        (error.status === 403 || error.status === 404) &&
+        !deletedProjects.has(String(query.queryKey[3])),
     }),
   connection: (org: string, projectId: string) =>
     queryOptions({

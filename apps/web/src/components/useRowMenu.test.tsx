@@ -46,3 +46,35 @@ describe('useRowMenu placement', () => {
     expect(menuAt).toEqual({ top: 534, right: 100 });
   });
 });
+
+const frames = () =>
+  new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
+
+describe('useRowMenu', () => {
+  it('a scroll that was queued before the menu opened does not close it, a later scroll does', async () => {
+    const { result } = renderHook(() => useRowMenu());
+    act(() => result.current.toggleMenu());
+    expect(result.current.open).toBe(true);
+    // Scroll events are delivered at the next frame: one caused by the click's own scroll-into-view arrives now.
+    act(() => {
+      document.dispatchEvent(new Event('scroll'));
+    });
+    expect(result.current.open).toBe(true);
+    await act(async () => {
+      await frames();
+    });
+    act(() => {
+      document.dispatchEvent(new Event('scroll'));
+    });
+    expect(result.current.open).toBe(false);
+  });
+
+  it('a resize or an outside press still closes the menu at once', () => {
+    const { result } = renderHook(() => useRowMenu());
+    act(() => result.current.toggleMenu());
+    act(() => {
+      window.dispatchEvent(new Event('resize'));
+    });
+    expect(result.current.open).toBe(false);
+  });
+});

@@ -1,14 +1,6 @@
 import type { ReactNode } from 'react';
 import { Button, Icon, SearchInput, StatusIcon } from '@/ds';
-import {
-  FilterChip,
-  FilterChips,
-  TopBar,
-  type OrgSwitchProps,
-  type ProjectSwitchMenu,
-  type TopBarProps,
-} from '@/components';
-import type { Actor, Project } from '@/mocks/types';
+import { FilterChip, FilterChips, PageHeader } from '@/components';
 import styles from './Screens.module.css';
 
 export type RunsFilter = 'needs_you' | 'active' | 'queued' | 'ended' | 'all' | 'ignored';
@@ -22,9 +14,6 @@ export interface RunsSearch {
 }
 
 export interface RunsPageProps {
-  project: Project;
-  user: Actor;
-  needsYou: number;
   slots: { used: number; total: number };
   today: string;
   filter: RunsFilter;
@@ -37,12 +26,6 @@ export interface RunsPageProps {
   search?: RunsSearch;
   /** When set, the chips are links to this href (e.g. `?filter=queued`) instead of buttons. */
   filterHref?(f: RunsFilter): string;
-  /** In-app hrefs for the top bar. */
-  links?: TopBarProps['links'];
-  /** The project menu behind the top bar's switcher. */
-  projectMenu?: ProjectSwitchMenu;
-  /** The org crumb of the top bar. */
-  org?: OrgSwitchProps;
   /** Static banners above the page header. */
   banners?: ReactNode;
   children?: ReactNode;
@@ -56,11 +39,8 @@ const chips: { filter: RunsFilter; label: string }[] = [
   { filter: 'all', label: 'All' },
 ];
 
-/** Top bar plus the single <main> shared by the Runs boards: header, search, chips. */
+/** The single <main> shared by the Runs boards: header, search, chips. */
 export function RunsPage({
-  project,
-  user,
-  needsYou,
   slots,
   today,
   filter,
@@ -70,84 +50,73 @@ export function RunsPage({
   onGroupedChange,
   search,
   filterHref,
-  links,
-  projectMenu,
-  org,
   banners,
   children,
 }: RunsPageProps) {
-  return (
+  const meta = (
+    <span className={`muted ${styles.runsMeta}`}>
+      <span className={styles.runsSlots}>
+        <Icon name="play" size={12} />
+        <span>
+          Slots{' '}
+          <b className={styles.slotNum}>
+            {slots.used} of {slots.total}
+          </b>{' '}
+          in use
+        </span>
+      </span>
+      <span>{today}</span>
+    </span>
+  );
+  const tools = (
     <>
-      <TopBar
-        variant="project"
-        crumbs={[{ label: 'Runs' }]}
-        active="runs"
-        user={user}
-        org={org}
-        needsYou={needsYou}
-        links={links}
-        projectMenu={projectMenu}
-        project={{ name: project.name, repoUrl: `https://github.com/${project.repo}` }}
-      />
-      <main className={`${styles.runsMain} ${banners ? styles.runsMainBanners : ''}`}>
-        {banners}
-        <div className={styles.runsHead}>
-          <div className={styles.runsTitle}>
-            <h1>Runs</h1>
-            <span className={`muted ${styles.runsMeta}`}>
-              <span className={styles.runsSlots}>
-                <Icon name="play" size={12} />
-                <span>
-                  Slots{' '}
-                  <b className={styles.slotNum}>
-                    {slots.used} of {slots.total}
-                  </b>{' '}
-                  in use
-                </span>
-              </span>
-              <span>{today}</span>
-            </span>
-          </div>
-          <div className={styles.runsTools}>
-            {search && (
-              <SearchInput
-                placeholder="Ticket number or title"
-                aria-label="Search runs"
-                value={search.value}
-                onChange={(e) => search.onChange(e.target.value)}
-                onClear={() => search.onChange('')}
-              />
-            )}
-            <Button icon="rule" aria-pressed={grouped} onClick={() => onGroupedChange?.(!grouped)}>
-              Grouped by ticket
-            </Button>
-          </div>
-        </div>
-        <div className={styles.chipRow}>
-          <FilterChips aria-label="Filter by status">
-            {chips.map((c) => (
-              <FilterChip
-                key={c.filter}
-                label={c.label}
-                count={counts[c.filter]}
-                icon={c.filter === 'needs_you' ? <StatusIcon status="idle" size={12} /> : undefined}
-                on={filter === c.filter}
-                onClick={() => onFilter?.(c.filter)}
-                href={filterHref?.(c.filter)}
-              />
-            ))}
-          </FilterChips>
-          <FilterChip
-            label="Ignored"
-            count={counts.ignored}
-            icon={<Icon name="ignored" size={13} />}
-            on={filter === 'ignored'}
-            onClick={() => onFilter?.('ignored')}
-            href={filterHref?.('ignored')}
-          />
-        </div>
-        {children}
-      </main>
+      {search && (
+        <SearchInput
+          placeholder="Ticket number or title"
+          aria-label="Search runs"
+          value={search.value}
+          onChange={(e) => search.onChange(e.target.value)}
+          onClear={() => search.onChange('')}
+        />
+      )}
+      <Button icon="rule" aria-pressed={grouped} onClick={() => onGroupedChange?.(!grouped)}>
+        Grouped by ticket
+      </Button>
     </>
+  );
+  const chipRow = (
+    <div className={styles.chipRow}>
+      <FilterChips aria-label="Filter by status">
+        {chips.map((c) => (
+          <FilterChip
+            key={c.filter}
+            label={c.label}
+            count={counts[c.filter]}
+            icon={c.filter === 'needs_you' ? <StatusIcon status="idle" size={12} /> : undefined}
+            on={filter === c.filter}
+            onClick={() => onFilter?.(c.filter)}
+            href={filterHref?.(c.filter)}
+          />
+        ))}
+      </FilterChips>
+      <FilterChip
+        label="Ignored"
+        count={counts.ignored}
+        icon={<Icon name="ignored" size={13} />}
+        on={filter === 'ignored'}
+        onClick={() => onFilter?.('ignored')}
+        href={filterHref?.('ignored')}
+      />
+    </div>
+  );
+
+  // The bar and the menu are the shell's: the page draws its header (title, facts, search and grouping, the setup
+  // warnings), the chips and the list. There is no repository button; the repository is in the menu.
+  return (
+    <main className={`${styles.shellMain} ${styles.runsMain}`}>
+      <PageHeader title="Runs" meta={meta} actions={tools} banner={banners} />
+      {chipRow}
+      {children}
+    </main>
   );
 }

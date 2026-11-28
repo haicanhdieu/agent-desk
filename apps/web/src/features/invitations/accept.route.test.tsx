@@ -6,8 +6,14 @@ import { ids } from '@/mocks/dto/ids';
 import { mockDb } from '@/mocks/msw/db';
 import { server } from '@/mocks/msw/node';
 import { scenarios } from '@/mocks/msw/scenarios';
+import { FOREIGN, applyShellScenario } from '@/mocks/msw/shellScenarios';
 import { renderRoute } from '@/test/renderRoute';
 
+const topBar = (): HTMLElement => {
+  const [bar] = screen.getAllByRole('banner');
+  if (!bar) throw new Error('no top bar');
+  return bar;
+};
 const pendingId = fx.pending.id;
 const open = (id: string, scenario = 'noOrgInvited' as const) =>
   renderRoute(`/invitations/${id}`, { scenario: () => scenarios.onboarding(scenario) });
@@ -323,20 +329,92 @@ describe('invitation link under the app bar', () => {
     mockDb.state.auth = { signedIn: true, activeOrganizationId: ids.org.alice };
   };
 
-  it('BR-43 / BR-13 an owner sees the org bar with no tab active and Settings in the org menu', async () => {
-    const { user } = await renderRoute(`/invitations/${pendingId}`, { scenario: asOwnerOfAlice });
+  it('BR-56 / BR-45 an owner sees the org menu with no current item, and the switcher offers scope choices only', async () => {
+    const { user } = await renderRoute(`/invitations/${pendingId}`, {
+      scenario: () => {
+        asOwnerOfAlice();
+        const me = mockDb.state.users[0];
+        if (me) me.platformAdmin = true;
+      },
+    });
     await screen.findByRole('heading', { level: 1, name: 'Join Acme Robotics' });
-    const nav = await screen.findByRole('navigation', { name: 'Organization sections' });
+    const nav = await screen.findByRole('navigation', { name: 'Organization menu' });
     expect(within(nav).getByRole('link', { name: 'Projects' })).not.toHaveAttribute('aria-current');
     await user.click(screen.getByRole('button', { name: /^Switch scope/ }));
     const menu = await screen.findByRole('dialog', { name: 'Scope' });
-    expect(within(menu).getByRole('link', { name: 'Org settings' })).toHaveAttribute('href', '/o/alice/settings');
+    expect(within(menu).queryByRole('link', { name: 'Org settings' })).toBeNull();
   });
 
   it('BR-43 a person with no org sees "No organization" and no tabs', async () => {
     await open(pendingId);
     await screen.findByRole('heading', { level: 1, name: 'Join Acme Robotics' });
     expect(screen.getByText('No organization')).toBeInTheDocument();
-    expect(screen.queryByRole('navigation', { name: 'Organization sections' })).toBeNull();
+    expect(screen.queryByRole('navigation', { name: 'Organization menu' })).toBeNull();
+  });
+});
+
+describe('invitation link in the app shell (BR-56)', () => {
+  const orgMenu = () => screen.queryByRole('navigation', { name: 'Organization menu' });
+  const link = (scenario: () => void, id: string) => renderRoute(`/invitations/${id}`, { scenario });
+
+  it('TC-56.1: shows the active org menu with no current item and does not name the invitation org in menu or bar', async () => {
+    await link(() => applyShellScenario('foreignInvite'), FOREIGN.invitationId);
+    expect(await screen.findByRole('heading', { level: 1, name: `Join ${FOREIGN.orgName}` })).toBeInTheDocument();
+    const menu = await screen.findByRole('navigation', { name: 'Organization menu' });
+    expect(await within(menu).findByRole('link', { name: 'Projects' })).toBeInTheDocument();
+    expect(menu.querySelectorAll('[aria-current]')).toHaveLength(0);
+    expect(within(menu).queryByText(FOREIGN.orgName)).toBeNull();
+    expect(within(topBar()).queryByText(FOREIGN.orgName)).toBeNull();
+    expect(screen.getAllByRole('main')).toHaveLength(1);
+  });
+
+  it('TC-56.2: when the invitation read fails the error is in the content and the menu stays', async () => {
+    await link(() => {
+      applyShellScenario('foreignInvite');
+      scenarios.serverError('me.getInvitation');
+    }, FOREIGN.invitationId);
+    expect(await within(await screen.findByRole('main')).findByText('Internal server error')).toBeInTheDocument();
+    const menu = await screen.findByRole('navigation', { name: 'Organization menu' });
+    expect(await within(menu).findByRole('link', { name: 'Projects' })).toBeInTheDocument();
+    expect(menu.querySelectorAll('[aria-current]')).toHaveLength(0);
+    expect(within(menu).queryByText(FOREIGN.orgName)).toBeNull();
+  });
+
+  it('TC-56.3: a link that is not available keeps the menu with no current item', async () => {
+    await link(() => applyShellScenario('foreignInvite'), 'not-a-uuid');
+    expect(await screen.findByRole('heading', { name: 'This invitation is not available' })).toBeInTheDocument();
+    const menu = await screen.findByRole('navigation', { name: 'Organization menu' });
+    expect(menu.querySelectorAll('[aria-current]')).toHaveLength(0);
+  });
+
+  it('TC-56.4: no active org means no menu, also for an unavailable link', async () => {
+    await link(() => scenarios.onboarding('noOrgInvited'), 'not-a-uuid');
+    await screen.findByRole('heading', { name: 'This invitation is not available' });
+    expect(orgMenu()).toBeNull();
+  });
+
+  it('TC-56.5: a suspended active org means no menu, also when the read fails', async () => {
+    await link(() => {
+      applyShellScenario('suspendedOnly');
+      scenarios.serverError('me.getInvitation');
+    }, FOREIGN.invitationId);
+    expect(await screen.findByText('Internal server error')).toBeInTheDocument();
+    expect(orgMenu()).toBeNull();
+  });
+
+  it('TC-56.6: a member of the invitation org sees the active org menu, no current item', async () => {
+    await link(() => {
+      scenarios.onboarding('noOrgInvited');
+      const me = mockDb.state.users[0];
+      if (!me) throw new Error('no user');
+      mockDb.state.memberships = [
+        { userId: me.id, orgId: ids.org.alice, roleKey: 'owner' },
+        { userId: me.id, orgId: ids.org.acme, roleKey: 'member' },
+      ];
+      mockDb.state.auth = { signedIn: true, activeOrganizationId: ids.org.alice };
+    }, pendingId);
+    await screen.findByRole('heading', { level: 1, name: 'Join Acme Robotics' });
+    const menu = await screen.findByRole('navigation', { name: 'Organization menu' });
+    expect(menu.querySelectorAll('[aria-current]')).toHaveLength(0);
   });
 });

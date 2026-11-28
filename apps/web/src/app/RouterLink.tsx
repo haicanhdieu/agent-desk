@@ -24,5 +24,8 @@ export function splitHref(href: string): { to: string; search: Record<string, st
 
 export const RouterLink: LinkComponent = ({ href, ...rest }) => {
   const { to, search, hash } = splitHref(href);
-  return <TanStackAnchor {...rest} to={to} search={search} hash={hash || undefined} preload="intent" />;
+  // The router marks a link current (aria-current) by path prefix. A page that passes `aria-current` itself, even
+  // undefined, decides: such a link is active only on its exact path.
+  const own = Object.hasOwn(rest, 'aria-current') ? { activeOptions: { exact: true } } : {};
+  return <TanStackAnchor {...rest} {...own} to={to} search={search} hash={hash || undefined} preload="intent" />;
 };

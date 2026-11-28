@@ -16,21 +16,21 @@ const bodyRows = () => screen.getAllByRole('row').slice(1);
 describe('Platform org Projects tab', () => {
   it('BR-24: the side menu Projects link opens the section with its heading', async () => {
     const { user, router } = await renderRoute(`/platform/orgs/${ACME}`, { scenario: asAdmin });
-    const menu = await screen.findByRole('navigation', { name: 'Platform admin' });
+    const menu = await screen.findByRole('navigation', { name: 'Platform menu' });
     await user.click(await within(menu).findByRole('link', { name: 'Projects' }));
     await ready();
     expect(router.state.location.pathname).toBe(projectsPath);
     expect(within(menu).getByRole('link', { name: 'Projects' })).toHaveAttribute('aria-current', 'page');
   });
 
-  it('BR-25: shows the Id and Name columns only, each project as plain text with no link', async () => {
+  it('BR-25: shows the Name and Id columns only, each project as plain text with no link', async () => {
     await renderRoute(projectsPath, { scenario: asAdmin });
     await ready();
-    expect(screen.getAllByRole('columnheader').map((h) => h.textContent)).toEqual(['Id', 'Name']);
+    expect(screen.getAllByRole('columnheader').map((h) => h.textContent)).toEqual(['Name', 'Id']);
     const first = within(bodyRows()[0] as HTMLElement);
     expect(first.getAllByRole('cell').map((c) => c.textContent)).toEqual([
-      'b8100000-0000-4000-8000-000000000001',
       'Alpha',
+      'b8100000-0000-4000-8000-000000000001',
     ]);
     expect(first.queryByRole('link')).not.toBeInTheDocument();
     expect(first.queryByRole('button')).not.toBeInTheDocument();

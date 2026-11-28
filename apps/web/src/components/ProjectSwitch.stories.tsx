@@ -75,6 +75,13 @@ const menuStory = (menu: ProjectSwitchMenu): Story => ({
 
 /** The live switcher: the button opens the menu (Escape or an outside click closes it, arrow keys move). */
 export const WithMenu = menuStory({ status: 'ready', items });
-export const MenuLoading = menuStory({ status: 'loading' });
-export const MenuEmpty = menuStory({ status: 'ready', items: [] });
-export const MenuError = menuStory({ status: 'error', onRetry: () => undefined });
+export const MenuLoading = menuStory({ status: 'loading', allProjectsHref: '#', newProjectHref: '#' });
+export const MenuEmpty = menuStory({ status: 'ready', items: [], allProjectsHref: '#', newProjectHref: '#' });
+export const MenuError = menuStory({
+  status: 'error',
+  onRetry: () => undefined,
+  allProjectsHref: '#',
+  newProjectHref: '#',
+});
+export const MenuReadyWithNewProject = menuStory({ status: 'ready', items, allProjectsHref: '#', newProjectHref: '#' });
+export const MenuReadyWithoutNewProject = menuStory({ status: 'ready', items, allProjectsHref: '#' });

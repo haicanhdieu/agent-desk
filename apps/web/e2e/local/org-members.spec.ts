@@ -182,10 +182,9 @@ const roleDialog = (page: Page, name: string): Locator =>
   page.getByRole('dialog', { name: `Change access for ${name}` });
 const card = (scope: Locator, role: string): Locator => scope.getByRole('radio', { name: new RegExp(`^${role}`) });
 const okToast = (page: Page, title: string): Locator => page.getByRole('status').filter({ hasText: title });
+/** The first Settings item of the org menu: it is there for whoever may open any Settings page, and for no one else. */
 const settingsTab = (page: Page): Locator =>
-  page
-    .getByRole('navigation', { name: 'Organization sections' })
-    .getByRole('link', { name: 'Org settings', exact: true });
+  page.getByRole('navigation', { name: 'Organization menu' }).getByRole('link', { name: 'Members', exact: true });
 
 async function openMembers(page: Page, w: World): Promise<void> {
   await page.goto(membersUrl(w));
@@ -493,11 +492,11 @@ test('TC-6.2: after B is removed, B reloads: the removed org is not in the org m
     await expect(b.page.getByRole('heading', { level: 1, name: 'Projects' })).toBeVisible();
     await b.page.reload();
     await expect(b.page.getByRole('heading', { level: 1, name: 'Projects' })).toBeVisible();
-    await menuButtonOf.click();
-    const menu = b.page.getByRole('dialog', { name: 'Scope' });
-    await expect(menu).toBeVisible();
-    await expect(menu).toContainText(second.name);
-    await expect(menu).not.toContainText(w.org.name);
+    // After: B has one org left, so the bar has no scope menu to open: it shows that org's name and not the removed one's.
+    await expect(menuButtonOf).toHaveCount(0);
+    const bar = b.page.getByRole('banner').first();
+    await expect(bar.getByText(second.name, { exact: true })).toBeVisible();
+    await expect(bar.getByText(w.org.name, { exact: true })).toHaveCount(0);
 
     await b.page.goto(projectsUrl(w));
     await expect(b.page.getByText('Page not found')).toBeVisible();
@@ -637,11 +636,11 @@ test('TC-10.1: O invites B again as Viewer; B accepts and is listed with Viewer,
     await b.page.goto(runsUrl(w));
     await b.page.reload();
     await expect(b.page).toHaveURL(new RegExp(`/o/${w.org.slug}/p/${w.projectId}/runs$`));
-    await expect(b.page.getByRole('navigation', { name: 'Project sections' })).toBeVisible();
+    await expect(b.page.getByRole('navigation', { name: 'Project menu' })).toBeVisible();
     await expect(
       b.page
-        .getByRole('navigation', { name: 'Project sections' })
-        .getByRole('link', { name: 'Project settings', exact: true }),
+        .getByRole('navigation', { name: 'Project menu' })
+        .getByRole('link', { name: 'Routing rules', exact: true }),
     ).toHaveCount(0);
     const access = AccessDto.parse(await ok(await b.api.get('/api/me/access'), 200, 'B access'));
     const permissions = access.assignments.flatMap((a) => a.permissions.map((p) => p.permission));

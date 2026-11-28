@@ -1,8 +1,6 @@
 import { useState } from 'react';
 import { Banner, Button, Icon, StatusIcon } from '@/ds';
 import { CodeEditor, PluginList, SetupLayout, type PluginListProps } from '@/components';
-import type { Actor } from '@/mocks/types';
-import type { OrgSwitchProps } from '@/components';
 import { SETUP_SCRIPT_STARTER } from './DeskSetup';
 import { DEFAULT_CREDENTIAL_DETAIL, setupSteps, type SetupNav } from './setupSteps';
 import styles from './Screens.module.css';
@@ -13,9 +11,6 @@ export type SetupStepTest =
   | { state: 'passed' | 'failed'; title: string; detail: string };
 
 export interface SetupWorkspaceProps extends SetupNav {
-  user: Actor;
-  /** The org crumb and menu in the top bar. */
-  org?: OrgSwitchProps;
   projectName: string;
   repo: string;
   credentialDetail?: string;
@@ -66,9 +61,8 @@ function TestResult({ test, onViewLog }: { test: SetupStepTest; onViewLog?(): vo
 
 /** Onboarding step "Prepare workspace": the same editor, plugins and Test as the Desk Setup tab. */
 export function SetupWorkspace({
-  user,
-  org,
   projectName,
+  exitHref,
   repo,
   credentialDetail = DEFAULT_CREDENTIAL_DETAIL,
   script = SETUP_SCRIPT_STARTER,
@@ -87,9 +81,8 @@ export function SetupWorkspace({
   const [value, setValue] = useState(script);
   return (
     <SetupLayout
-      user={user}
-      org={org}
       projectName={projectName}
+      exitHref={exitHref}
       steps={setupSteps({ repo, credential: credentialDetail, withWorkspace: true })}
       current={2}
       stepLabel="Step 3 of 5, optional"

@@ -4,19 +4,19 @@ import { createFileRoute } from '@tanstack/react-router';
 import { useState } from 'react';
 import { toastFromError } from '@/app/boundaries';
 import { Button, Dialog, useToast } from '@/ds';
-import { sessionAccessQuery } from '@/features/access/queries';
+import { platformAdminQuery } from '@/features/access/queries';
 import { orgsQuery, sessionQuery } from '@/features/auth/session';
 import { signOutAndRedirect } from '@/features/auth/signOut';
 import { toInvitationCard } from '@/features/invitations/map';
 import { useAcceptInvitation, useDeclineInvitation } from '@/features/invitations/mutations';
 import { myInvitationsQuery } from '@/features/invitations/queries';
-import { useAppBar } from '@/features/chrome/appBar';
 import { MyInvitations, type MyInvitationsState } from '@/screens';
 
 // The welcome page, outside `/o/$org`: the signed-in person's pending invitations, or how to get one (the landing of
 // a person with no org). The session and memberships are read before render; the list and the access check show
 // their own loading and error states.
 export const Route = createFileRoute('/invitations/')({
+  staticData: { chrome: { mode: 'standard', scope: 'personal', crumb: 'My invitations' } },
   loader: ({ context: { queryClient } }) =>
     Promise.all([queryClient.ensureQueryData(sessionQuery), queryClient.ensureQueryData(orgsQuery)]).then(() => null),
   component: WelcomePage,
@@ -26,9 +26,10 @@ const noop = () => undefined;
 
 function WelcomePage() {
   const { data: session } = useSuspenseQuery(sessionQuery);
-  const bar = useAppBar(null);
+  const { data: orgs } = useSuspenseQuery(orgsQuery);
   const invitations = useQuery(myInvitationsQuery);
-  const access = useQuery(sessionAccessQuery);
+  // Session-wide (never pinned to the active org), so a suspended active org does not refuse it.
+  const access = useQuery(platformAdminQuery);
   const accept = useAcceptInvitation();
   const decline = useDeclineInvitation();
   const toast = useToast();
@@ -66,7 +67,7 @@ function WelcomePage() {
   } else if (access.data === undefined) {
     state = { kind: 'loading' };
   } else {
-    state = { kind: 'empty', email, platformAdmin, createHref: '/platform/orgs/new' };
+    state = { kind: 'empty', member: orgs.length > 0, email, platformAdmin, createHref: '/platform/orgs/new' };
   }
 
   const declineBusy = decline.isPending;
@@ -85,8 +86,6 @@ function WelcomePage() {
   return (
     <>
       <MyInvitations
-        user={bar.user}
-        org={bar.org}
         state={state}
         onAccept={(id) => accept.mutate(id, { onError: (e) => toast.show(toastFromError(e)) })}
         onDecline={(id) => {

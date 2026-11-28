@@ -1,3 +1,4 @@
+import { useQuery } from '@tanstack/react-query';
 import { createFileRoute, notFound, Outlet } from '@tanstack/react-router';
 import { z } from 'zod';
 import { projectsQueries } from '@/features/projects/queries';
@@ -24,5 +25,10 @@ function ProjectLayout() {
   const { org, project } = Route.useParams();
   // Run status changes in the project, for every project page (spec §5.2).
   useProjectEvents(org, project);
-  return <Outlet />;
+  // Watches the project read for the whole layout: when it stops being readable (403, 404) the query's `throwOnError`
+  // sends the answer to the route's boundary, so a project that was open from the cache is not left on screen.
+  useQuery(projectsQueries.detail(org, project));
+  // Keyed by the project id only, never by the search: switching project remounts the page, so nothing typed or
+  // opened for the old project (a draft, a dialog, a pane with a typed credential) survives; a search change keeps it.
+  return <Outlet key={project} />;
 }

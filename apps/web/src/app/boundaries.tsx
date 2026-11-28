@@ -1,21 +1,20 @@
 import { ApiError } from '@agentdesk/contracts/client';
-import { useQueryErrorResetBoundary } from '@tanstack/react-query';
+import { useQuery, useQueryErrorResetBoundary } from '@tanstack/react-query';
 import { useRouter, useRouterState, type ErrorComponentProps } from '@tanstack/react-router';
-import { useEffect } from 'react';
+import { useEffect, type ReactNode } from 'react';
 import {
   EmptyState,
-  NO_PAGE_CRUMBS,
   RouteLoadError,
   RouteSkeleton,
-  TopBar,
-  pageTitle,
-  useDocumentTitle,
+  useGoToProjectsHref,
+  useReportPageState,
+  type ShellPageState,
 } from '@/components';
 import { Button, type ToastInput } from '@/ds';
 import { ORG_SWITCHED_MESSAGE, isOrgMismatch } from '@/features/auth/orgResync';
 import { isOrgSuspendedError } from '@/features/auth/orgSuspended';
+import { orgsQuery } from '@/features/auth/session';
 import { signOutAndRedirect } from '@/features/auth/signOut';
-import { useAppBar } from '@/features/chrome/appBar';
 import { OrgSuspended } from '@/screens';
 import styles from './boundaries.module.css';
 
@@ -30,76 +29,87 @@ function useOrgSlug(): string | undefined {
 
 function ProjectsLink() {
   const org = useOrgSlug();
+  // The shell knows the org whose menu it shows; never lead back to an org the person is not in.
+  const href = useGoToProjectsHref() ?? (org ? `/o/${org}/projects` : '/');
   return (
-    <Button href={org ? `/o/${org}/projects` : '/'} variant="primary">
+    <Button href={href} variant="primary">
       Go to projects
     </Button>
   );
 }
 
+/** The one `main` of an error, forbidden, suspended or loading page; it tells the shell what the page shows. */
+function StatePage({
+  state,
+  centered = false,
+  children,
+}: {
+  state: ShellPageState;
+  centered?: boolean;
+  children: ReactNode;
+}) {
+  useReportPageState(state);
+  return <main className={centered ? `${styles.main} ${styles.centered}` : styles.main}>{children}</main>;
+}
+
 export function NotFound() {
-  useDocumentTitle(pageTitle({ crumbs: NO_PAGE_CRUMBS, state: 'notFound' }));
   return (
-    <div className={styles.page}>
+    <StatePage state="notFound" centered>
       <EmptyState
         title="Page not found"
+        headingLevel={1}
         body="This page does not exist, or it belongs to an organization you are not in."
         action={<ProjectsLink />}
       />
-    </div>
+    </StatePage>
   );
 }
 
-/** `titled={false}` when a TopBar rendered beside it already owns the page title (one title source per page). */
-export function Forbidden({ titled = true }: { titled?: boolean } = {}) {
-  useDocumentTitle(titled ? pageTitle({ crumbs: NO_PAGE_CRUMBS, state: 'forbidden' }) : undefined);
+export function Forbidden() {
   return (
-    <div className={styles.page}>
+    <StatePage state="forbidden" centered>
       <EmptyState
         title="You don't have access"
+        headingLevel={1}
         body="Ask an owner of this organization to give you access."
         action={<ProjectsLink />}
       />
-    </div>
-  );
-}
-
-/** The platform area for someone who is not a platform admin: the normal org top bar and no platform data. */
-export function PlatformForbidden() {
-  const bar = useAppBar(null);
-  return (
-    <>
-      <TopBar variant="global" crumbs={NO_PAGE_CRUMBS} state="forbidden" user={bar.user} org={bar.org} tabs="org" />
-      <div className={styles.page}>
-        <EmptyState
-          title="You don't have access"
-          headingLevel={1}
-          body="This area is for platform admins."
-          action={
-            <Button href="/projects" variant="primary">
-              Go to projects
-            </Button>
-          }
-        />
-      </div>
-    </>
+    </StatePage>
   );
 }
 
 /**
- * A member's view of a suspended org: the top bar (switcher included, so they can leave) and the fixed message. The
- * bar reads the session-wide data only, never the refused org-scoped access, and nothing of the org is loaded.
+ * The platform area for someone who is not a platform admin and no platform data. It reports "forbidden" and draws
+ * only the page: the shell owns the bar and, for a non-admin, shows no menu.
+ */
+export function PlatformForbidden() {
+  return (
+    <StatePage state="forbidden" centered>
+      <EmptyState
+        title="You don't have access"
+        headingLevel={1}
+        body="This area is for platform admins."
+        action={
+          <Button href="/projects" variant="primary">
+            Go to projects
+          </Button>
+        }
+      />
+    </StatePage>
+  );
+}
+
+/**
+ * A member's view of a suspended org: the fixed message in the page's one main. The shell draws the bar (switcher
+ * included when there is something to choose, so they can leave) from the session-wide data only, never the refused
+ * org-scoped access, and nothing of the org is loaded.
  */
 export function SuspendedOrgPage() {
   const slug = useOrgSlug();
-  const bar = useAppBar(null);
-  const name = bar.org.orgs.find((o) => o.slug === slug)?.name ?? 'this organization';
-  return (
-    <>
-      <TopBar variant="global" crumbs={NO_PAGE_CRUMBS} user={bar.user} org={bar.org} tabs="org" />
-      <OrgSuspended orgName={name} />
-    </>
-  );
+  const orgs = useQuery(orgsQuery).data;
+  const name = orgs?.find((o) => o.slug === slug)?.name ?? 'this organization';
+  useReportPageState('suspended');
+  return <OrgSuspended orgName={name} />;
 }
 
 /** Full-page fallback for crashes. Shows the request id so a bug report can be matched to server logs. */
@@ -133,12 +143,14 @@ export function LoaderErrorBanner({ error }: { error: ApiError }) {
   // Let suspense queries that failed fetch again when the route re-renders.
   useEffect(() => queryReset.reset(), [queryReset]);
   return (
-    <RouteLoadError
-      title={error.title}
-      detail={error.detail}
-      requestId={error.requestId}
-      onRetry={() => void router.invalidate()}
-    />
+    <StatePage state="error">
+      <RouteLoadError
+        title={error.title}
+        detail={error.detail}
+        requestId={error.requestId}
+        onRetry={() => void router.invalidate()}
+      />
+    </StatePage>
   );
 }
 
@@ -155,12 +167,20 @@ export function RouteError({ error }: ErrorComponentProps) {
     if (error.status === 403) return isOrgSuspendedError(error) ? <SuspendedOrgPage /> : <Forbidden />;
     if (error.status === 0 || error.status >= 500) return <LoaderErrorBanner error={error} />;
   }
-  return <RootErrorBoundary error={error} />;
+  return (
+    <StatePage state="error" centered>
+      <RootErrorBoundary error={error} />
+    </StatePage>
+  );
 }
 
 /** Shown when a route takes longer than 300 ms to load. Areas replace it with their own skeletons. */
 export function RoutePending() {
-  return <RouteSkeleton />;
+  return (
+    <StatePage state="loading">
+      <RouteSkeleton />
+    </StatePage>
+  );
 }
 
 /** Toast for an inline mutation error: the problem title (and detail) for API errors. */

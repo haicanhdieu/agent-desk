@@ -4,6 +4,7 @@ import {
   DataTable,
   EmptyState,
   Pagination,
+  PageHeader,
   PlatformOrgRow,
   RouteLoadError,
   platformOrgColumns,
@@ -43,7 +44,7 @@ export function PlatformOrgs({ view, filters, onSearch, onStatus, onClearFilters
   const showFilters = view.kind !== 'error' && !(empty && !filters.active);
 
   return (
-    <main className={styles.platformMain}>
+    <main className={styles.shellMain}>
       {view.kind === 'loading' && (
         <div className={styles.platformLoading} aria-busy="true" role="status" aria-label="Loading">
           <span aria-hidden="true">
@@ -59,12 +60,14 @@ export function PlatformOrgs({ view, filters, onSearch, onStatus, onClearFilters
       {view.kind === 'error' && <RouteLoadError title={view.title} requestId={view.requestId} onRetry={view.onRetry} />}
       {view.kind === 'ready' && (
         <>
-          <div className={styles.listHead}>
-            <h1 tabIndex={-1}>Organizations</h1>
-            <Button variant="primary" icon="plus" href={createHref}>
-              Create organization
-            </Button>
-          </div>
+          <PageHeader
+            title="Organizations"
+            actions={
+              <Button variant="primary" icon="plus" href={createHref}>
+                Create organization
+              </Button>
+            }
+          />
           {showFilters && (
             <div className={styles.platformFilters}>
               <TextInput

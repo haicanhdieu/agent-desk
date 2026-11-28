@@ -26,7 +26,7 @@ export function DeleteAgentDialog(props: DeleteAgentDialogProps) {
   return (
     <Dialog
       open
-      title={`Delete agent ${name}?`}
+      title={<span className={styles.dialogName}>{`Delete agent ${name}?`}</span>}
       onClose={deleting ? () => undefined : onKeep}
       footer={
         blocked ? (

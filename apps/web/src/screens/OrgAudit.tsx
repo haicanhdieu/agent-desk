@@ -5,6 +5,7 @@ import {
   DataTable,
   EmptyState,
   Pagination,
+  PageHeader,
   RouteLoadError,
   type PaginationProps,
 } from '@/components';
@@ -33,7 +34,7 @@ export function OrgAudit({ state }: OrgAuditProps) {
   }
 
   return (
-    <main className={styles.listMain}>
+    <main className={styles.shellMain}>
       {state.kind === 'loading' && (
         <div className={styles.membersLoading} aria-busy="true" role="status" aria-label="Loading">
           <span aria-hidden="true">
@@ -51,9 +52,7 @@ export function OrgAudit({ state }: OrgAuditProps) {
       )}
       {state.kind === 'ready' && (
         <>
-          <div className={styles.listHead}>
-            <h1 tabIndex={-1}>Audit log</h1>
-          </div>
+          <PageHeader title="Audit log" />
           <DataTable columns={auditColumns} busy={state.pagination?.busy}>
             {state.rows.map((row) => (
               <AuditRow key={row.id} row={row} />

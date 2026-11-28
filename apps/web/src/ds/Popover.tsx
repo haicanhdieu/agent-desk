@@ -1,4 +1,4 @@
-import { useRef, type CSSProperties, type ReactNode } from 'react';
+import { useRef, type CSSProperties, type KeyboardEvent, type ReactNode } from 'react';
 import { useFocusTrap } from './useFocusTrap';
 import styles from './Overlay.module.css';
 
@@ -8,6 +8,8 @@ export interface PopoverProps {
   /** Id of the popover element, for a trigger's `aria-controls`. */
   id?: string;
   onClose?(): void;
+  /** Key presses inside the popover, including those while its own root holds focus (nothing to focus yet). */
+  onKeyDown?(e: KeyboardEvent<HTMLDivElement>): void;
   role?: 'dialog' | 'menu' | 'status';
   style?: CSSProperties;
   width?: number;
@@ -15,7 +17,17 @@ export interface PopoverProps {
 }
 
 /** Non-modal card positioned by the caller via `style`. */
-export function Popover({ open, label, id, onClose, role = 'dialog', style, width, children }: PopoverProps) {
+export function Popover({
+  open,
+  label,
+  id,
+  onClose,
+  onKeyDown,
+  role = 'dialog',
+  style,
+  width,
+  children,
+}: PopoverProps) {
   const ref = useRef<HTMLDivElement>(null);
   const managesFocus = role !== 'status';
   useFocusTrap(ref, {
@@ -32,6 +44,7 @@ export function Popover({ open, label, id, onClose, role = 'dialog', style, widt
       className={styles.pop}
       role={role}
       aria-label={label}
+      onKeyDown={onKeyDown}
       style={{ ...(width ? { width } : null), ...style }}
     >
       {children}

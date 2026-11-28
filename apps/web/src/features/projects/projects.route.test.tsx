@@ -13,6 +13,7 @@ import { mockDb } from '@/mocks/msw/db';
 import { jsonResponse, problemResponse } from '@/mocks/msw/http';
 import { server } from '@/mocks/msw/node';
 import { scenarios } from '@/mocks/msw/scenarios';
+import { applyShellScenario, FOREIGN } from '@/mocks/msw/shellScenarios';
 import { renderRoute } from '@/test/renderRoute';
 import { createElement, type ReactNode } from 'react';
 import { useReplaceCredential } from '../desk/agent.form';
@@ -40,7 +41,16 @@ describe('projects route', () => {
     expect(link).toHaveAttribute('href', `/o/alice/p/${ids.project.docsSite}/desk/agent?tab=github`);
   });
 
-  it('the More menu of a project offers Runs and Settings links and an enabled Delete project', async () => {
+  it('BR-75: the intro reads the new sentence and does not mention the last used project', async () => {
+    await renderRoute('/o/alice/projects');
+    await screen.findByRole('link', { name: 'invoicer-web' });
+    expect(
+      screen.getByText('After sign-in you land on this list. It is one click away on the logo.'),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/last used/i)).not.toBeInTheDocument();
+  });
+
+  it('the More menu of a project offers Runs and Agent & settings links and an enabled Delete project', async () => {
     await renderRoute('/o/alice/projects');
     const more = await screen.findByRole('button', { name: 'More for invoicer-api' });
     await userEvent.click(more);
@@ -49,10 +59,11 @@ describe('projects route', () => {
       'href',
       `/o/alice/p/${ids.project.invoicerApi}/runs`,
     );
-    expect(within(menu).getByRole('link', { name: 'Settings' })).toHaveAttribute(
+    expect(within(menu).getByRole('link', { name: 'Agent & settings' })).toHaveAttribute(
       'href',
       `/o/alice/p/${ids.project.invoicerApi}/desk/agent`,
     );
+    expect(within(menu).queryByRole('link', { name: 'Settings' })).not.toBeInTheDocument();
     expect(within(menu).getByRole('button', { name: 'Delete project' })).toBeEnabled();
   });
 
@@ -416,28 +427,37 @@ describe('projects route controls by role', () => {
     expect(within(main).queryByRole('link', { name: /^(Org settings|Invitations)$/ })).toBeNull();
     expect(within(main).queryByRole('button', { name: /^(Org settings|Invitations)$/ })).toBeNull();
   };
-  const mainTabs = () => within(screen.getByRole('banner')).getByRole('navigation', { name: 'Organization sections' });
+  const orgMenu = () => within(screen.getByRole('navigation', { name: 'Organization menu' }));
+  const menuItems = () =>
+    orgMenu()
+      .getAllByRole('link')
+      .map((a) => a.textContent);
+  const ALL_ITEMS = ['Projects', 'Members', 'Invitations', 'Audit log', 'General'];
 
-  it.each(['owner', 'orgAdmin', 'projectAdmin'] as const)(
-    'TC-43.1, TC-49.1 to TC-49.3: a %s sees the Projects and Settings tabs, Projects active, and no header button',
-    async (name) => {
+  it.each([
+    ['owner', ALL_ITEMS],
+    ['orgAdmin', ALL_ITEMS],
+    ['projectAdmin', ['Projects', 'Invitations']],
+  ] as const)(
+    'TC-43.1, TC-49.1 to TC-49.3: a %s sees the Projects and Settings items of the org menu, Projects current, and no header button',
+    async (name, items) => {
       await renderRoute('/o/acme/projects', { scenario: () => scenarios.onboarding(name) });
       await screen.findByRole('link', { name: 'invoicer-api' });
-      const settings = await within(mainTabs()).findByRole('link', { name: 'Org settings' });
-      expect(settings).toHaveAttribute('href', '/o/acme/settings');
-      expect(within(mainTabs()).getAllByRole('link')).toHaveLength(2);
-      expect(within(mainTabs()).getByRole('link', { name: 'Projects' })).toHaveAttribute('aria-current', 'page');
+      await orgMenu().findByRole('link', { name: 'Invitations' });
+      expect(menuItems()).toEqual(items);
+      expect(orgMenu().getByRole('link', { name: 'Projects' })).toHaveAttribute('aria-current', 'page');
       expectNoHeaderButtons();
     },
   );
 
   it.each(['member', 'viewer'] as const)(
-    'TC-43.3, TC-49.4, TC-49.5, BR-20: a %s sees only the Projects tab, no Settings, no Invitations and no New project',
+    'TC-43.3, TC-49.4, TC-49.5, BR-20: a %s sees only the Projects item, no Settings, no Invitations and no New project',
     async (name) => {
       await renderRoute('/o/acme/projects', { scenario: () => scenarios.onboarding(name) });
       await screen.findByRole('link', { name: 'invoicer-api' });
-      expect(within(mainTabs()).getAllByRole('link')).toHaveLength(1);
-      expect(within(mainTabs()).getByRole('link', { name: 'Projects' })).toHaveAttribute('aria-current', 'page');
+      expect(menuItems()).toEqual(['Projects']);
+      expect(orgMenu().getByRole('link', { name: 'Projects' })).toHaveAttribute('aria-current', 'page');
+      expect(orgMenu().queryByText('Settings')).toBeNull();
       expect(screen.queryByRole('link', { name: /^(Org settings|Invitations)$/ })).toBeNull();
       expect(screen.queryByRole('link', { name: /New project/ })).toBeNull();
     },
@@ -446,7 +466,7 @@ describe('projects route controls by role', () => {
   it('TC-49.6: an owner of an org with no projects sees no Settings or Invitations button', async () => {
     await renderRoute('/o/acme/projects', { scenario: () => scenarios.onboarding('checklistNoProject') });
     await screen.findByRole('heading', { name: 'Create your first project' });
-    await within(mainTabs()).findByRole('link', { name: 'Org settings' });
+    await orgMenu().findByRole('link', { name: 'Members' });
     expect(within(screen.getByRole('main')).queryByRole('link', { name: /^(Org settings|Invitations)$/ })).toBeNull();
     expect(screen.getByRole('link', { name: /Create project/ })).toBeVisible();
   });
@@ -844,5 +864,70 @@ describe('setup rules step: Skip', () => {
     );
     expect(next.setupStep).toBe('ready');
     expect(ruleCalls).toBe(0);
+  });
+});
+
+describe('projects route resume setup', () => {
+  const resumeLink = (name: string) => screen.queryByRole('link', { name: `Resume setup for ${name}` });
+  const asRole = (roleKey: string) => {
+    applyShellScenario('unfinishedProjects');
+    const seat = mockDb.state.memberships.find((m) => m.userId === ids.user.alice && m.orgId === ids.org.alice);
+    if (!seat) throw new Error('no seat');
+    seat.roleKey = roleKey;
+    return seat;
+  };
+
+  it('TC-77.1 BR-78: an owner gets Resume setup on each unfinished project, to its own first unfinished step', async () => {
+    applyShellScenario('unfinishedProjects');
+    await renderRoute('/o/alice/projects');
+    await screen.findByRole('link', { name: 'invoicer-api' });
+    expect(resumeLink('invoicer-api')).toHaveAttribute(
+      'href',
+      `/o/alice/projects/new/agent?project=${ids.project.invoicerApi}`,
+    );
+    expect(resumeLink('invoicer-web')).toHaveAttribute(
+      'href',
+      `/o/alice/projects/new/skills?project=${ids.project.invoicerWeb}`,
+    );
+  });
+
+  it('TC-77.1: an org admin gets Resume setup', async () => {
+    asRole('admin');
+    await renderRoute('/o/alice/projects');
+    await screen.findByRole('link', { name: 'invoicer-api' });
+    expect(resumeLink('invoicer-api')).toBeInTheDocument();
+  });
+
+  it('TC-77.2: finished projects have no Resume setup', async () => {
+    await renderRoute('/o/acme/projects', { scenario: () => scenarios.onboarding('owner') });
+    await screen.findByRole('link', { name: 'invoicer-api' });
+    expect(screen.queryAllByRole('link', { name: /^Resume setup for / })).toHaveLength(0);
+  });
+
+  it.each(['member', 'viewer'])('TC-77.3: a %s sees the unfinished project without Resume setup', async (role) => {
+    asRole(role);
+    await renderRoute('/o/alice/projects');
+    await screen.findByRole('link', { name: 'invoicer-api' });
+    expect(screen.queryAllByRole('link', { name: /^Resume setup for / })).toHaveLength(0);
+  });
+
+  it('TC-77.4: an admin of only the unfinished project gets no Resume setup', async () => {
+    const seat = asRole('member');
+    seat.projectIds = [ids.project.invoicerApi];
+    seat.projectRoles = [{ projectId: ids.project.invoicerApi, roleKey: 'admin' }];
+    await renderRoute('/o/alice/projects');
+    await screen.findByRole('link', { name: 'invoicer-api' });
+    expect(screen.queryAllByRole('link', { name: /^Resume setup for / })).toHaveLength(0);
+  });
+
+  it('another org project never gets a link', async () => {
+    applyShellScenario('foreignOrg');
+    const foreign = mockDb.state.projects.find((p) => p.id === FOREIGN.projectId);
+    if (!foreign) throw new Error('no foreign project');
+    foreign.setupStep = 'agent';
+    await renderRoute('/o/alice/projects');
+    await screen.findByRole('link', { name: 'invoicer-api' });
+    expect(screen.queryByText(FOREIGN.projectName)).toBeNull();
+    expect(screen.queryAllByRole('link', { name: /^Resume setup for / })).toHaveLength(0);
   });
 });

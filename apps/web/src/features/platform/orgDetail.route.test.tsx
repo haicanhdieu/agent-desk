@@ -57,7 +57,7 @@ describe('Platform org detail', () => {
     for (const term of ['Slug', 'Owner', 'Members', 'Projects', 'Last activity', 'Created', 'Status']) {
       expect(within(screen.getByRole('main')).getByText(term)).toBeInTheDocument();
     }
-    const menu = screen.getByRole('navigation', { name: 'Platform admin' });
+    const menu = screen.getByRole('navigation', { name: 'Platform menu' });
     expect(within(menu).getByText('Acme')).toBeInTheDocument();
     for (const name of ['Overview', 'Projects', 'Members', 'Invitations']) {
       expect(within(menu).getByRole('link', { name })).toBeInTheDocument();
@@ -223,8 +223,8 @@ describe('Platform org detail', () => {
     expect(queryClient.getQueryData(platformKeys.org(ACME))).toMatchObject({ status: 'suspended' });
     // The directory's cached pages are stale: opening it shows the new status.
     await user.click(
-      within(screen.getByRole('navigation', { name: 'Platform sections' })).getByRole('link', {
-        name: 'Organizations',
+      within(screen.getByRole('navigation', { name: 'Platform menu' })).getByRole('link', {
+        name: /Organizations/,
       }),
     );
     const row = (await screen.findByRole('link', { name: 'Acme' })).closest('tr');

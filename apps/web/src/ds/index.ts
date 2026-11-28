@@ -45,3 +45,5 @@ export { LinkProvider, useLink, AppLink, type LinkComponent } from './Link';
 export { Skeleton, type SkeletonProps } from './Skeleton';
 export { Toast, ToastProvider, ToastRegion, useToast, type ToastInput, type ToastProps } from './Toast';
 export { Tabs, TabPanel, type TabsProps, type TabPanelProps } from './Tabs';
+export { Drawer, type DrawerProps } from './Drawer';
+export { useMediaQuery, BELOW_DESKTOP, PHONE } from './useMediaQuery';

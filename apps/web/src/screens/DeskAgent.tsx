@@ -1,10 +1,16 @@
-import { useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { TabPanel, Tabs } from '@/ds';
-import { AppShell, type AgentListProps, type AgentPaneProps, type DeleteAgentDialogProps } from '@/components';
+import {
+  AgentPane,
+  PageHeader,
+  type AgentListProps,
+  type AgentPaneProps,
+  type DeleteAgentDialogProps,
+} from '@/components';
 import { DEFAULT_POLL_INTERVAL } from '@/mocks/connection';
 import type { ConnectionStatus, PollInterval, TriggerMode } from '@/mocks/types';
 import styles from './Screens.module.css';
-import { DeskFrame, type DeskFrameData } from './DeskFrame';
+import { SetupWarningBanner, type DeskFrameData } from './DeskFrame';
 import {
   AgentsPanel,
   DangerPanel,
@@ -29,10 +35,8 @@ const TABS: { value: DeskAgentTab; label: string }[] = [
 ];
 
 export interface DeskAgentProps {
-  /** Top bar and Desk navigation data. */
+  /** The project, its connection and the setup warning. */
   frame: DeskFrameData;
-  /** `'viewport'` fits the page to the window (the app route): only the open tab's panel scrolls. */
-  height?: 'viewport';
   /** The open tab; without it the screen keeps its own, starting on `agents`. */
   tab?: DeskAgentTab;
   onTabChange?(tab: DeskAgentTab): void;
@@ -97,7 +101,6 @@ function LimitsTab({ limits, ...panel }: { limits: AgentLimits } & Omit<LimitsPa
 
 export function DeskAgent({
   frame,
-  height,
   tab,
   onTabChange,
   agents = NO_LIST,
@@ -142,62 +145,69 @@ export function DeskAgent({
     onTriggerChange?.(next);
   };
 
-  const page = (
-    <DeskFrame active="agent" {...frame} connection={connection ?? frame.connection}>
-      <main className={styles.agentSettingsMain}>
-        <div className={styles.agentHead}>
-          <h1>Agent &amp; settings</h1>
-        </div>
-        <div className={styles.agentTabs}>
-          <Tabs
-            tabs={tabs}
-            value={active}
-            onChange={changeTab}
-            label="Agent and project settings"
-            idPrefix={TAB_PREFIX}
-          />
-        </div>
-        <TabPanel value="agents" active={active} idPrefix={TAB_PREFIX}>
-          <AgentsPanel list={agents} pane={pane} deleteDialog={deleteDialog} />
-        </TabPanel>
-        <TabPanel value="github" active={active} idPrefix={TAB_PREFIX}>
-          <GitHubPanel
-            state={githubState}
-            error={githubError}
-            onRetry={onRetryGithub}
-            items={github}
-            mode={mode}
-            interval={interval}
-            onTriggerChange={pick}
-            triggerError={triggerError}
-            onCheckNow={onCheckNow}
-            checkingNow={checkingNow}
-            checkNowError={checkNowError}
-          />
-        </TabPanel>
-        <TabPanel value="limits" active={active} idPrefix={TAB_PREFIX}>
-          <LimitsTab
-            limits={limits}
-            onSave={onSaveLimits}
-            errors={limitsErrors}
-            error={limitsError}
-            saving={savingLimits}
-            readOnly={limitsReadOnly}
-          />
-        </TabPanel>
-        {onDeleteProject && (
-          <TabPanel value="danger" active={active} idPrefix={TAB_PREFIX}>
-            <DangerPanel onDeleteProject={onDeleteProject} />
-          </TabPanel>
-        )}
-      </main>
-    </DeskFrame>
+  // The strip scrolls sideways inside itself on a phone: keep the selected tab in view without moving the page.
+  const stripRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    stripRef.current
+      ?.querySelector<HTMLElement>('[role="tab"][aria-selected="true"]')
+      ?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+  }, [active]);
+
+  const paneOpen = active === 'agents' && pane !== undefined;
+  const lead = frame.warning ? <SetupWarningBanner warning={frame.warning} /> : undefined;
+  const strip = (
+    <div ref={stripRef} className={styles.agentTabs}>
+      <Tabs tabs={tabs} value={active} onChange={changeTab} label="Agent and project settings" idPrefix={TAB_PREFIX} />
+    </div>
   );
-  return height === 'viewport' ? (
-    <AppShell height="viewport" topBar={null}>
-      {page}
-    </AppShell>
-  ) : (
-    page
+  const panels = (
+    <>
+      <TabPanel value="agents" active={active} idPrefix={TAB_PREFIX}>
+        <AgentsPanel list={agents} deleteDialog={deleteDialog} lead={lead} />
+      </TabPanel>
+      <TabPanel value="github" active={active} idPrefix={TAB_PREFIX}>
+        <GitHubPanel
+          state={githubState}
+          error={githubError}
+          onRetry={onRetryGithub}
+          items={github}
+          mode={mode}
+          interval={interval}
+          onTriggerChange={pick}
+          triggerError={triggerError}
+          onCheckNow={onCheckNow}
+          checkingNow={checkingNow}
+          checkNowError={checkNowError}
+          lead={lead}
+        />
+      </TabPanel>
+      <TabPanel value="limits" active={active} idPrefix={TAB_PREFIX}>
+        <LimitsTab
+          limits={limits}
+          onSave={onSaveLimits}
+          errors={limitsErrors}
+          error={limitsError}
+          saving={savingLimits}
+          readOnly={limitsReadOnly}
+          lead={lead}
+        />
+      </TabPanel>
+      {onDeleteProject && (
+        <TabPanel value="danger" active={active} idPrefix={TAB_PREFIX}>
+          <DangerPanel onDeleteProject={onDeleteProject} lead={lead} />
+        </TabPanel>
+      )}
+    </>
+  );
+  // The shell draws the bar and the menu: one main holding the column (header, tabs, panel) and the side pane.
+  return (
+    <main className={styles.shellSplitMain} data-pane-open={paneOpen || undefined}>
+      <div className={`${styles.agentSettingsMain} ${styles.shellSplitCol}`}>
+        <PageHeader title="Agent & settings" />
+        {strip}
+        {panels}
+      </div>
+      {paneOpen && <AgentPane key={`${pane.mode}-${pane.agent?.id ?? 'new'}`} {...pane} />}
+    </main>
   );
 }

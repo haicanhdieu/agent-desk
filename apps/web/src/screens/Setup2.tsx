@@ -9,8 +9,7 @@ import {
   type ModelList,
   type ProviderPickerOption,
 } from '@/components';
-import type { Actor, AgentKindView } from '@/mocks/types';
-import type { OrgSwitchProps } from '@/components';
+import type { AgentKindView } from '@/mocks/types';
 import { setupSteps, type SetupNav } from './setupSteps';
 import styles from './Screens.module.css';
 
@@ -38,9 +37,6 @@ const NONE_CHOSEN = 'Pick an agent to continue.';
 const LEAVE_LINE = 'Not ready yet? You can leave setup and come back; the project keeps your progress.';
 
 export interface Setup2Props extends SetupNav {
-  user: Actor;
-  /** The org crumb and menu in the top bar. */
-  org?: OrgSwitchProps;
   projectName: string;
   repo: string;
   /** The runnable providers with their capability rows; the step names no provider itself. */
@@ -85,9 +81,8 @@ export interface Setup2Props extends SetupNav {
 }
 
 export function Setup2({
-  user,
-  org,
   projectName,
+  exitHref,
   repo,
   kinds,
   providers,
@@ -213,9 +208,8 @@ export function Setup2({
     : { label: 'Continue', href: nextHref };
   return (
     <SetupLayout
-      user={user}
-      org={org}
       projectName={projectName}
+      exitHref={exitHref}
       steps={setupSteps({ repo, withWorkspace: true })}
       current={1}
       stepLabel="Step 2 of 5"
@@ -248,7 +242,11 @@ export function Setup2({
             <Field label="Credential type" labelAs="span">
               {({ labelId }) => (
                 <>
-                  <div className={styles.grid2Gap10} role="radiogroup" aria-labelledby={labelId}>
+                  <div
+                    className={`${styles.grid2Gap10} ${styles.stackPhone}`}
+                    role="radiogroup"
+                    aria-labelledby={labelId}
+                  >
                     {cap.credentialTypes.map((t) => (
                       <RadioCard
                         key={t.type}
@@ -313,7 +311,7 @@ export function Setup2({
               {testFailed.message}
             </Banner>
           )}
-          <div className={styles.grid2Gap16}>
+          <div className={`${styles.grid2Gap16} ${styles.stackPhone}`}>
             <ModelPicker
               label="Default model"
               list={list}

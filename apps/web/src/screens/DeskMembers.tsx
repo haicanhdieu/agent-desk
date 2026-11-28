@@ -1,4 +1,4 @@
-import { useEffect, useRef, type ReactNode, type Ref } from 'react';
+import { useEffect, useRef, type ReactNode } from 'react';
 import { Button, Dialog, Skeleton, Toast, ToastRegion } from '@/ds';
 import {
   DataTable,
@@ -14,7 +14,7 @@ import styles from './Screens.module.css';
 import { DeskFrame, type DeskFrameData } from './DeskFrame';
 
 export interface DeskMembersProps {
-  /** Top bar and Desk navigation data. */
+  /** The project, its connection and the setup warning. */
   frame: DeskFrameData;
   orgName: string;
   projectName: string;
@@ -26,7 +26,6 @@ export interface DeskMembersProps {
   onInvite: () => void;
   onChangeRole: (row: ProjectMemberRowView) => void;
   onRemove: (row: ProjectMemberRowView) => void;
-  headingRef?: Ref<HTMLHeadingElement>;
   /** Stories only: render this person's row menu open. */
   openMenuUserId?: string;
   /** The outcome of the last action, shown as a dismissible toast. */
@@ -55,7 +54,6 @@ export function DeskMembers({
   onInvite,
   onChangeRole,
   onRemove,
-  headingRef,
   openMenuUserId,
   notice,
   removeConfirm,
@@ -75,9 +73,27 @@ export function DeskMembers({
     button.click();
   }, [menuRow, state]);
 
+  const invite = <Button onClick={onInvite}>Invite people</Button>;
+  const add = (
+    <Button variant="primary" onClick={onAdd}>
+      Add member
+    </Button>
+  );
   return (
-    <DeskFrame {...frame} active="members">
-      <main className={styles.listMain}>
+    <DeskFrame
+      {...frame}
+      active="members"
+      title={state.kind === 'ready' ? 'Members' : undefined}
+      actions={
+        state.kind === 'ready' ? (
+          <>
+            {invite}
+            {state.rows.length > 0 && add}
+          </>
+        ) : undefined
+      }
+    >
+      <div className={styles.shellBody}>
         {state.kind === 'loading' && (
           <div className={styles.membersLoading} aria-busy="true" role="status" aria-label="Loading">
             <span aria-hidden="true">
@@ -95,19 +111,6 @@ export function DeskMembers({
         )}
         {state.kind === 'ready' && (
           <>
-            <div className={styles.listHead}>
-              <h1 ref={headingRef} tabIndex={-1}>
-                Members
-              </h1>
-              <div className={styles.listHeadActions}>
-                <Button onClick={onInvite}>Invite people</Button>
-                {state.rows.length > 0 && (
-                  <Button variant="primary" onClick={onAdd}>
-                    Add member
-                  </Button>
-                )}
-              </div>
-            </div>
             <p className="muted">
               People with access to this project. A role in {orgName} also applies here. Those people are labelled
               Organization and are managed in {orgName} Settings, Members.
@@ -140,7 +143,7 @@ export function DeskMembers({
             {state.pagination && <Pagination {...state.pagination} />}
           </>
         )}
-      </main>
+      </div>
       {children}
       {removeConfirm && (
         <Dialog

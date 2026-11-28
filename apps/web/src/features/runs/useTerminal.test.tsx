@@ -66,7 +66,7 @@ function setup(opts: { enabled?: boolean } = {}) {
   const qc = new QueryClient();
   qc.setQueryData(runsQueries.detail(org, projectId, 62).queryKey, fixture(62));
   const write = vi.fn<LiveTerminalHandle['write']>();
-  const term: RefObject<LiveTerminalHandle | null> = { current: { write } };
+  const term: RefObject<LiveTerminalHandle | null> = { current: { write, sendKey: vi.fn() } };
   const hook = renderHook(({ enabled }: { enabled: boolean }) => useTerminal(runId(62), enabled, term, run), {
     wrapper: wrapperFor(qc),
     initialProps: { enabled: opts.enabled ?? true },
@@ -541,7 +541,7 @@ describe('closing an unused tab', () => {
     vi.useFakeTimers();
     let answer: (stillActive: boolean) => void = () => undefined;
     const onSessionEnd = () => new Promise<boolean>((resolve) => (answer = resolve));
-    const term: RefObject<LiveTerminalHandle | null> = { current: { write: vi.fn() } };
+    const term: RefObject<LiveTerminalHandle | null> = { current: { write: vi.fn(), sendKey: vi.fn() } };
     const hook = renderHook(() => useTerminalSocket('/api/runs/x/terminal', true, term, onSessionEnd, true), {
       wrapper: wrapperFor(new QueryClient()),
     });
@@ -571,7 +571,7 @@ describe('closing an unused tab', () => {
 
   it('a terminal that did not opt in (the setup test) is never closed for inactivity', () => {
     vi.useFakeTimers();
-    const term: RefObject<LiveTerminalHandle | null> = { current: { write: vi.fn() } };
+    const term: RefObject<LiveTerminalHandle | null> = { current: { write: vi.fn(), sendKey: vi.fn() } };
     const hook = renderHook(() => useTerminalSocket('/api/setup-tests/x/terminal', true, term, () => undefined), {
       wrapper: wrapperFor(new QueryClient()),
     });
@@ -586,7 +586,7 @@ describe('useTerminalSocket', () => {
   const path = '/api/setup-tests/3f2b9c1e-0000-4000-8000-000000000001/terminal';
   const socketSetup = (onSessionEnd: () => void | Promise<boolean>) => {
     const write = vi.fn<LiveTerminalHandle['write']>();
-    const term: RefObject<LiveTerminalHandle | null> = { current: { write } };
+    const term: RefObject<LiveTerminalHandle | null> = { current: { write, sendKey: vi.fn() } };
     const hook = renderHook(() => useTerminalSocket(path, true, term, onSessionEnd), {
       wrapper: wrapperFor(new QueryClient()),
     });

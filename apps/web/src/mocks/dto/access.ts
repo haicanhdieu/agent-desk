@@ -22,6 +22,9 @@ const roleId = {
   member: uuid('b1000000', 3),
   viewer: uuid('b1000000', 4),
   setupReader: uuid('b1000000', 5),
+  projectCreator: uuid('b1000000', 6),
+  auditReader: uuid('b1000000', 7),
+  orgUpdater: uuid('b1000000', 8),
 };
 
 const TENANT_PERMISSIONS = Permission.options.filter((p) => !isPlatformPermission(p));
@@ -78,6 +81,32 @@ export const roleFixtures: RoleDto[] = [
     builtIn: false,
     assignableScopes: ['org', 'project'],
     permissions: (['project:read', 'setup:read'] as const).map(any),
+  },
+  // Test fixtures for the shell scenarios (shellScenarios.ts), none a built-in role: a creator that cannot read agents,
+  // and two roles that hold one org settings right each, so the org menu shows a single item.
+  {
+    id: roleId.projectCreator,
+    key: 'project-creator',
+    name: 'Project creator',
+    builtIn: false,
+    assignableScopes: ['org'],
+    permissions: (['project:create', 'project:read', 'connection:read'] as const).map(any),
+  },
+  {
+    id: roleId.auditReader,
+    key: 'audit-reader',
+    name: 'Audit reader',
+    builtIn: false,
+    assignableScopes: ['org'],
+    permissions: [any('audit:read')],
+  },
+  {
+    id: roleId.orgUpdater,
+    key: 'org-updater',
+    name: 'Org updater',
+    builtIn: false,
+    assignableScopes: ['org'],
+    permissions: [any('org:update')],
   },
 ];
 

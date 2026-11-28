@@ -68,6 +68,8 @@ export interface MockMembership {
   orgId: string;
   roleKey: string;
   projectIds?: string[];
+  /** One role per project when a seat holds different roles on different projects; `projectIds` still says which projects it reaches. */
+  projectRoles?: { projectId: string; roleKey: string }[];
 }
 
 /** An invitation row; `status` is the stored one (a pending row past `expiresAt` reads as expired). */

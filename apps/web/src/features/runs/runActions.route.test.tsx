@@ -1,4 +1,4 @@
-import { screen } from '@testing-library/react';
+import { cleanup, screen, within } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import { ids } from '@/mocks/dto/ids';
 import { mockDb } from '@/mocks/msw/db';
@@ -85,28 +85,15 @@ describe('run detail actions', () => {
     await open(`${base}/runs/${PAUSED}`, 'member', { [PAUSED]: ALICE });
     expect(await screen.findByRole('button', { name: 'Resume' })).toBeInTheDocument();
   });
-});
 
-describe('needs-you page', () => {
-  it('a viewer sees the paused run and no Resume button', async () => {
-    await open(`${base}/needs-you`, 'viewer', { [PAUSED]: ALICE });
-    expect(await screen.findByText(/Run 64 is paused/)).toBeInTheDocument();
+  it("a member sees no Resume on the detail page of someone else's paused run", async () => {
+    await open(`${base}/runs/${PAUSED}`, 'member', { [PAUSED]: OTHER });
+    expect(await screen.findByRole('link', { name: 'View issue' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Resume' })).not.toBeInTheDocument();
   });
 
-  it('a member sees Resume only on their own paused run', async () => {
-    await open(`${base}/needs-you`, 'member', { [PAUSED]: OTHER });
-    expect(await screen.findByText(/Run 64 is paused/)).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Resume' })).not.toBeInTheDocument();
-  });
-
-  it('a member sees Resume on their own paused run', async () => {
-    await open(`${base}/needs-you`, 'member', { [PAUSED]: ALICE });
-    expect(await screen.findByRole('button', { name: 'Resume' })).toBeInTheDocument();
-  });
-
-  it("an admin sees Resume on someone else's paused run", async () => {
-    await open(`${base}/needs-you`, 'orgAdmin', { [PAUSED]: OTHER });
+  it("an admin sees Resume on the detail page of someone else's paused run", async () => {
+    await open(`${base}/runs/${PAUSED}`, 'orgAdmin', { [PAUSED]: OTHER });
     expect(await screen.findByRole('button', { name: 'Resume' })).toBeInTheDocument();
   });
 });
@@ -127,5 +114,56 @@ describe('runs board banner', () => {
     await open(`${base}/runs`, 'member', { [IDLE]: OTHER });
     expect(await screen.findByText(/Run 62 needs you\./)).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Finish run' })).not.toBeInTheDocument();
+  });
+});
+
+describe('run detail actions, in the page header (BR-42)', () => {
+  const header = () => {
+    const h = within(screen.getByRole('main')).getByRole('heading', { level: 1 }).closest('header');
+    if (!h) throw new Error('no page header');
+    return h;
+  };
+  const headerActions = () =>
+    within(header()).queryAllByRole('button', {
+      name: /^(Finish run|Finish|Stop session|Cancel run|Resume|Close session)$/,
+    });
+
+  it('TC-42.1: a viewer sees status and ticket in the header and no run action', async () => {
+    await open(`${base}/runs/${IDLE}`, 'viewer', { [IDLE]: ALICE });
+    await idleRunLoaded();
+    expect(within(header()).getByText('Needs you')).toBeInTheDocument();
+    expect(headerActions()).toEqual([]);
+  });
+
+  it("TC-42.2: a member has no action in the header on someone else's run", async () => {
+    await open(`${base}/runs/${IDLE}`, 'member', { [IDLE]: OTHER });
+    await idleRunLoaded();
+    expect(headerActions()).toEqual([]);
+  });
+
+  it('TC-42.3: a member has Finish run, Stop session and Cancel run in the header on their own run', async () => {
+    await open(`${base}/runs/${IDLE}`, 'member', { [IDLE]: ALICE });
+    await idleRunLoaded();
+    expect(within(header()).getByRole('button', { name: 'Finish run' })).toBeEnabled();
+    expect(within(header()).getByRole('button', { name: 'Stop session' })).toBeInTheDocument();
+    expect(within(header()).getByRole('button', { name: 'Cancel run' })).toBeInTheDocument();
+  });
+
+  it("TC-42.4: an org admin has the actions in the header on someone else's run", async () => {
+    await open(`${base}/runs/${IDLE}`, 'orgAdmin', { [IDLE]: OTHER });
+    await idleRunLoaded();
+    expect(within(header()).getByRole('button', { name: 'Finish run' })).toBeEnabled();
+    expect(within(header()).getByRole('button', { name: 'Cancel run' })).toBeInTheDocument();
+  });
+
+  it('TC-42.5: a viewer has no Resume or Finish on a paused run, and a member on another run neither', async () => {
+    await open(`${base}/runs/${PAUSED}`, 'viewer', { [PAUSED]: ALICE });
+    await screen.findByRole('link', { name: 'View issue' });
+    expect(headerActions()).toEqual([]);
+    cleanup();
+    await open(`${base}/runs/${PAUSED}`, 'member', { [PAUSED]: OTHER });
+    await screen.findByRole('link', { name: 'View issue' });
+    expect(headerActions()).toEqual([]);
+    expect(screen.queryByRole('button', { name: /^(Resume|Finish)$/ })).not.toBeInTheDocument();
   });
 });

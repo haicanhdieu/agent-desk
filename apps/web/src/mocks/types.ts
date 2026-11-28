@@ -244,9 +244,8 @@ export interface OrgSwitchData {
   current: OrgOption | null;
   orgs: OrgOption[];
   platformAdmin: boolean;
-  /** Absent means the org menu has no such item. */
-  projectsHref?: string;
-  settingsHref?: string;
+  /** The org list while it is not ready; absent means ready, with `orgs`. */
+  list?: { status: 'loading' } | { status: 'error'; onRetry(): void };
 }
 export type ChecklistStepKey = 'connect_code_host' | 'create_project' | 'add_agent' | 'add_rule';
 export interface ChecklistStep {

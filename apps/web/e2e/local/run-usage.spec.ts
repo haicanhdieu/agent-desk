@@ -1,7 +1,7 @@
 import { randomInt, randomUUID } from 'node:crypto';
 import { expect, test, type Page } from '@playwright/test';
 import { RunListResponse, type RunDto } from '@agentdesk/contracts';
-import { API, CommentResult, ok, runOf, signInAs, waitForStatus } from './helpers';
+import { API, CommentResult, ok, runHeader, runOf, signInAs, waitForStatus } from './helpers';
 import {
   REPO_P1,
   REPO_P2,
@@ -117,8 +117,7 @@ const usageSection = (page: Page) =>
   panel(page)
     .locator('section')
     .filter({ has: page.getByText('Usage', { exact: true }) });
-const topBar = (page: Page) => page.getByRole('banner');
-const pill = (page: Page, label: string) => topBar(page).getByText(label, { exact: true });
+const pill = (page: Page, label: string) => runHeader(page).getByText(label, { exact: true });
 const liveTerminal = (page: Page) => page.getByRole('group', { name: 'Claude Code terminal' });
 const area = (page: Page) => page.getByRole('region', { name: /^(Terminal|Transcript)$/ });
 
@@ -212,7 +211,7 @@ async function reopenedAndClosed(): Promise<{ runId: string; number: number }> {
   const runId = await startUsageRun(o, cast.p1, REPO_P1, '--fake-usage --fake-done', 'done');
   await waitForTotal(o, runId, FIRST_TURN.total);
   await openDetail(o.page, cast.p1, runId);
-  await topBar(o.page).getByRole('button', { name: 'Finish run' }).click();
+  await runHeader(o.page).getByRole('button', { name: 'Finish run' }).click();
   await expect(pill(o.page, 'Succeeded')).toBeVisible({ timeout: 60_000 });
   const reopen = o.page.getByRole('button', { name: 'Reopen session' });
   await expect(reopen).toBeEnabled({ timeout: 30_000 });
@@ -220,7 +219,7 @@ async function reopenedAndClosed(): Promise<{ runId: string; number: number }> {
   await expect(pill(o.page, 'Succeeded · Session open')).toBeVisible({ timeout: 60_000 });
   await typeLine(o.page, 'one more step');
   await waitForTotal(o, runId, FIRST_TURN.total + LATER_TURN);
-  const close = topBar(o.page).getByRole('button', { name: 'Close session' });
+  const close = runHeader(o.page).getByRole('button', { name: 'Close session' });
   await expect(close).toBeEnabled({ timeout: 60_000 });
   await close.click();
   await expect(pill(o.page, 'Succeeded')).toBeVisible({ timeout: 90_000 });
@@ -268,7 +267,7 @@ test('TC-8.1: a run stopped and resumed without a reply keeps its total, not res
   await openDetail(o.page, cast.p1, runId);
   await expect(liveTerminal(o.page)).toContainText('Fake Claude Code', { timeout: 15_000 });
 
-  await topBar(o.page).getByRole('button', { name: 'Stop session' }).click();
+  await runHeader(o.page).getByRole('button', { name: 'Stop session' }).click();
   await expect(o.page.getByText(/^Stopped: can be resumed for /)).toBeVisible({ timeout: 60_000 });
   expect((await runOf(o.page, runId)).usage?.totalTokens, 'while stopped').toBe(FIRST_TURN.total);
 
@@ -346,7 +345,7 @@ test('TC-9.2: a finished run is succeeded and still shows the usage it recorded'
   const runId = await startUsageRun(o, cast.p1, REPO_P1, '--fake-usage --fake-done', 'done');
   await waitForTotal(o, runId, FIRST_TURN.total);
   await openDetail(o.page, cast.p1, runId);
-  await topBar(o.page).getByRole('button', { name: 'Finish run' }).click();
+  await runHeader(o.page).getByRole('button', { name: 'Finish run' }).click();
   await expect(pill(o.page, 'Succeeded')).toBeVisible({ timeout: 60_000 });
   await waitForStatus(o.page, runId, 'succeeded');
 
@@ -467,7 +466,7 @@ test('TC-13.1: reloading the Runs list and the run shows the same usage cell, nu
   const runId = await startUsageRun(o, cast.p1, REPO_P1, '--fake-usage --fake-done', 'done');
   await waitForTotal(o, runId, FIRST_TURN.total);
   await openDetail(o.page, cast.p1, runId);
-  await topBar(o.page).getByRole('button', { name: 'Finish run' }).click();
+  await runHeader(o.page).getByRole('button', { name: 'Finish run' }).click();
   await waitForStatus(o.page, runId, 'succeeded');
   const run = await runOf(o.page, runId);
 
@@ -489,7 +488,7 @@ test('TC-13.2: a new browser session of the same user sees equal numbers and cos
   const runId = await startUsageRun(o, cast.p1, REPO_P1, '--fake-usage --fake-done', 'done');
   await waitForTotal(o, runId, FIRST_TURN.total);
   await openDetail(o.page, cast.p1, runId);
-  await topBar(o.page).getByRole('button', { name: 'Finish run' }).click();
+  await runHeader(o.page).getByRole('button', { name: 'Finish run' }).click();
   await waitForStatus(o.page, runId, 'succeeded');
   const run = await runOf(o.page, runId);
   const cellFirst = await listCell(o.page, cast.p1, run.number);
@@ -499,7 +498,7 @@ test('TC-13.2: a new browser session of the same user sees equal numbers and cos
   const ctx = await browser.newContext();
   try {
     const page = await signInAs(ctx, o.handle);
-    await expect(topBar(page)).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByRole('banner')).toBeVisible({ timeout: 30_000 });
     expect(await listCell(page, cast.p1, run.number)).toEqual(cellFirst);
     await openDetail(page, cast.p1, runId);
     expect(await detailSnapshot(page)).toEqual(detailFirst);

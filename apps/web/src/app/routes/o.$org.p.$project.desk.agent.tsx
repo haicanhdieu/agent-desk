@@ -41,6 +41,7 @@ const AgentSearch = PageSearch.extend({
 });
 
 export const Route = createFileRoute('/o/$org/p/$project/desk/agent')({
+  staticData: { chrome: { mode: 'standard', scope: 'project', item: 'agent', crumb: 'Agent & settings', fill: true } },
   validateSearch: (search) => AgentSearch.parse(search),
   // Desk config is for roles that hold `agent:read` on this project; the guard runs before any loader.
   beforeLoad: ({ context: { queryClient }, params }) =>
@@ -106,7 +107,8 @@ function DeskAgentPage() {
   useEffect(() => {
     if (!paneOpen || paneBusy || rowActions.deleteDialog) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') closePane();
+      // A modal on top (the menu drawer below 1024px) takes the key: Escape closes it and the pane keeps what was typed.
+      if (e.key === 'Escape' && !document.querySelector('[role="dialog"][aria-modal="true"]')) closePane();
     };
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
@@ -187,7 +189,6 @@ function DeskAgentPage() {
   return (
     <DeskAgent
       frame={frame}
-      height="viewport"
       tab={tab}
       onTabChange={(next) =>
         // Changing tab drops `agent` and `page`: the pane closes and nothing typed outlives it.

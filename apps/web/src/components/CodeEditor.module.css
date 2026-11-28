@@ -78,3 +78,10 @@
 .editor:focus-within {
   box-shadow: inset 0 0 0 1px var(--accent);
 }
+
+/* Phone (BR-65): the column scrolls instead of squeezing this view to nothing. */
+@media (max-width: 639px) {
+  .editor {
+    min-height: 240px;
+  }
+}

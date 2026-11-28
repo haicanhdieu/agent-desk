@@ -35,7 +35,7 @@ const optionsOf = (select: HTMLElement) =>
 describe('Platform org Members tab', () => {
   it('BR-24: the side menu Members link opens the section with its heading', async () => {
     const { user, router } = await renderRoute(`/platform/orgs/${ACME}`, { scenario: asAdmin });
-    const menu = await screen.findByRole('navigation', { name: 'Platform admin' });
+    const menu = await screen.findByRole('navigation', { name: 'Platform menu' });
     await user.click(await within(menu).findByRole('link', { name: 'Members' }));
     await ready();
     expect(router.state.location.pathname).toBe(membersPath);

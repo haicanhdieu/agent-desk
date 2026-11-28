@@ -29,3 +29,24 @@
 .muted {
   color: var(--muted);
 }
+
+/* Phone (BR-65, TC-65.19): a row is a card (DataTable cards); the name, its slug and every value wrap at the card's right. */
+@media (max-width: 639px) {
+  .name {
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    text-align: right;
+  }
+  .link {
+    max-width: 100%;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+  .slug {
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+  .cell {
+    text-align: right;
+  }
+}

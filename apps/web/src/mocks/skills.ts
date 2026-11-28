@@ -140,9 +140,12 @@ export const skills: Skill[] = [
   },
 ];
 
-// The template list lives with the setup flow (features/setup/templates.ts, with bodies); stories get the card text.
-export const skillTemplates: SkillTemplate[] = SKILL_TEMPLATES.map(({ name, description, note }) => ({
-  name,
-  description,
-  ...(note !== undefined && { note }),
-}));
+// The template list lives with the setup flow (features/setup/templates.ts); stories get the cards with their SKILL.md text.
+export const skillTemplates: (SkillTemplate & { body: string })[] = SKILL_TEMPLATES.map(
+  ({ name, description, note, body }) => ({
+    name,
+    description,
+    ...(note !== undefined && { note }),
+    body,
+  }),
+);

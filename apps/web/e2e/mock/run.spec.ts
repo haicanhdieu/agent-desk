@@ -12,6 +12,7 @@ import {
   RESUMED_RUN,
   SCRIPTED_RUN,
   USAGE_RUNS,
+  runHeader,
 } from './mock';
 
 // The scripted run takes about 16 s from queued to idle (mock.ts).
@@ -19,7 +20,7 @@ test.describe.configure({ timeout: 60_000 });
 
 test('a live run starts, goes idle, echoes the terminal and finishes as succeeded', async ({ page }) => {
   await page.goto(`/o/${ORG}/p/${INVOICER_API}/runs/${SCRIPTED_RUN}`);
-  const header = page.getByRole('banner');
+  const header = runHeader(page);
   const status = (label: string) => header.getByText(label, { exact: true });
 
   await expect(status('Starting')).toBeVisible({ timeout: 10_000 });
@@ -47,7 +48,7 @@ test('a live run starts, goes idle, echoes the terminal and finishes as succeede
 
 test('a paused run is resumed: Queued, then Running with the terminal', async ({ page }) => {
   await page.goto(`/o/${ORG}/p/${INVOICER_API}/runs/${PAUSED_RUN}`);
-  const header = page.getByRole('banner');
+  const header = runHeader(page);
   await expect(header.getByText('Paused', { exact: true })).toBeVisible();
   await expect(page.getByText(/^Paused: waiting for your answer\. Can be resumed for /)).toBeVisible();
 
@@ -210,7 +211,7 @@ test('a run whose session is ending says so, shows the loading Transcript and op
 
 test('a run whose agent crashed is paused with the reason and its exit code, and can be resumed', async ({ page }) => {
   await page.goto(runUrl(CRASHED_RUN));
-  const header = page.getByRole('banner');
+  const header = runHeader(page);
   await expect(header.getByText('Paused', { exact: true })).toBeVisible();
   await expect(page.getByText('Paused: agent crashed (exit code 3)')).toBeVisible();
   await expect(page.getByText(/^Paused .*, the agent crashed\. Can be resumed for /)).toBeVisible();
@@ -227,7 +228,7 @@ test('a run whose pod was killed for memory is paused with that reason, not "wai
   page,
 }) => {
   await page.goto(runUrl(KILLED_RUN));
-  const header = page.getByRole('banner');
+  const header = runHeader(page);
   await expect(header.getByText('Paused', { exact: true })).toBeVisible();
   await expect(page.getByText('Paused: the pod was killed, most likely out of memory (exit code 137)')).toBeVisible();
   await expect(page.getByText(/^Paused .*, the pod stopped unexpectedly .*\. Can be resumed for /)).toBeVisible();
@@ -241,7 +242,7 @@ test('a run whose pod was killed for memory is paused with that reason, not "wai
 
 test('a Resume that found nothing kept shows why and leaves the run succeeded', async ({ page }) => {
   await page.goto(runUrl(RESUME_FAILED_RUN));
-  await expect(page.getByRole('banner').getByText('Succeeded', { exact: true })).toBeVisible();
+  await expect(runHeader(page).getByText('Succeeded', { exact: true })).toBeVisible();
   await expect(page.getByText('Resume failed: nothing was kept to resume from')).toBeVisible();
   // Nothing is kept, so Reopen session is disabled.
   await expect(page.getByRole('button', { name: 'Reopen session' })).toBeDisabled();

@@ -1,6 +1,7 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import { fn } from 'storybook/test';
 import { DeleteAgentDialog } from './DeleteAgentDialog';
+import { viewport } from '@/screens/viewports';
 
 const meta = {
   title: 'Components/DeleteAgentDialog',
@@ -36,3 +37,9 @@ export const ServerError: Story = {
   args: { ...base, state: 'error', error: { title: 'Something went wrong', requestId: 'req_8f3a21' } },
 };
 export const HostileName: Story = { args: { ...base, state: 'confirm', name: '<b>x</b><img src=x onerror=alert(1)>' } };
+
+/** Phone (BR-65): the dialog is the full width; a long name wraps in the title. */
+export const Phone: Story = {
+  args: { ...base, state: 'confirm', name: 'A-very-long-agent-name-'.repeat(11).slice(0, 256) },
+  globals: viewport(390, 844),
+};

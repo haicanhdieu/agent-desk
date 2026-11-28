@@ -25,6 +25,13 @@ const projectId = ids.project.invoicerApi;
 const base = `/o/${org}/p/${projectId}`;
 const runId = (n: number) => ids.run(1, n);
 const runPrefix = (n: number) => `/api/runs/${runId(n)}/events`;
+
+/** The run's page header (title, status, pending note, actions); a header inside main is not a banner landmark. */
+const runHeader = () => {
+  const h = within(screen.getByRole('main')).getByRole('heading', { level: 1 }).closest('header');
+  if (!h) throw new Error('no page header');
+  return h;
+};
 const projectStream = `/api/projects/${projectId}/events`;
 const ev = (seq: number): RunEventDto => ({
   seq,
@@ -307,7 +314,7 @@ describe('run detail route, live', () => {
         (r) => r && { ...r, statusNote: 'Finishing…' },
       );
     });
-    expect(await within(screen.getByRole('banner')).findByText('Finishing…')).toBeInTheDocument();
+    expect(await within(runHeader()).findByText('Finishing…')).toBeInTheDocument();
     const logs = mockDb.requests('GET', `/api/runs/${runId(62)}/log`);
 
     // The server has ended it (the refetch after the status agrees).
@@ -318,7 +325,7 @@ describe('run detail route, live', () => {
 
     expect(await screen.findByText(/^Succeeded in /)).toBeInTheDocument();
     expect(source.closed).toBe(true);
-    expect(within(screen.getByRole('banner')).queryByText('Finishing…')).not.toBeInTheDocument();
+    expect(within(runHeader()).queryByText('Finishing…')).not.toBeInTheDocument();
     await waitFor(() => expect(mockDb.requests('GET', `/api/runs/${runId(62)}/log`)).toBeGreaterThan(logs));
     expect(FakeEventSource.matching(runPrefix(62))).toHaveLength(1);
   });

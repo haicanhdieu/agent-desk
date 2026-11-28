@@ -19,36 +19,43 @@ async function open(page: Page, scenario: TenantAdminScenario, path: string): Pr
 
 const mainNav = (page: Page): Locator => page.getByRole('navigation', { name: 'Organization sections' });
 const tab = (page: Page, name: string): Locator => mainNav(page).getByRole('link', { name, exact: true });
+// Org, project and run pages are on the shell: the org entries are in the org menu, and the old tab bar is gone.
+const orgMenu = (page: Page): Locator => page.getByRole('navigation', { name: 'Organization menu' });
+const menuLink = (page: Page, name: string): Locator => orgMenu(page).getByRole('link', { name, exact: true });
+const FULL_MENU = ['Projects', 'Members', 'Invitations', 'Audit log', 'General'];
 const bar = (page: Page): Locator => page.getByRole('banner');
-const orgButton = (page: Page): Locator =>
-  page.getByRole('button', { name: 'Switch scope, currently organization Alice' });
 
 test.describe('BR-43: top-bar tabs per level', () => {
-  test('TC-43.1: the owner on Projects sees the tabs Projects and Settings, Projects active', async ({ page }) => {
+  test('TC-43.1: the owner on Projects sees Projects and the Settings items in the org menu, Projects current', async ({
+    page,
+  }) => {
     await open(page, 'twoOwners', PROJECTS);
-    await expect(mainNav(page).getByRole('link')).toHaveText(['Projects', 'Org settings']);
-    await expect(tab(page, 'Projects')).toHaveAttribute('aria-current', 'page');
-    await expect(tab(page, 'Org settings')).not.toHaveAttribute('aria-current', 'page');
+    await expect(orgMenu(page).getByRole('link')).toHaveText(FULL_MENU);
+    await expect(menuLink(page, 'Projects')).toHaveAttribute('aria-current', 'page');
+    await expect(menuLink(page, 'General')).not.toHaveAttribute('aria-current', 'page');
   });
 
-  test('TC-43.2: the owner on Settings, General has Settings active', async ({ page }) => {
+  test('TC-43.2: the owner on Settings, General has General current in the org menu', async ({ page }) => {
     await open(page, 'twoOwners', `/o/${ORG}/settings/general`);
-    await expect(tab(page, 'Org settings')).toHaveAttribute('aria-current', 'page');
-    await expect(tab(page, 'Projects')).not.toHaveAttribute('aria-current', 'page');
+    await expect(menuLink(page, 'General')).toHaveAttribute('aria-current', 'page');
+    await expect(menuLink(page, 'Projects')).not.toHaveAttribute('aria-current', 'page');
   });
 
-  test('TC-43.3: a member on Projects sees only the Projects tab', async ({ page }) => {
+  test('TC-43.3: a member on Projects sees only the Projects item', async ({ page }) => {
     await open(page, 'member', PROJECTS);
-    await expect(mainNav(page).getByRole('link')).toHaveText(['Projects']);
-    await expect(tab(page, 'Org settings')).toHaveCount(0);
+    await expect(orgMenu(page).getByRole('link')).toHaveText(['Projects']);
+    await expect(orgMenu(page).getByText('Settings', { exact: true })).toHaveCount(0);
   });
 
-  test('TC-43.4: the owner on a project page sees the tabs Runs and Settings', async ({ page }) => {
+  test('TC-43.4: the owner on a project page sees the Project menu with Runs and no section tabs in the bar', async ({
+    page,
+  }) => {
     await open(page, 'twoOwners', `${PROJECT}/runs`);
-    await expect(page.getByRole('navigation', { name: 'Project sections' }).getByRole('link')).toHaveText([
-      /^Runs/,
-      'Project settings',
-    ]);
+    await expect(
+      page.getByRole('navigation', { name: 'Project menu' }).getByRole('link', { name: /^Runs/ }),
+    ).toBeVisible();
+    await expect(page.getByRole('navigation', { name: 'Project sections' })).toHaveCount(0);
+    await expect(bar(page).getByRole('link', { name: 'Project settings' })).toHaveCount(0);
     await expect(tab(page, 'Projects')).toHaveCount(0);
   });
 
@@ -61,18 +68,23 @@ test.describe('BR-43: top-bar tabs per level', () => {
     await expect(page.getByRole('link', { name: 'Org settings', exact: true })).toHaveCount(0);
   });
 
-  test('TC-43.6: the My invitations page shows the org bar with no tab active', async ({ page }) => {
+  // The tabs moved to the side menu (BR-56): the page shows the active org's menu with no current item, and no bar tabs.
+  test('TC-43.6: the My invitations page shows the org menu with no item current and no tabs in the bar', async ({
+    page,
+  }) => {
     await open(page, 'twoOwners', '/invitations');
-    await expect(tab(page, 'Projects')).toBeVisible();
-    await expect(tab(page, 'Org settings')).toBeVisible();
-    await expect(mainNav(page).locator('[aria-current]')).toHaveCount(0);
+    const menu = page.getByRole('navigation', { name: 'Organization menu' });
+    await expect(menu.getByRole('link', { name: 'Projects' })).toBeVisible();
+    await expect(menu.locator('[aria-current]')).toHaveCount(0);
+    await expect(mainNav(page)).toHaveCount(0);
   });
 
-  test('TC-43.7: the needs-you page shows the org bar with no tab active', async ({ page }) => {
+  test('TC-43.7: the old needs-you address is "Page not found" with no organization tabs in the bar', async ({
+    page,
+  }) => {
     await open(page, 'twoOwners', `${PROJECT}/needs-you`);
-    await expect(tab(page, 'Projects')).toBeVisible();
-    await expect(tab(page, 'Org settings')).toBeVisible();
-    await expect(mainNav(page).locator('[aria-current]')).toHaveCount(0);
+    await expect(page.getByRole('main').getByRole('heading', { name: 'Page not found' })).toBeVisible();
+    await expect(mainNav(page)).toHaveCount(0);
   });
 
   test('TC-43.8: the Create organization page shows no organization tabs', async ({ page }) => {
@@ -81,9 +93,10 @@ test.describe('BR-43: top-bar tabs per level', () => {
     await expect(page.getByRole('heading', { name: 'Create an organization', level: 1 })).toBeVisible();
     await expect(bar(page)).toBeVisible();
     await expect(mainNav(page)).toHaveCount(0);
-    // The page is in the platform shell: the bar carries the breadcrumb and the platform tabs, never the org tabs.
+    // The page is in the platform shell: the bar carries the breadcrumb and no section links; the Platform menu is beside the page.
     await expect(bar(page).getByRole('navigation', { name: 'Breadcrumb' })).toBeVisible();
-    await expect(bar(page).getByRole('navigation', { name: 'Platform sections' })).toBeVisible();
+    await expect(bar(page).getByRole('navigation', { name: 'Platform sections' })).toHaveCount(0);
+    await expect(page.getByRole('navigation', { name: 'Platform menu' })).toBeVisible();
     await expect(bar(page).getByRole('link', { name: 'Projects', exact: true })).toHaveCount(0);
     await expect(bar(page).getByRole('link', { name: 'Org settings', exact: true })).toHaveCount(0);
   });
@@ -94,12 +107,12 @@ test.describe('BR-46: run page crumbs', () => {
     await open(page, 'twoOwners', RUN);
     const crumbs = page.getByRole('navigation', { name: 'Breadcrumb' });
     await expect(crumbs).toBeVisible();
-    await expect(crumbs.getByRole('button').first()).toHaveAccessibleName('Switch scope, currently organization Alice');
+    // One org: the org crumb is its plain name (BR-47 of the shell spec); the run page's menu starts collapsed.
+    await expect(crumbs.getByText('Alice', { exact: true })).toBeVisible();
     await expect(crumbs.getByRole('button', { name: 'Switch project, currently invoicer-api' })).toBeVisible();
     await expect(crumbs.getByRole('link', { name: 'Runs', exact: true })).toBeVisible();
     await expect(crumbs.getByText(`Run ${SCRIPTED_RUN}`, { exact: true })).toHaveAttribute('aria-current', 'page');
     await expect(crumbs.locator('b[aria-current="page"], a, button')).toHaveText([
-      /^Alice/,
       /invoicer-api/,
       'Runs',
       `Run ${SCRIPTED_RUN}`,
@@ -122,35 +135,36 @@ test.describe('BR-46: run page crumbs', () => {
 });
 
 test.describe('BR-47: Settings in two clicks', () => {
-  async function settingsInTwoClicks(page: Page, landing: RegExp, subTab: string, only?: string): Promise<void> {
-    await orgButton(page).click();
-    await page.getByRole('dialog', { name: 'Scope' }).getByRole('link', { name: 'Org settings' }).click();
+  // On the shell the org switcher holds scopes only (BR-45): from a project page the org Settings are "All projects"
+  // in the project menu, then the Settings item in the org menu.
+  async function settingsFromProject(page: Page, landing: RegExp, subTab: string, only?: string): Promise<void> {
+    await page.getByRole('navigation', { name: 'Project menu' }).getByRole('link', { name: 'All projects' }).click();
+    await menuLink(page, subTab).click();
     await expect(page).toHaveURL(landing);
     await expect(page.getByRole('heading', { name: subTab, level: 1 })).toBeVisible();
-    await expect(tab(page, 'Org settings')).toHaveAttribute('aria-current', 'page');
-    const sideMenu = page.getByRole('navigation', { name: 'Organization settings' });
-    await expect(sideMenu.getByRole('link', { name: subTab, exact: true })).toHaveAttribute('aria-current', 'page');
-    if (only !== undefined) await expect(sideMenu.getByRole('link')).toHaveText([only]);
+    await expect(menuLink(page, subTab)).toHaveAttribute('aria-current', 'page');
+    if (only !== undefined) await expect(orgMenu(page).getByRole('link')).toHaveText(['Projects', only]);
   }
 
-  test('TC-47.1: the owner on a project Runs page reaches General', async ({ page }) => {
+  test('TC-47.1: the owner on a project Runs page reaches Members', async ({ page }) => {
     await open(page, 'twoOwners', `${PROJECT}/runs`);
-    await settingsInTwoClicks(page, /\/settings\/general$/, 'General');
+    await settingsFromProject(page, /\/settings\/members$/, 'Members');
   });
 
   test('TC-47.2: a project admin on a Runs page reaches Invitations', async ({ page }) => {
     await open(page, 'projectAdmin', `${PROJECT}/runs`);
-    await settingsInTwoClicks(page, /\/settings\/invitations$/, 'Invitations', 'Invitations');
+    await settingsFromProject(page, /\/settings\/invitations$/, 'Invitations', 'Invitations');
   });
 
-  test('TC-47.3: the owner on a Desk page reaches General', async ({ page }) => {
+  test('TC-47.3: the owner on a Desk page reaches Members', async ({ page }) => {
     await open(page, 'twoOwners', `${PROJECT}/desk/agent`);
-    await settingsInTwoClicks(page, /\/settings\/general$/, 'General');
+    await settingsFromProject(page, /\/settings\/members$/, 'Members');
   });
 
-  test('TC-47.4: the owner on a run page reaches General', async ({ page }) => {
+  test('TC-47.4: the owner on a run page reaches Members', async ({ page }) => {
     await open(page, 'twoOwners', RUN);
-    await settingsInTwoClicks(page, /\/settings\/general$/, 'General');
+    await page.getByRole('button', { name: 'Expand menu' }).click();
+    await settingsFromProject(page, /\/settings\/members$/, 'Members');
   });
 });
 
@@ -161,19 +175,19 @@ test.describe('BR-48: the logo', () => {
     await open(page, 'twoOwners', `${PROJECT}/runs`);
     await logo(page).click();
     await expect(page).toHaveURL(new RegExp(`/o/${ORG}/projects$`));
-    await expect(tab(page, 'Projects')).toHaveAttribute('aria-current', 'page');
+    await expect(menuLink(page, 'Projects')).toHaveAttribute('aria-current', 'page');
   });
 
   test('TC-48.2: on a run page and on Settings the logo opens the org Projects page', async ({ page }) => {
     await open(page, 'twoOwners', RUN);
     await logo(page).click();
     await expect(page).toHaveURL(new RegExp(`/o/${ORG}/projects$`));
-    await expect(tab(page, 'Projects')).toHaveAttribute('aria-current', 'page');
+    await expect(menuLink(page, 'Projects')).toHaveAttribute('aria-current', 'page');
 
     await page.goto(`/o/${ORG}/settings/general`);
-    await expect(tab(page, 'Org settings')).toHaveAttribute('aria-current', 'page');
+    await expect(menuLink(page, 'General')).toHaveAttribute('aria-current', 'page');
     await logo(page).click();
     await expect(page).toHaveURL(new RegExp(`/o/${ORG}/projects$`));
-    await expect(tab(page, 'Projects')).toHaveAttribute('aria-current', 'page');
+    await expect(menuLink(page, 'Projects')).toHaveAttribute('aria-current', 'page');
   });
 });

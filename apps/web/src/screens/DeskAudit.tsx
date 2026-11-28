@@ -13,7 +13,7 @@ import styles from './Screens.module.css';
 import { DeskFrame, type DeskFrameData } from './DeskFrame';
 
 export interface DeskAuditProps {
-  /** Top bar and Desk navigation data. */
+  /** The project, its connection and the setup warning. */
   frame: DeskFrameData;
   state:
     | { kind: 'loading' }
@@ -24,8 +24,8 @@ export interface DeskAuditProps {
 /** The project's Audit log page inside the Desk: when, who and what for each entry, paging, and the states around it. */
 export function DeskAudit({ frame, state }: DeskAuditProps) {
   return (
-    <DeskFrame {...frame} active="audit">
-      <main className={styles.listMain}>
+    <DeskFrame {...frame} active="audit" title={state.kind === 'ready' ? 'Audit log' : undefined}>
+      <div className={styles.shellBody}>
         {state.kind === 'loading' && (
           <div className={styles.membersLoading} aria-busy="true" role="status" aria-label="Loading">
             <span aria-hidden="true">
@@ -43,9 +43,6 @@ export function DeskAudit({ frame, state }: DeskAuditProps) {
         )}
         {state.kind === 'ready' && (
           <>
-            <div className={styles.listHead}>
-              <h1 tabIndex={-1}>Audit log</h1>
-            </div>
             <p className="muted">Changes to this project, newest first.</p>
             <DataTable columns={auditColumns} busy={state.pagination?.busy}>
               {state.rows.map((row) => (
@@ -56,7 +53,7 @@ export function DeskAudit({ frame, state }: DeskAuditProps) {
             {state.pagination && <Pagination {...state.pagination} />}
           </>
         )}
-      </main>
+      </div>
     </DeskFrame>
   );
 }

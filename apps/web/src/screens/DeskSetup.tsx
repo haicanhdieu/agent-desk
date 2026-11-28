@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   Banner,
   Button,
@@ -13,7 +13,6 @@ import {
   TextInput,
 } from '@/ds';
 import {
-  AppShell,
   CodeEditor,
   KeyValue,
   PluginList,
@@ -88,8 +87,6 @@ export interface SetupTestView {
 
 export interface DeskSetupProps {
   frame: DeskFrameData;
-  /** `'viewport'` fits the page to the window (the app route): the editor and the log split it and scroll inside. */
-  height?: 'viewport';
   loading?: boolean;
   loadError?: string;
   /** `null`: the project has no setup script yet. */
@@ -246,7 +243,6 @@ function SetupLog({ lines, onEndTest }: { lines: TermLine[]; onEndTest?(): void 
 
 export function DeskSetup({
   frame,
-  height,
   loading,
   loadError,
   script,
@@ -283,22 +279,10 @@ export function DeskSetup({
   const [note, setNote] = useState('');
   const dirty = value !== saved;
   const nextVersion = (script?.version ?? 0) + 1;
-  const fit = (page: ReactNode) =>
-    height === 'viewport' ? (
-      <AppShell height="viewport" topBar={null}>
-        {page}
-      </AppShell>
-    ) : (
-      page
-    );
-
   if (loading || loadError) {
-    return fit(
-      <DeskFrame active="setup" {...frame}>
-        <main className={styles.setupDeskMain} aria-busy={loading || undefined}>
-          <div className={styles.setupDeskHead}>
-            <h2>Workspace setup</h2>
-          </div>
+    return (
+      <DeskFrame active="setup" {...frame} title="Workspace setup" fill>
+        <div className={styles.setupDeskMain} aria-busy={loading || undefined}>
           <div className={styles.setupDeskBody}>
             {loadError ? (
               <Banner tone="err" icon={<Icon name="warning" size={16} />} title="Could not load the setup script">
@@ -308,8 +292,8 @@ export function DeskSetup({
               <Skeleton variant="block" height={240} />
             )}
           </div>
-        </main>
-      </DeskFrame>,
+        </div>
+      </DeskFrame>
     );
   }
 
@@ -334,38 +318,39 @@ export function DeskSetup({
     </Button>
   );
 
-  return fit(
-    <DeskFrame active="setup" {...frame}>
-      <div className={styles.deskRow}>
-        <main className={styles.setupDeskMain}>
-          <div className={styles.setupDeskHead}>
-            <div className={styles.skillHeadText}>
-              <span className={styles.skillTitleRow}>
-                <h2>Workspace setup</h2>
-                {dirty && script !== null && <LabelChip name="Unsaved changes" tone="idle" />}
-              </span>
-              <span className={`faint ${styles.skillMeta}`}>
-                {script
-                  ? test && dirty
-                    ? `Editing from version ${script.version}. The test runs this draft; runs keep using version ${script.version} until you save.`
-                    : `Version ${script.version}, saved by ${script.savedBy} ${script.savedAgo}. Runs use the saved version; Agent Desk stores it, not your repo.`
-                  : 'No setup script: runs start the agent right after cloning.'}
-              </span>
-            </div>
-            {test ? (
-              <>
-                <Button icon="play" onClick={() => onTest?.(value)}>
-                  Test again
-                </Button>
-                {save}
-              </>
-            ) : (
-              <Button variant="primary" icon="play" onClick={() => onTest?.(value)}>
-                Test setup
-              </Button>
-            )}
-          </div>
+  const metaText = script
+    ? test && dirty
+      ? `Editing from version ${script.version}. The test runs this draft; runs keep using version ${script.version} until you save.`
+      : `Version ${script.version}, saved by ${script.savedBy} ${script.savedAgo}. Runs use the saved version; Agent Desk stores it, not your repo.`
+    : 'No setup script: runs start the agent right after cloning.';
+  const headActions = test ? (
+    <>
+      <Button icon="play" onClick={() => onTest?.(value)}>
+        Test again
+      </Button>
+      {save}
+    </>
+  ) : (
+    <Button variant="primary" icon="play" onClick={() => onTest?.(value)}>
+      Test setup
+    </Button>
+  );
 
+  return (
+    <DeskFrame
+      active="setup"
+      {...frame}
+      title="Workspace setup"
+      meta={
+        <>
+          {dirty && script !== null && <LabelChip name="Unsaved changes" tone="idle" />} {metaText}
+        </>
+      }
+      actions={headActions}
+      fill
+    >
+      <div className={`${styles.deskRow} ${styles.setupDeskRow}`}>
+        <div className={styles.setupDeskMain}>
           <div className={styles.setupTabs}>
             <Tabs
               tabs={SETUP_TABS}
@@ -385,15 +370,7 @@ export function DeskSetup({
 
             {test ? (
               <>
-                <div
-                  className={
-                    height === 'viewport'
-                      ? `${styles.setupTestEditor} ${styles.setupTestEditorFit}`
-                      : styles.setupTestEditor
-                  }
-                >
-                  {editor}
-                </div>
+                <div className={`${styles.setupTestEditor} ${styles.setupTestEditorFit}`}>{editor}</div>
                 <div className={styles.setupPhaseBar}>
                   <StatusBadge status={testStatus[test.status].status} variant="pill">
                     {testStatus[test.status].label}
@@ -464,7 +441,7 @@ export function DeskSetup({
           <TabPanel value="environment" active={activeTab} idPrefix={TAB_PREFIX}>
             {environment && <DeskSetupEnvironment {...environment} />}
           </TabPanel>
-        </main>
+        </div>
 
         <SidePanel aria-label={test ? 'Test result' : 'Plugins and history'}>
           {test ? (
@@ -528,6 +505,6 @@ export function DeskSetup({
           )}
         </SidePanel>
       </div>
-    </DeskFrame>,
+    </DeskFrame>
   );
 }

@@ -8,6 +8,7 @@ import {
   signInAndCreateProject,
   touchPodFile,
   waitForStatus,
+  runHeader,
 } from './helpers';
 
 /*
@@ -32,7 +33,6 @@ const countOf = (texts: string[], re: RegExp) => texts.filter((t) => re.test(t))
 const GAVE_UP = /^Gave up resuming automatically/;
 
 const liveTerminal = (page: Page) => page.getByRole('group', { name: 'Claude Code terminal' });
-const topBar = (page: Page) => page.getByRole('banner');
 
 /** A new project and a run on `/code-review` that is idle; the page is signed in. */
 async function startIdleRun(page: Page, limit?: number) {
@@ -70,7 +70,7 @@ test('a killed run comes back to Needs you by itself, logs "Resuming automatical
   try {
     await killAndWaitForTry(page, runId, tryText(1, 5), 1);
     await page.goto(`/o/${handle}/p/${projectId}/runs/${number}`);
-    await expect(topBar(page).getByText('Needs you', { exact: true })).toBeVisible();
+    await expect(runHeader(page).getByText('Needs you', { exact: true })).toBeVisible();
     await expect(liveTerminal(page)).toContainText(
       'Agent Desk: your last session was killed (Error, exit 137). Resumed, try 1/5. Background processes and /tmp are gone.',
       { timeout: 30_000 },

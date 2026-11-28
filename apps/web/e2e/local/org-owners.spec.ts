@@ -100,10 +100,9 @@ const roleDialog = (page: Page, name: string): Locator =>
 const card = (scope: Locator, role: string): Locator => scope.getByRole('radio', { name: new RegExp(`^${role}`) });
 const toastOf = (page: Page, title: string): Locator =>
   page.getByRole('status').or(page.getByRole('alert')).filter({ hasText: title });
+/** The first Settings item of the org menu: it is there for whoever may open any Settings page, and for no one else. */
 const settingsTab = (page: Page): Locator =>
-  page
-    .getByRole('navigation', { name: 'Organization sections' })
-    .getByRole('link', { name: 'Org settings', exact: true });
+  page.getByRole('navigation', { name: 'Organization menu' }).getByRole('link', { name: 'Members', exact: true });
 const OWNER_NOTE = 'Owners can change or remove every member, including other owners.';
 
 async function openMembers(page: Page, w: World): Promise<void> {

@@ -2,7 +2,6 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import { setupPlugins, setupVersions } from '@/mocks';
-import { DeskLayout } from './DeskLayout';
 import { PluginList } from './PluginList';
 import { SetupPhases } from './SetupPhases';
 import { VersionHistory } from './VersionHistory';
@@ -69,17 +68,5 @@ describe('VersionHistory on a later page', () => {
     render(<VersionHistory versions={page2} currentVersion={2} />);
     expect(screen.getAllByRole('listitem')[1]).toHaveAttribute('aria-current', 'true');
     expect(screen.getAllByRole('listitem')[0]).not.toHaveAttribute('aria-current');
-  });
-});
-
-describe('DeskLayout setup item', () => {
-  const repo = { org: 'harbor-labs', name: 'invoicer-api', branch: 'main', connected: true };
-  it('shows Workspace setup only when a setup link is given', () => {
-    const { rerender } = render(
-      <DeskLayout active="skills" repo={repo} links={{ skills: 's', rules: 'r', agent: 'a' }} />,
-    );
-    expect(screen.queryByRole('link', { name: 'Workspace setup' })).toBeNull();
-    rerender(<DeskLayout active="setup" repo={repo} links={{ skills: 's', rules: 'r', agent: 'a', setup: 'w' }} />);
-    expect(screen.getByRole('link', { name: 'Workspace setup' })).toHaveAttribute('href', 'w');
   });
 });

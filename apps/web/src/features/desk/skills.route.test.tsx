@@ -56,7 +56,7 @@ describe('desk setup warning', () => {
     await renderRoute(`${base}/skills`);
     expect(await screen.findByText('The last workspace setup test failed')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Open workspace setup' })).toHaveAttribute('href', `${base}/setup`);
-    expect(screen.getByRole('navigation', { name: 'Desk' })).toBeInTheDocument();
+    expect(screen.getByRole('navigation', { name: 'Project menu' })).toBeInTheDocument();
   });
 
   it('is not repeated on the Setup tab, which has its own last-test banner', async () => {
@@ -101,7 +101,7 @@ describe('desk skills route', () => {
     );
   });
 
-  it('History is disabled when the connected repo has no file prefix', async () => {
+  it('History is absent when the connected repo has no file prefix', async () => {
     await renderRoute(`${base}/skills`, {
       scenario: () => {
         const row = mockDb.state.projects.find((p) => p.id === projectId);
@@ -109,10 +109,9 @@ describe('desk skills route', () => {
         row.skillFileBaseUrl = null;
       },
     });
-    const history = () => screen.getByRole('button', { name: 'History' });
     expect(await screen.findByRole('heading', { level: 2, name: 'code-build' })).toBeInTheDocument();
-    expect(history()).toBeDisabled();
-    expect(history()).toHaveAttribute('title', expect.stringContaining('connected repository'));
+    expect(screen.queryByRole('link', { name: 'History' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'History' })).toBeNull();
   });
 
   it('History uses a non-GitHub provider file prefix from the API', async () => {
@@ -131,25 +130,24 @@ describe('desk skills route', () => {
     );
   });
 
-  it('desk nav links point at the project routes', async () => {
+  it('the Project menu links to the project routes', async () => {
     await renderRoute(`${base}/skills`);
-    const desk = await screen.findByRole('navigation', { name: 'Desk' });
-    expect(within(desk).getByRole('link', { name: /Skills/ })).toHaveAttribute('href', `${base}/skills`);
-    expect(within(desk).getByRole('link', { name: /Routing rules/ })).toHaveAttribute('href', `${base}/rules`);
-    expect(within(desk).getByRole('link', { name: /Agent & settings/ })).toHaveAttribute('href', `${base}/agent`);
-    const tabs = screen.getByRole('navigation', { name: 'Project sections' });
-    expect(within(tabs).getByRole('link', { name: /Runs/ })).toHaveAttribute('href', `/o/alice/p/${projectId}/runs`);
-    expect(within(tabs).getByRole('link', { name: 'Project settings' })).toHaveAttribute('href', `${base}/rules`);
-    expect(screen.getByRole('link', { name: 'Agent Desk, all projects' })).toHaveAttribute('href', '/o/alice/projects');
+    const menu = await screen.findByRole('navigation', { name: 'Project menu' });
+    expect(within(menu).getByRole('link', { name: /Skills/ })).toHaveAttribute('href', `${base}/skills`);
+    expect(within(menu).getByRole('link', { name: /Routing rules/ })).toHaveAttribute('href', `${base}/rules`);
+    expect(within(menu).getByRole('link', { name: /Agent & settings/ })).toHaveAttribute('href', `${base}/agent`);
+    expect(within(menu).getByRole('link', { name: /Runs/ })).toHaveAttribute('href', `/o/alice/p/${projectId}/runs`);
+    expect(within(menu).getByRole('link', { name: 'All projects' })).toHaveAttribute('href', '/o/alice/projects');
   });
 
-  it('lists Routing rules first in the Desk menu', async () => {
+  it('lists Routing rules first in the Configure group of the Project menu', async () => {
     await renderRoute(`${base}/skills`);
-    const desk = await screen.findByRole('navigation', { name: 'Desk' });
-    const labels = within(desk)
+    const menu = await screen.findByRole('navigation', { name: 'Project menu' });
+    const labels = within(menu)
       .getAllByRole('link')
       .map((a) => a.textContent?.trim());
-    expect(labels.slice(0, 2)).toEqual(['Routing rules', 'Skills']);
+    const rules = labels.indexOf('Routing rules');
+    expect(labels.slice(rules, rules + 2)).toEqual(['Routing rules', 'Skills']);
   });
 
   it('?skill=code-review opens that skill', async () => {
@@ -259,6 +257,35 @@ describe('desk skills route', () => {
     await user.click(screen.getByRole('button', { name: 'Submit changes' }));
     await waitFor(() => expect(skillRow('code-review').body).toBe('their version!'));
     expect(puts.at(-1)).toMatchObject({ body: 'their version!', sha: 'changed-elsewhere' });
+  });
+
+  it('Discard on the Diff view keeps the Diff view and shows its empty state', async () => {
+    const { user } = await renderRoute(`${base}/skills?skill=code-review`);
+    await user.type(await screen.findByLabelText('SKILL.md source'), '\nMine.');
+    await user.click(screen.getByRole('radio', { name: 'Diff' }));
+    expect(await screen.findByRole('region', { name: 'Changes against main' })).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Discard' }));
+    const diff = await screen.findByRole('region', { name: 'Changes against main' });
+    expect(within(diff).getByText('No changes. The editor matches main.')).toBeInTheDocument();
+    expect(screen.queryByLabelText('SKILL.md source')).toBeNull();
+    expect(screen.getByRole('radio', { name: 'Diff' })).toBeChecked();
+  });
+
+  it('returning to a skill after a Discard on Diff and another skill opens on Edit again', async () => {
+    const { user } = await renderRoute(`${base}/skills?skill=code-review`);
+    await user.type(await screen.findByLabelText('SKILL.md source'), '\nMine.');
+    await user.click(screen.getByRole('radio', { name: 'Diff' }));
+    await user.click(screen.getByRole('button', { name: 'Discard' }));
+    expect(await screen.findByRole('region', { name: 'Changes against main' })).toBeInTheDocument();
+    await user.click(
+      within(screen.getByRole('navigation', { name: 'Skills' })).getByRole('link', { name: /code-build/ }),
+    );
+    expect(await screen.findByRole('heading', { level: 2, name: 'code-build' })).toBeInTheDocument();
+    await user.click(
+      within(screen.getByRole('navigation', { name: 'Skills' })).getByRole('link', { name: /code-review/ }),
+    );
+    expect(await screen.findByLabelText('SKILL.md source')).toBeInTheDocument();
+    expect(screen.queryByRole('region', { name: 'Changes against main' })).toBeNull();
   });
 
   it('reopening the skill after a stale 409 starts a fresh draft from the newer version', async () => {
@@ -377,7 +404,7 @@ describe('desk skills folders follow the default agent', () => {
   it('an OpenCode project names its folder first, then .agents/skills/', async () => {
     setDefaultProvider('opencode');
     await renderRoute(`${base}/skills`);
-    expect(await screen.findByText('.opencode/skills/, .agents/skills/ on main')).toBeInTheDocument();
+    expect(await screen.findByText('.opencode/skills/ or .agents/skills/ on main')).toBeInTheDocument();
   });
 
   it('names no folder while the agent list loads, then the default agent folders', async () => {

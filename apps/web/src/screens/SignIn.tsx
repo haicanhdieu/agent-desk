@@ -47,7 +47,7 @@ export function SignIn({ signInHref, onSignIn, error }: SignInProps) {
             </p>
           </div>
         </div>
-        <p className={`faint ${styles.poc}`}>Proof of concept. Single user per project.</p>
+        <p className={`faint ${styles.poc}`}>Proof of concept.</p>
       </div>
       <section className={styles.signInRight} aria-labelledby="two-runs">
         <p id="two-runs" className={`muted ${styles.kicker}`}>

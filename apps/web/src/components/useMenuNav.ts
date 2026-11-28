@@ -6,8 +6,15 @@ const ARROW_KEYS = ['ArrowDown', 'ArrowUp', 'Home', 'End'];
 /**
  * Keyboard and pointer behaviour shared by the popover menus: an outside press closes the menu, ArrowDown on the
  * trigger opens it, and arrow keys, Home and End move between the menu items. Escape and focus return stay with the Popover.
+ * `ready` is for menus whose items arrive after opening: when it turns true while open and focus is still inside the
+ * popover (on its root, as nothing was there to focus), the first item gets focus.
  */
-export function useMenuNav(open: boolean, setOpen: (open: boolean) => void, wrapRef: RefObject<HTMLElement | null>) {
+export function useMenuNav(
+  open: boolean,
+  setOpen: (open: boolean) => void,
+  wrapRef: RefObject<HTMLElement | null>,
+  ready?: boolean,
+) {
   useEffect(() => {
     if (!open) return undefined;
     const onPointerDown = (e: PointerEvent) => {
@@ -16,6 +23,13 @@ export function useMenuNav(open: boolean, setOpen: (open: boolean) => void, wrap
     document.addEventListener('pointerdown', onPointerDown);
     return () => document.removeEventListener('pointerdown', onPointerDown);
   }, [open, setOpen, wrapRef]);
+
+  useEffect(() => {
+    if (!open || !ready) return;
+    const popover = wrapRef.current?.querySelector('[role="dialog"],[role="menu"]');
+    if (!popover?.contains(document.activeElement)) return;
+    popover.querySelector<HTMLElement>(MENU_ITEMS)?.focus();
+  }, [open, ready, wrapRef]);
 
   const onTriggerKeyDown = (e: KeyboardEvent<HTMLElement>) => {
     if (e.key === 'ArrowDown' && !open) {

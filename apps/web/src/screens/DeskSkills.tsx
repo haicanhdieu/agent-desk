@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { Banner, Button, CommandChip, IconButton, LabelChip, SegmentedControl } from '@/ds';
 import {
-  AppShell,
   CodeEditor,
   CommitBar,
   ConfirmDeleteDialog,
@@ -32,10 +31,8 @@ export interface SkillSubmission {
 const isWebUrl = (url: string) => /^https?:\/\//i.test(url);
 
 export interface DeskSkillsProps {
-  /** Top bar and Desk navigation data. */
+  /** The project, its connection and the setup warning. */
   frame: DeskFrameData;
-  /** `'viewport'` fits the page to the window (the app route): the page does not scroll, each of the three columns does. */
-  height?: 'viewport';
   skills: Skill[];
   activeName?: string;
   /** The editor's skill. Defaults to the one named `activeName` in `skills`, else the first; pass it when the list is a page that may not hold it. */
@@ -59,7 +56,7 @@ export interface DeskSkillsProps {
   folders?: string[];
   /** The project's default branch, where changes land. Null when it is not known; defaults to `main` (stories). */
   defaultBranch?: string | null;
-  /** Where History opens the selected skill's file; absent when the connected repo has no browser URL. */
+  /** Where History opens the selected skill's file; absent when the connected repo has no browser URL; History is then not drawn. */
   historyHref?: string;
   /** A submission is in flight (Submit changes disabled). */
   committing?: boolean;
@@ -107,6 +104,7 @@ function SkillEditor({
   onDelete,
   onCommit,
   onDiscard,
+  onKeepView,
 }: {
   skill: Skill;
   dirty: boolean;
@@ -121,6 +119,8 @@ function SkillEditor({
   onDelete?(name: string): void;
   onCommit?(body: string, message: string): void;
   onDiscard?(): void;
+  /** Discard remounts the editor for a new draft: the parent keeps the view it was on. */
+  onKeepView?(view: View): void;
 }) {
   const [view, setView] = useState<View>(initialView);
   const [value, setValue] = useState(initialDraft ?? skill.body);
@@ -160,17 +160,7 @@ function SkillEditor({
           >
             History
           </Button>
-        ) : (
-          <Button
-            variant="ghost"
-            size="sm"
-            icon="external"
-            disabled
-            title="History is unavailable until the connected repository and its default branch are known"
-          >
-            History
-          </Button>
-        )}
+        ) : null}
         <IconButton icon="trash" aria-label="Delete skill" onClick={() => onDelete?.(skill.name)} />
       </div>
       {view === 'edit' && (
@@ -186,6 +176,7 @@ function SkillEditor({
         pending={committing}
         onDiscard={() => {
           setValue(skill.body);
+          onKeepView?.(view);
           onDiscard?.();
         }}
         onCommit={() => onCommit?.(value, message)}
@@ -237,7 +228,6 @@ function SubmissionNotice({ submission, onDismiss }: { submission: SkillSubmissi
 
 export function DeskSkills({
   frame,
-  height,
   skills,
   activeName,
   active: activeSkill,
@@ -268,13 +258,29 @@ export function DeskSkills({
 }: DeskSkillsProps) {
   const active = activeSkill ?? skills.find((s) => s.name === activeName) ?? skills[0];
   const branchLabel = defaultBranch ?? 'the default branch';
+  // A Discard starts a new draft (a new editor): it opens on the view the person was on.
+  const [kept, setKept] = useState<{ name: string; view: View }>();
+  // Another skill ends it: coming back to this one starts on the default view again.
+  if (kept !== undefined && active !== undefined && kept.name !== active.name) setKept(undefined);
   const doomed = deleting ? skills.find((s) => s.name === deleting) : undefined;
   const page = (
     <>
-      <DeskFrame active="skills" {...frame}>
-        <div className={styles.deskRow}>
+      <DeskFrame
+        active="skills"
+        {...frame}
+        title="Skills"
+        meta={`${folders ? folders.map((f) => `${f}/`).join(' or ') : 'Skill folders'} on ${branchLabel}`}
+        actions={
+          <Button variant="primary" icon="plus">
+            New skill
+          </Button>
+        }
+        fill
+      >
+        <div className={`${styles.deskRow} ${styles.skillsRow}`}>
           <SkillList
             branch={branchLabel}
+            hideHeader
             folders={folders}
             activeName={active?.name}
             skills={skills.map((s) => ({
@@ -286,7 +292,7 @@ export function DeskSkills({
             onSelect={onSelect}
             footer={skills.length > 0 && pagination ? <Pagination {...pagination} /> : undefined}
           />
-          <main className={styles.skillsMain}>
+          <div className={styles.skillsMain}>
             {submission && <SubmissionNotice submission={submission} onDismiss={onDismissSubmission} />}
             {active ? (
               <SkillEditor
@@ -294,7 +300,8 @@ export function DeskSkills({
                 skill={active}
                 dirty={dirty}
                 changedLines={changedLines}
-                view={view}
+                view={kept?.name === active.name ? kept.view : view}
+                onKeepView={(v) => setKept({ name: active.name, view: v })}
                 initialDraft={initialDraft}
                 preview={preview}
                 commitMessage={commitMessage}
@@ -308,6 +315,7 @@ export function DeskSkills({
             ) : (
               <EmptyState
                 title="No skills yet"
+                headingLevel={2}
                 body={
                   <>
                     A skill is a <span className="mono">SKILL.md</span> file under{' '}
@@ -319,14 +327,9 @@ export function DeskSkills({
                     . Start from one of the starter templates, or create a skill from scratch.
                   </>
                 }
-                action={
-                  <Button variant="primary" icon="plus">
-                    New skill
-                  </Button>
-                }
               />
             )}
-          </main>
+          </div>
         </div>
       </DeskFrame>
       {doomed && (
@@ -359,11 +362,5 @@ export function DeskSkills({
       )}
     </>
   );
-  return height === 'viewport' ? (
-    <AppShell height="viewport" topBar={null}>
-      {page}
-    </AppShell>
-  ) : (
-    page
-  );
+  return page;
 }

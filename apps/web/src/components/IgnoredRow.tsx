@@ -7,15 +7,19 @@ export function IgnoredRow({ item }: { item: IgnoredCommand }) {
   const ref = `${item.ticket.kind === 'pr' ? 'PR' : 'Issue'} #${item.ticket.number}`;
   return (
     <tr>
-      <td className={`${styles.num} ${styles.muted}`}>{item.at}</td>
-      <td>
+      <td className={`${styles.num} ${styles.muted}`} data-label="Time">
+        {item.at}
+      </td>
+      <td data-label="Ticket">
         <TicketRef kind={item.ticket.kind} number={item.ticket.number} prState={item.ticket.prState} />
       </td>
-      <td>
+      <td data-label="Command">
         <CommandChip>{item.command}</CommandChip>
       </td>
-      <td className={styles.actor}>{item.author}</td>
-      <td>
+      <td className={styles.actor} data-label="Author">
+        {item.author}
+      </td>
+      <td data-label="Why nothing ran">
         <b className={styles.reason}>{item.reason}</b>
         <div className={styles.detail}>{item.detail}</div>
       </td>

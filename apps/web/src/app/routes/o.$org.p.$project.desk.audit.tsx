@@ -17,6 +17,7 @@ import { projectAuditQuery } from '@/features/projectAudit/queries';
 import { DeskAudit, type DeskAuditProps } from '@/screens';
 
 export const Route = createFileRoute('/o/$org/p/$project/desk/audit')({
+  staticData: { chrome: { mode: 'standard', scope: 'project', item: 'projectAudit', crumb: 'Audit log' } },
   // The log needs `project-audit:read` on this project; the guard runs before any loader, so a refused route fetches nothing.
   beforeLoad: ({ context: { queryClient }, params }) =>
     requireProjectPermission(queryClient, params.org, 'project-audit:read', params.project),

@@ -27,7 +27,7 @@ export function PlatformAdminRow({ row, busy, onRevoke }: PlatformAdminRowProps)
   const reasonId = useId();
   return (
     <tr>
-      <td>
+      <td data-label="Name">
         <span className={styles.name}>
           {row.neverSignedIn || !row.name ? (
             <span className={styles.muted}>Not signed in yet</span>
@@ -39,12 +39,18 @@ export function PlatformAdminRow({ row, busy, onRevoke }: PlatformAdminRowProps)
           {row.you && <LabelChip name="You" />}
         </span>
       </td>
-      <td className={styles.cell}>{row.email}</td>
-      <td className={`${styles.cell} ${styles.mono}`}>{!row.neverSignedIn && row.handle ? row.handle : <Dash />}</td>
-      <td className={styles.cell}>
+      <td className={styles.cell} data-label="Email">
+        {row.email}
+      </td>
+      <td className={`${styles.cell} ${styles.mono}`} data-label="Handle">
+        {!row.neverSignedIn && row.handle ? row.handle : <Dash />}
+      </td>
+      <td className={styles.cell} data-label="Added">
         <span title={row.addedAt.title}>{row.addedAt.label}</span>
       </td>
-      <td className={styles.cell}>{!row.neverSignedIn && row.addedBy ? row.addedBy : <Dash />}</td>
+      <td className={styles.cell} data-label="Added by">
+        {!row.neverSignedIn && row.addedBy ? row.addedBy : <Dash />}
+      </td>
       <td className={styles.actionsCell}>
         <span className={styles.actions}>
           {row.lastWorkingAdmin && (

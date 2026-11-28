@@ -9,6 +9,7 @@ import { defaultTriggerState, mockDb } from '@/mocks/msw/db';
 import { applyProjectSpace, type ProjectSpaceRole } from '@/mocks/msw/projectSpaceScenarios';
 import { server } from '@/mocks/msw/node';
 import { scenarios } from '@/mocks/msw/scenarios';
+import { setViewportWidth } from '@/test/fakeMatchMedia';
 import { renderRoute } from '@/test/renderRoute';
 
 const projectId = ids.project.invoicerApi;
@@ -405,6 +406,40 @@ describe('desk agent route', () => {
     expect(await screen.findByRole('heading', { level: 1, name: 'Projects' })).toBeInTheDocument();
     expect(mockDb.state.projects.some((p) => p.id === projectId)).toBe(false);
     expect(screen.queryByRole('link', { name: 'invoicer-api' })).toBeNull();
+  });
+});
+
+describe('desk agent route: a delete that races a refetch', () => {
+  it('never shows Not found when the project read answers 404 while the delete is landing', async () => {
+    const { user, router, queryClient } = await openPage('Danger zone');
+    let sawNotFound = false;
+    const watch = new MutationObserver(() => {
+      if (screen.queryByRole('heading', { name: 'Page not found' })) sawNotFound = true;
+    });
+    watch.observe(document.body, { childList: true, subtree: true });
+    // The project is gone once the DELETE is answered. The delete then refreshes the list, and a refetch of the
+    // project's detail starting in that gap (after the delete cancelled its own reads, before the page has left) answers 404.
+    let deleted = false;
+    const onResponse = ({ request }: { request: Request }) => {
+      if (request.method === 'DELETE') deleted = true;
+      else if (deleted && new URL(request.url).pathname === '/api/projects') {
+        deleted = false;
+        void queryClient.refetchQueries({ queryKey: ['org', 'alice', 'projects', projectId], exact: true });
+      }
+    };
+    server.events.on('response:mocked', onResponse);
+    stopCapture = () => {
+      server.events.removeListener('response:mocked', onResponse);
+      watch.disconnect();
+    };
+
+    await user.click(screen.getByRole('button', { name: 'Delete project' }));
+    await user.click(
+      within(screen.getByRole('dialog', { name: 'Delete project' })).getByRole('button', { name: 'Delete project' }),
+    );
+    await waitFor(() => expect(router.state.location.pathname).toBe('/o/alice/projects'));
+    await screen.findByRole('heading', { level: 1, name: 'Projects' });
+    expect(sawNotFound).toBe(false);
   });
 });
 
@@ -1067,6 +1102,20 @@ describe('desk agent route: agents', () => {
     await user.keyboard('{Escape}');
     await waitFor(() => expect(screen.queryByRole('heading', { level: 2, name: 'Edit agent' })).toBeNull());
     await waitFor(() => expect(edit).toHaveFocus());
+  });
+
+  it('TC-62.5: Escape on the open menu drawer closes the drawer, not the pane, and keeps what was typed', async () => {
+    act(() => setViewportWidth(390));
+    const { user } = await openAgents();
+    await user.click(screen.getByRole('button', { name: 'Add agent' }));
+    await user.click(await screen.findByRole('radio', { name: 'OpenCode' }));
+    await user.type(screen.getByLabelText('Name'), 'OpenCode - Phone');
+    await user.click(screen.getByRole('button', { name: 'Open menu' }));
+    await screen.findByRole('dialog', { name: 'Main menu' });
+    await user.keyboard('{Escape}');
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Main menu' })).toBeNull());
+    expect(screen.getByRole('heading', { level: 2, name: 'Add agent' })).toBeInTheDocument();
+    expect(screen.getByLabelText('Name')).toHaveValue('OpenCode - Phone');
   });
 
   it('a reader without agent:update sees the read-only pane and no write controls', async () => {

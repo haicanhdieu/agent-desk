@@ -37,7 +37,12 @@ export const LongRepo: Story = {
   args: { project: { ...projects[1], repo: `harbor-labs/${'very-long-'.repeat(8)}` }, href: '#' },
 };
 
-/** A member or viewer: no Settings item (the Desk is closed to them). */
+/** An unfinished setup: "Resume setup" sits before More. */
+export const WithResume: Story = { args: { project: projects[1], href: '#', resumeHref: '#resume' } };
+/** Without a resume href the button is left out (the other stories). */
+export const WithoutResume: Story = { args: { project: projects[1], href: '#', settingsHref: '#settings' } };
+
+/** A member or viewer: no "Agent & settings" item (the Desk is closed to them). */
 export const MenuNoSettings: Story = {
   args: { project: projects[0], href: '#runs' },
   decorators: [
@@ -52,7 +57,7 @@ export const MenuNoSettings: Story = {
   },
 };
 
-/** The More menu: Runs and Settings link out; Delete project (danger) shows for a caller who holds project:delete. */
+/** The More menu: Runs and Agent & settings link out; Delete project (danger) shows for a caller who holds project:delete. */
 export const MenuOpen: Story = {
   args: { project: projects[0], href: '#runs', settingsHref: '#settings', onDelete: () => undefined },
   decorators: [

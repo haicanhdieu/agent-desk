@@ -19,6 +19,13 @@ describe('LiveTerminal', () => {
     expect(onResize).toHaveBeenLastCalledWith({ cols: 120, rows: 40 });
   });
 
+  it('a terminal mounted hidden sends no resize', () => {
+    const onResize = vi.fn();
+    FakeXterm.hostSize = { width: 0, height: 0 };
+    render(<LiveTerminal onResize={onResize} />);
+    expect(onResize).not.toHaveBeenCalled();
+  });
+
   it('renders with WebGL, which draws the box and block glyphs Claude Code prints itself', () => {
     render(<LiveTerminal />);
     expect(FakeXterm.latest().addons.some((a) => a instanceof FakeWebglAddon)).toBe(true);
@@ -358,6 +365,107 @@ describe('LiveTerminal', () => {
       ]);
       expect(gesture(removeHost.mock.calls)).toEqual([]);
       expect(removeHost.mock.calls.some(([type]) => type === 'keydown')).toBe(false);
+    });
+  });
+
+  describe('sendKey (the extra keys)', () => {
+    it('one press is exactly one onData with the key bytes', () => {
+      const onData = vi.fn();
+      const ref = createRef<LiveTerminalHandle>();
+      render(<LiveTerminal ref={ref} onData={onData} />);
+      act(() => ref.current?.sendKey('tab'));
+      expect(onData).toHaveBeenCalledTimes(1);
+      expect(onData).toHaveBeenCalledWith('\t');
+    });
+
+    it('the arrows follow the terminal cursor mode', () => {
+      const onData = vi.fn();
+      const ref = createRef<LiveTerminalHandle>();
+      render(<LiveTerminal ref={ref} onData={onData} />);
+      act(() => ref.current?.sendKey('up'));
+      FakeXterm.latest().setApplicationCursor(true);
+      act(() => ref.current?.sendKey('up'));
+      expect(onData.mock.calls).toEqual([['\x1b[A'], ['\x1bOA']]);
+    });
+
+    it('sends nothing on a read-only terminal', () => {
+      const onData = vi.fn();
+      const ref = createRef<LiveTerminalHandle>();
+      render(<LiveTerminal ref={ref} readOnly onData={onData} />);
+      act(() => ref.current?.sendKey('enter'));
+      expect(onData).not.toHaveBeenCalled();
+    });
+
+    it('Ctrl-C is one interrupt even with text selected, and the selection is not copied', () => {
+      const onData = vi.fn();
+      const writeText = vi.fn().mockResolvedValue(undefined);
+      vi.stubGlobal('navigator', { ...navigator, clipboard: { writeText } });
+      const ref = createRef<LiveTerminalHandle>();
+      render(<LiveTerminal ref={ref} onData={onData} />);
+      FakeXterm.latest().select('some text');
+      act(() => ref.current?.sendKey('ctrl-c'));
+      expect(onData.mock.calls).toEqual([['\x03']]);
+      expect(writeText).not.toHaveBeenCalled();
+      vi.unstubAllGlobals();
+    });
+
+    it('does nothing else: it does not take focus', () => {
+      const ref = createRef<LiveTerminalHandle>();
+      render(<LiveTerminal ref={ref} onData={vi.fn()} />);
+      act(() => ref.current?.sendKey('esc'));
+      expect(FakeXterm.latest().focusCalls).toBe(0);
+    });
+  });
+
+  describe('refit', () => {
+    /** Renders, then returns a function that fires the host's ResizeObserver (the animation frame runs at once). */
+    function renderWithObserver() {
+      let notify = () => undefined as void;
+      vi.stubGlobal(
+        'ResizeObserver',
+        class {
+          constructor(cb: () => void) {
+            notify = cb;
+          }
+          observe() {}
+          disconnect() {}
+        },
+      );
+      vi.stubGlobal('requestAnimationFrame', (cb: () => void) => {
+        cb();
+        return 1;
+      });
+      vi.stubGlobal('cancelAnimationFrame', () => undefined);
+      render(<LiveTerminal />);
+      const term = FakeXterm.latest();
+      const fit = term.addons.find((a): a is FakeFitAddon => a instanceof FakeFitAddon);
+      if (!fit) throw new Error('no fit addon');
+      return { term, fit: vi.spyOn(fit, 'fit'), notify: () => act(notify) };
+    }
+    afterEach(() => vi.unstubAllGlobals());
+
+    it('does nothing while the host has no size (hidden), and fits again once it has one', () => {
+      const { term, fit, notify } = renderWithObserver();
+      fit.mockClear();
+      // A hidden host: the real fit addon still proposes a tiny size, which must not be applied.
+      FakeXterm.hostSize = { width: 0, height: 0 };
+      FakeFitAddon.nextSize = { cols: 2, rows: 1 };
+      notify();
+      expect(fit).not.toHaveBeenCalled();
+      expect(term.cols).toBe(80);
+      FakeXterm.hostSize = { width: 390, height: 500 };
+      FakeFitAddon.nextSize = { cols: 40, rows: 20 };
+      notify();
+      expect(fit).toHaveBeenCalledTimes(1);
+      expect(term.cols).toBe(40);
+    });
+
+    it('does nothing when the fit addon proposes no size', () => {
+      const { fit, notify } = renderWithObserver();
+      fit.mockClear();
+      FakeFitAddon.hasSize = false;
+      notify();
+      expect(fit).not.toHaveBeenCalled();
     });
   });
 

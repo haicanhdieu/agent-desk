@@ -1,0 +1,9 @@
+.body {
+  display: flex;
+  flex-direction: column;
+  height: min(60vh, 480px);
+  min-width: 0;
+  border: 1px solid var(--line2);
+  border-radius: var(--radius-6, 6px);
+  overflow: hidden;
+}

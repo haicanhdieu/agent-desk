@@ -67,22 +67,23 @@ describe('desk rules route', () => {
     expect(screen.getAllByText('Never ran').length).toBeGreaterThan(0);
     expect(screen.getByText(/Skill docs-update is not in \.claude\/skills\/ on main/)).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Change' })).toHaveAttribute('href', `${base}/desk/agent?tab=limits`);
-    expect(screen.getByRole('link', { name: 'Runs, Ignored' })).toHaveAttribute('href', `${base}/runs`);
+    expect(screen.getByRole('link', { name: 'Runs, Ignored' })).toHaveAttribute('href', `${base}/runs?filter=ignored`);
     expect(screen.queryByRole('complementary')).toBeNull();
   });
 
-  it("the Desk sidebar header shows the current project's name, not the generic Desk label", async () => {
+  it('the shell names the current project in the bar and the repository in the Project menu', async () => {
     await renderRoute(rulesPage);
-    const desk = await screen.findByRole('navigation', { name: 'Desk' });
-    expect(await within(desk).findByText('invoicer-api', { selector: 'div' })).toBeInTheDocument();
-    expect(within(desk).queryByText('Desk')).toBeNull();
+    const menu = await screen.findByRole('navigation', { name: 'Project menu' });
+    expect(await screen.findByRole('button', { name: 'Switch project, currently invoicer-api' })).toBeInTheDocument();
+    expect(await within(menu).findByRole('region', { name: 'Repository' })).toHaveTextContent('invoicer-api');
+    expect(screen.queryByRole('navigation', { name: 'Desk' })).toBeNull();
   });
 
-  it('the Desk sidebar header follows the project in the route', async () => {
+  it('the Project menu and the bar follow the project in the route', async () => {
     await renderRoute(`/o/alice/p/${ids.project.invoicerWeb}/desk/rules`);
-    const desk = await screen.findByRole('navigation', { name: 'Desk' });
-    expect(await within(desk).findByText('invoicer-web', { selector: 'div' })).toBeInTheDocument();
-    expect(within(desk).queryByText('Desk')).toBeNull();
+    const menu = await screen.findByRole('navigation', { name: 'Project menu' });
+    expect(await screen.findByRole('button', { name: 'Switch project, currently invoicer-web' })).toBeInTheDocument();
+    expect(await within(menu).findByRole('region', { name: 'Repository' })).toHaveTextContent('invoicer-web');
   });
 
   it('no rules shows the empty state', async () => {
@@ -690,15 +691,16 @@ describe('desk rules route', () => {
     const enabledIn = (pages: [unknown, Page<RuleDto> | undefined][], id: string) =>
       pages.flatMap(([, page]) => page?.items.filter((r) => r.id === id).map((r) => r.enabled) ?? []);
 
-    it('24 rules: 20 rows and "Showing 1–20 of 24", the control after the guards, outside the list; Page 2 shows 4 rows', async () => {
+    it('24 rules: 20 rows and "Showing 1–20 of 24", the control between the last rule and the guards, pinned in the list; Page 2 shows 4 rows', async () => {
       seedRules(24);
       const { user } = await renderRoute(rulesPage);
       await screen.findByRole('navigation', { name: 'Pagination' });
       expect(rows()).toHaveLength(20);
       expect(nav()).toHaveTextContent('Showing 1–20 of 24');
       const guards = screen.getByText('Guards on every rule');
-      expect(nav().compareDocumentPosition(guards) & Node.DOCUMENT_POSITION_PRECEDING).toBeTruthy();
-      expect(screen.getByRole('region', { name: 'Rules list' })).not.toContainElement(nav());
+      expect(nav().compareDocumentPosition(guards) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+      expect(rows().at(-1)!.compareDocumentPosition(nav()) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+      expect(screen.getByRole('region', { name: 'Rules list' })).toContainElement(nav());
       await page2(user);
       await waitFor(() => expect(rows()).toHaveLength(4));
       expect(nav()).toHaveTextContent('Showing 21–24 of 24');

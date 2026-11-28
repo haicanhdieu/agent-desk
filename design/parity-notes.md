@@ -21,7 +21,7 @@ All 24 pairs were reviewed (side by side; boards with under 1% pixel difference 
 ## Remaining differences per board
 
 - Main, SignIn, ProjectsEmpty, Projects, Setup2, RunReconnect: no visible difference.
-- NeedsYou: the project list card is about 9px taller (the "webhooks" warning row is about 5px taller than the prototype's), which pushes the lower row of cards down by about 10px. Not fixed.
+- NeedsYou: the project list card is about 9px taller (the "webhooks" warning row is about 5px taller than the prototype's), which pushes the lower row of cards down by about 10px. Not fixed. (Obsolete: the NeedsYou boards and the needs-you page were removed, BR-30.)
 - Runs, RunsProblems: the table block sits about 2px lower (header row height); otherwise identical.
 - Setup1: radio cards and the banner below are 1 to 2px taller each, 4px cumulative. Not fixed.
 - Setup3, SetupReady: 1 to 2px vertical drift only.
@@ -88,7 +88,7 @@ Added after the pass above, so `parity.mjs` then found 26 boards (30 with worksp
   "... or switch this project to polling, which needs no public URL."
 - DeskAgent (now 1440x1320): "Trigger mode" row with a Webhook / Polling segmented control and "Last webhook" renamed "Last event"
   ("issue_comment, 2 min ago, accepted (webhook)").
-- NeedsYou: unchanged; its "webhooks" warning in the switcher is still the webhook-mode warning.
+- NeedsYou: unchanged; its "webhooks" warning in the switcher is still the webhook-mode warning. (Obsolete: the NeedsYou boards and the needs-you page were removed, BR-30.)
 
 ## Workspace setup and plugins (prototype states, now in Storybook)
 
@@ -237,7 +237,7 @@ Spec: `docs/superpowers/specs/2026-11-22-org-tenant-admin-design.md` (UI and Sto
 added, so `parity.mjs` finds 149: ProjectsChecklistDoneSettings, ProjectsEmptyChecklistSettings.
 
 - Projects, ProjectsEmpty, Setup1, Setup1Polling, Setup1PollingOk, Setup2, SetupWorkspace, Setup3, Setup4, SetupReady,
-  Runs, RunsProblems, NeedsYou, every RunDetail board (RunStarting to RunRunningAutoResume) and every Desk board: intentional: Option A app bar. The
+  Runs, RunsProblems, every RunDetail board (RunStarting to RunRunningAutoResume) and every Desk board: intentional: Option A app bar. The
   story header is the new app bar (org crumb and menu, Projects and Settings tabs or the project tabs); the board still
   draws the older header and is not redrawn. The project-level stories change in Task 21.
 - Projects and ProjectsEmpty stories no longer show the "Invitations" header button (Option A, BR-49); the older boards
@@ -283,15 +283,15 @@ the Option A bar and the side menu, so they have no header drift (Forbidden has 
 ## Org tenant admin: Runs, run detail, needs-you and Desk under the app bar
 
 Spec: `docs/superpowers/specs/2026-11-22-org-tenant-admin-design.md` (UI and Storybook). No board added (`parity.mjs` still
-finds the same boards as before). Every story of Runs, RunsProblems, NeedsYou, run detail and Desk now draws the new bar, so the header differs from
+finds the same boards as before). Every story of Runs, RunsProblems, run detail and Desk now draws the new bar, so the header differs from
 the boards on purpose: project level (Runs, RunsProblems, Desk) shows the org crumb and menu, the project crumb, the Runs tab
 with the needs-you count, the Desk tab and the account menu; run detail shows org / project / Runs / Run N with no bell;
-NeedsYou shows the org bar (Projects and Settings tabs, none current). The content below the header must still match.
+NeedsYou shows the org bar (Projects and Settings tabs, none current). The content below the header must still match. (Obsolete: the NeedsYou boards and the needs-you page were removed, BR-30.)
 
 - `RunsPage`, `RunDetail` and `DeskFrame` take optional `org` and `account`; `RunDetail` also takes `run` (the Runs link and the
-  Run N label); `NeedsYou`'s `topBar` takes optional `org` and `account`. Without them the legacy bar draws (routes keep it until
+  Run N label); `NeedsYou`'s `topBar` takes optional `org` and `account`. Without them the legacy bar draws (routes keep it until (Obsolete: the NeedsYou boards and the needs-you page were removed, BR-30.)
   Task 26).
-- The example tab strip inside the NeedsYou page is a nav named "Runs and Desk tabs, example", so the page has one "Main" nav.
+- The example tab strip inside the NeedsYou page is a nav named "Runs and Desk tabs, example", so the page has one "Main" nav. (Obsolete: the NeedsYou boards and the needs-you page were removed, BR-30.)
 - Storybook and `parity.mjs` were not run in the runner pod (no Chromium). The pixel pairs of these boards are unchecked: none is
   claimed to match.
 
@@ -647,3 +647,210 @@ item reads "Change access".
 - Agent call: the route keeps working until Task 31: it passes the capability table, offers only the project's own agent's provider as a card (other kinds show as chips), and keeps saving into the existing agent.
 - The interactive prototype under `design/prototype/interactive` is not regenerated here; a later change runs `_tools/build-boards.mjs` and `_checks/nav-check.mjs`.
 - Not compared by browser: the new boards were not rendered side by side in this change (Storybook is not built in the runner pod). Smoke and axe run on the new stories.
+
+## Sidebar navigation shell: member with no invitations (BR-57)
+
+Spec: `docs/superpowers/specs/2026-11-25-sidebar-navigation-shell-design.md` (BR-57). The member variant of the empty welcome
+page is the story MyInvitationsEmptyMemberText (`Screens/Invitations`), a state of the MyInvitationsEmpty board: the h1
+"No pending invitations" and "No invitations for <email>.", in the same frame, with no Sign out or Create organization.
+
+- Pixel check not run: no Chromium in the runner pod, so `parity.mjs` was not run for MyInvitationsEmpty or the member variant.
+
+## Sidebar navigation shell: smaller items
+
+Board added: SignInProofOfConcept (so `parity.mjs` finds one more board). Storybook and `pnpm parity` were not run in the runner pod, so the pairs below are unchecked.
+
+- SignInProofOfConcept: the story renders the same sign-in screen as SignIn ("Proof of concept." with no single-user sentence); the board is the shortened-footer variant.
+- Projects, ProjectsMember and the other Projects boards: the row menu says "Agent & settings" where the older boards say "Settings", and the intro reads "After sign-in you land on this list. It is one click away on the logo." Intended change (BR-28, BR-75).
+- PlatformOrgProjects boards: Name is the first column, then Id (BR-71).
+- InvitationAccept boards: the details card has 16px padding (BR-70).
+- Setup3: Preview is a button that opens a dialog (BR-74).
+
+## Sidebar navigation shell: organization screens in the shell (Task 18)
+
+Boards registered (16, canvas order 388 to 404): ProjectsSideMenu, ProjectsMemberSideMenu, ProjectsSideMenuPlatformAdmin, ProjectsSideOneOrg, ProjectsSideSwitcherOpen, ProjectsSideSwitcherLoading, ProjectsSideSwitcherError, ProjectsSideSwitcherOneOrgHeld, ProjectsSideAccountMenu, ProjectsResumeSetup, OrgMembersSideMenu, OrgMembersSideMenuCollapsed, OrgMembersSideMenuError, OrgMembersSideMenuLoading, OrgInvitationsSettingsSideMenuProjectAdmin, OrgAuditForbiddenSideMenu. They sit in a new canvas row at y 91440 and 92720 (8 per row). Only these 16 pairs were rendered side by side (`parity.mjs` itself fails on the base commit: its `Object.fromEntries` call spreads a second argument, so a copy limited to these boards was run).
+
+- Collapse chevron: the board puts it at the right of the menu's first row; `SubNav` (Task 12) puts it at the left. Not changed here.
+- Content padding is 32px as drawn; the gap between the h1 and the intro line is tighter than the board (the shared `PageHeader` spacing).
+- Row actions: the Projects board draws "Agent & settings" as a text button in each row; the app puts it in the row's menu. Same as before this change.
+- Members and the other tables: the stories use the shared fixtures, so names and rows differ from the board's sample data.
+- Agent call: `ProjectsSideSwitcherOneOrgHeld` reaches its state in a `play` step (the list loads, then arrives with one org while the switcher is open), as the person's own click is needed.
+
+## Sidebar navigation shell: platform screens in the shell (Task 19)
+
+Boards registered (8, canvas order 404 to 412): PlatformOrgsSideMenu, PlatformAdminsForbiddenNoMenu, PlatformOrgMembersSideMenuError, PlatformOrgMembersSideMenuLoading, PlatformOrgOverviewSideMenuNotFound, PlatformOrgOverviewSideMenuSuspended, PlatformOrgProjectsSideMenu, CreateOrgSideMenu. They sit in a new canvas row at y 94000. PARITY (Storybook build and the side-by-side render) was not run in this session: the build needs more memory than the 4 GiB cap allows next to the other checks, so these 8 pairs are unchecked.
+
+- Agent call: the platform menu fixtures and the `PlatformShellFrame` that wraps them live in `mocks/shellMenus.tsx` and `screens/platformShellFrame.tsx` (as the org menu does), not in `platform.stories.tsx`, because the screen tests use them too.
+- Agent call: `CreateOrgSideMenu` is registered under `Screens/Platform`, beside the other platform boards.
+
+## Sidebar navigation shell: Runs screens in the shell (Task 20)
+
+Boards registered (13, canvas order 412 to 425): RunsSideMenu, RunsSideMenuError, RunsSideMenuLoading, RunsSideMenuMember, RunsSideMenuRepoError, RunsSideMenuRepoNoBranch, RunsSideMenuRepoWarning, RunsSideProjectSwitcher, RunsSideProjectSwitcherEmpty, RunsSideProjectSwitcherError, RunsSideProjectSwitcherLoading, RunsSideProjectSwitcherNoCreate, RunsNotFoundSideMenu. They sit in new canvas rows at y 95280 and 96560 (8 per row). PARITY (Storybook build and the side-by-side render) was not run in this session (4 GiB memory cap), so these 13 pairs are unchecked.
+
+- Agent call: the project menu and project switcher fixtures are in `mocks/shellMenus.tsx`, and `screens/projectShellFrame.tsx` wraps them for stories and tests (the org menu has the same split); the task text named `shellMenus.ts`, but the U16 file is `.tsx` because it holds links.
+- Agent call: `Runs.tsx` and `RunsProblems.tsx` need no change, both draw through `RunsPage`, which carries the owned branch.
+- Agent call: `RunsNotFoundSideMenu` renders the not-found notice (the text of `app/boundaries.tsx` `NotFound`) inside `OrgShellFrame`, since `app/` is not presentational.
+- The repository link comes from the menu block, which uses `repoUrl` as given; `repoUrlOf` (`features/runs/map.ts`) still hard-codes github.com, flagged and not fixed.
+
+## Sidebar navigation shell: project frame, Skills, Workspace setup, Members and Audit log screens in the shell (Task 21)
+
+Boards registered (3, canvas order 425 to 428): DeskRulesForbiddenSideMenu, DeskSkillsSideMenu, DeskSetupSideMenu. They continue the canvas row at y 96560 (x 7600 to 10640). PARITY (Storybook build and the side-by-side render) was not run in this session (4 GiB memory cap), so these 3 pairs are unchecked.
+
+- Agent call: `DeskFrame` renders only the page's `main` (header, setup warning, body) when the shell owns the chrome; the screens' own `main` becomes a `div` then, so there is one `main`.
+- Agent call: `SkillList` gets `hideHeader`: in the shell the page header already holds "Skills", the folder line and "New skill", so the list column draws only the list.
+- Agent call: the skill "History" link is removed in both branches, as the task says. The header "New skill" button has no handler yet, as the list's button had none.
+- Agent call: `DeskRulesForbiddenSideMenu` is the forbidden notice inside `ProjectShellFrame` (the text of the Members forbidden board), since `app/` is not presentational.
+- Members and Audit log get no new board: they use the existing screen tests in the shell.
+
+## Sidebar navigation shell: Agent & settings and Routing rules screens in the shell (Task 56)
+
+Boards registered (3, canvas order 429 to 431): DeskRulesSideMenu, DeskRulesSideMenuSetupWarning, DeskAgentSideMenu. They continue the canvas row at y 96560 (x 12160 to 15200). PARITY (Storybook build and the side-by-side render) was not run in this session (4 GiB memory cap), so these 3 pairs are unchecked.
+
+- Agent call: in the shell `DeskAgent` and `DeskRules` draw one `main` themselves (not through `DeskFrame`): a column (`PageHeader`, tab strip, scroll area) and, beside it, the side pane. The setup warning is passed as `lead` to the first item of each tab's scroll area (`AgentList`, `PanelScroll`, the rules list).
+- Agent call: BR-44: "Manage installation on GitHub" and "Send test ping" are removed in both branches; the action row now exists only in polling mode, for "Check now".
+
+## Sidebar navigation shell: Run page header (Task 22)
+
+Boards registered (5, canvas order 432 to 436): RunIdle1024, RunIdleSideCollapsed, RunIdleSideExpanded, RunRunningSideMenu, RunRunningStopSideMenu. They sit in a new canvas row at y 97840. PARITY (Storybook build and the side-by-side render) was not run in this session (4 GiB memory cap), so these 5 pairs are unchecked.
+
+- Agent call: in the shell `RunDetail` draws one `main` with a `PageHeader` (title "Run N", status, command, ticket, elapsed and the pending note as meta; the run actions and "Collapse context panel (])" as actions) over the terminal and side panel. The panel button shows only with `onTogglePanel`, and the action row is absent when nothing is given.
+- Agent call: the cancel and stop confirms hang under their header buttons (a relatively positioned wrapper around each button). The old bar branch keeps its fixed offsets.
+- "Full screen" is removed in both branches.
+- Agent call: the multi-agent gate marker "Enter the API key for this endpoint." is not in `features/desk/agent.form.ts` on `main` or here; the text now lives in `AgentPane.tsx`, `Setup2.tsx` and their specs, so the work is merged under another file and the gate was treated as passed (the earlier shell units rely on the same base).
+
+## Sidebar navigation shell: Wizard frame with the stepper in the menu slot (Task 23)
+
+Boards registered (4, canvas order 437 to 440): Setup3ExitSetup, Setup4ExitSetup, SetupReadyExitSetup, Setup3PreviewDialog. They continue the canvas row at y 97840 (x 7600 to 12160). PARITY (Storybook build and the side-by-side render) was not run in this session (4 GiB memory cap), so these 4 pairs are unchecked.
+
+- Agent call: with a shell around it, `SetupLayout` draws no `TopBar`; the "Setup progress" aside is portalled into `wizardSlot` (nothing is drawn while the slot is null, e.g. a closed drawer). Without a shell it keeps the old bar and inline aside.
+- Agent call: at 1024px and up "Exit setup" follows the "Progress is saved" note in the aside; below 1024px a header row at the top of `main` holds the step label and "Exit setup", and the label is not repeated above the title. The Ready step has no label, so its row holds only "Exit setup".
+- Agent call: "Exit setup" goes to `exitHref`, else the org's Projects href (`org.projectsHref`, `/projects` without an org).
+- Agent call: the header row below 1024px has component stories only (`Components/SetupLayout` InShellHeaderRow, InShellReadyHeaderRow), since the plan registers exactly four boards.
+- The wizard route is not yet wrapped in the shell (later tasks), so no live page changes and no new e2e spec is added; the existing wizard mock specs are run.
+
+## Sidebar navigation shell: Invitation, error, loading and suspended screens (Task 24)
+
+Boards registered (14, canvas order 441 to 454): InvitationAcceptSideMenu, InvitationAcceptErrorSideMenu, InvitationAcceptNotAvailableNoMenu, MyInvitationsSideMenu, MyInvitationsEmptyNoOrg, MyInvitationsEmptySideSwitcherHeld, RouteErrorSideMenu, RouteErrorCrashSideMenu, RouteErrorNoMenu, RouteErrorNotFoundNoMenu, RouteLoadingSideMenu, OrgSuspendedNoMenu, OrgSuspendedPlainName, MyInvitationsEmptyMember. They sit in two canvas rows at y 99120 and 100400. `MyInvitationsEmptyMemberText` left `stateStories` and is now the board story `MyInvitationsEmptyMember` (it replaces the earlier text-only variant). PARITY (Storybook build and the side-by-side render) was not run in this session (4 GiB memory cap), so these 14 pairs are unchecked.
+
+- Agent call: with a shell around it, `MyInvitations` and `InvitationAccept` draw no `TopBar` and one `main`; without a shell they keep the old bar and h1s (list h1 "Invitations", member-empty h1 "No pending invitations").
+- Agent call: in the shell the list and the member-empty page have the page header h1 "My invitations"; member-empty adds the h2 "No pending invitations" and "No invitations for {email}." with no buttons. The no-org welcome and "not available" stay centred with their own h1 and no menu.
+- Agent call: loading and a failed load in the shell show no h1 (`RouteSkeleton` and `RouteLoadError` draw no `main`; the page's own `main` holds them).
+- Agent call: accepted, declined, revoked and expired invitation pages keep their title as the page header h1 in the shell (not centred), with their text and action below; the spec centres only "not available".
+- Agent call: `OrgSuspended` needs no code change: it already draws one centred `main` and no bar. Its new boards only show it in a shell with no menu (switcher kept, or the plain org name for a lone org).
+- Agent call: the Route* boards render the route's `main` by hand in the stories, because the boundary components are wired into the shell by Task 35.
+- The invitation routes are not yet wrapped in the shell (later tasks), so no live page changes and no new e2e spec is added; the existing mock specs are run.
+
+## Needs-you page removed (BR-30)
+
+The `NeedsYou`, `NeedsYouEmpty` and `NeedsYouPaged` boards (and the `NeedsYouPaused` state story) are removed with the page; the earlier NeedsYou notes above are obsolete. `RunsNeedsYouNotFound` is registered in their place (the old address shows "Page not found" with the project menu). The full PARITY run takes hours under the 4 GiB cap, so only this pair, `RunsNotFoundSideMenu` and `Main` were rendered: the pair draws the same project menu and the same not-found card, but the story heading is smaller than the board's 28px h1 and the menu rows sit 2px lower, exactly as in `RunsNotFoundSideMenu` (same stand-in markup). Not fixed. `scripts/parity.mjs` had a misplaced parenthesis around the Run detail usage boards that made it throw before any board; fixed here.
+
+## Sidebar navigation shell: old navigation removed (Task 39)
+
+The tab rows (`OrgNav`, `ProjectNav`, `PlatformNav`), the section layouts (`DeskLayout`, `OrgSettingsLayout`, `PlatformLayout`) and every screen's own top bar are gone: the shell host draws the one bar and the menu, and each screen draws only its page. No board was added or removed. PARITY (Storybook build and the side-by-side render) was not run in this session, so no pair was checked.
+
+- Agent call: the older non-shell boards (Runs, Desk, Setup, Entry, Invitations, OrgSettings, Platform, Run detail) are drawn inside the shell stories frame (`ShellFrame` through the `*ShellFrame` helpers), with the page-header h1 and the shell's bar and menu. Their headers therefore read like the shell boards, not like the prototype's old bar with tabs. Recorded for the final parity pass, which redraws them.
+- Agent call: `SetupLayout` without a shell provider draws the stepper in place and no bar; with a provider but no slot it draws nothing in the menu.
+- Agent call: `DeskSetup` always splits the column between the editor and the log while a test shows (the route always asked for the viewport fit).
+
+## Sidebar navigation shell: phone card tables and narrow popovers (Task 45)
+
+No board was added or removed. PARITY was not run in this session (no browser), so no pair was checked.
+
+- Agent call: `DataTable` takes `cards` (default true). Below 640px its rows are cards, `thead` is visually hidden but stays in the accessibility tree, and a `td` with `data-label` shows it through `::before`. Only `MemberRow` carries labels so far; the other rows get theirs in Tasks 47, 48, 52 and 53, and until then their cells stack without a label.
+- Agent call: the actions cell of `MemberRow` has no label (its button already names the member); every other cell is labelled.
+- Agent call: the switcher and account popovers get an inner scroll (`max-height: calc(100dvh - 128px)`) below 640px, since the shared popover already takes the viewport minus 16px gutters; `SidePane` is full width below 640px.
+
+## Sidebar navigation shell: phone entry, invitation and error pages (Task 46)
+
+Six boards are registered: `SignInPhone`, `CreateOrgPhone`, `InvitationAcceptPhone`, `MyInvitationsPhone`, `OrgSuspendedPhone` and `RouteErrorPhone` (no h1), 458 in all. PARITY was not run in this session (no browser), so no pair was checked; the six boards are unchecked. `scripts/parity.mjs` needed no change: it reads the board list from `canvas.json` and `storyIds.ts`.
+
+- Agent call: the phone stories reuse the desktop stories' frames at a 390x844 viewport, so the bar, menu and drawer are the real phone shell; the board's own drawn bar is not copied.
+- Agent call: below 640px the shared `shellMain` padding is 24px 16px (a 16px gutter for every page in the shell), not only for these pages.
+
+## Sidebar navigation shell: phone Projects and the wizard (Task 47)
+
+Twelve boards are registered: `ProjectsPhone`, `ProjectsPhoneDrawer`, `ProjectsPhoneSwitcher`, `Setup1Phone`, `Setup2Phone`, `Setup2AgentPickedPhone`, `Setup2AgentRejectedPhone`, `Setup3Phone`, `Setup3PhoneDrawer`, `Setup3PreviewDialogPhone`, `Setup4Phone` and `SetupReadyPhone`, 470 in all. PARITY was not run in this session (no browser), so no pair was checked; the twelve boards are unchecked. `scripts/parity.mjs` needed no change: it reads the board list from `canvas.json` and `storyIds.ts`.
+
+- Agent call: `ProjectRow` cells carry `data-label` (GitHub, Needs you, Running, Queued, Last run), so the phone card shows them; the name cell and the actions cell have none. The name cell stacks the name over the repository below 640px.
+- Agent call: below 640px `SetupLayout` is one column (`setupMain` 24px 16px, the aside under the main column, the footer wraps), and the credential type cards and the model and concurrent runs pair of step 2 stack (`stackPhone`, used only there, so the Agent & settings limits grid is left to Task 57).
+- Agent call: `Setup3Phone` is drawn 980px tall as its board is; the other eleven are 390x844.
+- Agent call: the phone wizard stories reuse the desktop screens inside the shell frame at 390px, so the drawer and the bar are the real shell; the board's own drawn bar is not copied.
+
+## Sidebar navigation shell: phone Runs list (Task 48)
+
+Two boards are registered: `RunsPhone` and `RunsPhoneDrawer`, 472 in all. PARITY was not run in this session (no browser), so no pair was checked; the two boards are unchecked. `scripts/parity.mjs` needed no change: it reads the board list from `canvas.json` and `storyIds.ts`.
+
+- Agent call: run and ignored-command cells carry `data-label` (Status, Ticket, Rule, Triggered by, Started, Duration, Usage; Time, Ticket, Command, Author, Why nothing ran), so the existing card table shows them; the run link cell and the actions cell have none.
+- Agent call: below 640px the Runs page header's actions wrap with the search on its own full-width line, and the status chips plus Ignored scroll sideways in one row inside `chipRow`.
+- Agent call: below 640px the tree connector is hidden and the ticket group header is a card of its own with its title on its own line.
+- Agent call: the phone stories reuse the desktop Runs screen inside the project shell frame at 390px, so the bar and the drawer are the real shell; the board's own drawn bar is not copied.
+
+## Sidebar navigation shell: phone run page with extra terminal keys (Task 49)
+
+Five boards are registered: `RunIdlePhone`, `RunIdlePhoneDetails`, `RunReconnectPhone`, `RunRunningPhoneCancelConfirm` and `RunStoppedPhone`, 477 in all. PARITY was not run in this session (no browser), so no pair was checked; the five boards are unchecked. `scripts/parity.mjs` needed no change: it reads the board list from `canvas.json` and `storyIds.ts`.
+
+- Agent call: below 1024px (not 640px) the run page is two views, "Terminal" and "Details" (group "Run view switch"); both stay mounted and the hidden one is `display:none`, so there is one socket and one terminal, and the hidden terminal is never fitted (a host with no size is skipped).
+- Agent call: the key row sits directly under the terminal inside the terminal pane, only while the socket is open and the viewer may attach; the pane's bar wraps below 1024px.
+- Agent call: the context panel's collapse button is not shown below 1024px, where the panel is the Details view.
+- Agent call: `RunIdlePhoneDetails` opens the Details view with a play function; the phone stories reuse the desktop screen inside the shell frame at 390px, so the bar and drawer are the real shell.
+
+## Sidebar navigation shell: phone Routing rules and Skills (Task 50)
+
+Three boards are registered: `DeskRulesPhone`, `DeskRulesPromptPhone` and `DeskSkillsPhone`, 480 in all. PARITY was not run in this session (no browser), so no pair was checked; the three boards are unchecked. `scripts/parity.mjs` needed no change: it reads the board list from `canvas.json` and `storyIds.ts`.
+
+- Agent call: below 1024px an open rule pane takes the full width under the page header and the list and pager are `display:none` (the list stays in the page, so focus can return); `DeskRules` marks its main with `data-pane-open` and returns focus to the control that opened the pane when it closes, at every width.
+- Agent call: the rule row moves its run line under the rule text when the list is narrower than 520px (a container query on the list, not a window width), so the rows also fit at 1024 with the side menu open and the pane beside the list.
+- Agent call: below 640px the skills list is a bordered box above the editor, capped at 190px with its own scroll; the editor column keeps 640px and the page area scrolls; the editor, preview and diff keep at least 240px; the commit bar wraps.
+- Agent call: `DeskRulesPromptPhone` opens the custom prompt rule `/triage`; the phone stories reuse the desktop screens inside the project shell frame at 390px, so the bar and the menu are the real shell.
+- No `.tsx` change was needed in `SkillList`, `CommitBar` or the `RuleForm` stories: the layouts are CSS only.
+
+## Sidebar navigation shell: phone Agent & settings (Task 57)
+
+Seven boards are registered: `DeskAgentPhone`, `DeskAgentAddPhone`, `DeskAgentEditPhone`, `DeskAgentRowMenuPhone`, `DeskAgentDeletePhone`, `DeskAgentGitHubPhone` and `DeskAgentLimitsPhone`, 487 in all. PARITY was not run in this session (no browser), so no pair was checked; the seven boards are unchecked. `scripts/parity.mjs` needed no change: it reads the board list from `canvas.json` and `storyIds.ts`. There is no Danger zone board and no new desktop board.
+
+- Agent call: below 1024px an open add, edit or view pane takes the full width under the page header and the tab strip, and the tab panel is `display:none` (the list stays in the page, so focus returns to its opener); `DeskAgent` marks its main with `data-pane-open`.
+- Agent call: below 640px an agent row stacks after the logo (name and Default chip, subline, model, status, then Edit and the row menu). From 1024 to 1279px with a pane open the rows stack the same way, because the list column is then under 300px (the rule is keyed to `data-pane-open`, not to a container query, so the row menu's fixed popover keeps its viewport placement).
+- Agent call: the selected tab is scrolled into view with `{ block: 'nearest', inline: 'nearest' }` when the screen opens on or changes to a tab; Arrow, Home and End are unchanged.
+- Agent call: the 256-character agent name is cut with an ellipsis in the row (its full text is the title) and wraps in the delete dialog title.
+- Agent call: Escape on the open menu drawer no longer also closes an open agent pane (TC-62.5): the pane's Escape handler ignores the key while a modal dialog is open.
+- Agent call: the new shell scenario `phoneLongAgentName` gives invoicer-api 30 agents with the third named with 256 characters.
+- No copy, state or behaviour of the multi-agent work changed apart from the Escape case above.
+
+## Sidebar navigation shell: phone Workspace setup and General (Task 51)
+
+Two boards are registered: `DeskSetupPhone` and `OrgGeneralPhone`, 489 in all. PARITY was not run in this session (no browser), so no pair was checked; the two boards are unchecked. `scripts/parity.mjs` needed no change: it reads the board list from `canvas.json` and `storyIds.ts`.
+
+- Agent call: below 640px the Workspace setup row stacks: the editor column keeps at least 680px (so the editor stays above 200px tall) and the plugins, version history or test result come below it at full width; the row scrolls inside the fill page, not the document. The Environment tab keeps its own layout and scrolls in its panel.
+- Agent call: the change note field takes its own row and the save row, and the test phase bar, wrap below 640px.
+- Agent call: org General needed no change: its section is already one column below 720px with 16px gutters. `TC-65.14` is a regression test for that, and `OrgGeneral.tsx` and `WorkspaceSetup.module.css` are untouched.
+- Agent call: the phone stories reuse the desktop screens inside the real shell frame at 390px.
+
+## Sidebar navigation shell: phone member, invitation and audit lists (Task 52)
+
+Five boards are registered: `OrgMembersPhone`, `OrgInvitationsSettingsPhone`, `OrgAuditPhone`, `DeskMembersPhone` and `DeskAuditPhone`, 494 in all. PARITY was not run in this session (no browser), so no pair was checked; the five boards are unchecked. `scripts/parity.mjs` needed no change: it reads the board list from `canvas.json` and `storyIds.ts`.
+
+- Agent call: `InvitationRow`, `AuditRow` and `ProjectMemberRow` cells now carry `data-label` (the org `MemberRow` already did); the actions cell stays unlabelled. The labels are the column headers.
+- Agent call: below 640px the rows' percent widths and one-line ellipsis give way (values wrap and sit at the card's right); the audit sentence and its note take a full-width line under "What"; the menu button sits at the card's end. `Pagination` needed no change: it already reacts to its own width.
+- Agent call: the invitation status chips sit in a wrapper that scrolls sideways below 640px (same pattern as the Runs chips); the shared `FilterChips` is unchanged.
+- Agent call: the org and project Audit log pages have no filter control, so `TC-65.17` and `TC-65.18` check cards and the pager only; "filters wrap" has nothing to check on those two pages.
+
+## Sidebar navigation shell: phone platform pages (Task 53)
+
+Seven boards are registered: `PlatformOrgsPhone`, `PlatformAdminsPhone`, `PlatformAuditPhone`, `PlatformOrgOverviewPhone`, `PlatformOrgProjectsPhone`, `PlatformOrgMembersPhone` and `PlatformOrgInvitationsPhone`, 501 in all. PARITY was not run in this session (no browser), so no pair was checked; the seven boards are unchecked. `scripts/parity.mjs` needed no change: it reads the board list from `canvas.json` and `storyIds.ts`.
+
+- Agent call: `data-label` on every data cell of the four platform rows (the actions cell stays unlabelled); the labels are the column headers.
+- Agent call: below 640px the rows' one-line ellipsis gives way (name, slug, id and email wrap and sit at the card's right), and the directory table drops its 960px minimum width, so it no longer scrolls sideways.
+- Agent call: the platform filters (search, Status, Action) wrap and each takes the full width; the platform Invitations status chips sit in the same sideways-scrolling wrapper as the org Invitations page.
+- Agent call: the Overview keys stack over their values below 640px through a wrapper class on the platform page, so the shared `KeyValue` (run side panel, setup) keeps its two columns.
+- Agent call: `PageHeader` actions may wrap below 640px (a shared rule, one `flex-wrap`), so the org header's "Edit organization" and "More actions" stay inside the window.
+
+## Sidebar navigation shell: final parity check (Task 54)
+
+PARITY was not run in this session (no browser, no Chromium), so no pair was reviewed and every board is unchecked: the check is not done. It must be run where Chromium is available (all 501 boards, desktop and 390x844), and each difference fixed or recorded here.
+
+What was checked without a browser:
+
+- The multi-agent gate markers script prints nothing for `origin/main` and `HEAD`. The merged pull request numbers for MA Tasks 25 to 32, 34 and 35 were not matched to the tasks here; the PR must list them under "Multi-agent gate".
+- `canvas.json` `order`, the `boardStories` keys in `storyIds.ts` and the length pinned in `coverage.test.ts` agree: 501 boards, no duplicates, same names in the same order.
+- All 117 boards of the spec's board list are in `order`. The nine `*.dc.html` files outside `order` (`DeskSkillsShell`, `OrgMembersShell`, `PlatformOrgMembersShell`, `PlatformOrgOverviewShell`, `ProjectsShell`, `ProjectsShellScopeMenu`, `ProjectsShellScopeMenuPlatformError`, `ProjectsShellSkipLink`, `RunsShell`) are on `main` already and predate this work.
+- `src/test/coverage.test.ts` passes (590 tests).

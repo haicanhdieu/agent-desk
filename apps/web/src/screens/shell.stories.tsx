@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import { userEvent, within } from 'storybook/test';
-import { AppShell, type PageCrumb, type PlatformOrgGroup } from '@/components';
+import type { PageCrumb } from '@/components';
 import {
   activeOrgOverview,
   orgSwitchFixtures,
@@ -20,7 +20,8 @@ import { PlatformOrgDetail } from './PlatformOrgDetail';
 import { PlatformOrgMembers } from './PlatformOrgMembers';
 import { PlatformOrgs } from './PlatformOrgs';
 import type { ListView } from './PlatformOrgProjects';
-import { PlatformFrame, platformScope } from './platformFrame';
+import { PlatformFrame, platformScope, type PlatformOrgState } from './platformShellFrame';
+import { ProjectShellFrame } from './projectShellFrame';
 import { RunDetail } from './RunDetail';
 import { viewport } from './viewports';
 
@@ -46,24 +47,19 @@ export const RunIdleShell: Story = {
   args: {
     data: runDetails.RunIdle,
     lines: terminalByRun[62],
-    org: { ...orgSwitchFixtures.severalOrgsSettings, orgHref: (o) => `#${o.slug}`, createHref: '#new-org' },
-    run: { runsHref: '#runs', label: 'Run 62' },
   },
+  render: (args) => (
+    <ProjectShellFrame page="runs" fill crumbs={[{ label: 'Runs', href: '#runs' }, { label: 'Run 62' }]}>
+      <RunDetail {...args} />
+    </ProjectShellFrame>
+  ),
 };
 
 // The platform bar and the side menu around the five platform screens: scope crumb "Platform", page crumbs, Platform
 // sections tabs, the bell. Only inside one org does a side menu show.
 const noop = () => undefined;
 type PlatformStory = StoryObj;
-const platformDecorators: PlatformStory['decorators'] = [
-  (S) => (
-    <AppShell height={900} topBar={null}>
-      <S />
-    </AppShell>
-  ),
-];
 const platformStory = (render: PlatformStory['render'], play?: PlatformStory['play']): PlatformStory => ({
-  decorators: platformDecorators,
   globals: viewport(1440, 900),
   render,
   play,
@@ -117,14 +113,14 @@ const orgsScreen = () => (
     />
   </PlatformFrame>
 );
-const membersPage = (view: ListView<PlatformMemberRowView>, group: PlatformOrgGroup, crumbs: PageCrumb[]) => (
+const membersPage = (view: ListView<PlatformMemberRowView>, group: PlatformOrgState, crumbs: PageCrumb[]) => (
   <PlatformFrame active="members" org={group} crumbs={crumbs}>
     <PlatformOrgDetail view={{ kind: 'ready', header: orgHeader, overview: activeOrgOverview }}>
       <PlatformOrgMembers view={view} onAdd={noop} onRemove={noop} />
     </PlatformOrgDetail>
   </PlatformFrame>
 );
-const readyGroup: PlatformOrgGroup = { state: 'ready', name: 'Harbor Labs', links: orgLinks };
+const readyGroup: PlatformOrgState = { state: 'ready' };
 
 /** Board PlatformOrgsShell: Platform / Organizations with the Platform sections tabs and no side menu. */
 export const PlatformOrgsShell: PlatformStory = platformStory(orgsScreen);
@@ -188,7 +184,7 @@ export const PlatformOrgMembersShellLoading: PlatformStory = platformStory(() =>
 
 /** Board PlatformOrgMembersShellError: the org read failed; the crumb and the side menu group read "Organization". */
 export const PlatformOrgMembersShellError: PlatformStory = platformStory(() =>
-  membersPage(listError, { ...readyGroup, state: 'error', name: 'Organization' }, [
+  membersPage(listError, { state: 'error' }, [
     { label: 'Organizations', href: '/platform/orgs' },
     { label: 'Organization', href: orgLinks.overview },
     { label: 'Members' },

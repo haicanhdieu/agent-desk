@@ -43,9 +43,10 @@ export type AgentLimits = Record<LimitField, number>;
 type DurationUnit = ReturnType<typeof splitMinutes>['unit'];
 
 /** The one scroll area of a tab: focusable and named, so a keyboard user can scroll it. */
-function PanelScroll({ label, children }: { label: string; children: ReactNode }) {
+function PanelScroll({ label, lead, children }: { label: string; lead?: ReactNode; children: ReactNode }) {
   return (
     <div className={styles.agentScroll} role="region" aria-label={label} tabIndex={0}>
+      {lead}
       {children}
     </div>
   );
@@ -56,16 +57,19 @@ export function AgentsPanel({
   list,
   pane,
   deleteDialog,
+  lead,
 }: {
   list: AgentListProps;
   pane?: AgentPaneProps;
   deleteDialog?: DeleteAgentDialogProps;
+  /** The first item of the list's scroll area (the setup warning in the shell). */
+  lead?: ReactNode;
 }) {
   return (
     <>
       <div className={styles.agentsRow}>
         <div className={styles.agentsCol}>
-          <AgentList {...list} />
+          <AgentList {...list} lead={lead} />
         </div>
         {pane && <AgentPane key={`${pane.mode}-${pane.agent?.id ?? 'new'}`} {...pane} />}
       </div>
@@ -87,6 +91,8 @@ export interface GitHubPanelProps {
   onCheckNow?(): void;
   checkingNow?: boolean;
   checkNowError?: string;
+  /** The first item of the scroll area (the setup warning in the shell). */
+  lead?: ReactNode;
 }
 
 /** The GitHub connection tab: where commands come from and where agents write. */
@@ -102,6 +108,7 @@ export function GitHubPanel({
   onCheckNow,
   checkingNow = false,
   checkNowError,
+  lead,
 }: GitHubPanelProps) {
   // The trigger mode row sits right after Repository, as on the board.
   const triggerRow = {
@@ -111,7 +118,7 @@ export function GitHubPanel({
   const at = items.findIndex((g) => g.term === 'Repository') + 1 || items.length;
   const rows = [...items.slice(0, at), triggerRow, ...items.slice(at)];
   return (
-    <PanelScroll label="GitHub connection">
+    <PanelScroll label="GitHub connection" lead={lead}>
       <SettingsSection nested title="GitHub connection" description="Where commands come from and where agents write.">
         {state === 'loading' && (
           <div role="status" aria-label="Loading the connection" aria-busy="true" className={styles.agentLoading}>
@@ -131,21 +138,16 @@ export function GitHubPanel({
         )}
         {state === 'ready' && (
           <>
-            <KeyValue termWidth={150} items={rows} />
-            <div className={styles.deskActions}>
-              <Button size="sm" icon="external" href="https://github.com/">
-                Manage installation on GitHub
-              </Button>
-              {mode === 'webhook' ? (
-                <Button variant="ghost" size="sm" icon="refresh">
-                  Send test ping
-                </Button>
-              ) : (
+            <div className={styles.githubRows}>
+              <KeyValue termWidth={150} items={rows} />
+            </div>
+            {mode === 'polling' && (
+              <div className={styles.deskActions}>
                 <Button variant="ghost" size="sm" icon="refresh" onClick={onCheckNow} disabled={checkingNow}>
                   {checkingNow ? c.checking : c.checkNow}
                 </Button>
-              )}
-            </div>
+              </div>
+            )}
             {checkNowError && (
               <Banner tone="err" icon={<Icon name="warning" size={16} />} title={checkNowError} live="assertive" />
             )}
@@ -200,16 +202,26 @@ export interface LimitsPanelProps {
   saving?: boolean;
   /** The reader may see the limits but not change them. */
   readOnly?: boolean;
+  /** The first item of the scroll area (the setup warning in the shell). */
+  lead?: ReactNode;
 }
 
 const narrow = { width: 90 };
 
 /** The Limits tab: the five run-lifecycle limits and the three counters, project-wide. */
-export function LimitsPanel({ form, onSave, errors = {}, error, saving = false, readOnly = false }: LimitsPanelProps) {
+export function LimitsPanel({
+  form,
+  onSave,
+  errors = {},
+  error,
+  saving = false,
+  readOnly = false,
+  lead,
+}: LimitsPanelProps) {
   const { values, units, set, setUnit } = form;
   return (
     <>
-      <PanelScroll label="Limits">
+      <PanelScroll label="Limits" lead={lead}>
         <SettingsSection
           nested
           title="Limits"
@@ -377,17 +389,19 @@ export function LimitsPanel({ form, onSave, errors = {}, error, saving = false, 
 }
 
 /** The Danger zone tab: Delete project, behind a confirm dialog. */
-export function DangerPanel({ onDeleteProject }: { onDeleteProject(): void }) {
+export function DangerPanel({ onDeleteProject, lead }: { onDeleteProject(): void; lead?: ReactNode }) {
   const [confirming, setConfirming] = useState(false);
   return (
-    <PanelScroll label="Danger zone">
+    <PanelScroll label="Danger zone" lead={lead}>
       <SettingsSection nested title="Danger zone">
-        <DangerZone
-          title="Delete project"
-          body={deleteProjectBody}
-          actionLabel="Delete project"
-          onAction={() => setConfirming(true)}
-        />
+        <div className={styles.dangerCol}>
+          <DangerZone
+            title="Delete project"
+            body={deleteProjectBody}
+            actionLabel="Delete project"
+            onAction={() => setConfirming(true)}
+          />
+        </div>
         <Dialog
           open={confirming}
           title="Delete project"

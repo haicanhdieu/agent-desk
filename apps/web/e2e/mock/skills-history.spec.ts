@@ -40,10 +40,10 @@ test('History uses the file prefix of the connected provider', async ({ page }) 
   );
 });
 
-test('History is disabled when the connected repo has no file prefix', async ({ page }) => {
+test('History is absent when the connected repo has no file prefix', async ({ page }) => {
   await withProject(page, (project) => ({ ...project, skillFileBaseUrl: null }));
   await page.goto(SKILLS);
-  const history = page.getByRole('button', { name: 'History' });
-  await expect(history).toBeDisabled();
-  await expect(history).toHaveAttribute('title', /connected repository/);
+  await expect(page.getByRole('textbox', { name: 'SKILL.md source' })).toBeVisible();
+  await expect(page.getByRole('link', { name: 'History' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'History' })).toHaveCount(0);
 });

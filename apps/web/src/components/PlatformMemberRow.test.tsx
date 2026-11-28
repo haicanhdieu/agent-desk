@@ -88,3 +88,15 @@ describe('PlatformMemberRow', () => {
     expect(container.querySelector('b')).toBeNull();
   });
 });
+
+describe('PlatformMemberRow phone card labels (BR-65)', () => {
+  it('labels the data cells and leaves the actions cell unlabelled', () => {
+    renderRow();
+    expect(screen.getAllByRole('cell').map((c) => c.getAttribute('data-label'))).toEqual([
+      'Name',
+      'Email',
+      'Roles',
+      null,
+    ]);
+  });
+});

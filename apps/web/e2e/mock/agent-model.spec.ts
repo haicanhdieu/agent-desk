@@ -48,11 +48,7 @@ async function openAgentWithoutCredential(page: Page) {
   await page.goBack();
   await page.goBack();
   await page.getByRole('link', { name: 'demo', exact: true }).click();
-  await page
-    .getByRole('navigation', { name: 'Project sections' })
-    .getByRole('link', { name: 'Project settings' })
-    .click();
-  await page.getByRole('link', { name: 'Agent & settings' }).click();
+  await page.getByRole('navigation', { name: 'Project menu' }).getByRole('link', { name: 'Agent & settings' }).click();
   await expect(page.getByRole('heading', { name: 'Agent & settings', level: 1 })).toBeVisible();
   await editClaude(page);
 }

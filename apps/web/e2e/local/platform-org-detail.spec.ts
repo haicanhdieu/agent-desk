@@ -47,7 +47,7 @@ test.afterAll(async () => {
 const tagOf = (): string => randomBytes(4).toString('hex');
 const bodyRows = (page: Page): Locator => page.locator('tbody tr');
 const rowOf = (page: Page, text: string): Locator => bodyRows(page).filter({ hasText: text });
-const sideMenu = (page: Page): Locator => page.getByRole('navigation', { name: 'Platform admin' });
+const sideMenu = (page: Page): Locator => page.getByRole('navigation', { name: 'Platform menu' });
 const tabHeading = (page: Page, name: string): Locator => page.getByRole('heading', { name, level: 2 });
 
 async function freshOrg(): Promise<{ id: string; name: string; slug: string }> {
@@ -102,9 +102,9 @@ test.describe('BR-25: Projects show id and name only', () => {
     await mine.goto(`${ORGS}/${orgId}/projects`);
 
     await expect(tabHeading(mine, 'Projects')).toBeVisible();
-    await expect(mine.getByRole('columnheader')).toHaveText(['Id', 'Name']);
+    await expect(mine.getByRole('columnheader')).toHaveText(['Name', 'Id']);
     await expect(bodyRows(mine)).toHaveCount(1);
-    await expect(bodyRows(mine).first().getByRole('cell')).toHaveText([projectId, name]);
+    await expect(bodyRows(mine).first().getByRole('cell')).toHaveText([name, projectId]);
   });
 });
 

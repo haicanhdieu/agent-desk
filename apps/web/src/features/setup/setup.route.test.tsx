@@ -1,5 +1,5 @@
 import { focusManager, QueryClientProvider, type QueryClient } from '@tanstack/react-query';
-import { act, renderHook, screen, waitFor, within } from '@testing-library/react';
+import { act, cleanup, renderHook, screen, waitFor, within } from '@testing-library/react';
 import { http, HttpResponse } from 'msw';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { AGENT_KIND_CAPABILITIES } from '@agentdesk/contracts';
@@ -9,6 +9,7 @@ import { mockDb } from '@/mocks/msw/db';
 import { jsonResponse, problemResponse, routeHandler } from '@/mocks/msw/http';
 import { server } from '@/mocks/msw/node';
 import { scenarios } from '@/mocks/msw/scenarios';
+import { setViewportWidth } from '@/test/fakeMatchMedia';
 import { renderRoute } from '@/test/renderRoute';
 import { browserLocation } from './location';
 import { useSaveAgentStep } from './mutations';
@@ -78,17 +79,80 @@ function stubTab() {
 }
 
 describe('setup flow', () => {
-  it('BR-43: the wizard shows the org bar with Projects active and the Settings tab for an owner', async () => {
-    await renderRoute(`${base}/repo`);
+  it('BR-36: the wizard is in the app shell with the stepper in the menu slot and no section menu, tabs or collapse button', async () => {
+    for (const width of [1024, 1440]) {
+      act(() => setViewportWidth(width));
+      await renderRoute(`${base}/repo`);
+      await screen.findByRole('heading', { level: 1, name: 'Connect a repository' });
+      expect(screen.getByRole('complementary', { name: 'Setup progress' })).toBeVisible();
+      expect(screen.queryByRole('navigation', { name: 'Organization menu' })).toBeNull();
+      expect(screen.queryByRole('navigation', { name: 'Organization sections' })).toBeNull();
+      expect(screen.queryByRole('button', { name: /Collapse menu|Expand menu/ })).toBeNull();
+      expect(screen.getByRole('button', { name: /^Switch scope/ })).toBeVisible();
+      cleanup();
+    }
+  });
+
+  it('BR-37: Exit setup goes to Projects with no confirm and the saved step stays', async () => {
+    const id = seedAt('skills');
+    const { router, user } = await renderRoute(`${base}/skills?project=${id}`);
+    await user.click(await screen.findByRole('link', { name: 'Exit setup' }));
+    await waitFor(() => expect(router.state.location.pathname).toBe('/o/alice/projects'));
+    expect(projectRow(id).setupStep).toBe('skills');
+  });
+
+  it('BR-36: a menu collapsed on Projects stays collapsed after the wizard and Exit setup', async () => {
+    const { router, user } = await renderRoute('/o/alice/projects');
+    await user.click(await screen.findByRole('button', { name: 'Collapse menu' }));
+    await act(() => router.navigate({ href: `${base}/repo` }));
     await screen.findByRole('heading', { level: 1, name: 'Connect a repository' });
-    const bar = screen.getByRole('banner');
-    const tabs = within(bar).getByRole('navigation', { name: 'Organization sections' });
-    expect(within(tabs).getByRole('link', { name: 'Projects' })).toHaveAttribute('aria-current', 'page');
-    expect(await within(tabs).findByRole('link', { name: 'Org settings' })).toHaveAttribute(
-      'href',
-      '/o/alice/settings',
-    );
-    expect(within(bar).getByRole('button', { name: /^Switch scope/ })).toBeVisible();
+    expect(screen.queryByRole('button', { name: /Collapse menu|Expand menu/ })).toBeNull();
+    await user.click(screen.getByRole('link', { name: 'Exit setup' }));
+    expect(await screen.findByRole('button', { name: 'Expand menu' })).toBeInTheDocument();
+  });
+
+  it('BR-36: an expanded menu stays expanded after the wizard and Exit setup', async () => {
+    const { router, user } = await renderRoute('/o/alice/projects');
+    await screen.findByRole('button', { name: 'Collapse menu' });
+    await act(() => router.navigate({ href: `${base}/repo` }));
+    await screen.findByRole('heading', { level: 1, name: 'Connect a repository' });
+    await user.click(screen.getByRole('link', { name: 'Exit setup' }));
+    expect(await screen.findByRole('button', { name: 'Collapse menu' })).toBeInTheDocument();
+  });
+
+  it.each([390, 1023])(
+    'BR-37: at %ipx the header row has the right Step N of M per step and the drawer has the stepper only',
+    async (width) => {
+      act(() => setViewportWidth(width));
+      const steps = [
+        ['repo', 'Step 1 of 5'],
+        ['agent', 'Step 2 of 5'],
+        ['setup', 'Step 3 of 5, optional'],
+        ['skills', 'Step 4 of 5, optional'],
+        ['rules', 'Step 5 of 5, optional'],
+      ] as const;
+      for (const [step, label] of steps) {
+        const id = step === 'repo' ? undefined : seedAt(step);
+        const { user } = await renderRoute(`${base}/${step}${id ? `?project=${id}` : ''}`);
+        await screen.findByRole('heading', { level: 1 });
+        expect(screen.getAllByText(label)).toHaveLength(1);
+        expect(screen.getAllByRole('link', { name: 'Exit setup' })).toHaveLength(1);
+        await user.click(screen.getByRole('button', { name: 'Open menu' }));
+        const drawer = await screen.findByRole('complementary', { name: 'Setup progress' });
+        expect(within(drawer).queryByRole('link', { name: 'Exit setup' })).toBeNull();
+        cleanup();
+      }
+    },
+  );
+
+  it('BR-37: the Ready step has only Exit setup in the header row, with no step count', async () => {
+    act(() => setViewportWidth(390));
+    const id = seedAt('rules');
+    projectRow(id).setupStep = 'ready';
+    await renderRoute(`${base}/ready?project=${id}`);
+    await screen.findByText('Project ready');
+    expect(screen.queryByText(/^Step \d of 5/)).toBeNull();
+    expect(screen.getAllByRole('link', { name: 'Exit setup' })).toHaveLength(1);
   });
 
   it('saves each step on Continue and moves on with the project in the URL', async () => {
@@ -185,6 +249,19 @@ describe('setup flow', () => {
     }
     expect(posts).not.toContainEqual(expect.objectContaining({ command: 'code-build' }));
     expect(mockDb.state.rules.filter((r) => r.projectId === id && r.command === 'code-build')).toHaveLength(1);
+  });
+
+  it('BR-72: the rules step guards link Change to the Limits tab and Runs, Ignored to the Ignored filter', async () => {
+    const id = seedAt('rules');
+    await renderRoute(`${base}/rules?project=${id}`);
+    expect(await screen.findByRole('link', { name: 'Change' })).toHaveAttribute(
+      'href',
+      `/o/alice/p/${id}/desk/agent?tab=limits`,
+    );
+    expect(screen.getByRole('link', { name: 'Runs, Ignored' })).toHaveAttribute(
+      'href',
+      `/o/alice/p/${id}/runs?filter=ignored`,
+    );
   });
 
   it('skipping the first rule creates no rule, marks setup ready and opens the Ready step', async () => {
@@ -340,6 +417,30 @@ describe('setup flow', () => {
     await user.click(await screen.findByRole('button', { name: 'Skip' }));
     await waitFor(() => expect(router.state.location.pathname).toBe(`${base}/rules`));
     expect(projectRow(id).setupStep).toBe('rules');
+  });
+
+  it('BR-74: Preview opens that template SKILL.md in a dialog, leaves the picks alone, makes no request and Close returns focus', async () => {
+    const id = seedAt('skills');
+    const { user } = await renderRoute(`${base}/skills?project=${id}`);
+    const preview = await screen.findByRole('button', { name: 'Preview code-review' });
+    const tick = (name: string) => screen.getByRole('checkbox', { name: new RegExp('^' + name) });
+    const before = [tick('code-build'), tick('code-review')].map((c) => (c as HTMLInputElement).checked);
+    const seen: string[] = [];
+    const listener = ({ request }: { request: Request }) => void seen.push(request.url);
+    server.events.on('request:start', listener);
+    try {
+      await user.click(preview);
+      const dialog = await screen.findByRole('dialog', { name: 'code-review SKILL.md' });
+      expect(await within(dialog).findByRole('heading', { name: /Review a pull request/i })).toBeInTheDocument();
+      expect(within(dialog).queryByText(/Build an issue/)).not.toBeInTheDocument();
+      expect(seen).toEqual([]);
+      await user.click(within(dialog).getByRole('button', { name: 'Close' }));
+    } finally {
+      server.events.removeListener('request:start', listener);
+    }
+    expect(screen.queryByRole('dialog', { name: 'code-review SKILL.md' })).not.toBeInTheDocument();
+    expect([tick('code-build'), tick('code-review')].map((c) => (c as HTMLInputElement).checked)).toEqual(before);
+    expect(preview).toHaveFocus();
   });
 
   it('with no connection, Connect asks the API for the install page and goes there', async () => {

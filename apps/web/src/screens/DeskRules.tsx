@@ -1,8 +1,8 @@
-import { useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Banner, Button, Icon } from '@/ds';
 import {
-  AppShell,
   EmptyState,
+  PageHeader,
   type ModelList,
   GuardsCard,
   Pagination,
@@ -16,13 +16,11 @@ import {
 } from '@/components';
 import type { Rule } from '@/mocks/types';
 import styles from './Screens.module.css';
-import { DeskFrame, type DeskFrameData } from './DeskFrame';
+import { SetupWarningBanner, type DeskFrameData } from './DeskFrame';
 
 export interface DeskRulesProps {
-  /** Top bar and Desk navigation data. */
+  /** The project, its connection and the setup warning. */
   frame: DeskFrameData;
-  /** `'viewport'` fits the page to the window (the app route): the page does not scroll, the rule list and the open pane's body do. */
-  height?: 'viewport';
   rules: Rule[];
   /** The paging control pinned under the scrolling list; not drawn without rules. */
   pagination?: PaginationProps;
@@ -205,7 +203,6 @@ function LocalRulePane({
 
 export function DeskRules({
   frame,
-  height,
   rules,
   pagination,
   skills,
@@ -223,82 +220,96 @@ export function DeskRules({
   onDelete,
 }: DeskRulesProps) {
   const editing = rules.find((r) => r.id === editingId);
-  const page = (
-    <DeskFrame active="rules" {...frame}>
-      <main className={styles.rulesMain}>
-        <div className={styles.rulesCol}>
-          <div className={`${styles.split} ${styles.rulesHead}`}>
-            <div className={styles.stack6}>
-              <h1>Routing rules</h1>
-              <p className={`muted ${styles.helpLine13}`}>
-                A comment whose first line is a command starts a run when it matches a rule. One rule per command.
-              </p>
-            </div>
-            <Button variant="primary" icon="plus" onClick={onCreate}>
-              New rule
-            </Button>
-          </div>
-          <div className={styles.rulesScroll} role="region" aria-label="Rules list" tabIndex={0}>
-            {rules.length === 0 ? (
-              <EmptyState
-                title="No routing rules yet"
-                headingLevel={2}
-                body="A rule maps a command in a comment, like /code-build, to a skill. Add one to let comments start runs."
-                action={
-                  <Button variant="primary" icon="plus" onClick={onCreate}>
-                    New rule
-                  </Button>
-                }
-              />
-            ) : (
-              <div className={styles.ruleList}>
-                {rules.map((r) => (
-                  <RuleRow
-                    key={r.id}
-                    rule={r}
-                    stats={r.stats}
-                    warning={r.warning}
-                    selected={r.id === editingId}
-                    onToggle={(next) => onToggle?.(r.id, next)}
-                    onSelect={() => onEdit?.(r.id)}
-                    onDelete={onDelete && (() => onDelete(r.id))}
-                  />
-                ))}
-              </div>
-            )}
-            <GuardsCard
-              maxRunsPerTicket={maxRunsPerTicket}
-              changeHref={guardLinks?.change ?? '/desk/agent'}
-              ignoredHref={guardLinks?.ignored ?? '/runs'}
-            />
-          </div>
-          {rules.length > 0 && pagination && (
-            <div className={styles.rulesFoot}>
-              <Pagination {...pagination} />
-            </div>
-          )}
-        </div>
-        {form ??
-          (editing && (
-            <LocalRulePane
-              key={editing.id}
-              rule={editing}
-              skills={skills}
-              promptPreview={promptPreview}
-              modelField={modelField}
-              onClose={() => onClose?.()}
-              onSave={(d) => onSave?.(editing.id, d)}
-              onDelete={() => onDelete?.(editing.id)}
-            />
-          ))}
-      </main>
-    </DeskFrame>
+  const paneOpen = form !== undefined || editing !== undefined;
+  const opener = useRef<HTMLElement | null>(null);
+  const wasOpen = useRef(false);
+  // Closing the pane returns focus to the control that opened it (below 1024px the list was hidden meanwhile).
+  useEffect(() => {
+    if (wasOpen.current && !paneOpen && opener.current?.isConnected) opener.current.focus();
+    if (!paneOpen) opener.current = null;
+    wasOpen.current = paneOpen;
+  }, [paneOpen]);
+  const remember = () => {
+    if (document.activeElement instanceof HTMLElement) opener.current = document.activeElement;
+  };
+  const helpLine = 'A comment whose first line is a command starts a run when it matches a rule. One rule per command.';
+  const newRule = (
+    <Button
+      variant="primary"
+      icon="plus"
+      onClick={() => {
+        remember();
+        onCreate?.();
+      }}
+    >
+      New rule
+    </Button>
   );
-  return height === 'viewport' ? (
-    <AppShell height="viewport" topBar={null}>
-      {page}
-    </AppShell>
-  ) : (
-    page
+  const column = (
+    <div className={`${styles.rulesCol} ${styles.shellSplitCol}`}>
+      <PageHeader
+        title="Routing rules"
+        meta={<span className={styles.helpLine13}>{helpLine}</span>}
+        actions={newRule}
+      />
+      <div className={styles.rulesScroll} role="region" aria-label="Rules list" tabIndex={0}>
+        {frame.warning && <SetupWarningBanner warning={frame.warning} />}
+        {rules.length === 0 ? (
+          <EmptyState
+            title="No routing rules yet"
+            headingLevel={2}
+            body="A rule maps a command in a comment, like /code-build, to a skill. Add one to let comments start runs."
+          />
+        ) : (
+          <div className={styles.ruleList}>
+            {rules.map((r) => (
+              <RuleRow
+                key={r.id}
+                rule={r}
+                stats={r.stats}
+                warning={r.warning}
+                selected={r.id === editingId}
+                onToggle={(next) => onToggle?.(r.id, next)}
+                onSelect={() => {
+                  remember();
+                  onEdit?.(r.id);
+                }}
+                onDelete={onDelete && (() => onDelete(r.id))}
+              />
+            ))}
+          </div>
+        )}
+        {rules.length > 0 && pagination && (
+          <div className={styles.rulesFoot}>
+            <Pagination {...pagination} />
+          </div>
+        )}
+        <GuardsCard
+          maxRunsPerTicket={maxRunsPerTicket}
+          changeHref={guardLinks?.change ?? '/desk/agent'}
+          ignoredHref={guardLinks?.ignored ?? '/runs'}
+        />
+      </div>
+    </div>
+  );
+  const pane =
+    form ??
+    (editing && (
+      <LocalRulePane
+        key={editing.id}
+        rule={editing}
+        skills={skills}
+        promptPreview={promptPreview}
+        modelField={modelField}
+        onClose={() => onClose?.()}
+        onSave={(d) => onSave?.(editing.id, d)}
+        onDelete={() => onDelete?.(editing.id)}
+      />
+    ));
+  return (
+    <main className={styles.shellSplitMain} data-pane-open={paneOpen || undefined}>
+      {column}
+      {pane}
+    </main>
   );
 }

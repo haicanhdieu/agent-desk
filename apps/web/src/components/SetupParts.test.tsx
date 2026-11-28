@@ -37,19 +37,23 @@ describe('FollowUpRule', () => {
 });
 
 describe('SkillTemplateCard', () => {
-  it('is a checkbox with note and a Preview link', async () => {
+  it('is a checkbox with note and a Preview button that calls onPreview without ticking', async () => {
     const onChange = vi.fn();
+    const onPreview = vi.fn();
     render(
       <SkillTemplateCard
         template={{ name: 'code-build', note: 'chains to code-review', description: 'd' }}
         checked
         onChange={onChange}
-        previewHref="/p"
+        onPreview={onPreview}
       />,
     );
     expect(screen.getByRole('checkbox')).toBeChecked();
     expect(screen.getByText('chains to code-review')).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Preview code-build' })).toHaveAttribute('href', '/p');
+    expect(screen.queryByRole('link', { name: 'Preview code-build' })).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Preview code-build' }));
+    expect(onPreview).toHaveBeenCalledTimes(1);
+    expect(onChange).not.toHaveBeenCalled();
     expect(screen.getByRole('checkbox', { name: /code-build/ })).toBeInTheDocument();
     expect(screen.getByRole('checkbox').getAttribute('aria-labelledby')).toBeTruthy();
     expect(screen.getByRole('checkbox', { name: /code-build/ })).not.toHaveAccessibleName(/Preview/);

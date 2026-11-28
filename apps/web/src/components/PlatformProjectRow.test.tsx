@@ -16,8 +16,14 @@ function renderRow(over: Partial<PlatformProjectRowView> = {}) {
 }
 
 describe('PlatformProjectRow', () => {
-  it('names the columns Id and Name', () => {
-    expect(platformProjectColumns.map((c) => c.header)).toEqual(['Id', 'Name']);
+  it('BR-71: names the columns Name then Id', () => {
+    expect(platformProjectColumns.map((c) => c.header)).toEqual(['Name', 'Id']);
+  });
+
+  it('BR-71: shows the name cell before the id cell', () => {
+    const { container } = renderRow();
+    const cells = [...container.querySelectorAll('td')].map((td) => td.textContent);
+    expect(cells).toEqual(['Alpha', base.id]);
   });
 
   it('shows the id in mono with an ellipsis class and the full value in title', () => {
@@ -39,5 +45,12 @@ describe('PlatformProjectRow', () => {
     const { container } = renderRow({ name: '<b>Bold</b>' });
     expect(screen.getByText('<b>Bold</b>')).toBeInTheDocument();
     expect(container.querySelector('b')).toBeNull();
+  });
+});
+
+describe('PlatformProjectRow phone card labels (BR-65)', () => {
+  it('labels the Name and Id cells', () => {
+    renderRow();
+    expect(screen.getAllByRole('cell').map((c) => c.getAttribute('data-label'))).toEqual(['Name', 'Id']);
   });
 });

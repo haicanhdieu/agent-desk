@@ -3,33 +3,31 @@ import { Button, Dialog } from '@/ds';
 import {
   DataTable,
   OnboardingChecklist,
+  PageHeader,
   Pagination,
   ProjectRow,
-  TopBar,
   type OnboardingChecklistState,
-  type OrgSwitchProps,
   type PaginationProps,
 } from '@/components';
-import type { Actor, Project } from '@/mocks/types';
+import type { Project } from '@/mocks/types';
 import { deleteProjectBody } from './deleteProjectCopy';
 import { InvitationsBanner, type InvitationsBannerProps } from './InvitationsBanner';
 import { ProjectsEmpty } from './ProjectsEmpty';
 import styles from './Screens.module.css';
 
 export interface ProjectsProps {
-  user: Actor;
   projects: Project[];
   newHref: string;
   /** Where a project row links (its runs). Defaults to the prototype's `/runs`. */
   projectHref?: (project: Project) => string;
-  /** Where a row's More menu Settings goes (the project's settings); a row without an href has no Settings item. */
+  /** Where a row's "Agent & settings" action goes (the agent page); a row without an href has no such item. */
   settingsHref?: (project: Project) => string | undefined;
+  /** Where a row's "Resume setup" button goes; a row without an href has no such button. */
+  resumeHref?: (project: Project) => string | undefined;
   /** Where a row's "Switch to polling" goes (the project's settings); a row without an href has no such button. */
   switchToPollingHref?: (project: Project) => string | undefined;
   /** The paging control under the table; its `busy` marks the table aria-busy. */
   pagination?: PaginationProps;
-  /** The org switcher in the top bar. */
-  org?: OrgSwitchProps;
   /** The first-run checklist card between the page head and the table. */
   checklist?: OnboardingChecklistState;
   /** The pending-invitations strip above the page head. */
@@ -39,6 +37,8 @@ export interface ProjectsProps {
   /** Deletes a project once the viewer confirmed; a row has no Delete project item without it (fail closed). */
   onDeleteProject?: (project: Project) => void;
 }
+
+const intro = 'After sign-in you land on this list. It is one click away on the logo.';
 
 const columns = [
   { key: 'project', header: 'Project' },
@@ -51,14 +51,13 @@ const columns = [
 ];
 
 export function Projects({
-  user,
   projects,
   newHref,
   projectHref = () => '/runs',
   settingsHref,
+  resumeHref,
   switchToPollingHref,
   pagination,
-  org,
   checklist,
   invitationsBanner,
   canCreate = false,
@@ -68,32 +67,26 @@ export function Projects({
   if (projects.length === 0)
     return (
       <ProjectsEmpty
-        user={user}
         createHref={newHref}
-        org={org}
         checklist={checklist}
         invitationsBanner={invitationsBanner}
         canCreate={canCreate}
       />
     );
+  const newProject = canCreate ? (
+    <Button variant="primary" icon="plus" href={newHref}>
+      New project
+    </Button>
+  ) : undefined;
   return (
     <>
-      <TopBar variant="global" crumbs={[{ label: 'Projects' }]} user={user} org={org} tabs="org" active="projects" />
-      <main className={styles.listMain}>
-        {invitationsBanner && <InvitationsBanner {...invitationsBanner} />}
-        <div className={styles.listHead}>
-          <h1>Projects</h1>
-          {canCreate && (
-            <div className={styles.listActions}>
-              <Button variant="primary" icon="plus" href={newHref}>
-                New project
-              </Button>
-            </div>
-          )}
-        </div>
-        <p className={`muted ${styles.listIntro}`}>
-          After sign-in you land on the runs of the project you used last. This list is one click away on the logo.
-        </p>
+      <main className={styles.shellMain}>
+        <PageHeader
+          title="Projects"
+          meta={<span className="muted">{intro}</span>}
+          actions={newProject}
+          banner={invitationsBanner && <InvitationsBanner {...invitationsBanner} />}
+        />
         {checklist && <OnboardingChecklist state={checklist} />}
         <DataTable columns={columns} busy={pagination?.busy}>
           {projects.map((p) => (
@@ -102,6 +95,7 @@ export function Projects({
               project={p}
               href={projectHref(p)}
               settingsHref={settingsHref?.(p)}
+              resumeHref={resumeHref?.(p)}
               switchToPollingHref={switchToPollingHref?.(p)}
               {...(onDeleteProject && { onDelete: () => setConfirming(p) })}
             />

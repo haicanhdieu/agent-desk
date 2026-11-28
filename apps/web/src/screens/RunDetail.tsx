@@ -1,18 +1,17 @@
-import type { ReactNode } from 'react';
-import { Button, CommandChip, IconButton, Popover, StatusBadge, TicketRef } from '@/ds';
+import { useState, type ReactNode } from 'react';
 import {
-  AppShell,
-  PopoverCard,
-  TopBar,
-  TopBarSeparator,
-  type OrgSwitchProps,
-  type ProjectSwitchMenu,
-  type TermLine,
-  type TranscriptProps,
-} from '@/components';
+  BELOW_DESKTOP,
+  Button,
+  CommandChip,
+  IconButton,
+  Popover,
+  SegmentedControl,
+  StatusBadge,
+  TicketRef,
+  useMediaQuery,
+} from '@/ds';
+import { PageHeader, PopoverCard, type TermLine, type TerminalKey, type TranscriptProps } from '@/components';
 import type { RunDetailData } from '@/mocks';
-import { user as boardUser } from '@/mocks';
-import type { Actor } from '@/mocks/types';
 import styles from './Screens.module.css';
 import { RunSidePanel } from './RunSidePanel';
 import { RunTerminalArea } from './RunTerminalArea';
@@ -22,9 +21,6 @@ export interface RunDetailProps {
   lines?: TermLine[];
   panelCollapsed?: boolean;
   cancelConfirmOpen?: boolean;
-  /** Board height in pixels; `'viewport'` fills the window (the app route). */
-  height?: number | 'viewport';
-  projectName?: string;
   /**
    * The run actions (Cancel, Finish, Stop session, Close session, Resume) show only for the handlers that are given:
    * the route passes one only when the viewer holds that permission on this run (a member on their own runs, never a
@@ -54,14 +50,6 @@ export interface RunDetailProps {
   reconnectBody?: ReactNode;
   /** Shows the "Terminal closed for inactivity" overlay with this text and a Reconnect button (see RunTerminalArea). */
   inactiveBody?: ReactNode;
-  /** The signed-in user in the top bar; defaults to the board's. */
-  user?: Actor;
-  /** The org crumb; with `run` the bar reads org / project / Runs / Run N, with no bell. */
-  org?: OrgSwitchProps;
-  /** The project menu behind the project crumb (with `run`); without it the crumb does nothing. */
-  projectMenu?: ProjectSwitchMenu;
-  /** The "Runs" crumb link and the current run's label; defaults to `links.runs` and "Run N". */
-  run?: { runsHref: string; label: string };
   /** The project's run limit per ticket (the chain's "max N runs"); defaults to the board's 10. */
   maxRunsPerTicket?: number;
   /** No live pod: show this Transcript in the terminal area (see RunTerminalArea). */
@@ -78,11 +66,22 @@ export interface RunDetailProps {
   onCloseSession?(): void;
   /** A close request is in flight: the action buttons wait. */
   closing?: boolean;
+  /**
+   * An extra key was pressed (phone, BR-66): given only while the terminal socket is open and writable, so the key row
+   * shows only then, and only below 1024px.
+   */
+  onKey?(key: TerminalKey): void;
+  /** The visible height in px (the on-screen keyboard shrinks it). The phone run view is sized to it. */
+  viewportHeight?: number;
 }
 
+type RunView = 'terminal' | 'details';
+const RUN_VIEWS: Array<{ value: RunView; label: string }> = [
+  { value: 'terminal', label: 'Terminal' },
+  { value: 'details', label: 'Details' },
+];
+
 export interface RunDetailLinks {
-  projects?: string;
-  runs?: string;
   skills?: string;
   rules?: string;
   /** Desk workspace setup (the Setup row of the side panel). */
@@ -104,8 +103,6 @@ export function RunDetail({
   lines,
   panelCollapsed,
   cancelConfirmOpen,
-  height = 900,
-  projectName = 'invoicer-api',
   onCancel,
   onCancelClose,
   onCancelConfirm,
@@ -121,10 +118,6 @@ export function RunDetail({
   reconnectOverlay,
   reconnectBody,
   inactiveBody,
-  user = boardUser,
-  org,
-  projectMenu,
-  run: runCrumb,
   maxRunsPerTicket,
   transcript,
   onStopOpen,
@@ -134,8 +127,14 @@ export function RunDetail({
   stopping,
   onCloseSession,
   closing,
+  onKey,
+  viewportHeight,
 }: RunDetailProps) {
   const { run } = data;
+  // Below 1024px the terminal and the context panel are two views of one page: both stay mounted (one socket, one
+  // terminal) and the other is hidden.
+  const narrow = useMediaQuery(BELOW_DESKTOP);
+  const [view, setView] = useState<RunView>('terminal');
   const t = run.ticket;
   const ended = ENDED.includes(run.status);
   const finishable = FINISHABLE.includes(run.status);
@@ -147,7 +146,79 @@ export function RunDetail({
   const reopened = data.reopened === true;
   const starting = run.status === 'queued' || run.status === 'starting';
 
-  const actions = (
+  // Each confirm sits inside the element wrapping its header button.
+  const anchored = (button: ReactNode, popover: ReactNode) => (
+    <span className={styles.runActionAnchor}>
+      {button}
+      {popover}
+    </span>
+  );
+
+  const cancelPopover = (
+    <Popover
+      open={!!cancelConfirmOpen}
+      role="dialog"
+      label={`Cancel run ${run.id}?`}
+      onClose={onCancelClose}
+      width={340}
+      style={{ right: 0, top: 'calc(100% + 6px)' }}
+    >
+      <PopoverCard
+        title={`Cancel run ${run.id}?`}
+        body={
+          cancelBody ?? (
+            <>
+              The pod is stopped now. Work the agent has not pushed is lost; branch{' '}
+              <span className="mono">ad/139-rate-limit-webhooks</span> has no pushes yet. A &quot;cancelled&quot;
+              comment is posted on issue #{t.number}.
+            </>
+          )
+        }
+        actions={
+          <>
+            <Button variant="ghost" size="sm" onClick={onCancelClose}>
+              Keep running
+            </Button>
+            <Button variant="solid-danger" size="sm" onClick={onCancelConfirm}>
+              Cancel run
+            </Button>
+          </>
+        }
+      />
+    </Popover>
+  );
+  const stopPopover = (
+    <Popover
+      open={!!stopConfirmOpen && stoppable && data.pausing !== true}
+      role="dialog"
+      label="Stop the session?"
+      onClose={onStopClose}
+      width={340}
+      style={{ right: 0, top: 'calc(100% + 6px)' }}
+    >
+      <PopoverCard
+        title="Stop the session?"
+        body={
+          <>
+            The agent is in the middle of a step. Stopping now cuts that step short. Everything up to now is kept, and
+            you can resume for {data.pausedKeep}.
+          </>
+        }
+        actions={
+          <>
+            <Button variant="ghost" size="sm" onClick={onStopClose}>
+              Keep running
+            </Button>
+            <Button variant="primary" size="sm" icon="pause" onClick={onStop}>
+              Stop session
+            </Button>
+          </>
+        }
+      />
+    </Popover>
+  );
+
+  const runButtons = (
     <>
       {reopened ? (
         onCloseSession && (
@@ -177,75 +248,63 @@ export function RunDetail({
               {finishable ? 'Finish run' : 'Finish'}
             </Button>
           )}
-          {stoppable && (onStopOpen || onStop) && (
-            <Button
-              icon="pause"
-              disabled={data.pausing === true || busy}
-              title={data.pausing ? STOP_ENDING_HINT : undefined}
-              onClick={run.status === 'running' ? onStopOpen : onStop}
-            >
-              Stop session
-            </Button>
-          )}
-          {onCancel && (
-            <Button variant="danger" icon="x" disabled={busy} onClick={onCancel}>
-              Cancel run
-            </Button>
-          )}
+          {stoppable &&
+            (onStopOpen || onStop) &&
+            anchored(
+              <Button
+                icon="pause"
+                disabled={data.pausing === true || busy}
+                title={data.pausing ? STOP_ENDING_HINT : undefined}
+                onClick={run.status === 'running' ? onStopOpen : onStop}
+              >
+                Stop session
+              </Button>,
+              stopPopover,
+            )}
+          {onCancel &&
+            anchored(
+              <Button variant="danger" icon="x" disabled={busy} onClick={onCancel}>
+                Cancel run
+              </Button>,
+              cancelPopover,
+            )}
         </>
       )}
-      <TopBarSeparator />
-      <IconButton
-        icon="panel"
-        aria-label="Collapse context panel (])"
-        title="Collapse panel  ]"
-        onClick={onTogglePanel}
-      />
-      <IconButton icon="fullscreen" aria-label="Full screen terminal (F)" title="Full screen  F" />
     </>
   );
-
-  return (
-    <AppShell
-      height={height}
-      topBar={
-        <TopBar
-          variant="run"
-          user={user}
-          projectMenu={projectMenu}
-          links={{ projects: links?.projects }}
-          org={org}
-          // The run bar shows the name only; the repo link belongs to the project bar.
-          project={{ name: projectName }}
-          crumbs={[
-            { label: 'Runs', href: runCrumb?.runsHref ?? links?.runs ?? '/runs' },
-            { label: runCrumb?.label ?? `Run ${run.id}` },
-          ]}
-          actions={actions}
-        >
-          {reopened ? (
-            <StatusBadge status="succeeded" variant="pill">
-              Succeeded · Session open
-            </StatusBadge>
-          ) : (
-            <StatusBadge status={run.status} variant="pill">
-              {data.failureStage === 'setup' ? 'Setup failed' : undefined}
-            </StatusBadge>
-          )}
-          <span>
-            <CommandChip>{run.command}</CommandChip> on{' '}
-            <TicketRef kind={t.kind} number={t.number} prState={t.prState} />
-          </span>
-          <span className="num muted">{ended ? (run.duration ?? data.elapsed) : data.elapsed}</span>
-          {busy && (
-            <span className="muted" role="status">
-              {pendingNote}
-            </span>
-          )}
-        </TopBar>
-      }
-    >
-      <main className={styles.runMain}>
+  const panelButton = (
+    <IconButton
+      icon="panel"
+      aria-label="Collapse context panel (])"
+      title="Collapse panel  ]"
+      onClick={onTogglePanel}
+    />
+  );
+  const statusBadge = reopened ? (
+    <StatusBadge status="succeeded" variant="pill">
+      Succeeded · Session open
+    </StatusBadge>
+  ) : (
+    <StatusBadge status={run.status} variant="pill">
+      {data.failureStage === 'setup' ? 'Setup failed' : undefined}
+    </StatusBadge>
+  );
+  const facts = (
+    <>
+      <span>
+        <CommandChip>{run.command}</CommandChip> on <TicketRef kind={t.kind} number={t.number} prState={t.prState} />
+      </span>
+      <span className="num muted">{ended ? (run.duration ?? data.elapsed) : data.elapsed}</span>
+      {busy && (
+        <span className="muted" role="status">
+          {pendingNote}
+        </span>
+      )}
+    </>
+  );
+  const body = (
+    <>
+      <div className={styles.runPane} hidden={narrow && view !== 'terminal'}>
         <RunTerminalArea
           data={data}
           lines={lines}
@@ -258,74 +317,56 @@ export function RunDetail({
           reconnectBody={reconnectBody}
           inactiveBody={inactiveBody}
           transcript={transcript}
+          onKey={narrow ? onKey : undefined}
         />
+      </div>
+      <div className={styles.runSide} hidden={narrow && view !== 'details'}>
         <RunSidePanel
           data={data}
-          collapsed={panelCollapsed}
+          collapsed={panelCollapsed && !narrow}
           onExpand={onTogglePanel}
           links={{ skills: links?.skills, rules: links?.rules, setup: links?.setup }}
           maxRunsPerTicket={maxRunsPerTicket}
         />
-      </main>
-      <Popover
-        open={!!cancelConfirmOpen}
-        role="dialog"
-        label={`Cancel run ${run.id}?`}
-        onClose={onCancelClose}
-        width={340}
-        style={{ right: 150, top: 56 }}
-      >
-        <PopoverCard
-          title={`Cancel run ${run.id}?`}
-          body={
-            cancelBody ?? (
-              <>
-                The pod is stopped now. Work the agent has not pushed is lost; branch{' '}
-                <span className="mono">ad/139-rate-limit-webhooks</span> has no pushes yet. A &quot;cancelled&quot;
-                comment is posted on issue #{t.number}.
-              </>
-            )
-          }
-          actions={
-            <>
-              <Button variant="ghost" size="sm" onClick={onCancelClose}>
-                Keep running
-              </Button>
-              <Button variant="solid-danger" size="sm" onClick={onCancelConfirm}>
-                Cancel run
-              </Button>
-            </>
-          }
-        />
-      </Popover>
-      <Popover
-        open={!!stopConfirmOpen && stoppable && data.pausing !== true}
-        role="dialog"
-        label="Stop the session?"
-        onClose={onStopClose}
-        width={340}
-        style={{ right: 290, top: 56 }}
-      >
-        <PopoverCard
-          title="Stop the session?"
-          body={
-            <>
-              The agent is in the middle of a step. Stopping now cuts that step short. Everything up to now is kept, and
-              you can resume for {data.pausedKeep}.
-            </>
-          }
-          actions={
-            <>
-              <Button variant="ghost" size="sm" onClick={onStopClose}>
-                Keep running
-              </Button>
-              <Button variant="primary" size="sm" icon="pause" onClick={onStop}>
-                Stop session
-              </Button>
-            </>
-          }
-        />
-      </Popover>
-    </AppShell>
+      </div>
+    </>
+  );
+
+  // The shell draws the bar and the menu: one main with the page header (title, facts, run actions) over the
+  // terminal and the context panel.
+  const hasActions = reopened
+    ? onCloseSession !== undefined
+    : ended || parked
+      ? true
+      : onFinish !== undefined || (stoppable && (onStopOpen || onStop) !== undefined) || onCancel !== undefined;
+  const headerActions =
+    hasActions || (onTogglePanel && !narrow) ? (
+      <>
+        {runButtons}
+        {onTogglePanel && !narrow && panelButton}
+      </>
+    ) : undefined;
+  return (
+    <main
+      className={styles.runShellMain}
+      style={narrow && viewportHeight !== undefined ? { height: viewportHeight } : undefined}
+    >
+      <PageHeader
+        title={`Run ${run.id}`}
+        meta={
+          <>
+            {statusBadge}
+            {facts}
+          </>
+        }
+        actions={headerActions}
+      />
+      {narrow && (
+        <div className={styles.runViewSwitch}>
+          <SegmentedControl<RunView> aria-label="Run view switch" value={view} options={RUN_VIEWS} onChange={setView} />
+        </div>
+      )}
+      <div className={styles.runBody}>{body}</div>
+    </main>
   );
 }

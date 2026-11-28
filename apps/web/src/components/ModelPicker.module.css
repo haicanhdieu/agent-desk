@@ -9,3 +9,11 @@
   display: inline-flex;
   margin-top: 2px;
 }
+
+/* Phone (BR-65): the help note wraps inside the column. */
+@media (max-width: 639px) {
+  .note {
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+}

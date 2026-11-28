@@ -7,6 +7,7 @@ import {
   FilterChips,
   InvitationRow,
   InviteLink,
+  PageHeader,
   Pagination,
   RouteLoadError,
   type PaginationProps,
@@ -198,7 +199,7 @@ export function OrgInvitations({
 
   return (
     <>
-      <main className={styles.listMain}>
+      <main className={styles.shellMain}>
         {state.kind === 'loading' && (
           <div className={styles.invitationsLoading} aria-busy="true" role="status" aria-label="Loading">
             <span className={styles.invitationsLoadingHead} aria-hidden="true">
@@ -222,20 +223,19 @@ export function OrgInvitations({
         )}
         {state.kind === 'ready' && (
           <>
-            <div className={styles.listHead}>
-              <h1>Invitations</h1>
-              {invite}
+            <PageHeader title="Invitations" actions={invite} />
+            <div className={styles.invitationChips}>
+              <FilterChips aria-label="Filter by status">
+                {CHIPS.map((c) => (
+                  <FilterChip
+                    key={c.value}
+                    label={c.label}
+                    on={filter === c.value}
+                    onClick={() => onFilterChange(c.value)}
+                  />
+                ))}
+              </FilterChips>
             </div>
-            <FilterChips aria-label="Filter by status">
-              {CHIPS.map((c) => (
-                <FilterChip
-                  key={c.value}
-                  label={c.label}
-                  on={filter === c.value}
-                  onClick={() => onFilterChange(c.value)}
-                />
-              ))}
-            </FilterChips>
             <div ref={tableRef}>
               <DataTable columns={columns} busy={state.pagination?.busy}>
                 {state.rows.map((row) => (

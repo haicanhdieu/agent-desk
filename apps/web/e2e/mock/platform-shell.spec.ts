@@ -20,7 +20,7 @@ async function open(page: Page, scenario: PlatformScenario, path: string): Promi
 
 const orgMenuButton = (page: Page): Locator => page.getByRole('button', { name: /^Switch scope/ });
 const menu = (page: Page): Locator => page.getByRole('dialog', { name: 'Scope' });
-const platformEntry = (page: Page): Locator => menu(page).getByRole('link', { name: 'Platform admin', exact: true });
+const platformEntry = (page: Page): Locator => menu(page).getByRole('link', { name: 'Platform', exact: true });
 const createEntry = (page: Page): Locator => menu(page).getByRole('link', { name: 'Create organization', exact: true });
 
 test.describe('BR-1: the Platform admin entry of the org menu', () => {
@@ -39,7 +39,7 @@ test.describe('BR-1: the Platform admin entry of the org menu', () => {
     expect(platform.y).toBeLessThan(create.y);
   });
 
-  test('TC-1.2: a platform admin in no org sees "Platform admin" in the org menu', async ({ page }) => {
+  test('TC-1.2: a platform admin in no org sees "Platform" in the org menu', async ({ page }) => {
     await open(page, 'platformAdminNoOrg', '/');
     await expect(orgMenuButton(page)).toBeVisible();
 
@@ -53,11 +53,10 @@ test.describe('BR-1: the Platform admin entry of the org menu', () => {
     await open(page, 'ownerNoPlatform', `/o/${ORG}/projects`);
     await expect(page.getByText('invoicer-api', { exact: true }).first()).toBeVisible();
 
-    await orgMenuButton(page).click();
-
-    await expect(menu(page)).toBeVisible();
-    await expect(platformEntry(page)).toHaveCount(0);
-    await expect(menu(page).getByText('Platform admin')).toHaveCount(0);
+    // One org and no platform role: there is nothing to switch to, so the bar has no scope menu to open.
+    await expect(orgMenuButton(page)).toHaveCount(0);
+    await expect(page.getByRole('link', { name: 'Platform', exact: true })).toHaveCount(0);
+    await expect(page.getByText('Platform admin')).toHaveCount(0);
   });
 });
 
@@ -74,12 +73,15 @@ test.describe('BR-3: /platform for a person who is not a platform admin', () => 
     await expect(page.getByText("You don't have access", { exact: true })).toBeVisible();
     await expect(page.getByText('This area is for platform admins.', { exact: true })).toBeVisible();
     await expect(page.getByRole('link', { name: 'Go to projects' })).toBeVisible();
-    // No platform data: neither the page nor the platform side menu.
+    // No platform data and no menu: neither the page, nor a side menu, nor a section link.
     await expect(page.getByRole('heading', { name: 'Platform admins' })).toHaveCount(0);
-    await expect(page.getByRole('navigation', { name: 'Platform admin' })).toHaveCount(0);
+    await expect(page.getByRole('navigation', { name: 'Platform menu' })).toHaveCount(0);
+    await expect(page.getByRole('navigation', { name: 'Platform sections' })).toHaveCount(0);
+    await expect(page.getByRole('link', { name: 'Platform admins' })).toHaveCount(0);
     await expect(page.getByRole('table')).toHaveCount(0);
-    // The normal org top bar with its tabs stays above it.
-    await expect(page.getByRole('banner').getByRole('link', { name: 'Projects', exact: true })).toBeVisible();
+    // The top bar stays (switcher, account) with no section links.
+    await expect(page.getByRole('banner')).toBeVisible();
+    await expect(page.getByRole('banner').getByRole('link', { name: 'Projects', exact: true })).toHaveCount(0);
     expect(platformRequests).toEqual([]);
   });
 
@@ -105,9 +107,7 @@ test.describe('BR-3: /platform for a person who is not a platform admin', () => 
 test.describe('BR-2: the entry lands on the Organizations directory', () => {
   const directoryHeading = (page: Page): Locator => page.getByRole('heading', { name: 'Organizations', level: 1 });
 
-  test('TC-2.1: "Platform admin" opens /platform/orgs with the Platform sections tabs and no org tabs', async ({
-    page,
-  }) => {
+  test('TC-2.1: "Platform admin" opens /platform/orgs with the Platform menu and no org tabs', async ({ page }) => {
     await open(page, 'platformAdminOrgs', `/o/${ORG}/projects`);
     await expect(page.getByText('invoicer-api', { exact: true }).first()).toBeVisible();
 
@@ -116,9 +116,9 @@ test.describe('BR-2: the entry lands on the Organizations directory', () => {
 
     await expect(page).toHaveURL(/\/platform\/orgs$/);
     await expect(directoryHeading(page)).toBeVisible();
-    const side = page.getByRole('navigation', { name: 'Platform sections' });
+    const side = page.getByRole('navigation', { name: 'Platform menu' });
     await expect(side).toBeVisible();
-    await expect(page.getByRole('navigation', { name: 'Platform admin' })).toHaveCount(0);
+    await expect(page.getByRole('navigation', { name: 'Platform sections' })).toHaveCount(0);
     await expect(side.getByRole('link', { name: 'Organizations' })).toBeVisible();
     await expect(side.getByRole('link', { name: 'Platform admins' })).toBeVisible();
     await expect(side.getByRole('link', { name: 'Audit log' })).toBeVisible();
@@ -138,7 +138,7 @@ test.describe('BR-2: the entry lands on the Organizations directory', () => {
 
     await expect(page).toHaveURL(/\/platform\/orgs$/);
     await expect(directoryHeading(page)).toBeVisible();
-    await expect(page.getByRole('navigation', { name: 'Platform sections' })).toBeVisible();
+    await expect(page.getByRole('navigation', { name: 'Platform menu' })).toBeVisible();
   });
 
   test('TC-2.3: typing /platform ends on /platform/orgs with the "Organizations" heading', async ({ page }) => {
@@ -152,19 +152,19 @@ test.describe('BR-2: the entry lands on the Organizations directory', () => {
 const ACME_ID = 'b8000000-0000-4000-8000-000000000001';
 
 test.describe('the Platform scope bar and the org-only side menu', () => {
-  test('the platform bar reads Platform and shows the Organizations, Platform admins and Audit log tabs', async ({
+  test('the platform bar reads Platform and the Platform menu shows Organizations, Platform admins and Audit log', async ({
     page,
   }) => {
     await open(page, 'platformAdminOrgs', '/platform/orgs');
 
     const bar = page.getByRole('banner');
     await expect(bar.getByRole('button', { name: 'Switch scope, currently Platform' })).toBeVisible();
-    const tabs = page.getByRole('navigation', { name: 'Platform sections' });
+    const tabs = page.getByRole('navigation', { name: 'Platform menu' });
     await expect(tabs.getByRole('link', { name: 'Organizations' })).toHaveAttribute('aria-current', 'page');
     await expect(tabs.getByRole('link', { name: 'Platform admins' })).toBeVisible();
     await expect(tabs.getByRole('link', { name: 'Audit log' })).toBeVisible();
-    // The directory has no org, so it has no side menu.
-    await expect(page.getByRole('navigation', { name: 'Platform admin' })).toHaveCount(0);
+    // The directory has no org, so there is no org menu and no section tabs in the bar.
+    await expect(page.getByRole('navigation', { name: 'Platform sections' })).toHaveCount(0);
   });
 
   test('a platform org members page reads Platform / Organizations / <org> / Members', async ({ page }) => {
@@ -180,12 +180,12 @@ test.describe('the Platform scope bar and the org-only side menu', () => {
     await expect(crumbs.locator('b[aria-current="page"]')).toHaveText('Members');
   });
 
-  test('the org name in the side menu opens Overview', async ({ page }) => {
+  test('the Overview item in the side menu opens Overview', async ({ page }) => {
     await open(page, 'platformAdminOrgs', `/platform/orgs/${ACME_ID}/members`);
-    const side = page.getByRole('navigation', { name: 'Platform admin' });
+    const side = page.getByRole('navigation', { name: 'Platform menu' });
     await expect(side.getByRole('link', { name: 'Members', exact: true })).toHaveAttribute('aria-current', 'page');
 
-    await side.getByRole('link', { name: 'Acme' }).first().click();
+    await side.getByRole('link', { name: 'Overview', exact: true }).click();
 
     await expect(page).toHaveURL(new RegExp(`/platform/orgs/${ACME_ID}$`));
     await expect(side.getByRole('link', { name: 'Overview', exact: true })).toHaveAttribute('aria-current', 'page');

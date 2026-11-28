@@ -5,7 +5,7 @@ import { ApiError } from '@agentdesk/contracts/client';
 import { revalidateLogic, useField, useForm, useStore } from '@tanstack/react-form';
 import { createFileRoute, Outlet, useNavigate } from '@tanstack/react-router';
 import { useNow } from '@/app/useNow';
-import { EditOrgDialog, SlugChangeConfirm, type SuspendOrgDialogProps } from '@/components';
+import { EditOrgDialog, SlugChangeConfirm, useReportPageState, type SuspendOrgDialogProps } from '@/components';
 import { useToast } from '@/ds';
 import { openOrgHref } from '@/features/chrome/appBar';
 import { orgsQuery } from '@/features/auth/session';
@@ -20,6 +20,7 @@ import { PlatformOrgDetail, type PlatformOrgDetailProps } from '@/screens';
 // here, so every page below (Overview now, more later) shows them. A 403 from the read (rights lost since) shows the
 // shell's forbidden state. UI only: the API is the authority.
 export const Route = createFileRoute('/platform/orgs/$orgId')({
+  staticData: { chrome: { mode: 'standard', scope: 'platformOrg', item: 'orgOverview' } },
   component: PlatformOrgLayout,
 });
 
@@ -262,6 +263,8 @@ function PlatformOrgLayout() {
       overview: toPlatformOrgOverview(data, now),
     };
   }
+
+  useReportPageState(view.kind === 'notFound' ? 'notFound' : undefined);
 
   return (
     <PlatformOrgDetail

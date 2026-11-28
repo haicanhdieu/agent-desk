@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import { userEvent, within } from 'storybook/test';
-import { AppShell, ChangeRoleDialog, type ChangeRoleDialogProps } from '@/components';
+import { ChangeRoleDialog, type ChangeRoleDialogProps, type PaginationProps } from '@/components';
 import {
   accessProjectRoleIds,
   accessProjects,
@@ -17,7 +17,7 @@ import type { MemberRowView, ProjectGrantView } from '@/mocks/types';
 import { OrgAudit as OrgAuditScreen, type OrgAuditProps } from './OrgAudit';
 import { OrgGeneral as OrgGeneralScreen, type OrgGeneralProps } from './OrgGeneral';
 import { OrgMembers as OrgMembersScreen, type OrgMembersProps } from './OrgMembers';
-import { OrgSettingsFrame } from './orgSettingsFrame';
+import { OrgSettingsFrame, OrgShellFrame } from './orgShellFrame';
 import { viewport } from './viewports';
 
 const noop = () => undefined;
@@ -26,13 +26,6 @@ const meta = {
   title: 'Screens/OrgSettings',
   parameters: { layout: 'fullscreen' },
   globals: viewport(1440, 900),
-  decorators: [
-    (S) => (
-      <AppShell height={900} topBar={null}>
-        <S />
-      </AppShell>
-    ),
-  ],
 } satisfies Meta;
 export default meta;
 type Story = StoryObj<typeof meta>;
@@ -433,4 +426,102 @@ export const OrgAuditInvitationProjects: Story = {
 export const OrgAuditInvitationNoEmail: Story = {
   name: 'Audit log, an expired invitation entry without the email',
   render: () => audit({ kind: 'ready', rows: [...auditRows.slice(0, 5), auditRowWith('An invitation expired')] }),
+};
+
+// The org Settings pages in the one shell: the "Organization menu" with Members, Invitations, Audit log and General.
+const shellStory = (story: Story): Story => ({ ...story, parameters: { ...story.parameters, shell: true } });
+const membersCrumbs = [{ label: 'Members' }];
+const membersInShell = (state: OrgMembersProps['state'], frame: Partial<Parameters<typeof OrgShellFrame>[0]> = {}) => (
+  <OrgShellFrame viewer="owner" page="members" crumbs={membersCrumbs} {...frame}>
+    <OrgMembersScreen state={state} onChangeRole={noop} onRemove={noop} />
+  </OrgShellFrame>
+);
+
+export const OrgMembersSideMenu: Story = shellStory({
+  name: 'Organization members, side menu (owner)',
+  render: () => membersInShell(ready(ownerRows)),
+});
+export const OrgMembersSideMenuCollapsed: Story = shellStory({
+  name: 'Organization members, menu collapsed',
+  render: () => membersInShell(ready(ownerRows), { collapsed: true }),
+});
+export const OrgMembersSideMenuError: Story = shellStory({
+  name: 'Organization members, menu could not load',
+  render: () => membersInShell(ready(ownerRows), { viewer: 'error' }),
+});
+export const OrgMembersSideMenuLoading: Story = shellStory({
+  name: 'Organization members, menu loading',
+  render: () => membersInShell(ready(ownerRows), { viewer: 'loading' }),
+});
+export const OrgAuditForbiddenSideMenu: Story = shellStory({
+  name: 'No access, organization menu',
+  render: () => (
+    <OrgShellFrame viewer="projectAdmin" page={null}>
+      <OrgAuditScreen state={{ kind: 'forbidden' }} />
+    </OrgShellFrame>
+  ),
+});
+
+// BR-65: org General at 390x844 (phone board): one column, every control usable. The real shell frame draws the bar and the menu.
+export const OrgGeneralPhone: Story = {
+  name: 'Phone: organization general, one column',
+  decorators: [
+    (S) => (
+      <div style={{ width: 390, height: 844 }}>
+        <OrgShellFrame viewer="owner" page="general" height={844} crumbs={[{ label: 'General' }]}>
+          <S />
+        </OrgShellFrame>
+      </div>
+    ),
+  ],
+  globals: viewport(390, 844),
+  render: () => (
+    <OrgGeneralScreen
+      state={{ kind: 'ready' }}
+      name={{ value: orgSettingsFixtures.org.name, onChange: noop }}
+      slug={{ value: orgSettingsFixtures.org.slug, onChange: noop }}
+      dirty={false}
+      saving={false}
+      onSave={noop}
+    />
+  ),
+};
+
+// BR-65: org Members and Audit log at 390x844 (phone boards): each row is a card with its value labels, the row menu and
+// the pager are kept. The real shell frame draws the bar and the menu.
+const orgListPhone = (page: 'members' | 'audit', crumb: string): NonNullable<Story['decorators']> => [
+  (S) => (
+    <div style={{ width: 390, height: 844 }}>
+      <OrgShellFrame viewer="owner" page={page} height={844} crumbs={[{ label: crumb }]}>
+        <S />
+      </OrgShellFrame>
+    </div>
+  ),
+];
+const phonePagination: PaginationProps = {
+  page: 1,
+  pageSize: 20,
+  total: 25,
+  onPageChange: noop,
+  onPageSizeChange: noop,
+};
+
+export const OrgMembersPhone: Story = {
+  name: 'Phone: members as cards with labels',
+  decorators: orgListPhone('members', 'Members'),
+  globals: viewport(390, 844),
+  render: () => (
+    <OrgMembersScreen
+      state={ready(memberRows.paged.slice(0, 5), null, phonePagination)}
+      onChangeRole={noop}
+      onRemove={noop}
+    />
+  ),
+};
+
+export const OrgAuditPhone: Story = {
+  name: 'Phone: audit log as cards with labels',
+  decorators: orgListPhone('audit', 'Audit log'),
+  globals: viewport(390, 844),
+  render: () => <OrgAuditScreen state={{ kind: 'ready', rows: auditRows, pagination: phonePagination }} />,
 };

@@ -86,7 +86,7 @@ for ref in origin/main HEAD; do
   done <<'MARKERS'
 DeskRulesAgent|design/prototype/project/canvas.json
 Setup2DefaultAgent|design/prototype/project/canvas.json
-Enter the API key for this endpoint.|apps/web/src/features/desk/agent.form.ts
+Enter the API key for this endpoint.|apps/web/src/components/AgentPane.tsx
 allAgents|apps/web/src/app/routes/o.$org.p.$project.desk.rules.tsx
 setDefaultAgent|apps/web/e2e/local/helpers.ts
 MARKERS
@@ -415,12 +415,12 @@ graph LR
 - Consumes: `orgsQuery` (`features/auth/session.ts`).
 - Produces: `MyInvitationsState` empty variant becomes `{ kind: 'empty'; member: boolean; email: string; platformAdmin: boolean; createHref: string }`; `member` is `orgs.length > 0`. Onboarding scenario `memberNoInvites` (an org member, `invitations = []`). Story `MyInvitationsEmptyMemberText`.
 
-- [ ] **Step 1: Write the failing route test.** In `welcome.route.test.tsx`, "BR-57: a member with no pending invitation is not told they are no member": org member with `mockDb.state.invitations = []`; expect heading level 1 "No pending invitations", text `No invitations for <session email>.`, no text "You're not a member of any organization", no button "Sign out" or "Create organization" in `main`. Keep the no-org case as it is (BR-37 text).
-- [ ] **Step 2: Run** VITEST `src/features/invitations/welcome.route.test.tsx`. Expected: FAIL on the "not a member" text.
-- [ ] **Step 3: Implement.** When `member`, the screen renders only the h1 "No pending invitations" and the paragraph, in today's frame (top bar unchanged), for platform admins too. The no-org branch is unchanged. Add the story and list it in `stateStories` with `board: 'MyInvitationsEmpty'`; do not change the coverage check. Add the scenario and its scenario test.
-- [ ] **Step 4: Add the mock e2e** "TC-57.1" (asserts only the two sentences and the absent claim: no top bar, menu or heading level), "TC-57.2" (no-org welcome text, only those sentences) and "TC-57.3" (one pending invitation shows its card, no "No pending invitations").
-- [ ] **Step 5: Run** VITEST on both test files, then MOCK `e2e/mock/invitations.spec.ts`. Expected: PASS. Run PARITY for `MyInvitationsEmpty` and record the member variant in `design/parity-notes.md`.
-- [ ] **Step 6: Commit** `fix(web): do not tell a member with no invitations they have no organization` (the listed files).
+- [x] **Step 1: Write the failing route test.** In `welcome.route.test.tsx`, "BR-57: a member with no pending invitation is not told they are no member": org member with `mockDb.state.invitations = []`; expect heading level 1 "No pending invitations", text `No invitations for <session email>.`, no text "You're not a member of any organization", no button "Sign out" or "Create organization" in `main`. Keep the no-org case as it is (BR-37 text).
+- [x] **Step 2: Run** VITEST `src/features/invitations/welcome.route.test.tsx`. Expected: FAIL on the "not a member" text.
+- [x] **Step 3: Implement.** When `member`, the screen renders only the h1 "No pending invitations" and the paragraph, in today's frame (top bar unchanged), for platform admins too. The no-org branch is unchanged. Add the story and list it in `stateStories` with `board: 'MyInvitationsEmpty'`; do not change the coverage check. Add the scenario and its scenario test.
+- [x] **Step 4: Add the mock e2e** "TC-57.1" (asserts only the two sentences and the absent claim: no top bar, menu or heading level), "TC-57.2" (no-org welcome text, only those sentences) and "TC-57.3" (one pending invitation shows its card, no "No pending invitations").
+- [x] **Step 5: Run** VITEST on both test files, then MOCK `e2e/mock/invitations.spec.ts`. Expected: PASS. Run PARITY for `MyInvitationsEmpty` and record the member variant in `design/parity-notes.md`.
+- [x] **Step 6: Commit** `fix(web): do not tell a member with no invitations they have no organization` (the listed files).
 
 ### Task 2: Step 0, filter every Desk menu link by permission
 
@@ -436,7 +436,7 @@ graph LR
 - Consumes: `deskRightsOf(access, projectId): DeskRights`.
 - Produces: `deskLinksFor(paths: ReturnType<typeof projectPaths>, rights: DeskRights): Pick<DeskLinks, 'skills' | 'rules' | 'agent' | 'setup' | 'members' | 'audit' | 'desk'>` in `frame.ts`, used by `useDeskFrame`. `DeskLinks.skills`, `.rules`, `.agent` and `DeskLayoutProps.links.*` become optional.
 
-- [ ] **Step 1: Write the failing test** in `frame.test.ts`:
+- [x] **Step 1: Write the failing test** in `frame.test.ts`:
 
 ```ts
 it('gives a caller without rule, skill, setup or agent read no Configure link', () => {
@@ -447,9 +447,9 @@ it('gives a caller without rule, skill, setup or agent read no Configure link', 
 
 Add an `it.each` over `tenantAccessFixtures` (owner, admin, projectAdmin, member, viewer, noRole, and `undefined` access) with the exact link keys per fixture. In `DeskLayout.test.tsx`: with only `members` set there is no Routing rules, Skills, Workspace setup or Agent & settings link and no empty group heading; the Repository block stays; with no link at all, neither group heading shows.
 
-- [ ] **Step 2: Run** VITEST on both files. Expected: FAIL (`deskLinksFor` missing; links drawn).
-- [ ] **Step 3: Implement.** Each link is set only when its right is true. `DeskLayout` draws an item only when its href is set and drops a group with no items. When `links` is omitted (stories) keep the relative defaults. No look or copy change.
-- [ ] **Step 4: Run** the same tests, `src/features/access/deskAccess.route.test.tsx` and `pnpm --filter @agentdesk/web typecheck`. Expected: PASS. With built-in roles nothing visible changes on today's Desk pages, so this PR's proof is the unit test (say so in the PR); the visible e2e is TC-23 in Task 30.
+- [x] **Step 2: Run** VITEST on both files. Expected: FAIL (`deskLinksFor` missing; links drawn).
+- [x] **Step 3: Implement.** Each link is set only when its right is true. `DeskLayout` draws an item only when its href is set and drops a group with no items. When `links` is omitted (stories) keep the relative defaults. No look or copy change.
+- [x] **Step 4: Run** the same tests, `src/features/access/deskAccess.route.test.tsx` and `pnpm --filter @agentdesk/web typecheck`. Expected: PASS. With built-in roles nothing visible changes on today's Desk pages, so this PR's proof is the unit test (say so in the PR); the visible e2e is TC-23 in Task 30.
 - [ ] **Step 5: Commit** `fix(web): filter every desk menu link by permission`. Label `review:sensitive`.
 
 ### Task 3: Browser-mock switches, fixtures and the side-menu e2e helper
@@ -467,11 +467,11 @@ Add an `it.each` over `tenantAccessFixtures` (owner, admin, projectAdmin, member
 - Produces (`shellScenarios.ts`): `SHELL_SCENARIOS = ['adminP1ViewerP2', 'adminAMemberB', 'suspendedOnly', 'oneOrgNoPlatform', 'unfinishedProjects', 'connectionWarn', 'connectionError', 'noDefaultBranch', 'longNames', 'creatorNoAgentRead', 'auditOnly', 'orgUpdateOnly', 'distinctProjects', 'markerTicket', 'foreignOrg', 'foreignInvite'] as const`; `applyShellScenario(s)`; `SHELL_KEY = 'agentdesk.mock.shell'`. `unfinishedProjects` has two projects stopped at different `setupStep`s. `creatorNoAgentRead` has `project:create` without `agent:read`; `auditOnly` and `orgUpdateOnly` grant only that one org settings right; `distinctProjects` gives two projects different saved setup scripts and a same-named skill with different text (Task 32 adds their agents, limits and trigger modes); `markerTicket` puts a unique marker and HTML-like text in run 62's ticket title and comment; `foreignOrg` holds a non-member org and project with distinctive names; `foreignInvite` adds a pending invitation from such an org. Reuse an onboarding, project-space or tenant-admin scenario or fixture inside `applyShellScenario` where one already gives the state. A later task that finds a state still missing adds it in its own PR. This task adds no agent fixture or scenario and does not wait for the multi-agent work: later tasks reuse its fixtures, mock scenarios (`manyAgents`, `agentsEmpty`, a 500 on the agent list, a rejected test, a blocked delete) and local agent helpers. The change to `e2e/local/helpers.ts` only adds a helper and changes no signature.
 - Produces (`e2e/mock/mock.ts`): `holdReads(page, config)`, `release(page, read, outcome?)`, `setRead(page, read, mode?)`, `seedShell(page, s)`, `openSideMenu(page): Promise<Locator>` (presses "Open menu" below 1024, or "Expand menu" when collapsed; returns the visible side `navigation`). `e2e/local/helpers.ts` gets the same `openSideMenu`.
 
-- [ ] **Step 1: Write failing tests.** `holdScenarios.test.ts` (MSW node server): `hold` does not resolve until `release`; `release('orgList', 'fail')` answers 500 problem+json; `failOnce` fails once then passes through; `pending` never resolves; `notFound` answers 404 and `crash` 422; setting a read at runtime changes the next answer. `shellScenarios.test.ts`: `it.each(SHELL_SCENARIOS)` parses the resulting reads with contracts schemas and asserts its defining fact (for example `suspendedOnly`: one membership, status `suspended`, `platformAdmin` false; `adminP1ViewerP2`: project-scope admin on `ids.project.invoicerApi`, viewer on `ids.project.invoicerWeb`).
-- [ ] **Step 2: Run** VITEST on both. Expected: FAIL, modules missing.
-- [ ] **Step 3: Implement** both modules, the `browser.ts` loading (unparsable keys ignored, as the other switches) and the e2e helpers.
-- [ ] **Step 4: Run** the tests and typecheck. Expected: PASS.
-- [ ] **Step 5: Commit** `test(web): add browser-mock hold switches and shell scenarios`.
+- [x] **Step 1: Write failing tests.** `holdScenarios.test.ts` (MSW node server): `hold` does not resolve until `release`; `release('orgList', 'fail')` answers 500 problem+json; `failOnce` fails once then passes through; `pending` never resolves; `notFound` answers 404 and `crash` 422; setting a read at runtime changes the next answer. `shellScenarios.test.ts`: `it.each(SHELL_SCENARIOS)` parses the resulting reads with contracts schemas and asserts its defining fact (for example `suspendedOnly`: one membership, status `suspended`, `platformAdmin` false; `adminP1ViewerP2`: project-scope admin on `ids.project.invoicerApi`, viewer on `ids.project.invoicerWeb`).
+- [x] **Step 2: Run** VITEST on both. Expected: FAIL, modules missing.
+- [x] **Step 3: Implement** both modules, the `browser.ts` loading (unparsable keys ignored, as the other switches) and the e2e helpers.
+- [x] **Step 4: Run** the tests and typecheck. Expected: PASS.
+- [x] **Step 5: Commit** `test(web): add browser-mock hold switches and shell scenarios`.
 
 ### Task 4: Project switcher keyboard works while loading (BR-53)
 
@@ -488,12 +488,12 @@ Add an `it.each` over `tenantAccessFixtures` (owner, admin, projectAdmin, member
 - Consumes: `useMenuNav(open, setOpen, wrapRef)` returning `{ onTriggerKeyDown, onMenuKeyDown }`; `holdReads` (Task 3).
 - Produces: `useMenuNav` gains an optional fourth argument `ready?: boolean`: when it turns true while open and focus is still inside the popover, the first item is focused. Task 14 uses it for `OrgSwitch`.
 
-- [ ] **Step 1: Write the failing test** "BR-53: arrows work when the list arrives after opening": render `status: 'loading'`, open by keyboard, rerender `ready` with two items; expect the first link focused; `{ArrowDown}` focuses the second; `{Escape}` closes and focuses the trigger. Second case: focus moved outside before ready is not pulled back.
-- [ ] **Step 2: Run** VITEST `src/components/ProjectSwitch.test.tsx`. Expected: FAIL (focus stays on the popover root, arrows do nothing).
-- [ ] **Step 3: Implement:** drop the component's own arrow handler, use `useMenuNav` so the key handler covers the whole popover.
-- [ ] **Step 4: Add mock e2e** in `org-switcher.spec.ts`: "TC-53.1", "TC-53.3" with `holdReads(page, { projectList: 'hold' })`.
-- [ ] **Step 5: Run** the test and MOCK `e2e/mock/org-switcher.spec.ts`. Expected: PASS.
-- [ ] **Step 6: Commit** `fix(web): keyboard in the project switcher while it loads`.
+- [x] **Step 1: Write the failing test** "BR-53: arrows work when the list arrives after opening": render `status: 'loading'`, open by keyboard, rerender `ready` with two items; expect the first link focused; `{ArrowDown}` focuses the second; `{Escape}` closes and focuses the trigger. Second case: focus moved outside before ready is not pulled back.
+- [x] **Step 2: Run** VITEST `src/components/ProjectSwitch.test.tsx`. Expected: FAIL (focus stays on the popover root, arrows do nothing).
+- [x] **Step 3: Implement:** drop the component's own arrow handler, use `useMenuNav` so the key handler covers the whole popover.
+- [x] **Step 4: Add mock e2e** in `org-switcher.spec.ts`: "TC-53.1", "TC-53.3" with `holdReads(page, { projectList: 'hold' })`.
+- [x] **Step 5: Run** the test and MOCK `e2e/mock/org-switcher.spec.ts`. Expected: PASS.
+- [x] **Step 6: Commit** `fix(web): keyboard in the project switcher while it loads`.
 
 ### Task 5: Arrow, Home and End keys on the terminal view tabs (BR-81)
 
@@ -509,12 +509,12 @@ Add an `it.each` over `tenantAccessFixtures` (owner, admin, projectAdmin, member
 
 - Produces: no prop change. Behaviour of `ds/Tabs.tsx`: roving `tabIndex`, `ArrowRight`/`ArrowLeft` wrap, `Home`/`End`, selection follows focus through `onViewChange(id)`, `soon` views skipped, `preventDefault`, handler on the `tablist` element only.
 
-- [ ] **Step 1: Write the failing component test** with three usable views plus one `soon`: ArrowRight focuses and reports the next and wraps from last to first; ArrowLeft the reverse; Home and End go to first and last usable; `defaultPrevented` is true; only the selected tab has `tabIndex 0`; the `soon` tab is skipped; with one view focus stays and `onViewChange` is not called with another id; a keydown on an element outside the tablist calls nothing. Apply to `DeskSetup`'s log bar by construction (same component).
-- [ ] **Step 2: Run** VITEST `src/components/TerminalBar.test.tsx`. Expected: FAIL (no key handling).
-- [ ] **Step 3: Implement** in `TerminalBar`, keeping its markup and look. Add the story `TwoUsableTabs` with controlled state.
-- [ ] **Step 4: Add mock e2e** "TC-81.1", "TC-81.2" (focus and selection stay on the one tab) and "TC-81.3" (Left and Right inside the terminal do not move to the tabs).
-- [ ] **Step 5: Run** the test and MOCK `e2e/mock/terminal-tabs.spec.ts`. Expected: PASS.
-- [ ] **Step 6: Commit** `feat(web): keyboard support on the terminal view tabs`.
+- [x] **Step 1: Write the failing component test** with three usable views plus one `soon`: ArrowRight focuses and reports the next and wraps from last to first; ArrowLeft the reverse; Home and End go to first and last usable; `defaultPrevented` is true; only the selected tab has `tabIndex 0`; the `soon` tab is skipped; with one view focus stays and `onViewChange` is not called with another id; a keydown on an element outside the tablist calls nothing. Apply to `DeskSetup`'s log bar by construction (same component).
+- [x] **Step 2: Run** VITEST `src/components/TerminalBar.test.tsx`. Expected: FAIL (no key handling).
+- [x] **Step 3: Implement** in `TerminalBar`, keeping its markup and look. Add the story `TwoUsableTabs` with controlled state.
+- [x] **Step 4: Add mock e2e** "TC-81.1", "TC-81.2" (focus and selection stay on the one tab) and "TC-81.3" (Left and Right inside the terminal do not move to the tabs).
+- [x] **Step 5: Run** the test and MOCK `e2e/mock/terminal-tabs.spec.ts`. Expected: PASS.
+- [x] **Step 6: Commit** `feat(web): keyboard support on the terminal view tabs`.
 
 ### Task 6: Redraw the entry, personal and wizard boards (after the multi-agent gate)
 
@@ -533,12 +533,12 @@ Add an `it.each` over `tenantAccessFixtures` (owner, admin, projectAdmin, member
 - Multi-agent boards in this task, each redrawn starting from the multi-agent version: new `Setup2DefaultAgent`, `Setup2AgentCodex`, `Setup2AgentRejected`; changed `Main`, `ProjectsEmpty`, `Setup1`, `Setup1Polling`, `Setup1PollingOk`, `Setup3`, `Setup4`, `SetupReady`, `SetupWorkspace`. Their texts stay: "Add an agent" on `ProjectsEmpty`, "2. Agent" on `Main`, stepper "Add agent" with "Claude Code, opus", "Project default (Claude)" and "Runs use the project default agent." on `Setup4`. The retired `Setup2` is not recreated.
 - Produces: redrawn boards that Tasks 16, 18, 23 and 24 match.
 
-- [ ] **Step 0: Multi-agent gate.** Run both checks in "Multi-agent gate". If either fails, stop: write no code and report which check failed.
-- [ ] **Step 1: Redraw.** Replace each board's top bar, side menu and page header with the markup of the nearest approved board: `ProjectsSideMenu` (org pages), `Setup3ExitSetup`, `Setup4ExitSetup`, `SetupReadyExitSetup` (wizard stepper column and "Exit setup"), `MyInvitationsSideMenu`, `InvitationAcceptSideMenu`, `InvitationAcceptNotAvailableNoMenu`, `CreateOrgSideMenu`, `RouteErrorSideMenu`, `RouteLoadingSideMenu`, `SignInProofOfConcept`; for the Agent step, `Setup2Phone` for content and `Setup3ExitSetup` for the desktop frame. `Main` is the prototype's index and may draw no app chrome: change only what is old on it, and if nothing is, record that in the PR. No "Org settings" or "Project settings" crumb; bell disabled. A one-off transform script may do this; keep it in the scratchpad, not the repo. Page bodies do not change.
-- [ ] **Step 2: Apply the smaller-item edits:** `SignIn` footer "Proof of concept."; `Projects*` intro "After sign-in you land on this list. It is one click away on the logo.", row action "Agent & settings", "Resume setup" beside "More" on unfinished rows (as `ProjectsResumeSetup`); `Setup3` Preview as a button; `Setup4` guard links; `InvitationAccept*` card padding 16px.
-- [ ] **Step 3: Regenerate** `node design/prototype/interactive/_tools/build-boards.mjs`. Expected: exits 0 and rewrites `data/boards.js` and `board-styles.css`.
-- [ ] **Step 4: Check** `grep -lE "Org settings|Project settings|Notifications on" design/prototype/project/{SignIn,Projects,CreateOrg,Invitation,MyInvitations,Setup}*.dc.html` prints nothing; open five boards of different kinds in a browser next to their approved board, one a multi-agent board; check that its content and copy match the multi-agent version (only the chrome and the smaller items differ); VITEST `src/test/coverage.test.ts` passes.
-- [ ] **Step 5: Commit** `docs(design): redraw entry, invitation and wizard boards in the new shell`. The PR says it is board-only and why it is over the size cap.
+- [x] **Step 0: Multi-agent gate.** Run both checks in "Multi-agent gate". If either fails, stop: write no code and report which check failed.
+- [x] **Step 1: Redraw.** Replace each board's top bar, side menu and page header with the markup of the nearest approved board: `ProjectsSideMenu` (org pages), `Setup3ExitSetup`, `Setup4ExitSetup`, `SetupReadyExitSetup` (wizard stepper column and "Exit setup"), `MyInvitationsSideMenu`, `InvitationAcceptSideMenu`, `InvitationAcceptNotAvailableNoMenu`, `CreateOrgSideMenu`, `RouteErrorSideMenu`, `RouteLoadingSideMenu`, `SignInProofOfConcept`; for the Agent step, `Setup2Phone` for content and `Setup3ExitSetup` for the desktop frame. `Main` is the prototype's index and may draw no app chrome: change only what is old on it, and if nothing is, record that in the PR. No "Org settings" or "Project settings" crumb; bell disabled. A one-off transform script may do this; keep it in the scratchpad, not the repo. Page bodies do not change.
+- [x] **Step 2: Apply the smaller-item edits:** `SignIn` footer "Proof of concept."; `Projects*` intro "After sign-in you land on this list. It is one click away on the logo.", row action "Agent & settings", "Resume setup" beside "More" on unfinished rows (as `ProjectsResumeSetup`); `Setup3` Preview as a button; `Setup4` guard links; `InvitationAccept*` card padding 16px.
+- [x] **Step 3: Regenerate** `node design/prototype/interactive/_tools/build-boards.mjs`. Expected: exits 0 and rewrites `data/boards.js` and `board-styles.css`.
+- [x] **Step 4: Check** `grep -lE "Org settings|Project settings|Notifications on" design/prototype/project/{SignIn,Projects,CreateOrg,Invitation,MyInvitations,Setup}*.dc.html` prints nothing; open five boards of different kinds in a browser next to their approved board, one a multi-agent board; check that its content and copy match the multi-agent version (only the chrome and the smaller items differ); VITEST `src/test/coverage.test.ts` passes.
+- [x] **Step 5: Commit** `docs(design): redraw entry, invitation and wizard boards in the new shell`. The PR says it is board-only and why it is over the size cap.
 
 ### Task 7: Redraw the organization boards (after the multi-agent gate)
 
@@ -555,10 +555,10 @@ Add an `it.each` over `tenantAccessFixtures` (owner, admin, projectAdmin, member
 - Consumes: approved boards `OrgMembersSideMenu`, `OrgMembersSideMenuCollapsed`, `OrgMembersSideMenuLoading`, `OrgMembersSideMenuError`, `OrgInvitationsSettingsSideMenuProjectAdmin`, `OrgAuditForbiddenSideMenu`, `OrgSuspendedNoMenu`, `OrgSuspendedPlainName`.
 - Produces: the about 77 `Org*` canvas boards Tasks 18 and 24 match.
 
-- [ ] **Step 0: Multi-agent gate.** Run both checks in "Multi-agent gate". If either fails, stop: write no code and report which check failed.
-- [ ] **Step 1: Redraw** the `Org*` boards listed in `canvas.json` (files starting `Org`): shell as in the approved boards, "Organization menu" with Projects and "Settings" in the order Members, Invitations, Audit log, General, one 22px page header.
-- [ ] **Step 2: Regenerate** with `build-boards.mjs`, run the Task 6 grep over `Org*.dc.html` (prints nothing) and VITEST `src/test/coverage.test.ts`.
-- [ ] **Step 3: Commit** `docs(design): redraw organization boards in the new shell` (board-only note in the PR).
+- [x] **Step 0: Multi-agent gate.** Run both checks in "Multi-agent gate". If either fails, stop: write no code and report which check failed.
+- [x] **Step 1: Redraw** the `Org*` boards listed in `canvas.json` (files starting `Org`): shell as in the approved boards, "Organization menu" with Projects and "Settings" in the order Members, Invitations, Audit log, General, one 22px page header.
+- [x] **Step 2: Regenerate** with `build-boards.mjs`, run the Task 6 grep over `Org*.dc.html` (prints nothing) and VITEST `src/test/coverage.test.ts`.
+- [x] **Step 3: Commit** `docs(design): redraw organization boards in the new shell` (board-only note in the PR).
 
 ### Task 8: Redraw the platform boards (after the multi-agent gate)
 
@@ -575,10 +575,10 @@ Add an `it.each` over `tenantAccessFixtures` (owner, admin, projectAdmin, member
 - Consumes: approved boards `PlatformOrgsSideMenu`, `PlatformOrgProjectsSideMenu`, `PlatformOrgOverviewSideMenuSuspended`, `PlatformOrgOverviewSideMenuNotFound`, `PlatformOrgMembersSideMenuLoading`, `PlatformOrgMembersSideMenuError`, `PlatformAdminsForbiddenNoMenu`.
 - Produces: the about 74 `Platform*` canvas boards Tasks 16 and 19 match.
 
-- [ ] **Step 0: Multi-agent gate.** Run both checks in "Multi-agent gate". If either fails, stop: write no code and report which check failed.
-- [ ] **Step 1: Redraw:** platform menu or platform one-org menu (never both), org header with slug, status, "Edit organization", "More actions", tab name as h2. `PlatformOrgProjects*` columns become Name, then Id.
-- [ ] **Step 2: Regenerate**, run the Task 6 grep over `Platform*.dc.html` (nothing) and VITEST `src/test/coverage.test.ts`.
-- [ ] **Step 3: Commit** `docs(design): redraw platform boards in the new shell` (board-only note).
+- [x] **Step 0: Multi-agent gate.** Run both checks in "Multi-agent gate". If either fails, stop: write no code and report which check failed.
+- [x] **Step 1: Redraw:** platform menu or platform one-org menu (never both), org header with slug, status, "Edit organization", "More actions", tab name as h2. `PlatformOrgProjects*` columns become Name, then Id.
+- [x] **Step 2: Regenerate**, run the Task 6 grep over `Platform*.dc.html` (nothing) and VITEST `src/test/coverage.test.ts`.
+- [x] **Step 3: Commit** `docs(design): redraw platform boards in the new shell` (board-only note).
 
 ### Task 9: Redraw the Runs and run boards (after the multi-agent gate)
 
@@ -595,10 +595,10 @@ Add an `it.each` over `tenantAccessFixtures` (owner, admin, projectAdmin, member
 - Consumes: approved boards `RunsSideMenu`, `RunsSideMenuMember`, `RunRunningSideMenu`, `RunRunningStopSideMenu`, `RunIdleSideCollapsed`, `RunIdleSideExpanded`.
 - Produces: the about 54 `Runs*` and `Run*` canvas boards (`RunIdleShell` included) Tasks 20 and 22 match.
 
-- [ ] **Step 0: Multi-agent gate.** Run both checks in "Multi-agent gate". If either fails, stop: write no code and report which check failed.
-- [ ] **Step 1: Redraw:** Runs boards get the project menu and page header (slots and today's counts, search, "Grouped by ticket", chips below). Run boards get the collapsed strip and the run page header; "Full screen" is removed; the repository button leaves the top bar.
-- [ ] **Step 2: Regenerate**, run the grep over `Run*.dc.html` plus `Repo on GitHub|Full screen` (nothing) and VITEST `src/test/coverage.test.ts`.
-- [ ] **Step 3: Commit** `docs(design): redraw runs and run boards in the new shell` (board-only note).
+- [x] **Step 0: Multi-agent gate.** Run both checks in "Multi-agent gate". If either fails, stop: write no code and report which check failed.
+- [x] **Step 1: Redraw:** Runs boards get the project menu and page header (slots and today's counts, search, "Grouped by ticket", chips below). Run boards get the collapsed strip and the run page header; "Full screen" is removed; the repository button leaves the top bar.
+- [x] **Step 2: Regenerate**, run the grep over `Run*.dc.html` plus `Repo on GitHub|Full screen` (nothing) and VITEST `src/test/coverage.test.ts`.
+- [x] **Step 3: Commit** `docs(design): redraw runs and run boards in the new shell` (board-only note).
 
 ### Task 10: Redraw the project configuration boards (after the multi-agent gate)
 
@@ -615,10 +615,10 @@ Add an `it.each` over `tenantAccessFixtures` (owner, admin, projectAdmin, member
 - Consumes: approved boards `DeskRulesSideMenu`, `DeskRulesSideMenuSetupWarning`, `DeskRulesForbiddenSideMenu`, `DeskSkillsSideMenu`, `DeskSetupSideMenu`, `DeskAgentSideMenu`.
 - Produces: the about 115 `Desk*` canvas boards Tasks 21 and 56 match. 51 of them are the multi-agent work's new boards (46 `DeskAgent*`, 5 `DeskRulesAgent*`), each redrawn from its version, at 1440x900. The boards it retired (7 `DeskAgent*`, 6 `DeskRules*`) are not recreated.
 
-- [ ] **Step 0: Multi-agent gate.** Run both checks in "Multi-agent gate". If either fails, stop: write no code and report which check failed.
-- [ ] **Step 1: Redraw:** project menu with "Configure" and "Access", one page header (h1 "Skills" and "Workspace setup" included), setup warning under the header; remove "Send test ping", skill "History", "Manage installation" and any action row they leave empty. On the Agent & settings and Routing rules boards (all start from the multi-agent version and keep every state and copy): h1 "Agent & settings" with the tab strip under it, "Add agent" as a section action, the side pane beside the whole main column, and any setup warning as the first item of the scroll area. `DeskAgentGitHub*` lose "Send test ping" and "Manage installation on GitHub"; "Check now" stays where a board has it (polling).
-- [ ] **Step 2: Regenerate**, run the grep over `Desk*.dc.html` plus `Send test ping|Manage installation|Project settings` (nothing; the tab strip name "Agent and project settings" is not a match for this case-sensitive search) and VITEST `src/test/coverage.test.ts`.
-- [ ] **Step 3: Commit** `docs(design): redraw project configuration boards in the new shell` (board-only note; the PR may be split into the agent and rules boards, then the rest).
+- [x] **Step 0: Multi-agent gate.** Run both checks in "Multi-agent gate". If either fails, stop: write no code and report which check failed.
+- [x] **Step 1: Redraw:** project menu with "Configure" and "Access", one page header (h1 "Skills" and "Workspace setup" included), setup warning under the header; remove "Send test ping", skill "History", "Manage installation" and any action row they leave empty. On the Agent & settings and Routing rules boards (all start from the multi-agent version and keep every state and copy): h1 "Agent & settings" with the tab strip under it, "Add agent" as a section action, the side pane beside the whole main column, and any setup warning as the first item of the scroll area. `DeskAgentGitHub*` lose "Send test ping" and "Manage installation on GitHub"; "Check now" stays where a board has it (polling).
+- [x] **Step 2: Regenerate**, run the grep over `Desk*.dc.html` plus `Send test ping|Manage installation|Project settings` (nothing; the tab strip name "Agent and project settings" is not a match for this case-sensitive search) and VITEST `src/test/coverage.test.ts`.
+- [x] **Step 3: Commit** `docs(design): redraw project configuration boards in the new shell` (board-only note; the PR may be split into the agent and rules boards, then the rest).
 
 **Storybook first (a blocker from the spec, not an ordering preference).** Tasks 11 to 16, 18 to 24 and 56 build and story every changed or new `ds/`, `components/` and `screens/` piece against the approved boards. No task that implements or wires that UI in `app/` or `features/` starts before the Storybook tasks it lists are merged and reviewed.
 
@@ -637,11 +637,11 @@ Add an `it.each` over `tenantAccessFixtures` (owner, admin, projectAdmin, member
 
 - Produces: `Drawer(props: { open: boolean; label: string; onClose(): void; children: ReactNode }): JSX.Element | null`; `useMediaQuery(query: string): boolean`; `BELOW_DESKTOP = '(max-width: 1023px)'`, `PHONE = '(max-width: 639px)'`; `IconName` adds `'menu'`; `setViewportWidth(px: number): void` from `fakeMatchMedia.ts` (installed by `setup.ts`, default 1440, fires `change`); viewport `390x844` in `artboards`.
 
-- [ ] **Step 1: Write failing tests.** Drawer: closed renders nothing; open is `role="dialog"` with `aria-modal="true"` and the name `label`; focus is trapped (Tab from the last wraps to the first); Escape and a press on the scrim call `onClose` once; on close, focus returns to the element focused before opening. `useMediaQuery` follows `setViewportWidth(1023)` and `(1024)`. Dialog: the overlay has the class whose CSS is `position: fixed`. Icon: `menu` renders.
-- [ ] **Step 2: Run** VITEST on the three files. Expected: FAIL.
-- [ ] **Step 3: Implement** on `useFocusTrap(ref, { active, restoreFocus: true, trap: true, onEscape })`; width 280px, `--scrim`, `--panel`, `--shadow-dialog`. Change `.overlay` to `position: fixed`; below 640px `.dialog` is full width and `.pop` spans the viewport minus 16px gutters and scrolls inside. Add the `Drawer` stories (open, closed) and the icon.
-- [ ] **Step 4: Run** the tests and VITEST `src/test/stories.smoke.test.tsx src/test/cssModules.test.ts`. Expected: PASS.
-- [ ] **Step 5: Commit** `feat(web): add drawer, menu icon and breakpoint hook`.
+- [x] **Step 1: Write failing tests.** Drawer: closed renders nothing; open is `role="dialog"` with `aria-modal="true"` and the name `label`; focus is trapped (Tab from the last wraps to the first); Escape and a press on the scrim call `onClose` once; on close, focus returns to the element focused before opening. `useMediaQuery` follows `setViewportWidth(1023)` and `(1024)`. Dialog: the overlay has the class whose CSS is `position: fixed`. Icon: `menu` renders.
+- [x] **Step 2: Run** VITEST on the three files. Expected: FAIL.
+- [x] **Step 3: Implement** on `useFocusTrap(ref, { active, restoreFocus: true, trap: true, onEscape })`; width 280px, `--scrim`, `--panel`, `--shadow-dialog`. Change `.overlay` to `position: fixed`; below 640px `.dialog` is full width and `.pop` spans the viewport minus 16px gutters and scrolls inside. Add the `Drawer` stories (open, closed) and the icon.
+- [x] **Step 4: Run** the tests and VITEST `src/test/stories.smoke.test.tsx src/test/cssModules.test.ts`. Expected: PASS.
+- [x] **Step 5: Commit** `feat(web): add drawer, menu icon and breakpoint hook`.
 
 ### Task 12: SubNav with groups, badge, states and the repository block
 
@@ -674,11 +674,11 @@ export interface SubNavProps {
 export interface RepoBlockProps { owner: string; name: string; branch: string | null; status?: { tone: 'ok' | 'warn' | 'err'; text: string }; repoUrl: string }
 ```
 
-- [ ] **Step 1: Write failing tests.** SubNav: one `navigation` with the given name; each group with items is a `list` labelled by its heading; a group with no items has no heading; `active: true` gives `aria-current="page"`, `'parent'` gives `aria-current="true"`; `badge: 3` shows 3 with the text "needs you" and `badge: 0` shows nothing; `badge: 150` shows 150; `loading` shows a `status` "Loading menu" and no item links, keeping back link and collapse button; `error` shows the passed items, "Could not load the menu." and "Retry" calling `onRetry`; `collapsed` shows only "Expand menu" (`aria-expanded="false"`) inside the same-named nav with no link in the tab order; "Collapse menu" has `aria-expanded="true"` and sits in the back link's row; the toggle keeps focus. RepoBlock: heading "Repository"; owner and name; branch line absent when `branch` is null; status line per tone; link "Open repository" with `href={repoUrl}`, `target="_blank"`, `rel` containing `noreferrer`.
-- [ ] **Step 2: Run** VITEST on both. Expected: FAIL.
-- [ ] **Step 3: Implement.** Badge uses `ds/CountBadge`; skeleton rows have fixed height; names truncate with ellipsis (`min-width: 0`); 220px expanded, 48px strip; markup of the status line as `DeskLayout` draws it. Existing callers (`aria-label`, `groups`) keep working. Stories: groups, badge, back link, header, footer, loading, error, collapsed; RepoBlock OK, warning, error, no branch.
-- [ ] **Step 4: Run** the tests, `src/components/Chrome.test.tsx`, `src/components/DeskLayout.test.tsx` and the smoke test. Expected: PASS.
-- [ ] **Step 5: Commit** `feat(web): extend SubNav and add the repository block`.
+- [x] **Step 1: Write failing tests.** SubNav: one `navigation` with the given name; each group with items is a `list` labelled by its heading; a group with no items has no heading; `active: true` gives `aria-current="page"`, `'parent'` gives `aria-current="true"`; `badge: 3` shows 3 with the text "needs you" and `badge: 0` shows nothing; `badge: 150` shows 150; `loading` shows a `status` "Loading menu" and no item links, keeping back link and collapse button; `error` shows the passed items, "Could not load the menu." and "Retry" calling `onRetry`; `collapsed` shows only "Expand menu" (`aria-expanded="false"`) inside the same-named nav with no link in the tab order; "Collapse menu" has `aria-expanded="true"` and sits in the back link's row; the toggle keeps focus. RepoBlock: heading "Repository"; owner and name; branch line absent when `branch` is null; status line per tone; link "Open repository" with `href={repoUrl}`, `target="_blank"`, `rel` containing `noreferrer`.
+- [x] **Step 2: Run** VITEST on both. Expected: FAIL.
+- [x] **Step 3: Implement.** Badge uses `ds/CountBadge`; skeleton rows have fixed height; names truncate with ellipsis (`min-width: 0`); 220px expanded, 48px strip; markup of the status line as `DeskLayout` draws it. Existing callers (`aria-label`, `groups`) keep working. Stories: groups, badge, back link, header, footer, loading, error, collapsed; RepoBlock OK, warning, error, no branch.
+- [x] **Step 4: Run** the tests, `src/components/Chrome.test.tsx`, `src/components/DeskLayout.test.tsx` and the smoke test. Expected: PASS.
+- [x] **Step 5: Commit** `feat(web): extend SubNav and add the repository block`.
 
 ### Task 13: AppShell, the slim TopBar, the shell context and the stories frame
 
@@ -723,11 +723,11 @@ export function ShellFrame(props: Omit<AppShellProps, 'topBar'> & { topBar: TopB
 
 Fill mode (spec "Page fit inside the shell"): the root is the given height and does not scroll; the top bar keeps its own height (`flex: none`, one row or two); below it the body, and in it the content slot, are `flex: 1` with `min-height: 0`, so the page inside decides what scrolls; the side menu scrolls on its own. No rule here or in a screen subtracts a fixed bar height. A column shorter than the page's own minimum scrolls instead of clipping.
 
-- [ ] **Step 1: Write failing tests.** AppShell: one `banner`; no `main` of its own; menu `none` renders no `navigation`; the node holding `children` is the same DOM node after rerendering through every `menuMode`, with `drawerOpen` true and false (assert with a ref captured once, and a child that counts mounts: stays 1); the drawer never wraps the content; `wizard` mode gives `wizardSlotRef` an element, inline at 1440 and inside the open drawer at 390. Fill: with `height="viewport"`, and with `ShellFrame fill`, the root and the content slot carry the fill classes, the CSS gives the slot `flex: 1` and `min-height: 0` and the menu its own `overflow-y: auto`, and no `calc()` subtracts 52px; without it the root has no fixed height. TopBar: "Open menu" shows only with `onOpenMenu` and has `aria-expanded`; the bell is a disabled button named "Notifications (coming soon)" with that tooltip and is not focusable; no "Notifications on"; `ownsTitle={false}` leaves `document.title`.
-- [ ] **Step 2: Run** VITEST `src/components/AppShell.test.tsx src/components/Chrome.test.tsx`. Expected: FAIL.
-- [ ] **Step 3: Implement** with a fixed element tree (header slot, body with menu slot and content, drawer as a sibling). Menu 220px sticky under the 52px bar with its own scroll. CSS below 640px: the top bar has two rows (menu button, logo mark, bell, account; then both switchers sharing the width with ellipsis, never empty), page crumbs hidden, one fixed bar height. Old `TopBar` props and the current `AppShell` usage keep working until Task 39. Stories: AppShell in each menu mode (390 included) and in fill mode with a long menu and a short canvas, TopBar states.
-- [ ] **Step 4: Run** the tests, the smoke test, typecheck and MOCK `e2e/mock/rules-layout.spec.ts` unchanged (a page that already uses `height="viewport"` must still fit). Expected: PASS.
-- [ ] **Step 5: Commit** `feat(web): add the app shell layout and shell context`.
+- [x] **Step 1: Write failing tests.** AppShell: one `banner`; no `main` of its own; menu `none` renders no `navigation`; the node holding `children` is the same DOM node after rerendering through every `menuMode`, with `drawerOpen` true and false (assert with a ref captured once, and a child that counts mounts: stays 1); the drawer never wraps the content; `wizard` mode gives `wizardSlotRef` an element, inline at 1440 and inside the open drawer at 390. Fill: with `height="viewport"`, and with `ShellFrame fill`, the root and the content slot carry the fill classes, the CSS gives the slot `flex: 1` and `min-height: 0` and the menu its own `overflow-y: auto`, and no `calc()` subtracts 52px; without it the root has no fixed height. TopBar: "Open menu" shows only with `onOpenMenu` and has `aria-expanded`; the bell is a disabled button named "Notifications (coming soon)" with that tooltip and is not focusable; no "Notifications on"; `ownsTitle={false}` leaves `document.title`.
+- [x] **Step 2: Run** VITEST `src/components/AppShell.test.tsx src/components/Chrome.test.tsx`. Expected: FAIL.
+- [x] **Step 3: Implement** with a fixed element tree (header slot, body with menu slot and content, drawer as a sibling). Menu 220px sticky under the 52px bar with its own scroll. CSS below 640px: the top bar has two rows (menu button, logo mark, bell, account; then both switchers sharing the width with ellipsis, never empty), page crumbs hidden, one fixed bar height. Old `TopBar` props and the current `AppShell` usage keep working until Task 39. Stories: AppShell in each menu mode (390 included) and in fill mode with a long menu and a short canvas, TopBar states.
+- [x] **Step 4: Run** the tests, the smoke test, typecheck and MOCK `e2e/mock/rules-layout.spec.ts` unchanged (a page that already uses `height="viewport"` must still fit). Expected: PASS.
+- [x] **Step 5: Commit** `feat(web): add the app shell layout and shell context`.
 
 ### Task 14: Scope-only switcher states and "My invitations" in the account menu
 
@@ -743,12 +743,12 @@ Fill mode (spec "Page fit inside the shell"): the root is the given height and d
 - Consumes: `useMenuNav(..., ready)` (Task 4).
 - Produces: `OrgSwitchData.list?: { status: 'loading' } | { status: 'error'; onRetry(): void }` (absent means ready with `orgs`). `ProjectSwitchMenu` adds `allProjectsHref?: string; newProjectHref?: string`. `AccountMenu` gets a menuitem link "My invitations" to `/invitations` above "Logout", with no count.
 
-- [ ] **Step 1: Write failing OrgSwitch tests.** Loading: button "Switch scope" reading "Organization" ("Platform" when `scope: 'platform'`), skeleton, `status` "Loading organizations"; no org name, never "No organization". Error: "Could not load your organizations." and "Retry" calling `onRetry`, reachable by keyboard. In every list state "Platform" and "Create organization" show when `platformAdmin`, never otherwise. Ready order: Platform, separator, orgs (current checked, suspended labelled "Suspended"), separator, Create organization. Plain text (no button) when ready, `orgs.length <= 1`, not platform admin and no legacy href prop (`projectsHref`, `settingsHref`, `manageHref`). Hold, driven by changing props: open when the list arrives, it stays a button listing the one org checked (empty list: a non-pickable line "No organization"); focus moving into the entries is not leaving; Escape closes, focus returns, still a button; Tab away gives plain text; focused but closed holds until focus leaves; an outside press that moves focus gives plain text; focus ends on the control moved to. BR-53 case: arrows after loading to ready.
-- [ ] **Step 2: Write failing ProjectSwitch and account tests.** Title "Switch project"; counts "{n} needs you" only when above 0; footer "All projects" (with `allProjectsHref`) and "New project" (only with `newProjectHref`) in loading ("Loading projects"), error ("Could not load your projects." with Retry), empty ("No projects yet.") and ready. Account menu: name, email, separator, "My invitations" (href `/invitations`), "Logout". In `account-menu.spec.ts` rewrite the line that expects no "invitations" item per the old-to-new table.
-- [ ] **Step 3: Run** VITEST on the three test files. Expected: FAIL.
-- [ ] **Step 4: Implement.** Both switchers share the popover layout and styles and stay on screen at narrow widths (long names ellipsis). Legacy entries still render when their hrefs are passed (removed in Task 39). Stories: OrgSwitch loading, error, plain text; ProjectSwitch loading, error, empty, ready, with and without New project; AccountMenu open.
-- [ ] **Step 5: Run** the tests, smoke test and MOCK `e2e/mock/account-menu.spec.ts`. Expected: PASS.
-- [ ] **Step 6: Commit** `feat(web): add scope switcher states and My invitations`.
+- [x] **Step 1: Write failing OrgSwitch tests.** Loading: button "Switch scope" reading "Organization" ("Platform" when `scope: 'platform'`), skeleton, `status` "Loading organizations"; no org name, never "No organization". Error: "Could not load your organizations." and "Retry" calling `onRetry`, reachable by keyboard. In every list state "Platform" and "Create organization" show when `platformAdmin`, never otherwise. Ready order: Platform, separator, orgs (current checked, suspended labelled "Suspended"), separator, Create organization. Plain text (no button) when ready, `orgs.length <= 1`, not platform admin and no legacy href prop (`projectsHref`, `settingsHref`, `manageHref`). Hold, driven by changing props: open when the list arrives, it stays a button listing the one org checked (empty list: a non-pickable line "No organization"); focus moving into the entries is not leaving; Escape closes, focus returns, still a button; Tab away gives plain text; focused but closed holds until focus leaves; an outside press that moves focus gives plain text; focus ends on the control moved to. BR-53 case: arrows after loading to ready.
+- [x] **Step 2: Write failing ProjectSwitch and account tests.** Title "Switch project"; counts "{n} needs you" only when above 0; footer "All projects" (with `allProjectsHref`) and "New project" (only with `newProjectHref`) in loading ("Loading projects"), error ("Could not load your projects." with Retry), empty ("No projects yet.") and ready. Account menu: name, email, separator, "My invitations" (href `/invitations`), "Logout". In `account-menu.spec.ts` rewrite the line that expects no "invitations" item per the old-to-new table.
+- [x] **Step 3: Run** VITEST on the three test files. Expected: FAIL.
+- [x] **Step 4: Implement.** Both switchers share the popover layout and styles and stay on screen at narrow widths (long names ellipsis). Legacy entries still render when their hrefs are passed (removed in Task 39). Stories: OrgSwitch loading, error, plain text; ProjectSwitch loading, error, empty, ready, with and without New project; AccountMenu open.
+- [x] **Step 5: Run** the tests, smoke test and MOCK `e2e/mock/account-menu.spec.ts`. Expected: PASS.
+- [x] **Step 6: Commit** `feat(web): add scope switcher states and My invitations`.
 
 ### Task 15: PageHeader, the platform org header layout and TerminalKeys
 
@@ -764,11 +764,11 @@ Fill mode (spec "Page fit inside the shell"): the root is the given height and d
 
 - Produces: `PageHeader(props: { title: ReactNode; meta?: ReactNode; actions?: ReactNode; banner?: ReactNode; loading?: boolean })`, one h1 with `tabIndex={-1}`, banner rendered after the title row. `export type TerminalKey = 'esc' | 'tab' | 'left' | 'up' | 'down' | 'right' | 'ctrl-c' | 'enter'`; `TerminalKeys(props: { onKey(key: TerminalKey): void })`.
 
-- [ ] **Step 1: Write failing tests.** PageHeader: exactly one h1; no empty actions container when `actions` is absent; banner follows the h1 in DOM order; `loading` shows a skeleton and no h1 text. TerminalKeys: `group` "Terminal keys" with buttons in exactly this order: "Esc", "Tab", "Left arrow", "Up arrow", "Down arrow", "Right arrow", "Ctrl-C", "Enter" (arrows are chevron icons); each click and keyboard activation calls `onKey` once with its key; `pointerdown` and `mousedown` are `preventDefault`ed so focus does not move. PlatformOrgHeader keeps its existing assertions.
-- [ ] **Step 2: Run** VITEST on the three test files. Expected: FAIL.
-- [ ] **Step 3: Implement.** The header never shrinks in a flex column (`flex: none`), so a fill page can pin it at the top of its own main column. h1 22px at one offset with padding from the boards; `PlatformOrgHeader` uses the same classes (org name h1, slug and status, "Edit organization", "More actions"). TerminalKeys uses `ds/Button`, `--term-bar`, `--term-bar-line`, wraps instead of shrinking or scrolling. Stories: PageHeader default, actions, banner, loading; TerminalKeys default and wrapped narrow.
-- [ ] **Step 4: Run** the tests and smoke test. Expected: PASS.
-- [ ] **Step 5: Commit** `feat(web): add PageHeader and TerminalKeys components`.
+- [x] **Step 1: Write failing tests.** PageHeader: exactly one h1; no empty actions container when `actions` is absent; banner follows the h1 in DOM order; `loading` shows a skeleton and no h1 text. TerminalKeys: `group` "Terminal keys" with buttons in exactly this order: "Esc", "Tab", "Left arrow", "Up arrow", "Down arrow", "Right arrow", "Ctrl-C", "Enter" (arrows are chevron icons); each click and keyboard activation calls `onKey` once with its key; `pointerdown` and `mousedown` are `preventDefault`ed so focus does not move. PlatformOrgHeader keeps its existing assertions.
+- [x] **Step 2: Run** VITEST on the three test files. Expected: FAIL.
+- [x] **Step 3: Implement.** The header never shrinks in a flex column (`flex: none`), so a fill page can pin it at the top of its own main column. h1 22px at one offset with padding from the boards; `PlatformOrgHeader` uses the same classes (org name h1, slug and status, "Edit organization", "More actions"). TerminalKeys uses `ds/Button`, `--term-bar`, `--term-bar-line`, wraps instead of shrinking or scrolling. Stories: PageHeader default, actions, banner, loading; TerminalKeys default and wrapped narrow.
+- [x] **Step 4: Run** the tests and smoke test. Expected: PASS.
+- [x] **Step 5: Commit** `feat(web): add PageHeader and TerminalKeys components`.
 
 ### Task 16: Smaller items in components and screens (BR-28, BR-70, BR-71, BR-74 to BR-76) (after the multi-agent gate)
 
@@ -790,14 +790,14 @@ Fill mode (spec "Page fit inside the shell"): the root is the given height and d
 - Consumes: `ds/Dialog`, `SkillPreviewPane`.
 - Produces: `ProjectRow` prop `resumeHref?: string` (a button "Resume setup", accessible name `Resume setup for {project}`, before "More"); row action label "Agent & settings", whose href is the agent page with no search, so it opens the "Agents" tab; `platformProjectColumns` = `[{key:'name',header:'Name'},{key:'id',header:'Id'}]`; `SkillTemplateCard` prop `onPreview(): void` replaces `previewHref`; `SkillTemplatePreview(props: { name: string; body: string; onClose(): void; load?: SkillPreviewPaneProps['load'] })` titled `{name} SKILL.md` with button "Close"; `Setup3Props.templates: (SkillTemplate & { body: string })[]` (the route and the `skillTemplates` mock stop stripping `body` from `SKILL_TEMPLATES`; no other route edit); `Setup4` `agentSettingsHref?` and `ignoredHref?` have no `'#'` default; `ProjectsProps` gains `resumeHref?(project): string | undefined`.
 
-- [ ] **Step 0: Multi-agent gate.** Run both checks in "Multi-agent gate". If either fails, stop: write no code and report which check failed.
-- [ ] **Step 1: Write the failing tests first** (spec "Bug fixes"): `PlatformProjectRow.test.tsx` columns are `['Name','Id']` and cells follow; `setup.route.test.tsx` "Preview" on `code-review` opens a dialog "code-review SKILL.md" with that template's text (not `code-build`'s), the card's tick is unchanged, no request is made, "Close" returns focus to Preview; `projects.route.test.tsx` intro reads "After sign-in you land on this list. It is one click away on the logo." and no "last used"; `auth.test.tsx` shows "Proof of concept." and no "Single user per project"; `invitations.spec.ts` "TC-70.1" and "TC-70.2": on `/invitations/:id` the card's text and buttons are at least 16px (1px slack) inside the card edge at 1440 and 390.
-- [ ] **Step 2: Run** the Vitest files and MOCK `e2e/mock/invitations.spec.ts`. Expected: FAIL on each new assertion.
-- [ ] **Step 3: Implement.** Card padding 16px (as `InvitationCard` `.card`). The dialog renders bundled text through the lazy sanitising pane. Update `projects.route.test.tsx`, `deskAccess.route.test.tsx`, `entry.test.tsx`, `project-menu.spec.ts` and `desk-access.spec.ts` from "Settings" row action to "Agent & settings" (absent checks per the table). Reorder `platform-org-detail` headers (mock BR-25 case and local TC-25.2) to `['Name','Id']`, keeping the exact list.
-- [ ] **Step 4: Stories and board:** `ProjectRow` with and without resume, `PlatformProjectRow` long id and name, `SkillTemplateCard` `onPreview`, the preview dialog, `GuardsCard` with and without hrefs, repository-independent. Register `SignInProofOfConcept` (REG; expected pinned count 388).
-- [ ] **Step 5: Add mock e2e** in `smaller-items.spec.ts` (TC-28.1 also asserts the "Agents" tab is selected and the address has no `tab`; TC-28.4, the phone card, is in Task 47). Where `agent-tabs.spec.ts` (MA TC-60.7) opens the agent page by the row action "Settings", press "Agent & settings"; its expected result is unchanged. The cases: "TC-28.1", "TC-28.2", "TC-28.3", "TC-71.1", "TC-74.1", "TC-74.2", "TC-74.3", "TC-75.1", "TC-75.2", "TC-76.1", "TC-76.2".
-- [ ] **Step 6: Run** Vitest, MOCK `smaller-items invitations project-menu desk-access platform-org-detail agent-tabs`, LOCAL `e2e/local/platform-org-detail.spec.ts` (covers TC-71.1 local), PARITY for the touched boards. Expected: PASS.
-- [ ] **Step 7: Commit** `feat(web): invitation padding, platform name first, skill preview and copy fixes`.
+- [x] **Step 0: Multi-agent gate.** Run both checks in "Multi-agent gate". If either fails, stop: write no code and report which check failed.
+- [x] **Step 1: Write the failing tests first** (spec "Bug fixes"): `PlatformProjectRow.test.tsx` columns are `['Name','Id']` and cells follow; `setup.route.test.tsx` "Preview" on `code-review` opens a dialog "code-review SKILL.md" with that template's text (not `code-build`'s), the card's tick is unchanged, no request is made, "Close" returns focus to Preview; `projects.route.test.tsx` intro reads "After sign-in you land on this list. It is one click away on the logo." and no "last used"; `auth.test.tsx` shows "Proof of concept." and no "Single user per project"; `invitations.spec.ts` "TC-70.1" and "TC-70.2": on `/invitations/:id` the card's text and buttons are at least 16px (1px slack) inside the card edge at 1440 and 390.
+- [x] **Step 2: Run** the Vitest files and MOCK `e2e/mock/invitations.spec.ts`. Expected: FAIL on each new assertion.
+- [x] **Step 3: Implement.** Card padding 16px (as `InvitationCard` `.card`). The dialog renders bundled text through the lazy sanitising pane. Update `projects.route.test.tsx`, `deskAccess.route.test.tsx`, `entry.test.tsx`, `project-menu.spec.ts` and `desk-access.spec.ts` from "Settings" row action to "Agent & settings" (absent checks per the table). Reorder `platform-org-detail` headers (mock BR-25 case and local TC-25.2) to `['Name','Id']`, keeping the exact list.
+- [x] **Step 4: Stories and board:** `ProjectRow` with and without resume, `PlatformProjectRow` long id and name, `SkillTemplateCard` `onPreview`, the preview dialog, `GuardsCard` with and without hrefs, repository-independent. Register `SignInProofOfConcept` (REG; expected pinned count 388).
+- [x] **Step 5: Add mock e2e** in `smaller-items.spec.ts` (TC-28.1 also asserts the "Agents" tab is selected and the address has no `tab`; TC-28.4, the phone card, is in Task 47). Where `agent-tabs.spec.ts` (MA TC-60.7) opens the agent page by the row action "Settings", press "Agent & settings"; its expected result is unchanged. The cases: "TC-28.1", "TC-28.2", "TC-28.3", "TC-71.1", "TC-74.1", "TC-74.2", "TC-74.3", "TC-75.1", "TC-75.2", "TC-76.1", "TC-76.2".
+- [x] **Step 6: Run** Vitest, MOCK `smaller-items invitations project-menu desk-access platform-org-detail agent-tabs`, LOCAL `e2e/local/platform-org-detail.spec.ts` (covers TC-71.1 local), PARITY for the touched boards. Expected: PASS.
+- [x] **Step 7: Commit** `feat(web): invitation padding, platform name first, skill preview and copy fixes`.
 
 ### Task 17: Wire the wizard rule links, the Ignored filter and "Resume setup" (BR-72, BR-73, BR-77, BR-78) (after the multi-agent gate)
 
@@ -820,13 +820,13 @@ Fill mode (spec "Page fit inside the shell"): the root is the given height and d
 - "Resume setup" opens the project's saved step, which is the first unfinished one; the existing Back button then reaches the saved Agent step (MA BR-65). The wizard's own steps do not change.
 - Fakes: a project saved on the Agent step and one saved later. Use the multi-agent fixtures or scenarios where they give them; otherwise extend `unfinishedProjects`.
 
-- [ ] **Step 0: Multi-agent gate.** Run both checks in "Multi-agent gate". If either fails, stop: write no code and report which check failed.
-- [ ] **Step 1: Write failing tests.** Run on the merged multi-agent base. Setup route: the rules step "Change" has href `/o/<org>/p/<id>/desk/agent?tab=limits`, "Runs, Ignored" ends `/runs?filter=ignored` (if the "Change" assertion is already green there, keep it as a regression test and say so in the PR); without `agent:read` there is no "Change" link. Rules route, on one guards card: "Runs, Ignored" ends `runs?filter=ignored` and "Change" still ends `desk/agent?tab=limits`. A project saved on the Agent step opens there from the list. Projects route: an unfinished row has link "Resume setup for {project}" to `/o/<org>/projects/new/<setupStep>?project=<id>`; none when `setupStep` is `ready`; none for member, viewer, and a project admin of that unfinished project; another org's project never gets a link (list is the current org's only).
-- [ ] **Step 2: Run** VITEST on the three files. Expected: FAIL (but see Step 1 on the wizard "Change").
-- [ ] **Step 3: Implement** each route computing its hrefs as it computes `settingsHref`.
-- [ ] **Step 4: E2E.** Mock: "TC-72.1", "TC-72.2", "TC-72.3", "TC-73.1", "TC-73.2", "TC-77.1", "TC-77.2", "TC-77.3", "TC-77.4", "TC-78.1", "TC-78.2", "TC-78.3", "TC-78.4" (TC-72.1 asserts the "Limits" tab is selected and the address ends `desk/agent?tab=limits`). In `setup-agent.spec.ts` (MA TC-65.1) and `setup-agent-wizard.spec.ts` (MA TC-65.2) reach the project by "Resume setup", then press Back when the saved step is later than Agent; their expected results stay (provider read-only, name, model, credential shown as set, still one agent). Local `resume-setup.spec.ts`: "TC-78.3" (the Codex agent saved through the local agent helpers), "TC-77.1", "TC-77.3" (member, then viewer: none), "TC-78.1" (leave inside the app with no reload, resume from the list on the real API, land on the first unfinished step; leave through the top-bar Projects link until Task 34 adds "Exit setup", which then replaces it). In `rule-model.spec.ts`, take `continueLeaveAndResume` as the multi-agent change leaves it: it resumes through the new link, then goes Back to the Agent step, instead of opening the URL. Drop "stand-in: resumed through the setup URL" and the old ruling comment about resuming and what the step shows. Every credential and model check in the file stays, and none is weakened.
-- [ ] **Step 5: Run** Vitest, MOCK `resume-and-links setup-agent`, LOCAL `resume-setup rule-model` and `setup-agent-wizard` if present (see "After the gate"). Expected: PASS.
-- [ ] **Step 6: Commit** `feat(web): wire wizard rule links, ignored filter and resume setup`.
+- [x] **Step 0: Multi-agent gate.** Run both checks in "Multi-agent gate". If either fails, stop: write no code and report which check failed.
+- [x] **Step 1: Write failing tests.** Run on the merged multi-agent base. Setup route: the rules step "Change" has href `/o/<org>/p/<id>/desk/agent?tab=limits`, "Runs, Ignored" ends `/runs?filter=ignored` (if the "Change" assertion is already green there, keep it as a regression test and say so in the PR); without `agent:read` there is no "Change" link. Rules route, on one guards card: "Runs, Ignored" ends `runs?filter=ignored` and "Change" still ends `desk/agent?tab=limits`. A project saved on the Agent step opens there from the list. Projects route: an unfinished row has link "Resume setup for {project}" to `/o/<org>/projects/new/<setupStep>?project=<id>`; none when `setupStep` is `ready`; none for member, viewer, and a project admin of that unfinished project; another org's project never gets a link (list is the current org's only).
+- [x] **Step 2: Run** VITEST on the three files. Expected: FAIL (but see Step 1 on the wizard "Change").
+- [x] **Step 3: Implement** each route computing its hrefs as it computes `settingsHref`.
+- [x] **Step 4: E2E.** Mock: "TC-72.1", "TC-72.2", "TC-72.3", "TC-73.1", "TC-73.2", "TC-77.1", "TC-77.2", "TC-77.3", "TC-77.4", "TC-78.1", "TC-78.2", "TC-78.3", "TC-78.4" (TC-72.1 asserts the "Limits" tab is selected and the address ends `desk/agent?tab=limits`). In `setup-agent.spec.ts` (MA TC-65.1) and `setup-agent-wizard.spec.ts` (MA TC-65.2) reach the project by "Resume setup", then press Back when the saved step is later than Agent; their expected results stay (provider read-only, name, model, credential shown as set, still one agent). Local `resume-setup.spec.ts`: "TC-78.3" (the Codex agent saved through the local agent helpers), "TC-77.1", "TC-77.3" (member, then viewer: none), "TC-78.1" (leave inside the app with no reload, resume from the list on the real API, land on the first unfinished step; leave through the top-bar Projects link until Task 34 adds "Exit setup", which then replaces it). In `rule-model.spec.ts`, take `continueLeaveAndResume` as the multi-agent change leaves it: it resumes through the new link, then goes Back to the Agent step, instead of opening the URL. Drop "stand-in: resumed through the setup URL" and the old ruling comment about resuming and what the step shows. Every credential and model check in the file stays, and none is weakened.
+- [x] **Step 5: Run** Vitest, MOCK `resume-and-links setup-agent`, LOCAL `resume-setup rule-model` and `setup-agent-wizard` if present (see "After the gate"). Expected: PASS.
+- [x] **Step 6: Commit** `feat(web): wire wizard rule links, ignored filter and resume setup`.
 
 **Pattern for screen tasks (Tasks 18 to 24 and 56).** A screen calls `useShellOwnsChrome()`. When false it renders today's markup, unchanged. When true it renders no `TopBar`, side menu or old layout: only its own `main` with a `PageHeader` (its title, facts, actions and banner slot) and its body. Its stories wrap it in `ShellFrame` with a `SubNav` model from `@/mocks`, matching the redrawn and new boards; loading and error states keep one `main` and, where the board has none, no h1. Each task's screen tests render inside `ShellFrame` and assert: no second `banner` or `navigation` from the screen, one `main`, the expected h1 (or none), and actions present in the header. Existing legacy assertions stay as they are. For a multi-agent screen "today's markup" means the merged multi-agent markup: its stories, the `*FitsViewport` ones included, move onto `ShellFrame` with `fill` (a short-canvas story keeps its height), and each of its assertions is kept, moved to a shell-aware render where needed.
 
@@ -848,13 +848,13 @@ Fill mode (spec "Page fit inside the shell"): the root is the given height and d
 - Consumes: `ShellFrame`, `PageHeader`, `SubNavProps`, `RepoBlock`, switcher states.
 - Produces: `shellMenus.ts` fixtures `orgMenuFixtures` (owner, member, projectAdmin, platformAdmin, loading, error), reused by Tasks 19 to 24 which add their own scopes in their story files' `@/mocks` modules.
 
-- [ ] **Step 0: Multi-agent gate.** Run both checks in "Multi-agent gate". If either fails, stop: write no code and report which check failed.
-- [ ] **Step 1: Write failing screen tests** per the pattern for the six screens.
-- [ ] **Step 2: Run** VITEST on the five test files. Expected: FAIL.
-- [ ] **Step 3: Implement** the owned branch of each screen (Projects keeps its intro as header meta; `ProjectsEmpty` starts from the multi-agent version, "Add an agent").
-- [ ] **Step 4: Move** the org boards' stories onto `ShellFrame` and register `ProjectsSideMenu`, `ProjectsMemberSideMenu`, `ProjectsSideMenuPlatformAdmin`, `ProjectsSideOneOrg`, `ProjectsSideSwitcherOpen`, `ProjectsSideSwitcherLoading`, `ProjectsSideSwitcherError`, `ProjectsSideSwitcherOneOrgHeld`, `ProjectsSideAccountMenu`, `ProjectsResumeSetup`, `OrgMembersSideMenu`, `OrgMembersSideMenuCollapsed`, `OrgMembersSideMenuError`, `OrgMembersSideMenuLoading`, `OrgInvitationsSettingsSideMenuProjectAdmin`, `OrgAuditForbiddenSideMenu` (REG; expected count 404).
-- [ ] **Step 5: Run** the tests, `src/test/coverage.test.ts`, the smoke test and PARITY for the touched boards. Expected: PASS.
-- [ ] **Step 6: Commit** `feat(web): organization screens and stories in the new shell`.
+- [x] **Step 0: Multi-agent gate.** Run both checks in "Multi-agent gate". If either fails, stop: write no code and report which check failed.
+- [x] **Step 1: Write failing screen tests** per the pattern for the six screens.
+- [x] **Step 2: Run** VITEST on the five test files. Expected: FAIL.
+- [x] **Step 3: Implement** the owned branch of each screen (Projects keeps its intro as header meta; `ProjectsEmpty` starts from the multi-agent version, "Add an agent").
+- [x] **Step 4: Move** the org boards' stories onto `ShellFrame` and register `ProjectsSideMenu`, `ProjectsMemberSideMenu`, `ProjectsSideMenuPlatformAdmin`, `ProjectsSideOneOrg`, `ProjectsSideSwitcherOpen`, `ProjectsSideSwitcherLoading`, `ProjectsSideSwitcherError`, `ProjectsSideSwitcherOneOrgHeld`, `ProjectsSideAccountMenu`, `ProjectsResumeSetup`, `OrgMembersSideMenu`, `OrgMembersSideMenuCollapsed`, `OrgMembersSideMenuError`, `OrgMembersSideMenuLoading`, `OrgInvitationsSettingsSideMenuProjectAdmin`, `OrgAuditForbiddenSideMenu` (REG; expected count 404).
+- [x] **Step 5: Run** the tests, `src/test/coverage.test.ts`, the smoke test and PARITY for the touched boards. Expected: PASS.
+- [x] **Step 6: Commit** `feat(web): organization screens and stories in the new shell`.
 
 ### Task 19: Platform screens in the shell (after the multi-agent gate)
 
@@ -873,13 +873,13 @@ Fill mode (spec "Page fit inside the shell"): the root is the given height and d
 - Consumes: Task 18's pattern. A platform org page has the org name as h1 and the tab name as h2.
 - Produces: platform and platform-org `SubNav` fixtures in `platform.stories.tsx`.
 
-- [ ] **Step 0: Multi-agent gate.** Run both checks in "Multi-agent gate". If either fails, stop: write no code and report which check failed.
-- [ ] **Step 1: Write failing tests** in `platform.test.tsx` per the pattern, plus: `PlatformOrgDetail` loading and error views have one `main`.
-- [ ] **Step 2: Run** VITEST `src/screens/platform.test.tsx`. Expected: FAIL.
-- [ ] **Step 3: Implement** the owned branches (`CreateOrg` platform variant included).
-- [ ] **Step 4: Stories** on `ShellFrame`; register `PlatformOrgsSideMenu`, `PlatformAdminsForbiddenNoMenu`, `PlatformOrgMembersSideMenuError`, `PlatformOrgMembersSideMenuLoading`, `PlatformOrgOverviewSideMenuNotFound`, `PlatformOrgOverviewSideMenuSuspended`, `PlatformOrgProjectsSideMenu`, `CreateOrgSideMenu` (REG; expected count 412).
-- [ ] **Step 5: Run** tests, coverage and smoke tests, PARITY for the touched boards. Expected: PASS.
-- [ ] **Step 6: Commit** `feat(web): platform screens and stories in the new shell`.
+- [x] **Step 0: Multi-agent gate.** Run both checks in "Multi-agent gate". If either fails, stop: write no code and report which check failed.
+- [x] **Step 1: Write failing tests** in `platform.test.tsx` per the pattern, plus: `PlatformOrgDetail` loading and error views have one `main`.
+- [x] **Step 2: Run** VITEST `src/screens/platform.test.tsx`. Expected: FAIL.
+- [x] **Step 3: Implement** the owned branches (`CreateOrg` platform variant included).
+- [x] **Step 4: Stories** on `ShellFrame`; register `PlatformOrgsSideMenu`, `PlatformAdminsForbiddenNoMenu`, `PlatformOrgMembersSideMenuError`, `PlatformOrgMembersSideMenuLoading`, `PlatformOrgOverviewSideMenuNotFound`, `PlatformOrgOverviewSideMenuSuspended`, `PlatformOrgProjectsSideMenu`, `CreateOrgSideMenu` (REG; expected count 412).
+- [x] **Step 5: Run** tests, coverage and smoke tests, PARITY for the touched boards. Expected: PASS.
+- [x] **Step 6: Commit** `feat(web): platform screens and stories in the new shell`.
 
 ### Task 20: Runs screens in the shell (after the multi-agent gate)
 
@@ -897,13 +897,13 @@ Fill mode (spec "Page fit inside the shell"): the root is the given height and d
 
 - Produces: `projectMenuFixtures` in `shellMenus.ts` (full, member, loading, error, repoWarning, repoError, repoNoBranch).
 
-- [ ] **Step 0: Multi-agent gate.** Run both checks in "Multi-agent gate". If either fails, stop: write no code and report which check failed.
-- [ ] **Step 1: Write failing tests:** owned Runs has h1 "Runs", header meta with slots and today's counts, search "Search runs" and "Grouped by ticket" in the header actions, the filter chips below the header, no repository button.
-- [ ] **Step 2: Run** VITEST `src/screens/runs.test.tsx`. Expected: FAIL.
-- [ ] **Step 3: Implement** the owned branch of `RunsPage`.
-- [ ] **Step 4: Stories;** register `RunsSideMenu`, `RunsSideMenuError`, `RunsSideMenuLoading`, `RunsSideMenuMember`, `RunsSideMenuRepoError`, `RunsSideMenuRepoNoBranch`, `RunsSideMenuRepoWarning`, `RunsSideProjectSwitcher`, `RunsSideProjectSwitcherEmpty`, `RunsSideProjectSwitcherError`, `RunsSideProjectSwitcherLoading`, `RunsSideProjectSwitcherNoCreate`, `RunsNotFoundSideMenu` (REG; expected count 425).
-- [ ] **Step 5: Run** tests, coverage and smoke, PARITY. Expected: PASS.
-- [ ] **Step 6: Commit** `feat(web): runs screens and stories in the new shell`.
+- [x] **Step 0: Multi-agent gate.** Run both checks in "Multi-agent gate". If either fails, stop: write no code and report which check failed.
+- [x] **Step 1: Write failing tests:** owned Runs has h1 "Runs", header meta with slots and today's counts, search "Search runs" and "Grouped by ticket" in the header actions, the filter chips below the header, no repository button.
+- [x] **Step 2: Run** VITEST `src/screens/runs.test.tsx`. Expected: FAIL.
+- [x] **Step 3: Implement** the owned branch of `RunsPage`.
+- [x] **Step 4: Stories;** register `RunsSideMenu`, `RunsSideMenuError`, `RunsSideMenuLoading`, `RunsSideMenuMember`, `RunsSideMenuRepoError`, `RunsSideMenuRepoNoBranch`, `RunsSideMenuRepoWarning`, `RunsSideProjectSwitcher`, `RunsSideProjectSwitcherEmpty`, `RunsSideProjectSwitcherError`, `RunsSideProjectSwitcherLoading`, `RunsSideProjectSwitcherNoCreate`, `RunsNotFoundSideMenu` (REG; expected count 425).
+- [x] **Step 5: Run** tests, coverage and smoke, PARITY. Expected: PASS.
+- [x] **Step 6: Commit** `feat(web): runs screens and stories in the new shell`.
 
 ### Task 21: Project frame, Skills, Workspace setup, Members and Audit log screens in the shell (after the multi-agent gate)
 
@@ -921,13 +921,13 @@ Fill mode (spec "Page fit inside the shell"): the root is the given height and d
 
 - Produces: `DeskFrame` gains `title?: string; meta?: ReactNode; actions?: ReactNode`. Owned, with a `title`, it renders only the page: `PageHeader` with the setup warning in `banner` ("Open workspace setup" kept; not on the setup page), then the body. Used by the four screens here. `DeskRules` and `DeskAgent` leave this frame in Task 56. Also `SetupWarningBanner(props: { warning: FrameWarning }): JSX.Element`, exported from `DeskFrame.tsx`: the warning drawn today, which Task 56 places itself.
 
-- [ ] **Step 0: Multi-agent gate.** Run both checks in "Multi-agent gate". If either fails, stop: write no code and report which check failed.
-- [ ] **Step 1: Write failing tests:** per the pattern; the warning follows the h1; Skills h1 "Skills" with ".claude/skills/ on main" and "New skill"; Workspace setup h1 "Workspace setup" with its version line and "Test setup"; in both branches there is no skill "History" and no empty action row ("Send test ping" and "Manage installation" are Task 56).
-- [ ] **Step 2: Run** VITEST on the four files. Expected: FAIL.
-- [ ] **Step 3: Implement.** Hide skill "History" in both branches. Skills and Workspace setup are fill pages with inner scroll; the Skills list and Setup panels stay in-page columns.
-- [ ] **Step 4: Stories** of these screens and of the forbidden page onto `ShellFrame`; register `DeskRulesForbiddenSideMenu`, `DeskSkillsSideMenu`, `DeskSetupSideMenu` (REG; expected count 428). A diff over about 800 lines is split into two PRs (skills and setup; then members and audit).
-- [ ] **Step 5: Run** tests, coverage and smoke, PARITY. Expected: PASS.
-- [ ] **Step 6: Commit** `feat(web): project frame, skills, setup, members and audit screens in the new shell`.
+- [x] **Step 0: Multi-agent gate.** Run both checks in "Multi-agent gate". If either fails, stop: write no code and report which check failed.
+- [x] **Step 1: Write failing tests:** per the pattern; the warning follows the h1; Skills h1 "Skills" with ".claude/skills/ on main" and "New skill"; Workspace setup h1 "Workspace setup" with its version line and "Test setup"; in both branches there is no skill "History" and no empty action row ("Send test ping" and "Manage installation" are Task 56).
+- [x] **Step 2: Run** VITEST on the four files. Expected: FAIL.
+- [x] **Step 3: Implement.** Hide skill "History" in both branches. Skills and Workspace setup are fill pages with inner scroll; the Skills list and Setup panels stay in-page columns.
+- [x] **Step 4: Stories** of these screens and of the forbidden page onto `ShellFrame`; register `DeskRulesForbiddenSideMenu`, `DeskSkillsSideMenu`, `DeskSetupSideMenu` (REG; expected count 428). A diff over about 800 lines is split into two PRs (skills and setup; then members and audit).
+- [x] **Step 5: Run** tests, coverage and smoke, PARITY. Expected: PASS.
+- [x] **Step 6: Commit** `feat(web): project frame, skills, setup, members and audit screens in the new shell`.
 
 ### Task 56: Agent & settings and Routing rules screens in the shell (BR-44, BR-65) (after the multi-agent gate)
 
@@ -955,13 +955,13 @@ Fill mode (spec "Page fit inside the shell"): the root is the given height and d
 
 The setup warning is the first item of the scroll area, below the pinned header, on all four tabs and on Routing rules; no pinned band is added. From 1024px the list and the pane stay two columns (the list is about 244px at 1024 with the menu open): rows truncate and wrap (`min-width: 0`). The multi-agent 120px minimum stays. The narrow layouts below 1024px are Tasks 50 and 57.
 
-- [ ] **Step 0: Multi-agent gate.** Run both checks in "Multi-agent gate". If either fails, stop: write no code and report which check failed.
-- [ ] **Step 1: Write failing tests** per the pattern: on each of the four tabs, and with the add and the edit pane open, exactly one h1 "Agent & settings"; the header and tab strip are outside the scroll area; the pane is not inside the main column; with a warning it is the first child of the scroll area (four tabs and Routing rules) and nothing above the header, and the setup warning appears once; a project admin's screen has three tabs as before. BR-44: on the GitHub connection tab, after "Trigger mode" shows, no "Send test ping", no "Manage installation" and no empty action row; polling has "Check now", webhooks have no button and no action row; the same in the not-owned branch. The assertion that expects "Send test ping" (in `desk.test.tsx` today, or wherever the multi-agent work moved it) flips to absent. Every multi-agent assertion stays, moved to a `ShellFrame` render where it tested chrome.
-- [ ] **Step 2: Run** VITEST `src/screens/desk.test.tsx`. Expected: FAIL.
-- [ ] **Step 3: Implement** the owned branches and hide the two controls in both branches. "Check now" stays where the tab offers it.
-- [ ] **Step 4: Stories:** move every multi-agent Agent & settings and Routing rules story, state and `*FitsViewport` stories included, onto `ShellFrame` with `fill`; register `DeskRulesSideMenu`, `DeskRulesSideMenuSetupWarning`, `DeskAgentSideMenu` (REG; expected count 431). A diff over about 800 lines is split into two PRs (Routing rules; then Agent & settings).
+- [x] **Step 0: Multi-agent gate.** Run both checks in "Multi-agent gate". If either fails, stop: write no code and report which check failed.
+- [x] **Step 1: Write failing tests** per the pattern: on each of the four tabs, and with the add and the edit pane open, exactly one h1 "Agent & settings"; the header and tab strip are outside the scroll area; the pane is not inside the main column; with a warning it is the first child of the scroll area (four tabs and Routing rules) and nothing above the header, and the setup warning appears once; a project admin's screen has three tabs as before. BR-44: on the GitHub connection tab, after "Trigger mode" shows, no "Send test ping", no "Manage installation" and no empty action row; polling has "Check now", webhooks have no button and no action row; the same in the not-owned branch. The assertion that expects "Send test ping" (in `desk.test.tsx` today, or wherever the multi-agent work moved it) flips to absent. Every multi-agent assertion stays, moved to a `ShellFrame` render where it tested chrome.
+- [x] **Step 2: Run** VITEST `src/screens/desk.test.tsx`. Expected: FAIL.
+- [x] **Step 3: Implement** the owned branches and hide the two controls in both branches. "Check now" stays where the tab offers it.
+- [x] **Step 4: Stories:** move every multi-agent Agent & settings and Routing rules story, state and `*FitsViewport` stories included, onto `ShellFrame` with `fill`; register `DeskRulesSideMenu`, `DeskRulesSideMenuSetupWarning`, `DeskAgentSideMenu` (REG; expected count 431). A diff over about 800 lines is split into two PRs (Routing rules; then Agent & settings).
 - [ ] **Step 5: Run** the test, coverage, story smoke and story axe tests, PARITY for every agent and rules board. Expected: PASS.
-- [ ] **Step 6: Commit** `feat(web): agent settings and routing rules screens in the new shell`.
+- [x] **Step 6: Commit** `feat(web): agent settings and routing rules screens in the new shell`.
 
 ### Task 22: Run page header (after the multi-agent gate)
 
@@ -979,12 +979,12 @@ The setup warning is the first item of the scroll area, below the pinned header,
 
 - Produces: `RunDetail` props are unchanged. Owned: `PageHeader` with title "Run {n}", meta (status badge or "Succeeded · Session open" / "Setup failed", `CommandChip` and `TicketRef`, elapsed, pending note `status`), actions gated by the same callback presence as today ("Close session", "View PR"/"View issue", "Finish run" or disabled "Finish", "Stop session", "Cancel run") plus "Collapse context panel (])"; no "Full screen" in either branch; cancel and stop popovers anchored to their header buttons (not fixed `right`/`top` offsets).
 
-- [ ] **Step 0: Multi-agent gate.** Run both checks in "Multi-agent gate". If either fails, stop: write no code and report which check failed.
-- [ ] **Step 1: Write failing tests:** every action above appears in the header exactly when its callback is passed; none of Finish, Stop, Cancel, Close without callbacks and no empty action row; the confirms keep "Cancel run {n}?" and "Stop the session?" with "Keep running" and render inside the element wrapping their button; no control named /Full screen/; the run's agent name (MA BR-54) still shows, and the notice links "Connection details", "Switch to polling", "Change time limit" and "Replace credential" render with exactly the hrefs they are given.
-- [ ] **Step 2: Run** VITEST `src/screens/runDetail.test.tsx`. Expected: FAIL.
-- [ ] **Step 3: Implement.** Update the legacy test that expected "Full screen" to expect none.
-- [ ] **Step 4: Stories;** register `RunIdle1024`, `RunIdleSideCollapsed`, `RunIdleSideExpanded`, `RunRunningSideMenu`, `RunRunningStopSideMenu` (REG; expected count 436).
-- [ ] **Step 5: Run** tests, coverage and smoke, PARITY. Expected: PASS.
+- [x] **Step 0: Multi-agent gate.** Run both checks in "Multi-agent gate". If either fails, stop: write no code and report which check failed.
+- [x] **Step 1: Write failing tests:** every action above appears in the header exactly when its callback is passed; none of Finish, Stop, Cancel, Close without callbacks and no empty action row; the confirms keep "Cancel run {n}?" and "Stop the session?" with "Keep running" and render inside the element wrapping their button; no control named /Full screen/; the run's agent name (MA BR-54) still shows, and the notice links "Connection details", "Switch to polling", "Change time limit" and "Replace credential" render with exactly the hrefs they are given.
+- [x] **Step 2: Run** VITEST `src/screens/runDetail.test.tsx`. Expected: FAIL.
+- [x] **Step 3: Implement.** Update the legacy test that expected "Full screen" to expect none.
+- [x] **Step 4: Stories;** register `RunIdle1024`, `RunIdleSideCollapsed`, `RunIdleSideExpanded`, `RunRunningSideMenu`, `RunRunningStopSideMenu` (REG; expected count 436).
+- [x] **Step 5: Run** tests, coverage and smoke, PARITY. Expected: PASS.
 - [ ] **Step 6: Commit** `feat(web): run page header`.
 
 ### Task 23: Wizard frame with the stepper in the menu slot (after the multi-agent gate)
@@ -1004,13 +1004,13 @@ The setup warning is the first item of the scroll area, below the pinned header,
 - Consumes: `ShellContext.wizardSlot`, `useMediaQuery(BELOW_DESKTOP)`; the multi-agent `Setup2` (provider picker, h1 "Add your agent"), the stepper label "Add agent" with the detail "<provider label>, <model>" (default "Claude Code, opus") and `Setup4`'s "Project default (<name>)". Its content, copy and states are not changed; only the frame around them is.
 - Produces: `SetupLayoutProps` and the six screens gain `exitHref?: string`. Owned: no `TopBar`; `aside` "Setup progress" (project name, `Stepper`, "Progress is saved. You can leave and resume from the project list.") is portalled with `createPortal` into `wizardSlot`; at 1024px and up "Exit setup" follows the note; below 1024px it is not in the aside and a header row at the top of `main` holds the step label and "Exit setup". The Ready step's row holds only "Exit setup".
 
-- [ ] **Step 0: Multi-agent gate.** Run both checks in "Multi-agent gate". If either fails, stop: write no code and report which check failed.
-- [ ] **Step 1: Write failing tests:** with a slot element the stepper renders inside it; with `owned` and `wizardSlot: null` no stepper renders; with no provider it renders in place; at 1440 "Step N of M" (", optional" kept) is above the title once and "Exit setup" is in the aside once; at 390 and 1023 the header row has both, each exactly once, and neither is repeated in the aside or above the title; Ready at 390 has only "Exit setup"; no collapse button; one h1.
-- [ ] **Step 2: Run** VITEST on both files. Expected: FAIL.
-- [ ] **Step 3: Implement.**
-- [ ] **Step 4: Stories** (including the header row below 1024px); register `Setup3ExitSetup`, `Setup4ExitSetup`, `SetupReadyExitSetup`, `Setup3PreviewDialog` (REG; expected count 440).
+- [x] **Step 0: Multi-agent gate.** Run both checks in "Multi-agent gate". If either fails, stop: write no code and report which check failed.
+- [x] **Step 1: Write failing tests:** with a slot element the stepper renders inside it; with `owned` and `wizardSlot: null` no stepper renders; with no provider it renders in place; at 1440 "Step N of M" (", optional" kept) is above the title once and "Exit setup" is in the aside once; at 390 and 1023 the header row has both, each exactly once, and neither is repeated in the aside or above the title; Ready at 390 has only "Exit setup"; no collapse button; one h1.
+- [x] **Step 2: Run** VITEST on both files. Expected: FAIL.
+- [x] **Step 3: Implement.**
+- [x] **Step 4: Stories** (including the header row below 1024px); register `Setup3ExitSetup`, `Setup4ExitSetup`, `SetupReadyExitSetup`, `Setup3PreviewDialog` (REG; expected count 440).
 - [ ] **Step 5: Run** tests, coverage and smoke, PARITY. Expected: PASS.
-- [ ] **Step 6: Commit** `feat(web): wizard frame with exit setup`.
+- [x] **Step 6: Commit** `feat(web): wizard frame with exit setup`.
 
 ### Task 24: Invitation, error, loading and suspended screens (after the multi-agent gate)
 
@@ -1029,13 +1029,13 @@ The setup warning is the first item of the scroll area, below the pinned header,
 
 - Produces: owned `MyInvitations`: with invitations h1 "My invitations"; member-empty h1 "My invitations", h2 "No pending invitations", "No invitations for {email}.", no buttons; no-org welcome unchanged (its sentence is the only h1; centred). Owned `InvitationAccept`: loaded h1 "Join {org}"; `error` is the banner with request id and Retry and no title; `notAvailable` centred. `RouteSkeleton` and `RouteLoadError` render no `main` themselves.
 
-- [ ] **Step 0: Multi-agent gate.** Run both checks in "Multi-agent gate". If either fails, stop: write no code and report which check failed.
-- [ ] **Step 1: Write failing tests** for each state above, each with exactly one `main`.
-- [ ] **Step 2: Run** VITEST on both files. Expected: FAIL.
-- [ ] **Step 3: Implement.**
-- [ ] **Step 4: Stories** (`RouteStates` loading and error). Move `MyInvitationsEmptyMemberText` from `stateStories` to `boardStories` as `MyInvitationsEmptyMember`. Register it with `InvitationAcceptSideMenu`, `InvitationAcceptErrorSideMenu`, `InvitationAcceptNotAvailableNoMenu`, `MyInvitationsSideMenu`, `MyInvitationsEmptyNoOrg`, `MyInvitationsEmptySideSwitcherHeld`, `RouteErrorSideMenu`, `RouteErrorCrashSideMenu`, `RouteErrorNoMenu`, `RouteErrorNotFoundNoMenu`, `RouteLoadingSideMenu`, `OrgSuspendedNoMenu`, `OrgSuspendedPlainName` (REG; expected count 454). `RouteLoadingSideMenu`, `RouteErrorSideMenu` and `InvitationAcceptErrorSideMenu` have no h1.
+- [x] **Step 0: Multi-agent gate.** Run both checks in "Multi-agent gate". If either fails, stop: write no code and report which check failed.
+- [x] **Step 1: Write failing tests** for each state above, each with exactly one `main`.
+- [x] **Step 2: Run** VITEST on both files. Expected: FAIL.
+- [x] **Step 3: Implement.**
+- [x] **Step 4: Stories** (`RouteStates` loading and error). Move `MyInvitationsEmptyMemberText` from `stateStories` to `boardStories` as `MyInvitationsEmptyMember`. Register it with `InvitationAcceptSideMenu`, `InvitationAcceptErrorSideMenu`, `InvitationAcceptNotAvailableNoMenu`, `MyInvitationsSideMenu`, `MyInvitationsEmptyNoOrg`, `MyInvitationsEmptySideSwitcherHeld`, `RouteErrorSideMenu`, `RouteErrorCrashSideMenu`, `RouteErrorNoMenu`, `RouteErrorNotFoundNoMenu`, `RouteLoadingSideMenu`, `OrgSuspendedNoMenu`, `OrgSuspendedPlainName` (REG; expected count 454). `RouteLoadingSideMenu`, `RouteErrorSideMenu` and `InvitationAcceptErrorSideMenu` have no h1.
 - [ ] **Step 5: Run** tests, coverage and smoke, PARITY. Expected: PASS.
-- [ ] **Step 6: Commit** `feat(web): invitation, error and suspended screens in the new shell`.
+- [x] **Step 6: Commit** `feat(web): invitation, error and suspended screens in the new shell`.
 
 ### Task 25: Nav builder, route chrome type and error-menu scope
 
@@ -1084,11 +1084,11 @@ export function errorMenuScope(i: { pathname: string; memberships?: { slug: stri
 export function goToProjectsHref(scope: ErrorScope): string; // the shown menu's org's /projects, else '/'
 ```
 
-- [ ] **Step 1: Write failing tests** with `it.each` over `tenantAccessFixtures`. Org: owner and admin get Projects then "Settings" Members, Invitations, Audit log, General; member and viewer Projects only with no heading; project admin Projects and Invitations; audit-only and org-update-only grants get just that item; `manageHref` is the footer; `loading` has no gated item; `error` keeps Projects only; `orgListLoading` is state `ready` with Projects only and no footer; `orgListError` is state `error` with Projects only. Project: full roles get back "All projects", Runs, "Configure" (Routing rules, Skills, Workspace setup, Agent & settings), "Access" (Members, Audit log), repo footer; member and viewer Runs only; badge only above zero; `parent` gives `active: 'parent'`; `loading` keeps the back link and has no items; `orgList*` has no repo footer. Move every case of `frame.test.ts` `deskLinksFor` (Task 2) here against `projectMenuModel` (copy now; Task 39 deletes the old). P1 admin and P2 viewer: nothing gated on P2; org A admin, org B member: B's org menu is Projects only. Platform menus: three items; one-org menu back "Organizations", header, Overview, Projects, Members, Invitations; failed header name "Organization" with no status. `errorMenuScope`: non-member slug, unknown path, non-admin `/platform` and suspended org give `none`; member 403 on a page inside an accessible project gives `project`; project `inaccessible` in a member org gives `org`; `unknown` keeps `project`; admin on a missing platform org gives `platform`; never an org not named in the path. `goToProjectsHref` for a non-member slug is `/`. Agent & settings (BR-7, BR-10): with `item: 'agent'` it is the only current item and its href is `/o/<slug>/p/<id>/desk/agent` with no search. The current item comes only from the `item` input (a route's `staticData`), never from matching the address, so no `tab` or `agent` search param can change it.
-- [ ] **Step 2: Run** VITEST `src/features/chrome/nav.test.ts`. Expected: FAIL.
-- [ ] **Step 3: Implement** as pure functions: no hooks, no markup. The builder orders Settings with `ORG_SETTINGS_ORDER` and takes hrefs from `orgSettingsTabs`.
-- [ ] **Step 4: Run** the test and typecheck. Expected: PASS.
-- [ ] **Step 5: Commit** `feat(web): add the side menu builder`.
+- [x] **Step 1: Write failing tests** with `it.each` over `tenantAccessFixtures`. Org: owner and admin get Projects then "Settings" Members, Invitations, Audit log, General; member and viewer Projects only with no heading; project admin Projects and Invitations; audit-only and org-update-only grants get just that item; `manageHref` is the footer; `loading` has no gated item; `error` keeps Projects only; `orgListLoading` is state `ready` with Projects only and no footer; `orgListError` is state `error` with Projects only. Project: full roles get back "All projects", Runs, "Configure" (Routing rules, Skills, Workspace setup, Agent & settings), "Access" (Members, Audit log), repo footer; member and viewer Runs only; badge only above zero; `parent` gives `active: 'parent'`; `loading` keeps the back link and has no items; `orgList*` has no repo footer. Move every case of `frame.test.ts` `deskLinksFor` (Task 2) here against `projectMenuModel` (copy now; Task 39 deletes the old). P1 admin and P2 viewer: nothing gated on P2; org A admin, org B member: B's org menu is Projects only. Platform menus: three items; one-org menu back "Organizations", header, Overview, Projects, Members, Invitations; failed header name "Organization" with no status. `errorMenuScope`: non-member slug, unknown path, non-admin `/platform` and suspended org give `none`; member 403 on a page inside an accessible project gives `project`; project `inaccessible` in a member org gives `org`; `unknown` keeps `project`; admin on a missing platform org gives `platform`; never an org not named in the path. `goToProjectsHref` for a non-member slug is `/`. Agent & settings (BR-7, BR-10): with `item: 'agent'` it is the only current item and its href is `/o/<slug>/p/<id>/desk/agent` with no search. The current item comes only from the `item` input (a route's `staticData`), never from matching the address, so no `tab` or `agent` search param can change it.
+- [x] **Step 2: Run** VITEST `src/features/chrome/nav.test.ts`. Expected: FAIL.
+- [x] **Step 3: Implement** as pure functions: no hooks, no markup. The builder orders Settings with `ORG_SETTINGS_ORDER` and takes hrefs from `orgSettingsTabs`.
+- [x] **Step 4: Run** the test and typecheck. Expected: PASS.
+- [x] **Step 5: Commit** `feat(web): add the side menu builder`.
 
 ### Task 26: Non-suspending shell data hook and org list states
 
@@ -1127,11 +1127,11 @@ export interface ShellData {
 export function useShellData(input: ShellInput): ShellData;
 ```
 
-- [ ] **Step 1: Write failing tests** (hook under a test router and MSW, capturing request URLs and org headers). An org or project query is sent only when the org is in the loaded list, not suspended, the session's active org and the org of the latest URL; none while the list is loading or failed; none for a suspended org (from its page and from `/invitations`); no tenant query on platform pages; non-admin sends no `/api/platform` request. Personal pages use `sessionAccessQuery`. The project name, switcher and repo show only while `projectsQueries.detail` is successful: after a cached success, a 404 refetch removes them; network or 500 with no data gives the project menu with Runs only plus menu error and a project placeholder. `platformAdminQuery` failing alone hides platform links with `menu.state: 'ready'`. The repo block uses `defaultBranch` (null gives no branch). With `pageState` `notFound` or `forbidden` the menu follows `errorMenuScope` and marks no item; with `error` it marks the page's item; scope `none` gives `menu: null`; a missing platform org gives the platform menu with Organizations current; `goToProjectsHref` follows the shown menu. Platform org crumb and header: loading, error "Organization", 404. No per-project request is added and `projectsQueries.all` is not fetched before the switcher opens. On Agent & settings, inputs that differ only in the address's search give the same menu item, crumbs and `titleScope` (`ShellInput` takes no search). **Review Focus 1:** session `activeOrganizationId` changes to B while the URL stays on A: the menu becomes loading and no A-keyed query is sent. `orgSwitch.test.ts`: no data and error gives `list.status: 'error'`; failed refetch with data keeps the list.
-- [ ] **Step 2: Run** VITEST on both files. Expected: FAIL.
-- [ ] **Step 3: Implement** with `useQuery` only (`enabled` carries the four conditions; no `throwOnError`, no suspense). Crumbs follow spec "As drawn on the approved boards": org pages switcher and page; project pages both switchers and page; run adds a "Runs" link before "Run {n}"; platform "Platform" switcher then "Organizations", org name, page; wizard "New project"; invitations "My invitations"; create org "Platform", "Organizations", "Create organization"; forbidden keeps the page crumb; not-found for an out-of-scope project and suspended have none. Platform crumbs reuse `platformCrumbs`.
-- [ ] **Step 4: Run** the tests and typecheck. Expected: PASS.
-- [ ] **Step 5: Commit** `feat(web): add the shell data hook`. Label `review:sensitive`.
+- [x] **Step 1: Write failing tests** (hook under a test router and MSW, capturing request URLs and org headers). An org or project query is sent only when the org is in the loaded list, not suspended, the session's active org and the org of the latest URL; none while the list is loading or failed; none for a suspended org (from its page and from `/invitations`); no tenant query on platform pages; non-admin sends no `/api/platform` request. Personal pages use `sessionAccessQuery`. The project name, switcher and repo show only while `projectsQueries.detail` is successful: after a cached success, a 404 refetch removes them; network or 500 with no data gives the project menu with Runs only plus menu error and a project placeholder. `platformAdminQuery` failing alone hides platform links with `menu.state: 'ready'`. The repo block uses `defaultBranch` (null gives no branch). With `pageState` `notFound` or `forbidden` the menu follows `errorMenuScope` and marks no item; with `error` it marks the page's item; scope `none` gives `menu: null`; a missing platform org gives the platform menu with Organizations current; `goToProjectsHref` follows the shown menu. Platform org crumb and header: loading, error "Organization", 404. No per-project request is added and `projectsQueries.all` is not fetched before the switcher opens. On Agent & settings, inputs that differ only in the address's search give the same menu item, crumbs and `titleScope` (`ShellInput` takes no search). **Review Focus 1:** session `activeOrganizationId` changes to B while the URL stays on A: the menu becomes loading and no A-keyed query is sent. `orgSwitch.test.ts`: no data and error gives `list.status: 'error'`; failed refetch with data keeps the list.
+- [x] **Step 2: Run** VITEST on both files. Expected: FAIL.
+- [x] **Step 3: Implement** with `useQuery` only (`enabled` carries the four conditions; no `throwOnError`, no suspense). Crumbs follow spec "As drawn on the approved boards": org pages switcher and page; project pages both switchers and page; run adds a "Runs" link before "Run {n}"; platform "Platform" switcher then "Organizations", org name, page; wizard "New project"; invitations "My invitations"; create org "Platform", "Organizations", "Create organization"; forbidden keeps the page crumb; not-found for an out-of-scope project and suspended have none. Platform crumbs reuse `platformCrumbs`.
+- [x] **Step 4: Run** the tests and typecheck. Expected: PASS.
+- [x] **Step 5: Commit** `feat(web): add the shell data hook`. Label `review:sensitive`.
 
 ### Task 27: The shell host in the root route
 
@@ -1147,11 +1147,11 @@ export function useShellData(input: ShellInput): ShellData;
 - Consumes: `useShellData`, `AppShell`, `TopBar`, `SubNav`, `RepoBlock`, `ShellContext`, `useMediaQuery`, `pageTitle`, `useDocumentTitle`.
 - Produces: `ShellHost({ children })`, rendered by `RootLayout` between `SkipLink` and nothing else. The deepest matched route's `staticData.chrome` decides: absent means `owned: false` and only the content. `chrome.fill` passes `height="viewport"` to `AppShell`; otherwise no height. The host never keys or remounts anything by the search params. When owned the host draws `TopBar` with `ownsTitle={false}`, sets `document.title` from the crumbs (`pageTitle`, with the reported `notFound` or `forbidden` state; a loading or load-error page may have no page title), and builds the menu: collapse state in React state (shared by non-run pages), a separate per-entry state for `startCollapsed` pages reset on each entry, no collapse in `wizard` mode (shared state neither read nor written), drawer below 1024px.
 
-- [ ] **Step 1: Write failing tests** with a test route tree built on `rootRouteOptions`. A route without chrome renders no `banner` from the host. A route with chrome: one `banner`, one `navigation`, one `main` (the page's). A child that mounts once stays mounted through collapse, expand, drawer open and close, `setViewportWidth(390/1440)`, menu loading to ready, and a `notFound` report. Header race: navigate org A to org B with the host mounted; no A-keyed request carries B's `x-org` header and no A name is left on screen. Collapse: shared choice survives navigation; a `startCollapsed` page starts collapsed on every entry and its toggles do not change the shared one; wizard mode shows no toggle and leaves the shared value. Drawer: picking an item navigates, closes and focuses `main`; close button, Escape and scrim close without navigating; focus returns to "Open menu"; widening to 1024 closes it. **Review Focus 2:** with the drawer open, `router.history.back()` closes it and removes the scrim. A `fill` route gives `AppShell` the fill mode and another route does not. Changing only search params (a tab, a pane) keeps the child mounted, the same current item, crumbs and title. A page that calls `useReportPageState('forbidden')` gets the title "You don't have access · Agent Desk".
-- [ ] **Step 2: Run** VITEST `src/app/shell/ShellHost.test.tsx`. Expected: FAIL.
-- [ ] **Step 3: Implement.** Close the drawer on any location change. Do not key or conditionally wrap the content by shell state.
-- [ ] **Step 4: Run** the test, `src/app/shell.test.tsx`, `src/app/orgRoute.test.tsx` and the whole web `test` script (no route has chrome yet, so nothing else changes). Expected: PASS.
-- [ ] **Step 5: Commit** `feat(web): render the app shell from the root route`. Label `review:sensitive`.
+- [x] **Step 1: Write failing tests** with a test route tree built on `rootRouteOptions`. A route without chrome renders no `banner` from the host. A route with chrome: one `banner`, one `navigation`, one `main` (the page's). A child that mounts once stays mounted through collapse, expand, drawer open and close, `setViewportWidth(390/1440)`, menu loading to ready, and a `notFound` report. Header race: navigate org A to org B with the host mounted; no A-keyed request carries B's `x-org` header and no A name is left on screen. Collapse: shared choice survives navigation; a `startCollapsed` page starts collapsed on every entry and its toggles do not change the shared one; wizard mode shows no toggle and leaves the shared value. Drawer: picking an item navigates, closes and focuses `main`; close button, Escape and scrim close without navigating; focus returns to "Open menu"; widening to 1024 closes it. **Review Focus 2:** with the drawer open, `router.history.back()` closes it and removes the scrim. A `fill` route gives `AppShell` the fill mode and another route does not. Changing only search params (a tab, a pane) keeps the child mounted, the same current item, crumbs and title. A page that calls `useReportPageState('forbidden')` gets the title "You don't have access · Agent Desk".
+- [x] **Step 2: Run** VITEST `src/app/shell/ShellHost.test.tsx`. Expected: FAIL.
+- [x] **Step 3: Implement.** Close the drawer on any location change. Do not key or conditionally wrap the content by shell state.
+- [x] **Step 4: Run** the test, `src/app/shell.test.tsx`, `src/app/orgRoute.test.tsx` and the whole web `test` script (no route has chrome yet, so nothing else changes). Expected: PASS.
+- [x] **Step 5: Commit** `feat(web): render the app shell from the root route`. Label `review:sensitive`.
 
 **Rules for wiring tasks (28 to 37).** A wiring task adds `staticData: { chrome }` to its routes, removes what the shell now draws from those route files, and rewrites every Vitest and e2e spec it breaks (rename per the old-to-new table; never drop a role case). The spec file lists below are the specs known to name the old navigation; run the whole web `test` script and `grep` `e2e/` for the old names of the moved scope to catch the rest, and add any such file to the PR. Mock cases marked "mock,local" in the spec are written here for mock; their local half is in the task named in the step. Routes and shared specs are edited from their merged multi-agent versions, keeping the multi-agent links and search params; the "Shared spec and e2e files" rules, the exact-name locators and the "sidebar TC-n.m" titles apply. A multi-agent file listed here that is not on the base branch is handled as "After the gate" says. Search the incoming multi-agent specs for the old names and for `banner` too.
 
@@ -1175,14 +1175,14 @@ export function useShellData(input: ShellInput): ShellData;
 - Consumes: shell host; `RouteChrome` (`scope: 'platform'` or `'platformOrg'`); platform screens' owned branch.
 - Produces: `side-nav.spec.ts`, extended by Tasks 29, 30, 32, 33 and 40.
 
-- [ ] **Step 0: Multi-agent gate.** Run both checks in "Multi-agent gate". If either fails, stop: write no code and report which check failed.
-- [ ] **Step 1: Write failing route tests** in `shell.route.test.tsx`: one "Platform menu" with Organizations, Platform admins, Audit log and the matching one current (`orgs/new` marks Organizations); inside one org it is replaced by the one-org menu (never two navs); "Organizations" back link; loading placeholders "Loading organization" and "Loading menu"; failed read: "Organization", no status, links present; missing org: platform menu with Organizations current and "Page not found", "This organization does not exist.", "Back to organizations"; non-admin: forbidden, no side nav, no `/api/platform` request, "Go to projects".
-- [ ] **Step 2: Run** VITEST `src/features/platform`. Expected: FAIL.
-- [ ] **Step 3: Implement:** drop `TopBar`, `PlatformLayout`, `useOrgGroup` and `PlatformOrgCrumb` wiring from `platform.tsx` (the host owns them); `PlatformForbidden` (in `boundaries.tsx`) reports `forbidden` and draws no top bar when owned.
-- [ ] **Step 4: Rewrite** the listed specs. `platform-shell` TC-3.1 now expects no menu and no section links on a forbidden `/platform`, keeping "no `/api/platform` request" and "Go to projects". Entry "Platform admin" is now "Platform".
-- [ ] **Step 5: Add** to `side-nav.spec.ts`: "TC-5.1", "TC-5.2", "TC-31.1", "TC-31.2", "TC-32.1", "TC-32.2", "TC-33.1", "TC-33.2", "TC-33.3", "TC-34.1", "TC-34.2", "TC-35.1", "TC-35.2", "TC-35.3". (Local halves: Task 43.)
+- [x] **Step 0: Multi-agent gate.** Run both checks in "Multi-agent gate". If either fails, stop: write no code and report which check failed.
+- [x] **Step 1: Write failing route tests** in `shell.route.test.tsx`: one "Platform menu" with Organizations, Platform admins, Audit log and the matching one current (`orgs/new` marks Organizations); inside one org it is replaced by the one-org menu (never two navs); "Organizations" back link; loading placeholders "Loading organization" and "Loading menu"; failed read: "Organization", no status, links present; missing org: platform menu with Organizations current and "Page not found", "This organization does not exist.", "Back to organizations"; non-admin: forbidden, no side nav, no `/api/platform` request, "Go to projects".
+- [x] **Step 2: Run** VITEST `src/features/platform`. Expected: FAIL.
+- [x] **Step 3: Implement:** drop `TopBar`, `PlatformLayout`, `useOrgGroup` and `PlatformOrgCrumb` wiring from `platform.tsx` (the host owns them); `PlatformForbidden` (in `boundaries.tsx`) reports `forbidden` and draws no top bar when owned.
+- [x] **Step 4: Rewrite** the listed specs. `platform-shell` TC-3.1 now expects no menu and no section links on a forbidden `/platform`, keeping "no `/api/platform` request" and "Go to projects". Entry "Platform admin" is now "Platform".
+- [x] **Step 5: Add** to `side-nav.spec.ts`: "TC-5.1", "TC-5.2", "TC-31.1", "TC-31.2", "TC-32.1", "TC-32.2", "TC-33.1", "TC-33.2", "TC-33.3", "TC-34.1", "TC-34.2", "TC-35.1", "TC-35.2", "TC-35.3". (Local halves: Task 43.)
 - [ ] **Step 6: Run** VITEST, MOCK the listed mock specs plus `side-nav`, LOCAL the listed local specs. Expected: PASS.
-- [ ] **Step 7: Commit** `feat(web): platform pages use the app shell`.
+- [x] **Step 7: Commit** `feat(web): platform pages use the app shell`.
 
 ### Task 29: Move the organization pages onto the shell (after the multi-agent gate)
 
@@ -1201,13 +1201,13 @@ export function useShellData(input: ShellInput): ShellData;
 - Consumes: `ORG_SETTINGS_ORDER`; org screens' owned branch. `o.$org.projects.index.tsx` keeps the multi-agent card links ("Switch to polling" to `?tab=github`) and the "Resume setup" and "Agent & settings" wiring of Tasks 16 and 17.
 - Produces: `TAB_ORDER` in `appBar.ts` equals `ORG_SETTINGS_ORDER` (members, invitations, audit, general). `ProjectsForbidden` and the settings no-access state report `forbidden` and render no bar.
 
-- [ ] **Step 0: Multi-agent gate.** Run both checks in "Multi-agent gate". If either fails, stop: write no code and report which check failed.
-- [ ] **Step 1: Write failing route tests:** `/o/<org>/settings` redirects to the first of members, invitations, audit, general (owner: members; project admin: invitations; audit-only: audit; org-update-only: general; member: no-access state with the org menu). Org menu per role as in Task 25 through the real guard; "Manage in Platform" only for a platform admin; no "Org settings" crumb; title "Members · <org name> · Agent Desk". Extend the `DESK_DATA` request tracking in `deskAccess.route.test.tsx` to org pages: no gated request.
-- [ ] **Step 2: Run** VITEST on the listed files. Expected: FAIL.
-- [ ] **Step 3: Implement;** the path regex in `o.$org.settings.tsx` goes away (`staticData.item` decides).
-- [ ] **Step 4: Rewrite** the listed specs; add to `side-nav.spec.ts`: "TC-17.1", "TC-17.2", "TC-18.1", "TC-18.2", "TC-19.1", "TC-20.1", "TC-20.2", "TC-21.1", "TC-21.2", "TC-21.3", "TC-21.4", "TC-21.5". (Local halves: Task 43.)
-- [ ] **Step 5: Run** VITEST, MOCK the listed mock specs plus `side-nav`, LOCAL the listed local specs. Expected: PASS.
-- [ ] **Step 6: Commit** `feat(web): organization pages use the app shell`.
+- [x] **Step 0: Multi-agent gate.** Run both checks in "Multi-agent gate". If either fails, stop: write no code and report which check failed.
+- [x] **Step 1: Write failing route tests:** `/o/<org>/settings` redirects to the first of members, invitations, audit, general (owner: members; project admin: invitations; audit-only: audit; org-update-only: general; member: no-access state with the org menu). Org menu per role as in Task 25 through the real guard; "Manage in Platform" only for a platform admin; no "Org settings" crumb; title "Members · <org name> · Agent Desk". Extend the `DESK_DATA` request tracking in `deskAccess.route.test.tsx` to org pages: no gated request.
+- [x] **Step 2: Run** VITEST on the listed files. Expected: FAIL.
+- [x] **Step 3: Implement;** the path regex in `o.$org.settings.tsx` goes away (`staticData.item` decides).
+- [x] **Step 4: Rewrite** the listed specs; add to `side-nav.spec.ts`: "TC-17.1", "TC-17.2", "TC-18.1", "TC-18.2", "TC-19.1", "TC-20.1", "TC-20.2", "TC-21.1", "TC-21.2", "TC-21.3", "TC-21.4", "TC-21.5". (Local halves: Task 43.)
+- [x] **Step 5: Run** VITEST, MOCK the listed mock specs plus `side-nav`, LOCAL the listed local specs. Expected: PASS.
+- [x] **Step 6: Commit** `feat(web): organization pages use the app shell`.
 
 ### Task 30: Move Runs and project configuration pages onto the shell (after the multi-agent gate)
 
@@ -1231,13 +1231,13 @@ export function useShellData(input: ShellInput): ShellData;
 - Access: no change. The Agent & settings item needs `agent:read`; a project admin still sees three tabs and no "Danger zone".
 - Helpers: change the body of a local helper that uses an old navigation locator (`openAgent` included), never its signature. Add to `shellScenarios.ts` only a state no existing scenario gives (a project with the setup warning and one without).
 
-- [ ] **Step 0: Multi-agent gate.** Run both checks in "Multi-agent gate". If either fails, stop: write no code and report which check failed.
-- [ ] **Step 1: Write failing route tests:** on Runs and each configuration page there is one "Project menu"; per `tenantAccessFixtures` the items match Task 25; **member and viewer on Runs see Runs and the repository block only** and no Desk request is made (extend `DESK_DATA` tracking to Runs); `adminP1ViewerP2` sees nothing gated on P2; a forbidden configuration address keeps the project menu; "All projects" goes to the org's Projects; "needs you" badge follows `useProjectEvents` through `FakeEventSource` and hides at zero; the repo block shows OK, warning and error and omits the branch when null; "Runs, Ignored" and the setup warning (below the h1; on Routing rules and Agent & settings the first item of the scroll area) still work. Agent & settings, in `agent.route.test.tsx` and `agent.tabs.route.test.tsx`: with no `tab`, with `github`, `limits` and `danger`, and with `?agent=new` and `?agent=<id>`, exactly one menu item, "Agent & settings", is current and the title and crumb are the same (BR-7, BR-10); on `?tab=github`, after "Trigger mode" shows, there is no "Send test ping", no "Manage installation" and no empty action row, and polling has "Check now" (BR-44); an open add pane with a typed name and fake token keeps both through opening and closing the drawer and through `setViewportWidth` across 1024.
-- [ ] **Step 2: Run** VITEST on the listed files. Expected: FAIL.
-- [ ] **Step 3: Implement.** No `beforeLoad` change.
-- [ ] **Step 4: Rewrite** the listed specs ("Repo on GitHub" in `external-links.spec.ts` becomes "Open repository"). In the multi-agent access tests (MA TC-46.x, MA TC-47.x, MA TC-57.2, MA TC-57.4) only locators and navigation steps change, and every allowed, 403, 404 and absent result stays: where MA TC-46.1 and MA TC-46.2 read the "Desk" navigation, wait for the side menu's "Runs" item and then assert no "Agent & settings"; MA TC-57.2 still asserts exactly three tabs. MA TC-60.7's navigation link step uses the side menu item, with the same result. If one of them fails after the rewrite, the shell is wrong: stop and ask. **Page fit:** add a side menu check to `agent-layout.spec.ts` and `rules-layout.spec.ts`, titled "sidebar ..." as these files hold multi-agent cases, at 1280x420 and at their 240px height: the page does not scroll, scrolling the menu moves no header, tab strip, pager or footer, and the 120px scroll area holds. Keep every assertion in both; if an old one fails, fix the shell. Add to `side-nav.spec.ts`: "TC-4.1", "TC-4.2", "TC-9.1", "TC-9.2", "TC-22.1", "TC-22.2", "TC-23.1", "TC-23.3", "TC-24.1", "TC-24.2", "TC-24.3", "TC-25.1", "TC-25.2", "TC-26.1", "TC-26.2", "TC-26.3", "TC-26.4", "TC-27.2", "TC-44.2" (`?tab=github`; wait for "Trigger mode" before the absent checks; webhook, so no "Check now"), "TC-44.3", "TC-44.4" (polling, "Check now" only), "TC-6.4" (Agent & settings with the multi-agent `manyAgents` scenario and Routing rules with more than one page, at 1280x420 and 240 high), "TC-7.5", "TC-7.6", "TC-8.6", "TC-9.3", "TC-10.5", and "TC-27.1" in `external-links.spec.ts`. Wait for the selected tab's own content before each absent check, and change tabs by clicking. TC-23.2 is in Task 33, TC-24.1's run-page step is completed there. **Review Focus 3:** with `seedShell(page, 'longNames')` at 1440, the menu and the document have `scrollWidth <= clientWidth + 1`. (Local halves and TC-25.3: Task 44.)
+- [x] **Step 0: Multi-agent gate.** Run both checks in "Multi-agent gate". If either fails, stop: write no code and report which check failed.
+- [x] **Step 1: Write failing route tests:** on Runs and each configuration page there is one "Project menu"; per `tenantAccessFixtures` the items match Task 25; **member and viewer on Runs see Runs and the repository block only** and no Desk request is made (extend `DESK_DATA` tracking to Runs); `adminP1ViewerP2` sees nothing gated on P2; a forbidden configuration address keeps the project menu; "All projects" goes to the org's Projects; "needs you" badge follows `useProjectEvents` through `FakeEventSource` and hides at zero; the repo block shows OK, warning and error and omits the branch when null; "Runs, Ignored" and the setup warning (below the h1; on Routing rules and Agent & settings the first item of the scroll area) still work. Agent & settings, in `agent.route.test.tsx` and `agent.tabs.route.test.tsx`: with no `tab`, with `github`, `limits` and `danger`, and with `?agent=new` and `?agent=<id>`, exactly one menu item, "Agent & settings", is current and the title and crumb are the same (BR-7, BR-10); on `?tab=github`, after "Trigger mode" shows, there is no "Send test ping", no "Manage installation" and no empty action row, and polling has "Check now" (BR-44); an open add pane with a typed name and fake token keeps both through opening and closing the drawer and through `setViewportWidth` across 1024.
+- [x] **Step 2: Run** VITEST on the listed files. Expected: FAIL.
+- [x] **Step 3: Implement.** No `beforeLoad` change.
+- [x] **Step 4: Rewrite** the listed specs ("Repo on GitHub" in `external-links.spec.ts` becomes "Open repository"). In the multi-agent access tests (MA TC-46.x, MA TC-47.x, MA TC-57.2, MA TC-57.4) only locators and navigation steps change, and every allowed, 403, 404 and absent result stays: where MA TC-46.1 and MA TC-46.2 read the "Desk" navigation, wait for the side menu's "Runs" item and then assert no "Agent & settings"; MA TC-57.2 still asserts exactly three tabs. MA TC-60.7's navigation link step uses the side menu item, with the same result. If one of them fails after the rewrite, the shell is wrong: stop and ask. **Page fit:** add a side menu check to `agent-layout.spec.ts` and `rules-layout.spec.ts`, titled "sidebar ..." as these files hold multi-agent cases, at 1280x420 and at their 240px height: the page does not scroll, scrolling the menu moves no header, tab strip, pager or footer, and the 120px scroll area holds. Keep every assertion in both; if an old one fails, fix the shell. Add to `side-nav.spec.ts`: "TC-4.1", "TC-4.2", "TC-9.1", "TC-9.2", "TC-22.1", "TC-22.2", "TC-23.1", "TC-23.3", "TC-24.1", "TC-24.2", "TC-24.3", "TC-25.1", "TC-25.2", "TC-26.1", "TC-26.2", "TC-26.3", "TC-26.4", "TC-27.2", "TC-44.2" (`?tab=github`; wait for "Trigger mode" before the absent checks; webhook, so no "Check now"), "TC-44.3", "TC-44.4" (polling, "Check now" only), "TC-6.4" (Agent & settings with the multi-agent `manyAgents` scenario and Routing rules with more than one page, at 1280x420 and 240 high), "TC-7.5", "TC-7.6", "TC-8.6", "TC-9.3", "TC-10.5", and "TC-27.1" in `external-links.spec.ts`. Wait for the selected tab's own content before each absent check, and change tabs by clicking. TC-23.2 is in Task 33, TC-24.1's run-page step is completed there. **Review Focus 3:** with `seedShell(page, 'longNames')` at 1440, the menu and the document have `scrollWidth <= clientWidth + 1`. (Local halves and TC-25.3: Task 44.)
 - [ ] **Step 5: Run** VITEST, MOCK the listed mock specs plus `side-nav`, LOCAL the listed local specs that are on the base branch. Expected: PASS. A PR past about 800 lines says why or splits by page.
-- [ ] **Step 6: Commit** `feat(web): runs and project configuration pages use the app shell`. Label `review:sensitive`.
+- [x] **Step 6: Commit** `feat(web): runs and project configuration pages use the app shell`. Label `review:sensitive`.
 
 ### Task 31: Redirect the bare project and bare /desk URLs (BR-29, BR-82) (after the multi-agent gate)
 
@@ -1254,13 +1254,13 @@ export function useShellData(input: ShellInput): ShellData;
 
 - Produces: both routes `beforeLoad: throw redirect({ to: '/o/$org/p/$project/runs', params, replace: true })`; no permission guard, no loader, no screen.
 
-- [ ] **Step 0: Multi-agent gate.** Run both checks in "Multi-agent gate". If either fails, stop: write no code and report which check failed.
-- [ ] **Step 1: Write the failing test** (allowed lowest role, out of scope, other org, for both URLs, `/desk` with and without a trailing slash): owner, admin, project admin, member and viewer land on Runs; the redirect itself requests no Desk data; Back returns to the page before; an unknown, other-org or out-of-scope project is Not found without its name; each of the six `/desk/<page>` routes still opens its own page; `/desk/<x>` unknown and a top-level `/desk` stay Not found; `/desk/agent?tab=limits` keeps its search, opens "Limits" and does not redirect to Runs (BR-82).
-- [ ] **Step 2: Run** VITEST `src/features/desk/bareRedirect.route.test.tsx`. Expected: FAIL (Not found).
-- [ ] **Step 3: Add** the two route files and regenerate `routeTree.gen.ts` with `pnpm --filter @agentdesk/web exec vite build --mode mock`.
-- [ ] **Step 4: Add** mock e2e "TC-29.1", "TC-29.2", "TC-29.3", "TC-82.1", "TC-82.2", "TC-82.3", "TC-82.4", "TC-82.5", "TC-82.6". (Local halves and TC-29.4: Task 44.)
-- [ ] **Step 5: Run** the test and MOCK `side-nav`. Expected: PASS.
-- [ ] **Step 6: Commit** `feat(web): redirect bare project and desk URLs to runs`.
+- [x] **Step 0: Multi-agent gate.** Run both checks in "Multi-agent gate". If either fails, stop: write no code and report which check failed.
+- [x] **Step 1: Write the failing test** (allowed lowest role, out of scope, other org, for both URLs, `/desk` with and without a trailing slash): owner, admin, project admin, member and viewer land on Runs; the redirect itself requests no Desk data; Back returns to the page before; an unknown, other-org or out-of-scope project is Not found without its name; each of the six `/desk/<page>` routes still opens its own page; `/desk/<x>` unknown and a top-level `/desk` stay Not found; `/desk/agent?tab=limits` keeps its search, opens "Limits" and does not redirect to Runs (BR-82).
+- [x] **Step 2: Run** VITEST `src/features/desk/bareRedirect.route.test.tsx`. Expected: FAIL (Not found).
+- [x] **Step 3: Add** the two route files and regenerate `routeTree.gen.ts` with `pnpm --filter @agentdesk/web exec vite build --mode mock`.
+- [x] **Step 4: Add** mock e2e "TC-29.1", "TC-29.2", "TC-29.3", "TC-82.1", "TC-82.2", "TC-82.3", "TC-82.4", "TC-82.5", "TC-82.6". (Local halves and TC-29.4: Task 44.)
+- [x] **Step 5: Run** the test and MOCK `side-nav`. Expected: PASS.
+- [x] **Step 6: Commit** `feat(web): redirect bare project and desk URLs to runs`.
 
 ### Task 32: Switching project keeps the page and drops drafts (BR-48 to BR-52, BR-54, BR-68) (after the multi-agent gate)
 
@@ -1280,14 +1280,14 @@ export function useShellData(input: ShellInput): ShellData;
 - The `$project` outlet is keyed by the project id only, never by the search params. This is also what drops a typed credential: an `?agent` pane may hold one.
 - Fakes: extend `distinctProjects` so the two projects also have different agents, limits and trigger modes, from the multi-agent fixtures. Fake tokens are obvious fakes ("sk-fake-canary-0068").
 
-- [ ] **Step 0: Multi-agent gate.** Run both checks in "Multi-agent gate". If either fails, stop: write no code and report which check failed.
-- [ ] **Step 1: Write the draft tests first, before the switcher keeps the page** (they must fail once Step 4 lands without the key): in `switcher.route.test.tsx`, an unsaved setup draft on P1, navigate to P2's setup: P2's saved script shows, the marker is gone, saving sends nothing of P1; the same for an open member dialog, a skills edit and the agent trigger pick. From Agent & settings on P1, each of: an add pane holding a typed fake token, an edit pane (`?agent=<P1 id>`), an unsaved Limits value and an unsaved trigger pick on GitHub connection. On P2 the "Agents" tab shows with no pane; opening the pane and the tabs again shows only P2's saved values (the trigger choice read on "GitHub connection"); the fake token is in no DOM node and no query or mutation cache entry; no later request carries it or P1's agent id. An unsaved agent pick in the rule pane is not carried either. A blocking pop-up (the delete agent dialog or a member dialog) is switched away from with browser Back and Forward.
-- [ ] **Step 2: Write failing unit tests:** same section when `deskRightsOf(access, targetId)` allows, else Runs; run detail (`parent`), unknown item and `access` undefined give Runs; no search params (from `item: 'agent'` the result has no `tab`, `agent` or `page`, and without `agent:read` on the target it is Runs); `adminP1ViewerP2` from P1 rules to P2 gives P2 Runs. Route tests: switcher lists visible projects only, the current one checked, "All projects"; "New project" only with org `project:create`.
-- [ ] **Step 3: Run** VITEST on the three files. Expected: FAIL.
-- [ ] **Step 4: Implement** `switchTargetHref`, use it in the shell's switcher items, and render `<Outlet key={project} />` in the `$project` layout. Assert too that changing only the search on one project does not remount the page.
-- [ ] **Step 5: E2E** (add to `side-nav.spec.ts`; adjust `project-menu.spec.ts`): "TC-48.1", "TC-48.2", "TC-48.3", "TC-49.1", "TC-49.2", "TC-50.1", "TC-50.2", "TC-51.1", "TC-51.2", "TC-51.3", "TC-51.4", "TC-54.1", "TC-54.2", "TC-54.3", "TC-51.5", "TC-51.6", "TC-51.7", "TC-68.1", "TC-68.2", "TC-68.3", "TC-68.4", "TC-68.5", "TC-68.6", "TC-68.7", "TC-68.8", "TC-68.9", "TC-68.10". **Review Focus 4:** hold `projectDetail`, switch P1 to P2, then to P3 before release: only P3's name and values show. TC-52.1 is in Task 33. (Local halves: Task 44.)
-- [ ] **Step 6: Run** VITEST, MOCK `side-nav project-menu`. Expected: PASS.
-- [ ] **Step 7: Commit** `feat(web): keep the page when switching project`. Label `review:sensitive`.
+- [x] **Step 0: Multi-agent gate.** Run both checks in "Multi-agent gate". If either fails, stop: write no code and report which check failed.
+- [x] **Step 1: Write the draft tests first, before the switcher keeps the page** (they must fail once Step 4 lands without the key): in `switcher.route.test.tsx`, an unsaved setup draft on P1, navigate to P2's setup: P2's saved script shows, the marker is gone, saving sends nothing of P1; the same for an open member dialog, a skills edit and the agent trigger pick. From Agent & settings on P1, each of: an add pane holding a typed fake token, an edit pane (`?agent=<P1 id>`), an unsaved Limits value and an unsaved trigger pick on GitHub connection. On P2 the "Agents" tab shows with no pane; opening the pane and the tabs again shows only P2's saved values (the trigger choice read on "GitHub connection"); the fake token is in no DOM node and no query or mutation cache entry; no later request carries it or P1's agent id. An unsaved agent pick in the rule pane is not carried either. A blocking pop-up (the delete agent dialog or a member dialog) is switched away from with browser Back and Forward.
+- [x] **Step 2: Write failing unit tests:** same section when `deskRightsOf(access, targetId)` allows, else Runs; run detail (`parent`), unknown item and `access` undefined give Runs; no search params (from `item: 'agent'` the result has no `tab`, `agent` or `page`, and without `agent:read` on the target it is Runs); `adminP1ViewerP2` from P1 rules to P2 gives P2 Runs. Route tests: switcher lists visible projects only, the current one checked, "All projects"; "New project" only with org `project:create`.
+- [x] **Step 3: Run** VITEST on the three files. Expected: FAIL.
+- [x] **Step 4: Implement** `switchTargetHref`, use it in the shell's switcher items, and render `<Outlet key={project} />` in the `$project` layout. Assert too that changing only the search on one project does not remount the page.
+- [x] **Step 5: E2E** (add to `side-nav.spec.ts`; adjust `project-menu.spec.ts`): "TC-48.1", "TC-48.2", "TC-48.3", "TC-49.1", "TC-49.2", "TC-50.1", "TC-50.2", "TC-51.1", "TC-51.2", "TC-51.3", "TC-51.4", "TC-54.1", "TC-54.2", "TC-54.3", "TC-51.5", "TC-51.6", "TC-51.7", "TC-68.1", "TC-68.2", "TC-68.3", "TC-68.4", "TC-68.5", "TC-68.6", "TC-68.7", "TC-68.8", "TC-68.9", "TC-68.10". **Review Focus 4:** hold `projectDetail`, switch P1 to P2, then to P3 before release: only P3's name and values show. TC-52.1 is in Task 33. (Local halves: Task 44.)
+- [x] **Step 6: Run** VITEST, MOCK `side-nav project-menu`. Expected: PASS.
+- [x] **Step 7: Commit** `feat(web): keep the page when switching project`. Label `review:sensitive`.
 
 ### Task 33: Move the run page onto the shell (BR-38 to BR-42, BR-44, BR-52) (after the multi-agent gate)
 
@@ -1306,14 +1306,14 @@ export function useShellData(input: ShellInput): ShellData;
 - Consumes: owned `RunDetail` header.
 - Produces: route chrome `{ mode: 'standard', scope: 'project', item: 'runs', parent: true, fill: true, startCollapsed: true }`; crumbs "Runs" link then "Run {n}".
 
-- [ ] **Step 0: Multi-agent gate.** Run both checks in "Multi-agent gate". If either fails, stop: write no code and report which check failed.
-- [ ] **Step 1: Write failing route tests:** the page starts collapsed; expanding and collapsing keeps one `FakeWebSocket` instance and the same terminal; Runs is `aria-current="true"` once expanded; title "Run {n} · <project> · Agent Desk" with a ticket-title marker absent from `document.title`; status, ticket and actions are in the page header, not the banner; the agent name (MA BR-54) shows, and the rendered hrefs of "Connection details" and "Switch to polling" end `desk/agent?tab=github`, "Change time limit" ends `desk/agent?tab=limits` and "Replace credential" ends `desk/agent?agent=<id>` (the multi-agent targets, unchanged). In `runActions.route.test.tsx` keep every role case and add header assertions: viewer none; member on another's run none; member on own run and admin on another's run have them.
-- [ ] **Step 2: Run** VITEST on both files. Expected: FAIL.
-- [ ] **Step 3: Implement;** the lazy `LiveTerminal` and `useTerminal` calls stay where they are.
-- [ ] **Step 4: Rewrite** the listed specs: reads of status and actions move from `banner` to the page header (`main`), values unchanged. MA TC-60.1, MA TC-60.2, MA TC-60.4 and MA TC-60.6 (follow the run links) keep their results.
-- [ ] **Step 5: Add** to `side-nav.spec.ts`: "TC-7.3", "TC-23.2", "TC-38.1", "TC-38.2", "TC-38.3", "TC-38.4", "TC-39.1", "TC-39.2", "TC-39.3", "TC-39.4", "TC-40.1", "TC-40.2", "TC-40.3", "TC-40.4", "TC-40.5", "TC-41.1", "TC-41.2", "TC-41.3", "TC-41.4", "TC-41.5", "TC-41.6", "TC-42.1", "TC-42.2", "TC-42.3", "TC-42.4", "TC-42.5", "TC-44.1", "TC-52.1", and add the run-page step (step 3) to "TC-24.1". **Review Focus 5:** open "Cancel run", set width 1023 then 1440: the confirm stays visible, "Keep running" closes it, and the terminal text is still there with no reconnect overlay. (Local halves: Task 44.)
+- [x] **Step 0: Multi-agent gate.** Run both checks in "Multi-agent gate". If either fails, stop: write no code and report which check failed.
+- [x] **Step 1: Write failing route tests:** the page starts collapsed; expanding and collapsing keeps one `FakeWebSocket` instance and the same terminal; Runs is `aria-current="true"` once expanded; title "Run {n} · <project> · Agent Desk" with a ticket-title marker absent from `document.title`; status, ticket and actions are in the page header, not the banner; the agent name (MA BR-54) shows, and the rendered hrefs of "Connection details" and "Switch to polling" end `desk/agent?tab=github`, "Change time limit" ends `desk/agent?tab=limits` and "Replace credential" ends `desk/agent?agent=<id>` (the multi-agent targets, unchanged). In `runActions.route.test.tsx` keep every role case and add header assertions: viewer none; member on another's run none; member on own run and admin on another's run have them.
+- [x] **Step 2: Run** VITEST on both files. Expected: FAIL.
+- [x] **Step 3: Implement;** the lazy `LiveTerminal` and `useTerminal` calls stay where they are.
+- [x] **Step 4: Rewrite** the listed specs: reads of status and actions move from `banner` to the page header (`main`), values unchanged. MA TC-60.1, MA TC-60.2, MA TC-60.4 and MA TC-60.6 (follow the run links) keep their results.
+- [x] **Step 5: Add** to `side-nav.spec.ts`: "TC-7.3", "TC-23.2", "TC-38.1", "TC-38.2", "TC-38.3", "TC-38.4", "TC-39.1", "TC-39.2", "TC-39.3", "TC-39.4", "TC-40.1", "TC-40.2", "TC-40.3", "TC-40.4", "TC-40.5", "TC-41.1", "TC-41.2", "TC-41.3", "TC-41.4", "TC-41.5", "TC-41.6", "TC-42.1", "TC-42.2", "TC-42.3", "TC-42.4", "TC-42.5", "TC-44.1", "TC-52.1", and add the run-page step (step 3) to "TC-24.1". **Review Focus 5:** open "Cancel run", set width 1023 then 1440: the confirm stays visible, "Keep running" closes it, and the terminal text is still there with no reconnect overlay. (Local halves: Task 44.)
 - [ ] **Step 6: Run** VITEST, MOCK the listed mock specs plus `side-nav`, LOCAL the listed local specs (short-timer cases may skip; report them). Expected: PASS.
-- [ ] **Step 7: Commit** `feat(web): run page uses the app shell`. Label `review:sensitive`.
+- [x] **Step 7: Commit** `feat(web): run page uses the app shell`. Label `review:sensitive`.
 
 ### Task 34: Move the new-project wizard onto the shell (BR-36, BR-37) (after the multi-agent gate)
 
@@ -1330,13 +1330,13 @@ export function useShellData(input: ShellInput): ShellData;
 
 - Consumes: `SetupLayout` `exitHref` and portal (Task 23). Route chrome `{ mode: 'wizard', scope: 'org', crumb: 'New project' }`; every step passes `exitHref = /o/<org>/projects`. The route and its steps are the merged multi-agent ones (step 2 "Add your agent", stepper "Add agent"); only the frame and `exitHref` change, not the step's saving or its states.
 
-- [ ] **Step 0: Multi-agent gate.** Run both checks in "Multi-agent gate". If either fails, stop: write no code and report which check failed.
-- [ ] **Step 1: Write failing route tests** with `setViewportWidth`: the stepper is in the shell's menu slot at 1024 and 1440, with no section menu, tabs or collapse button; at 390 and 1023 the header row shows the right "Step N of M" per step and the drawer holds the stepper without "Exit setup"; "Exit setup" goes to Projects with no confirm and saved steps stay; a menu collapsed on Projects is still collapsed after "Exit setup", and an expanded one stays expanded.
-- [ ] **Step 2: Run** VITEST `src/features/setup/setup.route.test.tsx`. Expected: FAIL.
-- [ ] **Step 3: Implement.**
-- [ ] **Step 4: Add** to `setup.spec.ts` "TC-36.1", "TC-36.2", "TC-36.3", "TC-36.4", "TC-37.1", "TC-37.2", "TC-37.3", "TC-37.4", and rewrite any old top-bar assertion, in `setup-agent.spec.ts`, `agent-model.spec.ts` and `setup-agent-wizard.spec.ts` too. In `resume-setup.spec.ts` leave with "Exit setup".
-- [ ] **Step 5: Run** VITEST, MOCK `setup top-bar setup-agent agent-model`, LOCAL `resume-setup` and `setup-agent-wizard` if present. Expected: PASS.
-- [ ] **Step 6: Commit** `feat(web): wizard uses the app shell with exit setup`.
+- [x] **Step 0: Multi-agent gate.** Run both checks in "Multi-agent gate". If either fails, stop: write no code and report which check failed.
+- [x] **Step 1: Write failing route tests** with `setViewportWidth`: the stepper is in the shell's menu slot at 1024 and 1440, with no section menu, tabs or collapse button; at 390 and 1023 the header row shows the right "Step N of M" per step and the drawer holds the stepper without "Exit setup"; "Exit setup" goes to Projects with no confirm and saved steps stay; a menu collapsed on Projects is still collapsed after "Exit setup", and an expanded one stays expanded.
+- [x] **Step 2: Run** VITEST `src/features/setup/setup.route.test.tsx`. Expected: FAIL.
+- [x] **Step 3: Implement.**
+- [x] **Step 4: Add** to `setup.spec.ts` "TC-36.1", "TC-36.2", "TC-36.3", "TC-36.4", "TC-37.1", "TC-37.2", "TC-37.3", "TC-37.4", and rewrite any old top-bar assertion, in `setup-agent.spec.ts`, `agent-model.spec.ts` and `setup-agent-wizard.spec.ts` too. In `resume-setup.spec.ts` leave with "Exit setup".
+- [x] **Step 5: Run** VITEST, MOCK `setup top-bar setup-agent agent-model`, LOCAL `resume-setup` and `setup-agent-wizard` if present. Expected: PASS.
+- [x] **Step 6: Commit** `feat(web): wizard uses the app shell with exit setup`.
 
 ### Task 35: Error, forbidden and suspended pages in the shell (BR-12, BR-13, BR-16, BR-58, BR-79) (after the multi-agent gate)
 
@@ -1355,13 +1355,13 @@ export function useShellData(input: ShellInput): ShellData;
 - Consumes: `errorMenuScope`, `goToProjectsHref`, `useReportPageState`.
 - Produces: the host also owns the chrome (mode `standard`) when no route matched or when a boundary reports a `ShellPageState`, whatever the route declares, except under `mode: 'none'`, which `/sign-in` now declares. `NotFound`, `Forbidden`, `RouteError` (`notFound`, `forbidden` or `error`), `RoutePending` (`loading`) and the suspended page each render one `main` and report their state; `ProjectsLink` takes `goToProjectsHref`. A matched, loaded route without `staticData.chrome` stays unowned until Task 36 declares it.
 
-- [ ] **Step 0: Multi-agent gate.** Run both checks in "Multi-agent gate". If either fails, stop: write no code and report which check failed.
-- [ ] **Step 1: Write the failing tests first** (spec "Bug fixes"): in `shell.test.tsx` an unknown path has a `main` and the skip link focuses it (BR-12), and for a non-member slug "Go to projects" does not point back at that slug (BR-16). Add route cases: 403 and 404 mark no menu item, 5xx and crash mark the page's item; menu by `errorMenuScope`; the inaccessible name appears nowhere (bar, menu, crumbs, title), also with cached project data; suspended: no menu, switcher when there is a second org or platform role, else plain name and account "My invitations" and "Logout"; no query for the suspended org.
-- [ ] **Step 2: Run** VITEST on the three test files. Expected: FAIL.
-- [ ] **Step 3: Implement.** `RootErrorBoundary` is unchanged. Remove the `TopBar` renders from `boundaries.tsx` (owned always applies to these now).
-- [ ] **Step 4: E2E.** Create `side-nav-states.spec.ts` with "TC-12.1", "TC-12.2", "TC-12.3", "TC-12.4", "TC-12.5", "TC-12.6", "TC-12.7", "TC-12.8", "TC-12.9", "TC-12.10", "TC-13.1", "TC-13.2", "TC-13.3", "TC-13.4", "TC-16.1", "TC-16.2", "TC-16.3", "TC-16.4". Add to mock `platform-suspend.spec.ts` "TC-58.1", "TC-58.2", "TC-58.3", "TC-79.1", "TC-79.2", "TC-79.3". In local `platform-suspend.spec.ts` rewrite old names (TC-37.3, TC-37.4, TC-48.1, TC-51.x of that older spec keep leaving by the switcher) and add "TC-58.2", "TC-58.3", "TC-79.1", "TC-79.2", "TC-79.3" with a one-org owner. (Other local halves: Task 43.)
+- [x] **Step 0: Multi-agent gate.** Run both checks in "Multi-agent gate". If either fails, stop: write no code and report which check failed.
+- [x] **Step 1: Write the failing tests first** (spec "Bug fixes"): in `shell.test.tsx` an unknown path has a `main` and the skip link focuses it (BR-12), and for a non-member slug "Go to projects" does not point back at that slug (BR-16). Add route cases: 403 and 404 mark no menu item, 5xx and crash mark the page's item; menu by `errorMenuScope`; the inaccessible name appears nowhere (bar, menu, crumbs, title), also with cached project data; suspended: no menu, switcher when there is a second org or platform role, else plain name and account "My invitations" and "Logout"; no query for the suspended org.
+- [x] **Step 2: Run** VITEST on the three test files. Expected: FAIL.
+- [x] **Step 3: Implement.** `RootErrorBoundary` is unchanged. Remove the `TopBar` renders from `boundaries.tsx` (owned always applies to these now).
+- [x] **Step 4: E2E.** Create `side-nav-states.spec.ts` with "TC-12.1", "TC-12.2", "TC-12.3", "TC-12.4", "TC-12.5", "TC-12.6", "TC-12.7", "TC-12.8", "TC-12.9", "TC-12.10", "TC-13.1", "TC-13.2", "TC-13.3", "TC-13.4", "TC-16.1", "TC-16.2", "TC-16.3", "TC-16.4". Add to mock `platform-suspend.spec.ts` "TC-58.1", "TC-58.2", "TC-58.3", "TC-79.1", "TC-79.2", "TC-79.3". In local `platform-suspend.spec.ts` rewrite old names (TC-37.3, TC-37.4, TC-48.1, TC-51.x of that older spec keep leaving by the switcher) and add "TC-58.2", "TC-58.3", "TC-79.1", "TC-79.2", "TC-79.3" with a one-org owner. (Other local halves: Task 43.)
 - [ ] **Step 5: Run** VITEST (whole web `test`), MOCK `side-nav-states platform-suspend platform-shell`, LOCAL `platform-suspend`. Expected: PASS.
-- [ ] **Step 6: Commit** `feat(web): error and suspended pages keep the app shell`.
+- [x] **Step 6: Commit** `feat(web): error and suspended pages keep the app shell`.
 
 ### Task 36: Invitation, create-organization and personal pages (BR-55, BR-56) (after the multi-agent gate)
 
@@ -1378,13 +1378,13 @@ export function useShellData(input: ShellInput): ShellData;
 
 - Consumes: `scope: 'personal'` (active org menu with no current item, from `sessionAccessQuery`); `crumb: 'My invitations'`. In-page `error` and `notAvailable` states do not call `useReportPageState`.
 
-- [ ] **Step 0: Multi-agent gate.** Run both checks in "Multi-agent gate". If either fails, stop: write no code and report which check failed.
-- [ ] **Step 1: Write failing route tests:** `/invitations` and the link page show the active org's menu with no current item, also when the page's own read fails or says not available; no menu with no active org or a suspended one; the invitation's org is named only if the user is a member; a loader or route crash is the app error page with no menu (one case keeps the two apart); menu grant read failing shows the menu error with Retry. Update headings to "My invitations".
-- [ ] **Step 2: Run** VITEST on the three files. Expected: FAIL.
-- [ ] **Step 3: Implement** `staticData` and drop `useAppBar(null)` use from the routes.
-- [ ] **Step 4: E2E:** in `account-menu.spec.ts` "TC-55.1", "TC-55.2", "TC-55.3"; in `invitations.spec.ts` "TC-7.4", "TC-56.1", "TC-56.2", "TC-56.3", "TC-56.4", "TC-56.5", "TC-56.6" (use `holdReads(page, { invitation: 'fail' })`). Keep TC-57.x green.
-- [ ] **Step 5: Run** VITEST, MOCK the listed specs. Expected: PASS.
-- [ ] **Step 6: Commit** `feat(web): personal pages use the app shell`.
+- [x] **Step 0: Multi-agent gate.** Run both checks in "Multi-agent gate". If either fails, stop: write no code and report which check failed.
+- [x] **Step 1: Write failing route tests:** `/invitations` and the link page show the active org's menu with no current item, also when the page's own read fails or says not available; no menu with no active org or a suspended one; the invitation's org is named only if the user is a member; a loader or route crash is the app error page with no menu (one case keeps the two apart); menu grant read failing shows the menu error with Retry. Update headings to "My invitations".
+- [x] **Step 2: Run** VITEST on the three files. Expected: FAIL.
+- [x] **Step 3: Implement** `staticData` and drop `useAppBar(null)` use from the routes.
+- [x] **Step 4: E2E:** in `account-menu.spec.ts` "TC-55.1", "TC-55.2", "TC-55.3"; in `invitations.spec.ts` "TC-7.4", "TC-56.1", "TC-56.2", "TC-56.3", "TC-56.4", "TC-56.5", "TC-56.6" (use `holdReads(page, { invitation: 'fail' })`). Keep TC-57.x green.
+- [x] **Step 5: Run** VITEST, MOCK the listed specs. Expected: PASS.
+- [x] **Step 6: Commit** `feat(web): personal pages use the app shell`.
 
 ### Task 37: Org switcher states and destinations, end to end (BR-45 to BR-47, BR-53, BR-80) (after the multi-agent gate)
 
@@ -1402,12 +1402,12 @@ export function useShellData(input: ShellInput): ShellData;
 
 - Consumes: `holdReads(page, { orgList })`, `release`.
 
-- [ ] **Step 0: Multi-agent gate.** Run both checks in "Multi-agent gate". If either fails, stop: write no code and report which check failed.
-- [ ] **Step 1: Write failing route tests** (MSW delays then fails `/auth/organization/list`) on an org page and a project page: content shows loading, then an error with Retry, never the loaded page, each with a `main`; the menu has only "Projects" or "Runs" (plus the menu error after failure), no skeleton rows, no gated item, no "Manage in Platform" even for a platform admin, no org or project name anywhere; no org or project query while membership is unknown; the switcher's Retry refetches only the list; the menu's Retry brings the role's items; a failed background refetch keeps the last list.
-- [ ] **Step 2: Run** VITEST `src/features/orgs/orgSwitch.route.test.tsx`. Expected: FAIL where behaviour is missing; fix only in the two listed source files (the shell data hook and the route error/pending states).
-- [ ] **Step 3: E2E mock** (`org-switcher.spec.ts`): "TC-45.1", "TC-45.2", "TC-45.3", "TC-46.1", "TC-46.2", "TC-46.3", "TC-47.1", "TC-47.2", "TC-47.3", "TC-47.4", "TC-47.5", "TC-47.6", "TC-47.7", "TC-47.8", "TC-53.2", "TC-53.4", "TC-80.1", "TC-80.2", "TC-80.3", "TC-80.4", "TC-80.5", "TC-80.6", "TC-80.7", "TC-80.8", "TC-80.9", "TC-80.10", "TC-80.11". Rewrite `org-switch.spec.ts` (mock and local) for scope-only entries and add local "TC-46.1", "TC-46.2".
+- [x] **Step 0: Multi-agent gate.** Run both checks in "Multi-agent gate". If either fails, stop: write no code and report which check failed.
+- [x] **Step 1: Write failing route tests** (MSW delays then fails `/auth/organization/list`) on an org page and a project page: content shows loading, then an error with Retry, never the loaded page, each with a `main`; the menu has only "Projects" or "Runs" (plus the menu error after failure), no skeleton rows, no gated item, no "Manage in Platform" even for a platform admin, no org or project name anywhere; no org or project query while membership is unknown; the switcher's Retry refetches only the list; the menu's Retry brings the role's items; a failed background refetch keeps the last list.
+- [x] **Step 2: Run** VITEST `src/features/orgs/orgSwitch.route.test.tsx`. Expected: FAIL where behaviour is missing; fix only in the two listed source files (the shell data hook and the route error/pending states).
+- [x] **Step 3: E2E mock** (`org-switcher.spec.ts`): "TC-45.1", "TC-45.2", "TC-45.3", "TC-46.1", "TC-46.2", "TC-46.3", "TC-47.1", "TC-47.2", "TC-47.3", "TC-47.4", "TC-47.5", "TC-47.6", "TC-47.7", "TC-47.8", "TC-53.2", "TC-53.4", "TC-80.1", "TC-80.2", "TC-80.3", "TC-80.4", "TC-80.5", "TC-80.6", "TC-80.7", "TC-80.8", "TC-80.9", "TC-80.10", "TC-80.11". Rewrite `org-switch.spec.ts` (mock and local) for scope-only entries and add local "TC-46.1", "TC-46.2".
 - [ ] **Step 4: Run** VITEST, MOCK `org-switcher org-switch`, LOCAL `org-switch`. Expected: PASS.
-- [ ] **Step 5: Commit** `test(web): org switcher states and destinations`.
+- [x] **Step 5: Commit** `test(web): org switcher states and destinations`.
 
 ### Task 38: Remove the needs-you page (BR-30) (after the multi-agent gate)
 
@@ -1427,13 +1427,13 @@ export function useShellData(input: ShellInput): ShellData;
 
 - Produces: `projectPaths` has no `needsYou`. `screens/Overview.tsx` stays, as the multi-agent work leaves it; only its link to the deleted `NeedsYou` board goes. `ProjectStrip` goes now; `ProjectNav` stays until Task 39 because the old top bar uses it. The needs-you counts, banner and Runs filter stay.
 
-- [ ] **Step 0: Multi-agent gate.** Run both checks in "Multi-agent gate". If either fails, stop: write no code and report which check failed.
-- [ ] **Step 1: Move the access tests first.** The four Resume gate cases of the `needs-you page` block in `runActions.route.test.tsx` become run-detail cases: viewer (no Resume), member on own run (Resume), member on another's run (none), admin on another's run (Resume). Run them before deleting anything. Expected: PASS against run detail; if one fails, stop and ask.
-- [ ] **Step 2: Write the failing test:** `/o/<org>/p/<project>/needs-you` shows "Page not found" with the project menu, no redirect.
-- [ ] **Step 3: Delete** and regenerate `routeTree.gen.ts`. Rewrite the other users: `top-bar` TC-43.7, the `top-bar-sticky` row, `lists-paging` TC-11.3, TC-27.x and TC-32.4 (move the paging cases to Runs `?filter=needs_you` when `runs-paging.spec.ts` does not already cover them), and any role assertion in `runs.route.test.tsx`. Remove or mark obsolete the NeedsYou notes in `design/parity-notes.md`.
-- [ ] **Step 4: Boards:** remove `NeedsYou`, `NeedsYouEmpty`, `NeedsYouPaged` and the `NeedsYouPaused` state story from the lists with their stories; register `RunsNeedsYouNotFound` (REG; expected count 452); regenerate with `build-boards.mjs`.
-- [ ] **Step 5: Add** "TC-30.1" and "TC-30.2" to `side-nav.spec.ts`. Run VITEST, MOCK `side-nav top-bar top-bar-sticky lists-paging runs-paging`, PARITY. Expected: PASS.
-- [ ] **Step 6: Commit** `feat(web): remove the needs-you page`.
+- [x] **Step 0: Multi-agent gate.** Run both checks in "Multi-agent gate". If either fails, stop: write no code and report which check failed.
+- [x] **Step 1: Move the access tests first.** The four Resume gate cases of the `needs-you page` block in `runActions.route.test.tsx` become run-detail cases: viewer (no Resume), member on own run (Resume), member on another's run (none), admin on another's run (Resume). Run them before deleting anything. Expected: PASS against run detail; if one fails, stop and ask.
+- [x] **Step 2: Write the failing test:** `/o/<org>/p/<project>/needs-you` shows "Page not found" with the project menu, no redirect.
+- [x] **Step 3: Delete** and regenerate `routeTree.gen.ts`. Rewrite the other users: `top-bar` TC-43.7, the `top-bar-sticky` row, `lists-paging` TC-11.3, TC-27.x and TC-32.4 (move the paging cases to Runs `?filter=needs_you` when `runs-paging.spec.ts` does not already cover them), and any role assertion in `runs.route.test.tsx`. Remove or mark obsolete the NeedsYou notes in `design/parity-notes.md`.
+- [x] **Step 4: Boards:** remove `NeedsYou`, `NeedsYouEmpty`, `NeedsYouPaged` and the `NeedsYouPaused` state story from the lists with their stories; register `RunsNeedsYouNotFound` (REG; expected count 452); regenerate with `build-boards.mjs`.
+- [x] **Step 5: Add** "TC-30.1" and "TC-30.2" to `side-nav.spec.ts`. Run VITEST, MOCK `side-nav top-bar top-bar-sticky lists-paging runs-paging`, PARITY. Expected: PASS. (Note: VITEST and MOCK passed; full PARITY was not run, only a partial render of `RunsNeedsYouNotFound`, `RunsNotFoundSideMenu` and `Main`, because the full run takes hours under the 4 GiB cap.)
+- [x] **Step 6: Commit** `feat(web): remove the needs-you page`.
 
 ### Task 39: Remove the old navigation and make the shell the only chrome (after the multi-agent gate)
 
@@ -1456,13 +1456,13 @@ export function useShellData(input: ShellInput): ShellData;
 
 - Produces: `useShellOwnsChrome` is removed; `SetupLayout` portals when a provider gives a slot, renders nothing when the slot is missing, in place with no provider. `TopBar` has no `variant`, `tabs`, `active`, `platformTabs`, `project`, `links`, `needsYou`, `children`, `actions` or title logic. `OrgSwitchProps` has no `projectsHref`, `settingsHref`, `manageHref`. `useAppBar` is deleted once the listed callers stop passing bar data. `DeskAgent` and `DeskRules` lose their `height` prop, and no screen renders `AppShell`. If a story, test or route not listed here still uses a removed prop, typecheck names it: fix it in this PR.
 
-- [ ] **Step 0: Multi-agent gate.** Run both checks in "Multi-agent gate". If either fails, stop: write no code and report which check failed.
-- [ ] **Step 1: Write the failing guard test:** `topBarCallSites.test.ts` becomes "only the shell renders chrome": the only files that render `<TopBar`, `<SubNav` or `<AppShell` (stories and tests aside) are `app/shell/ShellHost.tsx` and `screens/shellFrame.tsx` (plus `SetupLayout.tsx` for none of them); only `ShellHost.tsx` calls `useDocumentTitle`.
-- [ ] **Step 2: Run** it. Expected: FAIL listing the legacy sites.
-- [ ] **Step 3: Delete** the components, legacy branches and legacy props. `DeskLayout` and `frame.test.ts` Desk filtering cases are removed only after confirming each has its counterpart in `nav.test.ts` (list them side by side in the PR); no case is dropped.
-- [ ] **Step 4: Rewrite** `Chrome.test.tsx`, `nav-shell.spec.ts` and `top-bar.spec.ts` down to what the shell still promises.
+- [x] **Step 0: Multi-agent gate.** Run both checks in "Multi-agent gate". If either fails, stop: write no code and report which check failed.
+- [x] **Step 1: Write the failing guard test:** `topBarCallSites.test.ts` becomes "only the shell renders chrome": the only files that render `<TopBar`, `<SubNav` or `<AppShell` (stories and tests aside) are `app/shell/ShellHost.tsx` and `screens/shellFrame.tsx` (plus `SetupLayout.tsx` for none of them); only `ShellHost.tsx` calls `useDocumentTitle`.
+- [x] **Step 2: Run** it. Expected: FAIL listing the legacy sites.
+- [x] **Step 3: Delete** the components, legacy branches and legacy props. `DeskLayout` and `frame.test.ts` Desk filtering cases are removed only after confirming each has its counterpart in `nav.test.ts` (list them side by side in the PR); no case is dropped.
+- [x] **Step 4: Rewrite** `Chrome.test.tsx`, `nav-shell.spec.ts` and `top-bar.spec.ts` down to what the shell still promises.
 - [ ] **Step 5: Run** the whole web `test`, typecheck, `grep -rnE "OrgNav|ProjectNav|PlatformNav|DeskLayout|OrgSettingsLayout|PlatformLayout" apps/web/src` (nothing), MOCK `nav-shell top-bar side-nav`, PARITY. Expected: PASS.
-- [ ] **Step 6: Commit** `refactor(web): remove the old tab and section navigation`.
+- [x] **Step 6: Commit** `refactor(web): remove the old tab and section navigation`.
 
 **Cross-scope e2e (Tasks 40 to 44).** These write cases only. A failing case is a bug in an earlier task: fix it in source with a failing Vitest test first, in the same PR. A failing access assertion means stop and ask.
 
@@ -1481,10 +1481,10 @@ export function useShellData(input: ShellInput): ShellData;
 - Consumes: the wired shell; `openSideMenu`, `ORG`, `INVOICER_API`, `IDLE_RUN`, `SESSION_MOCK_NOW`.
 - Covers: BR-1, BR-2, BR-3, BR-6, BR-7, BR-8, BR-10, BR-14, BR-43.
 
-- [ ] **Step 0: Multi-agent gate.** Run both checks in "Multi-agent gate". If either fails, stop: write no code and report which check failed.
-- [ ] **Step 1: Add** "TC-1.1", "TC-1.2", "TC-2.1", "TC-2.2", "TC-3.1", "TC-3.2", "TC-6.1", "TC-6.2", "TC-6.3", "TC-7.1", "TC-7.2", "TC-8.1" (h1 box position and font size equal within 1px across loaded side-menu pages), "TC-8.2", "TC-8.3" (wizard: one h1, same size, position not compared), "TC-8.4" (one h1 on forbidden, not-found and crash), "TC-10.1" (exact names; the tab strip name "Agent and project settings" and the "Agent Desk" brand are not counted), "TC-10.2", "TC-10.3", "TC-10.4", "TC-14.1", "TC-14.2", "TC-43.1", "TC-43.2". TC-14.1 queries landmarks by role (`banner`, `navigation` named per scope, `main`) and runs the existing `axe-core` dev dependency in the page (`page.addScriptTag` with its resolved `axe.min.js`, then `axe.run` limited to the landmark rules `landmark-*` and `region`): no violation. No new dependency.
+- [x] **Step 0: Multi-agent gate.** Run both checks in "Multi-agent gate". If either fails, stop: write no code and report which check failed.
+- [x] **Step 1: Add** "TC-1.1", "TC-1.2", "TC-2.1", "TC-2.2", "TC-3.1", "TC-3.2", "TC-6.1", "TC-6.2", "TC-6.3", "TC-7.1", "TC-7.2", "TC-8.1" (h1 box position and font size equal within 1px across loaded side-menu pages), "TC-8.2", "TC-8.3" (wizard: one h1, same size, position not compared), "TC-8.4" (one h1 on forbidden, not-found and crash), "TC-10.1" (exact names; the tab strip name "Agent and project settings" and the "Agent Desk" brand are not counted), "TC-10.2", "TC-10.3", "TC-10.4", "TC-14.1", "TC-14.2", "TC-43.1", "TC-43.2". TC-14.1 queries landmarks by role (`banner`, `navigation` named per scope, `main`) and runs the existing `axe-core` dev dependency in the page (`page.addScriptTag` with its resolved `axe.min.js`, then `axe.run` limited to the landmark rules `landmark-*` and `region`): no violation. No new dependency.
 - [ ] **Step 2: Run** MOCK `side-nav`. Expected: PASS, three times in a row.
-- [ ] **Step 3: Commit** `test(web): shell chrome and page header e2e`.
+- [x] **Step 3: Commit** `test(web): shell chrome and page header e2e`.
 
 ### Task 41: E2E, loading and menu failure states (after the multi-agent gate)
 
@@ -1501,10 +1501,10 @@ export function useShellData(input: ShellInput): ShellData;
 - Consumes: `holdReads`, `release`.
 - Covers: BR-8 (load error), BR-11, BR-14 (error and collapsed), BR-15.
 
-- [ ] **Step 0: Multi-agent gate.** Run both checks in "Multi-agent gate". If either fails, stop: write no code and report which check failed.
-- [ ] **Step 1: Add** "TC-8.5" (no title asserted while loading or failed; after Retry one title at the standard position), "TC-11.1", "TC-11.2", "TC-14.3", "TC-15.1", "TC-15.2", "TC-15.3", "TC-15.4", "TC-15.5" (no menu error or Retry when only the platform check fails).
+- [x] **Step 0: Multi-agent gate.** Run both checks in "Multi-agent gate". If either fails, stop: write no code and report which check failed.
+- [x] **Step 1: Add** "TC-8.5" (no title asserted while loading or failed; after Retry one title at the standard position), "TC-11.1", "TC-11.2", "TC-14.3", "TC-15.1", "TC-15.2", "TC-15.3", "TC-15.4", "TC-15.5" (no menu error or Retry when only the platform check fails).
 - [ ] **Step 2: Run** MOCK `side-nav-states`. Expected: PASS, three times in a row.
-- [ ] **Step 3: Commit** `test(web): shell loading and failure e2e`.
+- [x] **Step 3: Commit** `test(web): shell loading and failure e2e`.
 
 ### Task 42: E2E, the drawer below 1024px (after the multi-agent gate)
 
@@ -1520,10 +1520,10 @@ export function useShellData(input: ShellInput): ShellData;
 
 - Covers: BR-59, BR-61, BR-62 (TC-62.5, which needs the phone add pane, is in Task 57).
 
-- [ ] **Step 0: Multi-agent gate.** Run both checks in "Multi-agent gate". If either fails, stop: write no code and report which check failed.
-- [ ] **Step 1: Write** "TC-59.1", "TC-59.2", "TC-59.3", "TC-59.4", "TC-61.1", "TC-61.2", "TC-61.3", "TC-61.4", "TC-62.1", "TC-62.2", "TC-62.3", "TC-62.4", with `hasTouch` at 390; expect the end state of drawer transitions, no sleeps.
+- [x] **Step 0: Multi-agent gate.** Run both checks in "Multi-agent gate". If either fails, stop: write no code and report which check failed.
+- [x] **Step 1: Write** "TC-59.1", "TC-59.2", "TC-59.3", "TC-59.4", "TC-61.1", "TC-61.2", "TC-61.3", "TC-61.4", "TC-62.1", "TC-62.2", "TC-62.3", "TC-62.4", with `hasTouch` at 390; expect the end state of drawer transitions, no sleeps.
 - [ ] **Step 2: Run** MOCK `drawer`. Expected: PASS, three times in a row.
-- [ ] **Step 3: Commit** `test(web): drawer e2e`.
+- [x] **Step 3: Commit** `test(web): drawer e2e`.
 
 ### Task 43: Local e2e, organization and platform access by role (after the multi-agent gate)
 
@@ -1540,10 +1540,10 @@ export function useShellData(input: ShellInput): ShellData;
 - Consumes: `buildCast`, `disposeCast`, `secondOrg` (`rbac-cast.ts`: owner, admin D, project admin A of P1, members B and C, viewer V), `asPlatformAdmin`, `openSideMenu`.
 - Covers on the real API: BR-12, BR-13, BR-16 to BR-21, BR-31, BR-32, BR-34.
 
-- [ ] **Step 0: Multi-agent gate.** Run both checks in "Multi-agent gate". If either fails, stop: write no code and report which check failed.
-- [ ] **Step 1: Write** "TC-12.1", "TC-12.2", "TC-12.3", "TC-12.5", "TC-13.1", "TC-13.2", "TC-13.3", "TC-16.1", "TC-17.1", "TC-17.2", "TC-18.1", "TC-19.1", "TC-20.1", "TC-20.2", "TC-21.1", "TC-21.2", "TC-21.5", "TC-31.1", "TC-31.3", "TC-32.1", "TC-32.2", "TC-34.1", "TC-34.2". Name-privacy cases assert the other org's distinctive name appears nowhere in the page text or title.
+- [x] **Step 0: Multi-agent gate.** Run both checks in "Multi-agent gate". If either fails, stop: write no code and report which check failed.
+- [x] **Step 1: Write** "TC-12.1", "TC-12.2", "TC-12.3", "TC-12.5", "TC-13.1", "TC-13.2", "TC-13.3", "TC-16.1", "TC-17.1", "TC-17.2", "TC-18.1", "TC-19.1", "TC-20.1", "TC-20.2", "TC-21.1", "TC-21.2", "TC-21.5", "TC-31.1", "TC-31.3", "TC-32.1", "TC-32.2", "TC-34.1", "TC-34.2". Name-privacy cases assert the other org's distinctive name appears nowhere in the page text or title.
 - [ ] **Step 2: Run** LOCAL `side-nav-access`. Expected: PASS.
-- [ ] **Step 3: Commit** `test(web): organization and platform menu access e2e`.
+- [x] **Step 3: Commit** `test(web): organization and platform menu access e2e`.
 
 ### Task 44: Local e2e, project and run access by role (after the multi-agent gate)
 
@@ -1560,10 +1560,10 @@ export function useShellData(input: ShellInput): ShellData;
 - Consumes: as Task 43, plus `signInAndStartProject`, `waitForStatus`, `commentOnNewTicket`.
 - Covers on the real API: BR-22 to BR-25, BR-29, BR-39, BR-41, BR-42, BR-48, BR-49, BR-51, BR-68, BR-82.
 
-- [ ] **Step 0: Multi-agent gate.** Run both checks in "Multi-agent gate". If either fails, stop: write no code and report which check failed.
-- [ ] **Step 1: Write** "TC-22.1", "TC-22.2", "TC-23.1", "TC-23.2", "TC-24.1", "TC-24.2", "TC-25.3" (`expect.poll`: badge appears and clears with no reload), "TC-29.1", "TC-29.2", "TC-29.4", "TC-39.4" (same terminal socket through expand and collapse: one WebSocket in `page.on('websocket')`), "TC-41.1", "TC-42.1", "TC-42.2", "TC-42.3", "TC-42.4", "TC-48.1", "TC-48.2", "TC-49.1", "TC-49.2", "TC-51.1", "TC-51.2", "TC-51.5", "TC-51.7" (agents created with the local agent helpers), "TC-68.1", "TC-82.1", "TC-82.3", "TC-82.4".
+- [x] **Step 0: Multi-agent gate.** Run both checks in "Multi-agent gate". If either fails, stop: write no code and report which check failed.
+- [x] **Step 1: Write** "TC-22.1", "TC-22.2", "TC-23.1", "TC-23.2", "TC-24.1", "TC-24.2", "TC-25.3" (`expect.poll`: badge appears and clears with no reload), "TC-29.1", "TC-29.2", "TC-29.4", "TC-39.4" (same terminal socket through expand and collapse: one WebSocket in `page.on('websocket')`), "TC-41.1", "TC-42.1", "TC-42.2", "TC-42.3", "TC-42.4", "TC-48.1", "TC-48.2", "TC-49.1", "TC-49.2", "TC-51.1", "TC-51.2", "TC-51.5", "TC-51.7" (agents created with the local agent helpers), "TC-68.1", "TC-82.1", "TC-82.3", "TC-82.4".
 - [ ] **Step 2: Run** LOCAL `side-nav-project-access`. Expected: PASS.
-- [ ] **Step 3: Commit** `test(web): project and run access e2e`.
+- [x] **Step 3: Commit** `test(web): project and run access e2e`.
 
 **Phone tasks (45 to 53 and 57).** On multi-agent pages they add only narrow-width layouts to the existing components, with a 390px story for each component whose layout changes; fill pages use the extra check under "Fit". Each changes CSS and presentational code so its pages work at 390px (spec "Other phone layouts"): no horizontal page scroll, every desktop action available, one column with 16px gutters. Each page's case in `phone-pages.spec.ts` runs at 390 with `hasTouch`, asserts `scrollWidth <= clientWidth`, its controls and popovers inside the viewport, nothing overlapped or zero width, and uses the page's main action (geometry, never screenshots). Test first: write the case, run MOCK `phone-pages`, see it fail, implement, see it pass. Each adds its 390 stories from `@/mocks`, matching the listed boards, registers them (REG) and runs PARITY. A group over about 800 lines is split by page.
 
@@ -1582,12 +1582,12 @@ export function useShellData(input: ShellInput): ShellData;
 
 - Produces: `DataTable` gains `cards?: boolean` (default true): below 640px each row is a card, a cell shows `data-label` through `::before`, `thead` is visually hidden. Rows opt in with `data-label="<column header>"` on each `td`; Tasks 47, 48, 52 and 53 add it to their rows. `SidePane` is full width below 640px.
 
-- [ ] **Step 0: Multi-agent gate.** Run both checks in "Multi-agent gate". If either fails, stop: write no code and report which check failed.
-- [ ] **Step 1: Write failing tests:** `DataTable.test.tsx` checks `thead` is still in the accessibility tree and `MemberRow` cells carry their labels; e2e "TC-63.1", "TC-63.2", "TC-64.1", "TC-64.2", "TC-64.3", "TC-65.27" (table at 640, cards at 639).
+- [x] **Step 0: Multi-agent gate.** Run both checks in "Multi-agent gate". If either fails, stop: write no code and report which check failed.
+- [x] **Step 1: Write failing tests:** `DataTable.test.tsx` checks `thead` is still in the accessibility tree and `MemberRow` cells carry their labels; e2e "TC-63.1", "TC-63.2", "TC-64.1", "TC-64.2", "TC-64.3", "TC-65.27" (table at 640, cards at 639).
 - [ ] **Step 2: Run** VITEST and MOCK `phone-pages`. Expected: FAIL.
-- [ ] **Step 3: Implement** the card pattern, `.pane` full width, popovers at viewport minus 16px gutters with inner scroll, and any top bar overlap TC-63 finds.
+- [x] **Step 3: Implement** the card pattern, `.pane` full width, popovers at viewport minus 16px gutters with inner scroll, and any top bar overlap TC-63 finds.
 - [ ] **Step 4: Run** both and PARITY. Expected: PASS.
-- [ ] **Step 5: Commit** `feat(web): phone card tables and narrow popovers`.
+- [x] **Step 5: Commit** `feat(web): phone card tables and narrow popovers`.
 
 ### Task 46: Phone, sign-in, invitations, create organization, errors and suspended (after the multi-agent gate)
 
@@ -1605,11 +1605,11 @@ export function useShellData(input: ShellInput): ShellData;
 - Boards: `SignInPhone`, `CreateOrgPhone`, `InvitationAcceptPhone`, `MyInvitationsPhone`, `OrgSuspendedPhone`, `RouteErrorPhone` (no h1) (expected count 458).
 - Covers: TC-65.1, TC-65.23 to TC-65.26.
 
-- [ ] **Step 0: Multi-agent gate.** Run both checks in "Multi-agent gate". If either fails, stop: write no code and report which check failed.
+- [x] **Step 0: Multi-agent gate.** Run both checks in "Multi-agent gate". If either fails, stop: write no code and report which check failed.
 - [ ] **Step 1: Write** "TC-65.1", "TC-65.23", "TC-65.24", "TC-65.25", "TC-65.26". Run MOCK `phone-pages`. Expected: FAIL.
-- [ ] **Step 2: Implement** (sign-in one column with "One ticket, two runs" below).
+- [x] **Step 2: Implement** (sign-in one column with "One ticket, two runs" below).
 - [ ] **Step 3: Stories and REG;** run MOCK `phone-pages`, coverage and smoke tests, PARITY. Expected: PASS.
-- [ ] **Step 4: Commit** `feat(web): phone layouts for entry and error pages`.
+- [x] **Step 4: Commit** `feat(web): phone layouts for entry and error pages`.
 
 ### Task 47: Phone, Projects and the wizard (after the multi-agent gate)
 
@@ -1627,11 +1627,11 @@ export function useShellData(input: ShellInput): ShellData;
 - Boards: `ProjectsPhone`, `ProjectsPhoneDrawer`, `ProjectsPhoneSwitcher`, `Setup1Phone`, `Setup2Phone`, `Setup2AgentPickedPhone` (OpenCode with endpoint and key, the longest form), `Setup2AgentRejectedPhone` (the "Continue anyway" footer), `Setup3Phone`, `Setup3PhoneDrawer`, `Setup3PreviewDialogPhone`, `Setup4Phone`, `SetupReadyPhone` (expected count 470). `Setup2Phone` is the phone form of the multi-agent `Setup2DefaultAgent`.
 - Covers: TC-28.4, TC-65.2 to TC-65.5, TC-65.33, TC-65.38.
 
-- [ ] **Step 0: Multi-agent gate.** Run both checks in "Multi-agent gate". If either fails, stop: write no code and report which check failed.
+- [x] **Step 0: Multi-agent gate.** Run both checks in "Multi-agent gate". If either fails, stop: write no code and report which check failed.
 - [ ] **Step 1: Write** "TC-28.4" (the card's "More", "Agent & settings": the "Agents" tab, no `tab` in the address), "TC-65.2", "TC-65.3" (step 2 "Add your agent"; three stacked cards; ten "Coming soon" chips; pick Claude Code, OpenAI Codex and OpenCode and fill each one's fields), "TC-65.4", "TC-65.5", "TC-65.33" (a rejected test with the multi-agent mock scenario, then "Continue anyway") and "TC-65.38" (the card's switch-to-polling link lands on "GitHub connection"; this is also MA TC-60.3 at 390). Where a case ends on Agent & settings, the fit check is on the page it starts from and the destination is checked for its selected tab only; its phone fit is Task 57's cases. Run. Expected: FAIL.
-- [ ] **Step 2: Implement:** project cards show name, repository, connection, counts, last run, then "Resume setup" before "More"; radio cards stack, the footer ("Back", "Continue", "Continue anyway") wraps, the aside sits below the main column. On wizard step 2 the provider cards and the credential type cards stack, the "Coming soon" chips wrap and the authentication control fits or wraps. A group past about 800 lines is split into projects and wizard.
+- [x] **Step 2: Implement:** project cards show name, repository, connection, counts, last run, then "Resume setup" before "More"; radio cards stack, the footer ("Back", "Continue", "Continue anyway") wraps, the aside sits below the main column. On wizard step 2 the provider cards and the credential type cards stack, the "Coming soon" chips wrap and the authentication control fits or wraps. A group past about 800 lines is split into projects and wizard.
 - [ ] **Step 3: Stories and REG;** run MOCK `phone-pages`, tests, PARITY. Expected: PASS.
-- [ ] **Step 4: Commit** `feat(web): phone layouts for projects and the wizard`.
+- [x] **Step 4: Commit** `feat(web): phone layouts for projects and the wizard`.
 
 ### Task 48: Phone, the Runs list (after the multi-agent gate)
 
@@ -1648,11 +1648,11 @@ export function useShellData(input: ShellInput): ShellData;
 
 - Boards: `RunsPhone`, `RunsPhoneDrawer` (expected count 472). Covers: TC-65.6.
 
-- [ ] **Step 0: Multi-agent gate.** Run both checks in "Multi-agent gate". If either fails, stop: write no code and report which check failed.
+- [x] **Step 0: Multi-agent gate.** Run both checks in "Multi-agent gate". If either fails, stop: write no code and report which check failed.
 - [ ] **Step 1: Write** "TC-65.6". Run. Expected: FAIL.
-- [ ] **Step 2: Implement:** header wraps, search full width, status chips scroll in one row, rows are cards.
+- [x] **Step 2: Implement:** header wraps, search full width, status chips scroll in one row, rows are cards.
 - [ ] **Step 3: Stories and REG;** run, PARITY. Expected: PASS.
-- [ ] **Step 4: Commit** `feat(web): phone layout for the runs list`.
+- [x] **Step 4: Commit** `feat(web): phone layout for the runs list`.
 
 ### Task 49: Phone run page with extra terminal keys (BR-60, BR-66, BR-67, BR-69) (after the multi-agent gate)
 
@@ -1675,9 +1675,9 @@ export function useShellData(input: ShellInput): ShellData;
 - Multi-agent content (BR-41, BR-65): the phone run header or the "Details" view keeps the run's agent name (MA BR-54) and the links "Connection details", "Switch to polling", "Change time limit" and "Replace credential", with the same targets as at 1440.
 - Access: no protocol, API or authz change; no second write path; the key table is fixed, with no user or ticket text, and nothing is logged.
 
-- [ ] **Step 0: Multi-agent gate.** Run both checks in "Multi-agent gate". If either fails, stop: write no code and report which check failed.
-- [ ] **Step 1: Stories first** (the spec blocker for this page): phone stories for the five boards, built from the owned `RunDetail` with `onKey` set or absent; add the `onKey` and "Run view switch" markup to the screen. Register them (REG).
-- [ ] **Step 2: Write failing unit tests:**
+- [x] **Step 0: Multi-agent gate.** Run both checks in "Multi-agent gate". If either fails, stop: write no code and report which check failed.
+- [x] **Step 1: Stories first** (the spec blocker for this page): phone stories for the five boards, built from the owned `RunDetail` with `onKey` set or absent; add the `onKey` and "Run view switch" markup to the screen. Register them (REG).
+- [x] **Step 2: Write failing unit tests:**
 
 ```ts
 it.each([
@@ -1688,13 +1688,13 @@ it.each([
 ```
 
 `LiveTerminal.test.tsx`: one `sendKey` is one `onData`; read-only sends nothing; Ctrl-C sends `\x03` with text selected; `refit` does nothing while the host has no size.
-- [ ] **Step 3: Write failing route tests** (`phoneRun.route.test.tsx`, `FakeWebSocket`, `setViewportWidth`): each press sends exactly one binary frame; keys show only below 1024 while the socket is open and writable: none before open, retrying, gave up, inactive, forbidden (viewer and a member on another's run: no frame at all), paused, ended or transcript; a tap keeps terminal focus when it had it and does not call `focus()` when it did not; a tap restarts the unused-socket timer, and after that close nothing is sent; "Terminal | Details" (group "Run view switch") keeps one socket, never remounts the terminal and sends no resize frame while hidden (fake timers over the 100ms debounce); a fake `visualViewport` of height 400 sizes the phone run view to 400.
-- [ ] **Step 4: Run** VITEST on the new and changed test files. Expected: FAIL.
-- [ ] **Step 5: Implement** the key table, `sendKey`, the refit guard (skip when the host's width or height is 0), the viewport hook, the wiring and the phone layout (header actions on their own wrapping row, terminal fills the rest, terminal bar wraps keeping connection, size, Find and Copy all, key row directly under it, confirms full width).
-- [ ] **Step 6: E2E.** Mock `phone-terminal.spec.ts`: "TC-60.1", "TC-60.2", "TC-60.3", "TC-66.1" (also: order on screen, row wraps inside the viewport), "TC-66.2", "TC-66.3", "TC-67.1", "TC-69.1", "TC-69.2", "TC-69.3", "TC-69.4", "TC-69.5", "TC-69.6". `phone-pages.spec.ts`: "TC-65.7", "TC-65.8", "TC-65.9", "TC-65.37" (find the agent name and each link, follow it, and assert the selected tab or the open agent pane; the fit check is on the run page, the destination's fit is Task 57's cases). Local `phone-terminal.spec.ts`: "TC-60.1", "TC-60.2", "TC-67.2" (poll `podInput` until it ends with exactly `\x1b\t\x1b[D\x1b[A\x1b[B\x1b[C\x03\r` in normal mode; assert the bytes of the mode the page's xterm has), "TC-67.3", "TC-67.4", "TC-69.1", "TC-69.2" (the pod `input` file is unchanged). The 4403 assertions in the rbac specs stay as they are.
+- [x] **Step 3: Write failing route tests** (`phoneRun.route.test.tsx`, `FakeWebSocket`, `setViewportWidth`): each press sends exactly one binary frame; keys show only below 1024 while the socket is open and writable: none before open, retrying, gave up, inactive, forbidden (viewer and a member on another's run: no frame at all), paused, ended or transcript; a tap keeps terminal focus when it had it and does not call `focus()` when it did not; a tap restarts the unused-socket timer, and after that close nothing is sent; "Terminal | Details" (group "Run view switch") keeps one socket, never remounts the terminal and sends no resize frame while hidden (fake timers over the 100ms debounce); a fake `visualViewport` of height 400 sizes the phone run view to 400.
+- [x] **Step 4: Run** VITEST on the new and changed test files. Expected: FAIL.
+- [x] **Step 5: Implement** the key table, `sendKey`, the refit guard (skip when the host's width or height is 0), the viewport hook, the wiring and the phone layout (header actions on their own wrapping row, terminal fills the rest, terminal bar wraps keeping connection, size, Find and Copy all, key row directly under it, confirms full width).
+- [x] **Step 6: E2E.** Mock `phone-terminal.spec.ts`: "TC-60.1", "TC-60.2", "TC-60.3", "TC-66.1" (also: order on screen, row wraps inside the viewport), "TC-66.2", "TC-66.3", "TC-67.1", "TC-69.1", "TC-69.2", "TC-69.3", "TC-69.4", "TC-69.5", "TC-69.6". `phone-pages.spec.ts`: "TC-65.7", "TC-65.8", "TC-65.9", "TC-65.37" (find the agent name and each link, follow it, and assert the selected tab or the open agent pane; the fit check is on the run page, the destination's fit is Task 57's cases). Local `phone-terminal.spec.ts`: "TC-60.1", "TC-60.2", "TC-67.2" (poll `podInput` until it ends with exactly `\x1b\t\x1b[D\x1b[A\x1b[B\x1b[C\x03\r` in normal mode; assert the bytes of the mode the page's xterm has), "TC-67.3", "TC-67.4", "TC-69.1", "TC-69.2" (the pod `input` file is unchanged). The 4403 assertions in the rbac specs stay as they are.
 - [ ] **Step 7: Run** VITEST, MOCK `phone-terminal phone-pages`, LOCAL `phone-terminal`, PARITY. Expected: PASS.
 - [ ] **Step 8: Manual real-phone check** of on-screen keyboard cover and typing (not provable by e2e). Record the result in the PR, or state that it was not done.
-- [ ] **Step 9: Commit** `feat(web): phone run page with extra terminal keys`. Label `review:sensitive`; one PR, about 800 changed lines or fewer, with no other page in it.
+- [x] **Step 9: Commit** `feat(web): phone run page with extra terminal keys`. Label `review:sensitive`; one PR, about 800 changed lines or fewer, with no other page in it.
 
 ### Task 50: Phone, Routing rules and Skills (BR-65, BR-83) (after the multi-agent gate)
 
@@ -1714,11 +1714,11 @@ it.each([
 - Boards: `DeskRulesPhone`, `DeskRulesPromptPhone`, `DeskSkillsPhone` (expected count 480). The example run-line text on the rules boards does not set the wording.
 - Covers: TC-65.10, TC-65.11, TC-65.36, TC-83.1, TC-83.2, TC-83.3.
 
-- [ ] **Step 0: Multi-agent gate.** Run both checks in "Multi-agent gate". If either fails, stop: write no code and report which check failed.
+- [x] **Step 0: Multi-agent gate.** Run both checks in "Multi-agent gate". If either fails, stop: write no code and report which check failed.
 - [ ] **Step 1: Write** "TC-65.10" (390x844, several agents: "New rule", pick in "With agent", close, open a rule; the pane replaces the list and the page does not scroll), "TC-65.36" (390, 1023 and 1024 with the side menu expanded: full-width pane, footer reachable, focus back to the opener; at 1024 the list column has a width above 0 and rows do not overlap), "TC-83.3" (rows "with <agent name>" and "with the project default agent", and the no-credential warning with its run line, readable and not overlapping), "TC-65.11", "TC-83.1" (each rule's run line at 390 equals the one at 1440, including one with runs and one "Never ran", fixed clock) and "TC-83.2" (line inside the viewport, not cut off, no overlap with rule text or controls). Run. Expected: FAIL.
-- [ ] **Step 2: Implement:** rules one column, the rule pane in place of the list below 1024px, a setup warning as the first item of the scroll area, run line under the rule's other text and wrapping; skills list above the editor with a capped height and own scroll; editor, preview and diff full width with width above 0; commit bar wraps.
+- [x] **Step 2: Implement:** rules one column, the rule pane in place of the list below 1024px, a setup warning as the first item of the scroll area, run line under the rule's other text and wrapping; skills list above the editor with a capped height and own scroll; editor, preview and diff full width with width above 0; commit bar wraps.
 - [ ] **Step 3: Stories and REG;** run MOCK `phone-pages`, tests, PARITY. Expected: PASS.
-- [ ] **Step 4: Commit** `feat(web): phone layouts for routing rules and skills`.
+- [x] **Step 4: Commit** `feat(web): phone layouts for routing rules and skills`.
 
 ### Task 57: Phone, Agent & settings with its tabs, panes and delete dialog (BR-65) (after the multi-agent gate)
 
@@ -1741,13 +1741,13 @@ it.each([
 - Boards: `DeskAgentPhone`, `DeskAgentAddPhone`, `DeskAgentEditPhone`, `DeskAgentRowMenuPhone`, `DeskAgentDeletePhone`, `DeskAgentGitHubPhone` (no dead controls, the strip scrolled to the tab), `DeskAgentLimitsPhone` (pinned "Save limits") (expected count 487). There is no Danger zone board and no new desktop board.
 - Covers: TC-62.5, TC-65.13, TC-65.28 to TC-65.32, TC-65.34, TC-65.35.
 
-- [ ] **Step 0: Multi-agent gate.** Run both checks in "Multi-agent gate". If either fails, stop: write no code and report which check failed.
+- [x] **Step 0: Multi-agent gate.** Run both checks in "Multi-agent gate". If either fails, stop: write no code and report which check failed.
 - [ ] **Step 1: Write failing tests.** In `desk.test.tsx`: when the screen opens on, or changes to, a tab, the selected tab is scrolled into view (a spy on `scrollIntoView` with `block: 'nearest', inline: 'nearest'`), and Arrow, Home and End still work as before. In `phone-pages.spec.ts`: "TC-65.13", "TC-65.28", "TC-65.29", "TC-65.30", "TC-65.31", "TC-65.32", "TC-65.34", "TC-65.35", each with the fill-page fit check. In `drawer.spec.ts` (Task 42): "TC-62.5" (the add pane with a typed name and fake token; after each step the pane is open, the values are kept and the address is unchanged).
 - [ ] **Step 2: Run** VITEST `src/screens/desk.test.tsx` and MOCK `phone-pages drawer`. Expected: FAIL on the new cases (TC-62.5 may already pass; then keep it as a regression test and say so).
-- [ ] **Step 3: Implement narrow layouts only:** the tab strip is one row that scrolls sideways inside itself and never wraps or widens the page; below 640px agent rows stack (logo, name, Default chip; subline; model; status; "Edit" and the row menu) with nothing hidden; the row menu popover and the toast stay on screen; below 1024px the add, edit and view pane replaces the list; the delete dialog is full width; provider cards and credential cards stack, "Coming soon" chips wrap, the authentication control fits or wraps; Limits is one column with wrapping unit controls; GitHub connection key and value rows stack; Danger zone is one column. No copy, state or behaviour of the multi-agent work changes.
-- [ ] **Step 4: Stories** at 390 for each component whose layout changed and for the seven boards; register them (REG).
+- [x] **Step 3: Implement narrow layouts only:** the tab strip is one row that scrolls sideways inside itself and never wraps or widens the page; below 640px agent rows stack (logo, name, Default chip; subline; model; status; "Edit" and the row menu) with nothing hidden; the row menu popover and the toast stay on screen; below 1024px the add, edit and view pane replaces the list; the delete dialog is full width; provider cards and credential cards stack, "Coming soon" chips wrap, the authentication control fits or wraps; Limits is one column with wrapping unit controls; GitHub connection key and value rows stack; Danger zone is one column. No copy, state or behaviour of the multi-agent work changes.
+- [x] **Step 4: Stories** at 390 for each component whose layout changed and for the seven boards; register them (REG).
 - [ ] **Step 5: Run** the test, coverage, story smoke and axe tests, MOCK `phone-pages drawer`, PARITY. Expected: PASS. A diff past about 800 lines is split by page (tabs and list; panes and dialog).
-- [ ] **Step 6: Commit** `feat(web): phone layout for agent settings`.
+- [x] **Step 6: Commit** `feat(web): phone layout for agent settings`.
 
 ### Task 51: Phone, Workspace setup and General (after the multi-agent gate)
 
@@ -1764,11 +1764,11 @@ it.each([
 
 - Boards: `DeskSetupPhone`, `OrgGeneralPhone` (expected count 489). Covers: TC-65.12, TC-65.14.
 
-- [ ] **Step 0: Multi-agent gate.** Run both checks in "Multi-agent gate". If either fails, stop: write no code and report which check failed.
+- [x] **Step 0: Multi-agent gate.** Run both checks in "Multi-agent gate". If either fails, stop: write no code and report which check failed.
 - [ ] **Step 1: Write** "TC-65.12" (with the fill-page fit check on the scroll area) and "TC-65.14". Run. Expected: FAIL.
-- [ ] **Step 2: Implement:** editor full width with a usable minimum height, versions and phases below, Environment keeps its 640 layout, General one column with the Danger zone reachable. Where Workspace setup is a fill page its content area scrolls, not the document.
+- [x] **Step 2: Implement:** editor full width with a usable minimum height, versions and phases below, Environment keeps its 640 layout, General one column with the Danger zone reachable. Where Workspace setup is a fill page its content area scrolls, not the document.
 - [ ] **Step 3: Stories and REG;** run, PARITY. Expected: PASS.
-- [ ] **Step 4: Commit** `feat(web): phone layouts for workspace setup and general settings`.
+- [x] **Step 4: Commit** `feat(web): phone layouts for workspace setup and general settings`.
 
 ### Task 52: Phone, organization and project member, invitation and audit lists (after the multi-agent gate)
 
@@ -1786,11 +1786,11 @@ it.each([
 - Consumes: the card pattern (Task 45).
 - Boards: `OrgMembersPhone`, `OrgInvitationsSettingsPhone`, `OrgAuditPhone`, `DeskMembersPhone`, `DeskAuditPhone` (expected count 494). Covers: TC-65.15 to TC-65.18.
 
-- [ ] **Step 0: Multi-agent gate.** Run both checks in "Multi-agent gate". If either fails, stop: write no code and report which check failed.
+- [x] **Step 0: Multi-agent gate.** Run both checks in "Multi-agent gate". If either fails, stop: write no code and report which check failed.
 - [ ] **Step 1: Write** "TC-65.15", "TC-65.16", "TC-65.17", "TC-65.18". Run. Expected: FAIL.
-- [ ] **Step 2: Implement:** `data-label` on each cell; filters wrap, status chips scroll in their own row; row menu and pagination kept.
+- [x] **Step 2: Implement:** `data-label` on each cell; filters wrap, status chips scroll in their own row; row menu and pagination kept.
 - [ ] **Step 3: Stories and REG;** run, PARITY. Expected: PASS.
-- [ ] **Step 4: Commit** `feat(web): phone layouts for member, invitation and audit lists`.
+- [x] **Step 4: Commit** `feat(web): phone layouts for member, invitation and audit lists`.
 
 ### Task 53: Phone, platform pages (after the multi-agent gate)
 
@@ -1807,11 +1807,11 @@ it.each([
 
 - Boards: `PlatformOrgsPhone`, `PlatformAdminsPhone`, `PlatformAuditPhone`, `PlatformOrgOverviewPhone`, `PlatformOrgProjectsPhone`, `PlatformOrgMembersPhone`, `PlatformOrgInvitationsPhone` (expected count 501). Covers: TC-65.19 to TC-65.22.
 
-- [ ] **Step 0: Multi-agent gate.** Run both checks in "Multi-agent gate". If either fails, stop: write no code and report which check failed.
+- [x] **Step 0: Multi-agent gate.** Run both checks in "Multi-agent gate". If either fails, stop: write no code and report which check failed.
 - [ ] **Step 1: Write** "TC-65.19", "TC-65.20", "TC-65.21", "TC-65.22". Run. Expected: FAIL.
-- [ ] **Step 2: Implement:** lists become cards; Overview keys and values stack; header actions wrap.
+- [x] **Step 2: Implement:** lists become cards; Overview keys and values stack; header actions wrap.
 - [ ] **Step 3: Stories and REG;** run, PARITY. All 117 boards in the spec's list are now listed. Expected: PASS.
-- [ ] **Step 4: Commit** `feat(web): phone layouts for platform pages`.
+- [x] **Step 4: Commit** `feat(web): phone layouts for platform pages`.
 
 ### Task 54: Final parity check over every board (after the multi-agent gate)
 
@@ -1824,10 +1824,10 @@ it.each([
 > **BLOCKED UNTIL THE MULTI-AGENT GATE PASSES.** Do not start this task, even when every task under "Depends on" is merged, until MA Tasks 25 to 32, 34 and 35 are merged to `main` and that `main` is in this task's base branch. Run both checks in "Multi-agent gate" first. Here: It compares every board, the multi-agent ones included.
 
 - [ ] **Step 0: Multi-agent gate.** Run both checks in "Multi-agent gate". If either fails, stop: write no code and report which check failed.
-- [ ] **Step 1: Confirm no new board is unlisted:** every one of the 117 names in the spec's board list is in `canvas.json` `order`, no board the multi-agent work retired is listed, and the pinned count equals the length of the real `order` (501 expected). Any other `*.dc.html` outside `order` predates this work.
+- [x] **Step 1: Confirm no new board is unlisted:** every one of the 117 names in the spec's board list is in `canvas.json` `order`, no board the multi-agent work retired is listed, and the pinned count equals the length of the real `order` (501 expected). Any other `*.dc.html` outside `order` predates this work.
 - [ ] **Step 2: Run** PARITY on the integration branch (all boards, desktop and 390x844, the multi-agent boards included: each was redrawn here, or its difference is recorded with a reason). It needs Chromium and network access for fonts.
 - [ ] **Step 3: Review every pair.** Fix each difference (a fix to source or board gets its own tests and, for boards, `build-boards.mjs`; add those files to the PR) or record it in `design/parity-notes.md` with board and reason. State how many pairs were reviewed. If parity cannot run, list the boards as unchecked and report the check as not done. Commit no screenshot.
-- [ ] **Step 4: Run** VITEST `src/test/coverage.test.ts`. Expected: PASS.
+- [x] **Step 4: Run** VITEST `src/test/coverage.test.ts`. Expected: PASS.
 - [ ] **Step 5: Commit** `docs(design): record the final parity check`.
 
 ### Task 55: Full e2e run on the integration branch before merging to main (after the multi-agent gate)

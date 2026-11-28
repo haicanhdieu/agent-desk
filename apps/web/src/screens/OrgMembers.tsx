@@ -6,6 +6,7 @@ import {
   MemberRow,
   memberColumns,
   Pagination,
+  PageHeader,
   RouteLoadError,
   type PaginationProps,
 } from '@/components';
@@ -119,7 +120,7 @@ export function OrgMembers({
 
   return (
     <>
-      <main className={styles.listMain}>
+      <main className={styles.shellMain}>
         {state.kind === 'loading' && (
           <div className={styles.membersLoading} aria-busy="true" role="status" aria-label="Loading">
             <span aria-hidden="true">
@@ -137,9 +138,7 @@ export function OrgMembers({
         )}
         {state.kind === 'ready' && (
           <>
-            <div className={styles.listHead}>
-              <h1 tabIndex={-1}>Members</h1>
-            </div>
+            <PageHeader title="Members" />
             <div ref={tableRef}>
               <DataTable columns={memberColumns} busy={state.pagination?.busy}>
                 {state.rows.map((row) => (

@@ -9,7 +9,9 @@ import { runFixtures } from '@/mocks/dto/runs';
 import { mockDb } from '@/mocks/msw/db';
 import { server } from '@/mocks/msw/node';
 import { scenarios } from '@/mocks/msw/scenarios';
+import { FakeEventSource } from '@/test/fakeEventSource';
 import { renderRoute } from '@/test/renderRoute';
+import { expectShellOwnedPage } from '@/test/shellAssert';
 
 const projectId = ids.project.invoicerApi;
 const base = `/o/alice/p/${projectId}`;
@@ -289,23 +291,28 @@ describe('runs route', () => {
     );
   });
 
-  it('TC-43.4, TC-48.1: the project bar shows the org crumb, Runs and Settings, and the logo goes to the org projects', async () => {
-    await renderRoute(`${base}/runs`);
+  it('TC-43.4, TC-48.1: the bar shows the org and project switchers, the Project menu has Runs current, and the logo goes to the org projects', async () => {
+    const { router, user } = await renderRoute(`${base}/runs`);
     await screen.findByRole('heading', { level: 1, name: 'Runs' });
-    const bar = screen.getByRole('banner');
+    const bar = screen.getAllByRole('banner').filter((b) => !b.closest('main'))[0]!;
     expect(within(bar).getByRole('button', { name: /^Switch scope/ })).toBeVisible();
     expect(within(bar).getByRole('button', { name: /^Switch project, currently/ })).toBeVisible();
-    const tabs = within(bar).getByRole('navigation', { name: 'Project sections' });
-    expect(within(tabs).getByRole('link', { name: /^Runs/ })).toHaveAttribute('aria-current', 'page');
-    expect(within(tabs).getByRole('link', { name: 'Project settings' })).toBeVisible();
-    expect(within(bar).getAllByRole('link', { name: /Agent Desk/ })[0]).toHaveAttribute('href', '/o/alice/projects');
+    const menu = screen.getByRole('navigation', { name: 'Project menu' });
+    expect(within(menu).getByRole('link', { name: /^Runs/ })).toHaveAttribute('aria-current', 'page');
+    expect(within(bar).queryByRole('link', { name: 'Project settings' })).not.toBeInTheDocument();
+    await user.click(within(bar).getAllByRole('link', { name: /Agent Desk/ })[0]!);
+    await waitFor(() => expect(router.state.location.pathname).toBe('/o/alice/projects'));
   });
 
-  it('the Settings tab opens Routing rules, not Skills', async () => {
+  it('the Project menu opens Routing rules first in Configure, not Skills', async () => {
     await renderRoute(`${base}/runs`);
     await screen.findByRole('heading', { level: 1, name: 'Runs' });
-    const tabs = screen.getByRole('navigation', { name: 'Project sections' });
-    expect(within(tabs).getByRole('link', { name: 'Project settings' })).toHaveAttribute('href', `${base}/desk/rules`);
+    const menu = screen.getByRole('navigation', { name: 'Project menu' });
+    const labels = within(menu)
+      .getAllByRole('link')
+      .map((a) => a.textContent?.trim());
+    expect(labels.indexOf('Routing rules')).toBe(labels.indexOf('Runs2 needs you') + 1);
+    expect(within(menu).getByRole('link', { name: 'Routing rules' })).toHaveAttribute('href', `${base}/desk/rules`);
   });
 
   it('clicking a filter chip gives a clean URL that the route reads back', async () => {
@@ -734,9 +741,9 @@ describe('runs route', () => {
       expect(screen.getByLabelText('Rows per page')).toHaveValue('50');
     });
 
-    it('needs you: while page 2 is held, the control still reads "Showing 1–20" with Page 1 current; then the new range', async () => {
+    it('Runs needs-you filter: while page 2 is held, the control still reads "Showing 1–20" with Page 1 current; then the new range', async () => {
       seedRuns(21, { from: 62, status: 'idle' });
-      const { user } = await renderRoute(`${base}/needs-you`);
+      const { user } = await renderRoute(`${base}/runs?filter=needs_you`);
       await screen.findByRole('navigation', { name: 'Pagination' });
       const page2Body = await (
         await fetch(`http://localhost:3000${runsApi}?filter=needs_you&page=2&pageSize=20`)
@@ -754,7 +761,7 @@ describe('runs route', () => {
       );
       await user.click(pageButton(2));
       await waitFor(() => expect(nav()).toHaveAttribute('aria-busy', 'true'));
-      expect(screen.getAllByRole('link', { name: /^Open run \d+ in Agent Desk$/ })).toHaveLength(20);
+      expect(runNumbers()).toHaveLength(20);
       expect(nav()).toHaveTextContent('Showing 1–20 of 21');
       expect(pageButton(1)).toHaveAttribute('aria-current', 'page');
       release();
@@ -763,17 +770,14 @@ describe('runs route', () => {
       expect(pageButton(2)).toHaveAttribute('aria-current', 'page');
     });
 
-    it('needs you: 21 runs show 20 cards; Page 2 shows 1 card and "Showing 21–21 of 21"; the tab badge stays at 21', async () => {
+    it('Runs needs-you filter: 21 runs show 20 rows; Page 2 shows 1 row and "Showing 21–21 of 21"', async () => {
       seedRuns(21, { from: 62, status: 'idle' });
-      const { user } = await renderRoute(`${base}/needs-you`);
+      const { user } = await renderRoute(`${base}/runs?filter=needs_you`);
       await screen.findByRole('navigation', { name: 'Pagination' });
-      const cards = () => screen.getAllByRole('link', { name: /^Open run \d+ in Agent Desk$/ });
-      expect(cards()).toHaveLength(20);
-      expect(screen.getByText('(21) Needs you, invoicer-api')).toBeInTheDocument();
+      expect(runNumbers()).toHaveLength(20);
       await user.click(pageButton(2));
-      await waitFor(() => expect(cards()).toHaveLength(1));
+      await waitFor(() => expect(runNumbers()).toHaveLength(1));
       expect(nav()).toHaveTextContent('Showing 21–21 of 21');
-      expect(screen.getByText('(21) Needs you, invoicer-api')).toBeInTheDocument();
     });
   });
 
@@ -867,87 +871,14 @@ describe('runs route', () => {
   });
 });
 
-describe('needs-you route', () => {
-  it('TC-43.7: the needs-you page shows the org bar with no tab current, the logo going to the org projects', async () => {
-    await renderRoute(`${base}/needs-you`);
-    await screen.findByRole('link', { name: 'Open run 62 in Agent Desk' });
-    const bar = screen.getByRole('banner');
-    const tabs = within(bar).getByRole('navigation', { name: 'Organization sections' });
-    expect(within(tabs).getByRole('link', { name: 'Projects' })).toHaveAttribute('href', '/o/alice/projects');
-    expect(within(tabs).queryByRole('link', { current: 'page' })).not.toBeInTheDocument();
-    expect(within(tabs).queryByRole('link', { name: /^Runs/ })).not.toBeInTheDocument();
-    expect(within(bar).queryByRole('button', { name: /^Switch project/ })).not.toBeInTheDocument();
-    expect(within(bar).getAllByRole('link', { name: /Agent Desk/ })[0]).toHaveAttribute('href', '/o/alice/projects');
-    expect(screen.getAllByRole('navigation', { name: 'Organization sections' })).toHaveLength(1);
-  });
-
-  it('lists idle runs linking to /runs/<number>', async () => {
-    const queries = captureRunListQueries();
-    await renderRoute(`${base}/needs-you`);
-    const link = await screen.findByRole('link', { name: 'Open run 62 in Agent Desk' });
-    expect(link).toHaveAttribute('href', `${base}/runs/62`);
-    expect(screen.getByText('Run 62 needs you')).toBeInTheDocument();
-    expect(screen.getByText('(2) Needs you, invoicer-api')).toBeInTheDocument();
-    expect(queries.some((q) => new URLSearchParams(q).get('filter') === 'needs_you')).toBe(true);
-  });
-
-  it('lists every idle run', async () => {
-    mockDb.state.runs = mockDb.state.runs.map((r) => (r.number === 61 ? { ...r, status: 'idle' } : r));
-    await renderRoute(`${base}/needs-you`);
-    expect(await screen.findByRole('link', { name: 'Open run 61 in Agent Desk' })).toHaveAttribute(
-      'href',
-      `${base}/runs/61`,
-    );
-    expect(screen.getByRole('link', { name: 'Open run 62 in Agent Desk' })).toHaveAttribute('href', `${base}/runs/62`);
-  });
-
-  it('lists a paused run with the Paused badge and a Resume button that resumes it', async () => {
-    const { user } = await renderRoute(`${base}/needs-you`);
-    expect(await screen.findByRole('link', { name: 'Open run 64 in Agent Desk' })).toHaveAttribute(
-      'href',
-      `${base}/runs/64`,
-    );
-    expect(screen.getByTitle('status: paused')).toHaveTextContent('Paused');
-    expect(screen.getByText('Run 64 is paused and can be resumed.')).toBeInTheDocument();
-    // The idle run has no Resume.
-    expect(screen.getAllByRole('button', { name: 'Resume' })).toHaveLength(1);
-    await user.click(screen.getByRole('button', { name: 'Resume' }));
-    await waitFor(() => expect(mockDb.requests('POST', `/api/runs/${ids.run(1, 64)}/resume`)).toBe(1));
-    await waitFor(() =>
-      expect(screen.queryByRole('link', { name: 'Open run 64 in Agent Desk' })).not.toBeInTheDocument(),
-    );
-  });
-
-  it('an idle run that was paused earlier lists from its idle time, not the old pause time', async () => {
-    const stale = '2026-11-01T03:07:00.000Z';
-    mockDb.state.runs = mockDb.state.runs.map((r) => (r.number === 62 ? { ...r, pausedAt: stale } : r));
-    const idleSince = mockDb.state.runs.find((r) => r.number === 62)?.idleSince;
-    expect(idleSince).toBeTruthy();
-    await renderRoute(`${base}/needs-you`);
-    await screen.findByRole('link', { name: 'Open run 62 in Agent Desk' });
-    const hhmm = (iso: string) => {
-      const d = new Date(iso);
-      return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
-    };
-    expect(hhmm(stale)).not.toBe(hhmm(idleSince ?? ''));
-    expect(screen.getByText(new RegExp(`edited ${hhmm(idleSince ?? '')}`))).toBeInTheDocument();
-    expect(screen.queryByText(new RegExp(`edited ${hhmm(stale)}`))).not.toBeInTheDocument();
-  });
-
-  it('a Resume that the server refuses shows its message', async () => {
-    const { user } = await renderRoute(`${base}/needs-you`, {
-      scenario: () => scenarios.problem('runs.resume', { status: 409, title: 'This run is already being resumed' }),
-    });
-    await user.click(await screen.findByRole('button', { name: 'Resume' }));
-    expect(await screen.findByRole('alert')).toHaveTextContent('This run is already being resumed');
-    expect(screen.getByRole('button', { name: 'Resume' })).toBeEnabled();
-  });
-
-  it('says so when no run needs you', async () => {
-    mockDb.state.runs = mockDb.state.runs.filter((r) => r.status !== 'idle' && r.status !== 'paused');
-    await renderRoute(`${base}/needs-you`);
-    expect(await screen.findAllByText('No runs need you right now.')).not.toHaveLength(0);
-    expect(screen.queryByRole('link', { name: /^Open run/ })).not.toBeInTheDocument();
+describe('old needs-you address', () => {
+  it('TC-30.1: shows "Page not found" with the project menu, no redirect and no needs-you list', async () => {
+    const { router } = await renderRoute(`${base}/needs-you`);
+    expect(await screen.findByRole('heading', { name: 'Page not found' })).toBeInTheDocument();
+    expect(router.state.location.pathname).toBe(`${base}/needs-you`);
+    expect(screen.getByRole('navigation', { name: 'Project menu' })).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: /^Open run \d+ in Agent Desk$/ })).not.toBeInTheDocument();
+    expect(screen.queryByText('No runs need you right now.')).not.toBeInTheDocument();
   });
 });
 
@@ -1084,5 +1015,78 @@ describe('runs route, usage', () => {
     if (!row) throw new Error('no row');
     const cell = within(row).getByText(/48\.2k · ~\$0\.42/);
     expect(cell.closest('td')).toHaveAttribute('title', '48,213 tokens in total, estimated cost $0.42, 1 model');
+  });
+});
+
+describe('runs route, in the app shell', () => {
+  const menu = () => screen.getByRole('navigation', { name: 'Project menu' });
+  const runsLink = () => within(menu()).getByRole('link', { name: /^Runs/ });
+
+  it('has one Project menu, one main and the Runs item current', async () => {
+    await renderRoute(`${base}/runs`);
+    await screen.findByRole('heading', { level: 1, name: 'Runs' });
+    expectShellOwnedPage('Runs', { menu: 'Project menu' });
+    expect(runsLink()).toHaveAttribute('aria-current', 'page');
+    expect(within(menu()).getByRole('link', { name: 'All projects' })).toHaveAttribute('href', '/o/alice/projects');
+  });
+
+  it('the repository block shows the repository, its branch and Open repository', async () => {
+    const trigger = mockDb.state.triggers[projectId];
+    if (!trigger) throw new Error('trigger missing');
+    trigger.webhook = { lastEventAt: new Date().toISOString(), lastEventAction: null };
+    await renderRoute(`${base}/runs`);
+    const block = await within(menu()).findByRole('region', { name: 'Repository' });
+    expect(within(block).getByText('main')).toBeInTheDocument();
+    expect(await within(block).findByText('Connected')).toBeInTheDocument();
+    expect(within(block).getByRole('link', { name: 'Open repository' })).toHaveAttribute('target', '_blank');
+  });
+
+  it('the repository block omits the branch when the project has none', async () => {
+    const row = mockDb.state.projects.find((p) => p.id === projectId);
+    if (!row) throw new Error('project missing');
+    row.defaultBranch = null;
+    await renderRoute(`${base}/runs`);
+    const block = await within(menu()).findByRole('region', { name: 'Repository' });
+    expect(within(block).queryByText('main')).not.toBeInTheDocument();
+  });
+
+  it('the repository block shows the warning of a silent webhook', async () => {
+    const trigger = mockDb.state.triggers[projectId];
+    if (!trigger) throw new Error('trigger missing');
+    trigger.webhook = { lastEventAt: '2020-01-01T00:00:00.000Z', lastEventAction: null };
+    await renderRoute(`${base}/runs`);
+    const block = await within(menu()).findByRole('region', { name: 'Repository' });
+    expect(await within(block).findByText('No webhooks for 2 days')).toBeInTheDocument();
+  });
+
+  it('the repository block shows the error of a failing poll', async () => {
+    const row = mockDb.state.projects.find((p) => p.id === projectId);
+    const trigger = mockDb.state.triggers[projectId];
+    if (!row || !trigger) throw new Error('project missing');
+    row.triggerMode = 'polling';
+    trigger.polling = { ...trigger.polling, lastError: 'rate limited' };
+    await renderRoute(`${base}/runs`);
+    const block = await within(menu()).findByRole('region', { name: 'Repository' });
+    expect(await within(block).findByText('Polling failed: rate limited')).toBeInTheDocument();
+  });
+
+  it('the needs you badge follows the project stream and hides at zero', async () => {
+    await renderRoute(`${base}/runs`);
+    await screen.findByRole('heading', { level: 1, name: 'Runs' });
+    expect(await within(runsLink()).findByText(/^2/)).toBeInTheDocument();
+    const source = FakeEventSource.matching(`/api/projects/${projectId}/events`).at(-1);
+    if (!source) throw new Error('no project stream');
+    act(() => source.open());
+    act(() => source.emit('run', { runId: ids.run(1, 62), number: 62, status: 'succeeded', seq: 90 }));
+    await waitFor(() => expect(within(runsLink()).getByText(/^1/)).toBeInTheDocument());
+    act(() => source.emit('run', { runId: ids.run(1, 64), number: 64, status: 'succeeded', seq: 91 }));
+    await waitFor(() => expect(within(runsLink()).queryByText(/^\d+$/)).not.toBeInTheDocument());
+  });
+
+  it('keeps the Ignored view: no search box, the Ignored chip current', async () => {
+    await renderRoute(`${base}/runs?filter=ignored`);
+    expect(await screen.findByRole('heading', { level: 1, name: 'Runs' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /^Ignored/ })).toHaveAttribute('aria-current', 'page');
+    expect(screen.queryByRole('textbox', { name: 'Search runs' })).not.toBeInTheDocument();
   });
 });

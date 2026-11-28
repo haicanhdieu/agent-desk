@@ -16,11 +16,11 @@ import {
 } from '@/app/pagination';
 import { useNow } from '@/app/useNow';
 import { Forbidden, RouteError, toastFromError } from '@/app/boundaries';
-import { TopBar, type OnboardingChecklistState } from '@/components';
+import type { OnboardingChecklistState } from '@/components';
 import { useToast } from '@/ds';
 import { forgetProject, useDeleteProject } from '@/features/desk/mutations';
 import { orgAccessQuery, toAccess } from '@/features/access/queries';
-import { useAppBar } from '@/features/chrome/appBar';
+import { orgsQuery } from '@/features/auth/session';
 import { myInvitationsQuery } from '@/features/invitations/queries';
 import { checklistKey, checklistQuery, toChecklistSteps } from '@/features/onboarding/checklist';
 import { toConnectionStatus, toProject } from '@/features/projects/map';
@@ -28,6 +28,7 @@ import { projectsQueries } from '@/features/projects/queries';
 import { Projects } from '@/screens';
 
 export const Route = createFileRoute('/o/$org/projects/')({
+  staticData: { chrome: { mode: 'standard', scope: 'org', item: 'projects', crumb: 'Projects' } },
   validateSearch: PageSearch,
   loaderDeps: ({ search }) => ({ page: pageOfSearch(search) }),
   loader: ({ context: { queryClient }, params, deps: { page }, cause }) =>
@@ -36,22 +37,10 @@ export const Route = createFileRoute('/o/$org/projects/')({
   errorComponent: ProjectsError,
 });
 
-// A 403 keeps the global top bar with the switcher over Forbidden, so a member with no role here can switch away.
+// A 403 reports `forbidden` to the shell, which keeps the bar and the org menu, so a member with no role here can switch away.
 function ProjectsError(props: ErrorComponentProps) {
   if (!(props.error instanceof ApiError && props.error.status === 403)) return <RouteError {...props} />;
-  return <ProjectsForbidden />;
-}
-
-function ProjectsForbidden() {
-  const { org } = Route.useParams();
-  // A pending or failed access query leaves the switcher without the platform-admin entry and Settings; it still switches.
-  const bar = useAppBar(org);
-  return (
-    <>
-      <TopBar variant="global" crumbs={[{ label: 'Projects' }]} state="forbidden" user={bar.user} org={bar.org} />
-      <Forbidden titled={false} />
-    </>
-  );
+  return <Forbidden />;
 }
 
 /**
@@ -82,7 +71,7 @@ function ProjectsPage() {
   const page = pageOfSearch(Route.useSearch());
   const navigate = useNavigate({ from: Route.fullPath });
   const now = useNow();
-  const bar = useAppBar(org);
+  const { data: orgs } = useSuspenseQuery(orgsQuery);
   const { data: accessDto } = useSuspenseQuery(orgAccessQuery(org));
   const access = toAccess(accessDto);
   const qc = useQueryClient();
@@ -105,7 +94,7 @@ function ProjectsPage() {
       deleting.current.delete(p.id);
     }
   };
-  const checklist = useChecklistState(org, bar.org.current?.id, can(access, 'project:create'));
+  const checklist = useChecklistState(org, orgs.find((o) => o.slug === org)?.id, can(access, 'project:create'));
   // A failed invitations list hides the banner; it never breaks the page.
   const { data: invitations } = useQuery(myInvitationsQuery);
   const pending = invitations?.total ?? 0;
@@ -128,20 +117,27 @@ function ProjectsPage() {
   const orgPath = `/o/${encodeURIComponent(org)}`;
   const settingsHref = (id: string): string | undefined =>
     can(access, 'agent:read', { projectId: id }) ? `${orgPath}/p/${encodeURIComponent(id)}/desk/agent` : undefined;
+  const mayResume = can(access, 'project:create');
+  const setupSteps = new Map(dtos.map((d) => [d.id, d.setupStep]));
+  const resumeHref = (id: string): string | undefined => {
+    const step = setupSteps.get(id);
+    return mayResume && step !== undefined && step !== 'ready'
+      ? `${orgPath}/projects/new/${step}?project=${encodeURIComponent(id)}`
+      : undefined;
+  };
   return (
     <Projects
-      user={bar.user}
       projects={projects}
       newHref={`${orgPath}/projects/new/repo`}
       projectHref={(p) => `${orgPath}/p/${encodeURIComponent(p.id)}/runs`}
       // Project settings is the Desk agent page: only for roles that may read it on that project.
       settingsHref={(p) => settingsHref(p.id)}
+      resumeHref={(p) => resumeHref(p.id)}
       switchToPollingHref={(p) => {
         const href = settingsHref(p.id);
         return href === undefined ? undefined : `${href}?tab=github`;
       }}
       pagination={pagination}
-      org={bar.org}
       {...(pending > 0 && { invitationsBanner: { count: pending, href: '/invitations' } })}
       canCreate={can(access, 'project:create')}
       // Errors are handled inside onDeleteProject (toast), so the returned promise never rejects.

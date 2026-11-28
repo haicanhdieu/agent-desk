@@ -105,3 +105,39 @@
 .glyph {
   display: inline-flex;
 }
+
+/* Phone (BR-65): long link text and step text wrap inside the column. */
+@media (max-width: 639px) {
+  .stepBody {
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+}
+
+/* Phone (BR-65): a project row is a card: name over repository, the actions wrap, and the empty-state step cards stack. */
+@media (max-width: 639px) {
+  .projectCell {
+    flex-direction: column;
+    align-items: flex-start;
+    justify-content: flex-start;
+    width: auto;
+  }
+  .repo {
+    max-width: 100%;
+  }
+  table td.end {
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    text-align: right;
+  }
+  .cards {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .card {
+    border-right: 0;
+    border-bottom: 1px solid var(--line);
+  }
+  .card:last-child {
+    border-bottom: 0;
+  }
+}

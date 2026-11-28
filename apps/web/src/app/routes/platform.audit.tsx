@@ -25,6 +25,7 @@ const AuditSearch = PageSearch.extend({
 });
 
 export const Route = createFileRoute('/platform/audit')({
+  staticData: { chrome: { mode: 'standard', scope: 'platform', item: 'platformAudit' } },
   validateSearch: AuditSearch,
   component: PlatformAuditPage,
 });

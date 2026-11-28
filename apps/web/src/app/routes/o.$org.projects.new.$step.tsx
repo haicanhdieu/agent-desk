@@ -15,7 +15,6 @@ import { relativeTime } from '@/features/relativeTime';
 import { agentStatusText, type ProviderPickerOption, type RuleDraft } from '@/components';
 import { toModelList, type ModelList } from '@/components/ModelPicker';
 import { CommandChip, useToast } from '@/ds';
-import { useAppBar } from '@/features/chrome/appBar';
 import { pollIntervalLabel } from '@/features/projects/map';
 import { projectsQueries } from '@/features/projects/queries';
 import { REFRESH_ERROR } from '@/features/desk/agent.form';
@@ -64,6 +63,7 @@ import { Setup1, Setup2, Setup3, Setup4, SetupReady, type Setup1Draft, type Setu
 // `project.setupStep` (via `?project=`): asking for a later step than the project has reached redirects there.
 
 export const Route = createFileRoute('/o/$org/projects/new/$step')({
+  staticData: { chrome: { mode: 'wizard', scope: 'org', crumb: 'New project' } },
   validateSearch: (search) => SetupSearch.parse(search),
   beforeLoad: async ({ context: { queryClient }, params, search }) => {
     // Creating a project is org-level `project:create`; refused before the step is read or anything is requested.
@@ -165,7 +165,6 @@ const REPO_POINTERS = {
 } as const;
 
 function RepoStep({ org, projectId, connectionId }: { org: string; projectId?: string; connectionId?: string }) {
-  const bar = useAppBar(org);
   const now = useNow();
   const toast = useToast();
   const goTo = useGoToStep(org);
@@ -313,8 +312,7 @@ function RepoStep({ org, projectId, connectionId }: { org: string; projectId?: s
   return (
     <Setup1
       key={project?.id ?? 'new'}
-      user={bar.user}
-      org={bar.org}
+      exitHref={`/o/${encodeURIComponent(org)}/projects`}
       projectName={project?.name ?? repoName(selected)}
       repos={shown}
       selected={selected}
@@ -382,7 +380,6 @@ type AgentStepErrors = StepErrors<'credential' | 'model' | 'maxConcurrent' | 'ba
 
 function AgentStep({ org, projectId }: { org: string; projectId: string }) {
   const now = useNow();
-  const bar = useAppBar(org);
   const goTo = useGoToStep(org);
   const { data: project } = useSuspenseQuery(projectsQueries.detail(org, projectId));
   const { data: agent } = useSuspenseQuery(setupQueries.agent(org, projectId));
@@ -458,8 +455,7 @@ function AgentStep({ org, projectId }: { org: string; projectId: string }) {
     models.data?.source === 'builtin' ? { ...live, models: BUILTIN_MODEL_LISTS[agent.provider].models } : live;
   return (
     <Setup2
-      user={bar.user}
-      org={bar.org}
+      exitHref={`/o/${encodeURIComponent(org)}/projects`}
       projectName={project.name}
       repo={project.repoPath}
       kinds={AGENT_KIND_VIEWS}
@@ -495,7 +491,6 @@ function AgentStep({ org, projectId }: { org: string; projectId: string }) {
 }
 
 function WorkspaceSetupStep({ org, projectId }: { org: string; projectId: string }) {
-  const bar = useAppBar(org);
   const goTo = useGoToStep(org);
   const { data: project } = useSuspenseQuery(projectsQueries.detail(org, projectId));
   const { data: agent } = useSuspenseQuery(setupQueries.agent(org, projectId));
@@ -503,7 +498,6 @@ function WorkspaceSetupStep({ org, projectId }: { org: string; projectId: string
     <WorkspaceStep
       org={org}
       project={project}
-      bar={bar}
       credentialDetail={credentialDetail(agent)}
       backHref={stepHref(org, 'agent', projectId)}
       onDone={(saved) => void goTo('skills', saved)}
@@ -514,13 +508,12 @@ function WorkspaceSetupStep({ org, projectId }: { org: string; projectId: string
 const SKILLS_POINTERS = { '/message': 'message' } as const;
 
 function SkillsStep({ org, projectId }: { org: string; projectId: string }) {
-  const bar = useAppBar(org);
   const goTo = useGoToStep(org);
   const { data: project } = useSuspenseQuery(projectsQueries.detail(org, projectId));
   const { data: agent } = useSuspenseQuery(setupQueries.agent(org, projectId));
   const save = useSaveSkillsStep(org);
   const [errors, setErrors] = useState<StepErrors<'message'>>(noErrors);
-  const templates = SKILL_TEMPLATES.map(({ name, description, note }) => ({ name, description, note }));
+  const templates = SKILL_TEMPLATES;
   const names = templates.map((t) => t.name);
 
   const run = async (picked: string[], message: string) => {
@@ -534,8 +527,7 @@ function SkillsStep({ org, projectId }: { org: string; projectId: string }) {
 
   return (
     <Setup3
-      user={bar.user}
-      org={bar.org}
+      exitHref={`/o/${encodeURIComponent(org)}/projects`}
       projectName={project.name}
       repo={project.repoPath}
       branch="main"
@@ -566,12 +558,13 @@ const FOLLOW_UP = { command: 'code-review', target: 'pr', skill: 'code-review', 
 const MODEL_REQUIRED = 'Enter a model name.';
 
 function RulesStep({ org, projectId }: { org: string; projectId: string }) {
-  const bar = useAppBar(org);
   const goTo = useGoToStep(org);
   const { data: project } = useSuspenseQuery(projectsQueries.detail(org, projectId));
   const { data: agent } = useSuspenseQuery(setupQueries.agent(org, projectId));
   const { data: skills } = useSuspenseQuery(setupQueries.skills(org, projectId));
   const save = useSaveRulesStep(org);
+  const paths = projectPaths(org, projectId);
+  const mayReadAgent = useCan(org, 'agent:read', { projectId });
   const [errors, setErrors] =
     useState<StepErrors<'command' | 'labels' | 'target' | 'skill' | 'prompt' | 'model'>>(noErrors);
   const models = useQuery(deskQueries.agentModels(org, agent.id));
@@ -643,8 +636,7 @@ function RulesStep({ org, projectId }: { org: string; projectId: string }) {
 
   return (
     <Setup4
-      user={bar.user}
-      org={bar.org}
+      exitHref={`/o/${encodeURIComponent(org)}/projects`}
       projectName={project.name}
       repo={project.repoPath}
       rule={rule}
@@ -656,6 +648,8 @@ function RulesStep({ org, projectId }: { org: string; projectId: string }) {
       maxRunsPerTicket={project.maxRunsPerTicket}
       credentialDetail={credentialDetail(agent)}
       backHref={stepHref(org, 'skills', projectId)}
+      {...(mayReadAgent && { agentSettingsHref: `${paths.agent}?tab=limits` })}
+      ignoredHref={`${paths.runs}?filter=ignored`}
       onContinue={(d) => void onContinue(d)}
       onSkip={() => void onSkip()}
       saving={save.isPending}
@@ -666,7 +660,6 @@ function RulesStep({ org, projectId }: { org: string; projectId: string }) {
 }
 
 function ReadyStep({ org, projectId }: { org: string; projectId: string }) {
-  const bar = useAppBar(org);
   const now = useNow();
   const { data: project } = useSuspenseQuery(projectsQueries.detail(org, projectId));
   const { data: agent } = useSuspenseQuery(setupQueries.agent(org, projectId));
@@ -702,8 +695,7 @@ function ReadyStep({ org, projectId }: { org: string; projectId: string }) {
   ];
   return (
     <SetupReady
-      user={bar.user}
-      org={bar.org}
+      exitHref={`/o/${encodeURIComponent(org)}/projects`}
       projectName={project.name}
       repo={project.repoPath}
       label={label ? { name: label } : undefined}

@@ -30,7 +30,7 @@ export function PlatformMemberRow({ row, busy, onAdd, onRemove }: PlatformMember
 
   return (
     <tr>
-      <td>
+      <td data-label="Name">
         <span className={styles.name}>
           {row.name !== null && (
             <span className={styles.nameText} title={row.name}>
@@ -40,8 +40,10 @@ export function PlatformMemberRow({ row, busy, onAdd, onRemove }: PlatformMember
           {row.handle !== null && <span className={styles.handle}>{row.handle}</span>}
         </span>
       </td>
-      <td className={styles.cell}>{row.email}</td>
-      <td className={styles.cell}>
+      <td className={styles.cell} data-label="Email">
+        {row.email}
+      </td>
+      <td className={styles.cell} data-label="Roles">
         {row.assignments.length > 0 ? (
           row.assignments.map((a) => a.label).join(', ')
         ) : (

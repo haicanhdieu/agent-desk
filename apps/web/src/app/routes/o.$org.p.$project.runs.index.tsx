@@ -48,6 +48,7 @@ const RunsSearch = z.object({ ...PageSearch.shape, ...RunsView.shape });
 type RunsSearch = z.infer<typeof RunsSearch>;
 
 export const Route = createFileRoute('/o/$org/p/$project/runs/')({
+  staticData: { chrome: { mode: 'standard', scope: 'project', item: 'runs', crumb: 'Runs' } },
   validateSearch: (search): RunsSearch => RunsSearch.parse(search),
   beforeLoad: ({ params: { org, project }, search, cause }) => {
     // Coming to the page (a link, a reload) with no choice in the URL brings back the last filter and search seen here.
@@ -86,12 +87,6 @@ function useRunsCommon(org: string, projectId: string, q: string | undefined, no
     return query ? `${paths.runs}?${query}` : paths.runs;
   };
   const common = {
-    project: page.project,
-    user: page.user,
-    links: page.links,
-    projectMenu: page.projectMenu,
-    org: page.org,
-    needsYou: dto.counts.needsYou,
     // Idle runs hold a slot too.
     // counts.running is every live job (starting, running, idle): each holds a slot.
     slots: { used: dto.counts.running, total: dto.maxConcurrentRuns },

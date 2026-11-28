@@ -10,6 +10,7 @@ import {
   runOf,
   touchPodFile,
   waitForStatus,
+  runHeader,
 } from './helpers';
 
 /*
@@ -58,9 +59,8 @@ test.afterEach(async ({ page }) => {
   }
 });
 
-const topBar = (page: Page) => page.getByRole('banner');
-const pill = (page: Page, label: string) => topBar(page).getByText(label, { exact: true });
-const stopButton = (page: Page) => topBar(page).getByRole('button', { name: 'Stop session' });
+const pill = (page: Page, label: string) => runHeader(page).getByText(label, { exact: true });
+const stopButton = (page: Page) => runHeader(page).getByRole('button', { name: 'Stop session' });
 const confirmDialog = (page: Page) => page.getByRole('dialog', { name: 'Stop the session?' });
 const area = (page: Page) => page.getByRole('region', { name: /^(Terminal|Transcript)$/ });
 const liveTerminal = (page: Page) => page.getByRole('group', { name: 'Claude Code terminal' });
@@ -70,7 +70,7 @@ const transcriptLog = (page: Page) => page.getByRole('log', { name: 'Transcript 
 
 async function openRun(page: Page, s: Started): Promise<void> {
   await page.goto(`/o/${s.handle}/p/${s.projectId}/runs/${s.number}`);
-  await expect(topBar(page)).toBeVisible();
+  await expect(runHeader(page)).toBeVisible();
 }
 
 /** Opens a run that reaches `idle` or `done` and waits for its live terminal. */
@@ -296,7 +296,7 @@ test.describe('BR-11: stopping while the session is already ending', () => {
     const stale = await otherTab(context, s);
     await freezeView(stale);
 
-    await topBar(page).getByRole('button', { name: 'Finish run' }).click();
+    await runHeader(page).getByRole('button', { name: 'Finish run' }).click();
     await expect(page.getByText('Session ending…')).toBeVisible();
     await stale.bringToFront();
     await stopButton(stale).click();
@@ -341,7 +341,7 @@ test.describe('BR-11: stopping while the session is already ending', () => {
     await stopButton(page).click();
     await expect(page.getByText('Session ending…')).toBeVisible();
     await tabB.bringToFront();
-    await topBar(tabB).getByRole('button', { name: 'Finish run' }).click();
+    await runHeader(tabB).getByRole('button', { name: 'Finish run' }).click();
     await expect(toast(tabB, 'The session is already ending')).toBeVisible();
 
     await touchPodFile(s.runId, 'release-end');
@@ -357,7 +357,7 @@ test.describe('BR-13: Cancel wins over a stop in progress', () => {
     await openLive(page, '--fake-slow-end', 'idle');
     await stopButton(page).click();
     await expect(page.getByText('Session ending…')).toBeVisible();
-    await topBar(page).getByRole('button', { name: 'Cancel run' }).click();
+    await runHeader(page).getByRole('button', { name: 'Cancel run' }).click();
     await page.getByRole('dialog').getByRole('button', { name: 'Cancel run' }).click();
     await expect(pill(page, 'Cancelled')).toBeVisible({ timeout: 30_000 });
     await expect(page.getByText(/^Cancelled at \d{2}:\d{2}:\d{2}\.$/)).toBeVisible();

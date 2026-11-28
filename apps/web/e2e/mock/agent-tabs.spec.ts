@@ -326,12 +326,12 @@ test.describe('BR-60: links land on the right tab', () => {
     await expect(selected(page)).toHaveText('Agents');
     await expect(page).toHaveURL(/\/desk\/agent$/);
 
-    // The project's Settings link is the one in its row menu on the projects list.
+    // The project's agent link is the "Agent & settings" action in its row menu on the projects list.
     await page.goto(`/o/${ORG}/projects`);
     await page.getByRole('button', { name: /^More for invoicer-api/ }).click();
     await page
       .getByRole('dialog', { name: 'Actions for invoicer-api' })
-      .getByRole('link', { name: 'Settings' })
+      .getByRole('link', { name: 'Agent & settings' })
       .click();
     await expect(selected(page)).toHaveText('Agents');
 

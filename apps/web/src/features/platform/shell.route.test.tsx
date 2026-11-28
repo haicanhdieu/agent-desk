@@ -1,5 +1,6 @@
 import { createRoute } from '@tanstack/react-router';
 import { screen, waitFor, within } from '@testing-library/react';
+import { HttpResponse, delay, http } from 'msw';
 import { afterEach, describe, expect, it } from 'vitest';
 import { server } from '@/mocks/msw/node';
 import { scenarios } from '@/mocks/msw/scenarios';
@@ -41,10 +42,22 @@ function platformTree() {
     path: '/admins',
     loader: ({ context: { queryClient } }) =>
       queryClient.ensureQueryData({ queryKey: ['platform', 'orgs', {}], queryFn: () => api.platform.listOrgs() }),
+    staticData: { chrome: { mode: 'standard', scope: 'platform', item: 'platformAdmins' } },
     component: () => <p>Admins page</p>,
   });
-  const orgs = createRoute({ getParentRoute: () => shell, path: '/orgs', component: () => <p>Orgs page</p> });
-  return root.addChildren([shell.addChildren([index, admins, orgs])]);
+  const orgs = createRoute({
+    getParentRoute: () => shell,
+    path: '/orgs',
+    staticData: { chrome: { mode: 'standard', scope: 'platform', item: 'platformOrgs' } },
+    component: () => <p>Orgs page</p>,
+  });
+  const create = createRoute({
+    getParentRoute: () => shell,
+    path: '/orgs/new',
+    staticData: { chrome: { mode: 'standard', scope: 'platform', item: 'platformOrgs' } },
+    component: () => <p>Create page</p>,
+  });
+  return root.addChildren([shell.addChildren([index, admins, orgs, create])]);
 }
 afterEach(() => stop());
 
@@ -57,79 +70,91 @@ describe('the platform shell', () => {
     await waitFor(() => expect(router.state.location.pathname).toBe('/platform/orgs'));
   });
 
-  it('BR-2: the platform bar reads Platform with the Platform sections tabs and no "No organization"', async () => {
+  it('BR-2: the platform bar reads Platform; the Platform menu marks the current section and no tabs show', async () => {
     await renderRoute('/platform/admins', {
       routeTree: platformTree(),
       scenario: () => scenarios.platform('platformAdminNoOrg'),
     });
-    const tabs = await screen.findByRole('navigation', { name: 'Platform sections' });
-    expect(within(tabs).getByRole('link', { name: 'Organizations' })).toHaveAttribute('href', '/platform/orgs');
-    expect(within(tabs).getByRole('link', { name: 'Platform admins' })).toHaveAttribute('aria-current', 'page');
-    expect(within(tabs).getByRole('link', { name: 'Audit log' })).toHaveAttribute('href', '/platform/audit');
+    const menu = await screen.findByRole('navigation', { name: 'Platform menu' });
+    expect(within(menu).getByRole('link', { name: 'Organizations' })).toHaveAttribute('href', '/platform/orgs');
+    expect(within(menu).getByRole('link', { name: 'Platform admins' })).toHaveAttribute('aria-current', 'page');
+    expect(within(menu).getByRole('link', { name: 'Audit log' })).toHaveAttribute('href', '/platform/audit');
+    expect(within(menu).getByRole('link', { name: 'Organizations' })).not.toHaveAttribute('aria-current');
     expect(screen.getByRole('button', { name: 'Switch scope, currently Platform' })).toBeInTheDocument();
     expect(screen.queryByText('No organization')).toBeNull();
+    expect(screen.queryByRole('navigation', { name: 'Platform sections' })).toBeNull();
     expect(screen.queryByRole('navigation', { name: 'Platform admin' })).toBeNull();
-    expect(screen.queryByRole('link', { name: 'Org settings' })).toBeNull();
+    expect(screen.getAllByRole('navigation', { name: /menu$/ })).toHaveLength(1);
+  });
+
+  it('the create organization page marks Organizations in the Platform menu', async () => {
+    await renderRoute('/platform/orgs/new', {
+      routeTree: platformTree(),
+      scenario: () => scenarios.platform('platformAdminNoOrg'),
+    });
+    const menu = await screen.findByRole('navigation', { name: 'Platform menu' });
+    expect(within(menu).getByRole('link', { name: 'Organizations' })).toHaveAttribute('aria-current', 'page');
+    expect(within(menu).getByRole('link', { name: 'Platform admins' })).not.toHaveAttribute('aria-current');
   });
 
   describe('inside one org', () => {
     const ACME = 'b8000000-0000-4000-8000-000000000001';
     const UNKNOWN = 'b8000000-0000-4000-8000-0000000000ff';
-    const orgTree = () => {
-      const root = createTestRootRoute();
-      // @ts-expect-error -- the file route's options are typed against the generated tree's parent, not this test root
-      const shell = createRoute({ ...withoutId(PlatformRoute.options), path: '/platform', getParentRoute: () => root });
-      const orgs = createRoute({ getParentRoute: () => shell, path: '/orgs', component: () => <p>Orgs page</p> });
-      const org = createRoute({ getParentRoute: () => orgs, path: '$orgId', component: () => <p>Org page</p> });
-      return root.addChildren([shell.addChildren([orgs.addChildren([org])])]);
-    };
+    const open = (id: string, scenario: () => void) => renderRoute(`/platform/orgs/${id}/members`, { scenario });
 
-    it('an unknown org id shows Organizations / Not found, no side menu, title "Not found · Agent Desk"', async () => {
-      await renderRoute(`/platform/orgs/${UNKNOWN}`, {
-        routeTree: orgTree(),
-        scenario: () => scenarios.platform('platformAdminOrgs'),
-      });
-      const crumbs = await screen.findByRole('navigation', { name: 'Breadcrumb' });
-      expect(await within(crumbs).findByText('Not found')).toBeInTheDocument();
-      expect(within(crumbs).getByRole('link', { name: 'Organizations' })).toHaveAttribute('href', '/platform/orgs');
-      expect(screen.queryByRole('navigation', { name: 'Platform admin' })).toBeNull();
-      await waitFor(() => expect(document.title).toBe('Not found · Agent Desk'));
+    it('replaces the Platform menu with the one-org menu: one nav, Organizations back link, name, items', async () => {
+      await open(ACME, () => scenarios.platform('platformAdminOrgs'));
+      const menu = await screen.findByRole('navigation', { name: 'Platform menu' });
+      expect(await within(menu).findByText('Acme')).toBeInTheDocument();
+      expect(within(menu).getByRole('link', { name: /Organizations/ })).toHaveAttribute('href', '/platform/orgs');
+      expect(within(menu).getByRole('link', { name: 'Members' })).toHaveAttribute('aria-current', 'page');
+      expect(within(menu).queryByRole('link', { name: 'Platform admins' })).toBeNull();
+      expect(screen.getAllByRole('navigation', { name: /menu$/ })).toHaveLength(1);
     });
 
-    it('a failed org read labels the crumb and the side menu "Organization"', async () => {
-      await renderRoute(`/platform/orgs/${ACME}`, {
-        routeTree: orgTree(),
-        scenario: () => {
-          scenarios.platform('platformAdminOrgs');
-          scenarios.serverError('platform.getOrg');
-        },
+    it('while the org loads the menu shows placeholders, no name', async () => {
+      server.use(
+        http.get('*/api/platform/orgs/:orgId', async () => {
+          await delay('infinite');
+          return HttpResponse.json({});
+        }),
+      );
+      await open(ACME, () => scenarios.platform('platformAdminOrgs'));
+      const menu = await screen.findByRole('navigation', { name: 'Platform menu' });
+      expect(within(menu).getByRole('link', { name: /Organizations/ })).toBeInTheDocument();
+      expect(within(menu).getByRole('status', { name: 'Loading organization' })).toBeInTheDocument();
+      expect(within(menu).getByText('Loading menu')).toBeInTheDocument();
+      expect(within(menu).queryByText('Acme')).toBeNull();
+    });
+
+    it('a failed org read labels the menu "Organization" with no status and keeps the links', async () => {
+      await open(ACME, () => {
+        scenarios.platform('platformAdminOrgs');
+        scenarios.serverError('platform.getOrg');
       });
-      const menu = await screen.findByRole('navigation', { name: 'Platform admin' });
-      await waitFor(() => expect(within(menu).getByRole('link', { name: 'Organization' })).toBeInTheDocument());
+      const menu = await screen.findByRole('navigation', { name: 'Platform menu' });
+      await waitFor(() => expect(within(menu).getByText('Organization')).toBeInTheDocument());
+      expect(within(menu).queryByText('Active')).toBeNull();
       expect(within(menu).getByRole('link', { name: 'Members' })).toHaveAttribute(
         'href',
         `/platform/orgs/${ACME}/members`,
       );
-      const crumbs = screen.getByRole('navigation', { name: 'Breadcrumb' });
-      expect(within(crumbs).getByText('Organization')).toBeInTheDocument();
+      expect(within(menu).getByRole('link', { name: 'Overview' })).toBeInTheDocument();
     });
 
-    it('a ready org shows its name in the side menu group', async () => {
-      await renderRoute(`/platform/orgs/${ACME}`, {
-        routeTree: orgTree(),
-        scenario: () => scenarios.platform('platformAdminOrgs'),
-      });
-      const menu = await screen.findByRole('navigation', { name: 'Platform admin' });
-      expect(await within(menu).findByRole('link', { name: 'Acme' })).toHaveAttribute('href', `/platform/orgs/${ACME}`);
-      expect(
-        within(menu)
-          .getAllByRole('link')
-          .map((a) => a.textContent),
-      ).toEqual(['Acme', 'Overview', 'Projects', 'Members', 'Invitations']);
+    it('a missing org shows the Platform menu with Organizations current and the not found page', async () => {
+      await open(UNKNOWN, () => scenarios.platform('platformAdminOrgs'));
+      const menu = await screen.findByRole('navigation', { name: 'Platform menu' });
+      expect(await screen.findByRole('heading', { name: 'Page not found' })).toBeInTheDocument();
+      expect(screen.getByText('This organization does not exist.')).toBeInTheDocument();
+      expect(screen.getByRole('link', { name: 'Back to organizations' })).toHaveAttribute('href', '/platform/orgs');
+      expect(within(menu).getByRole('link', { name: 'Organizations' })).toHaveAttribute('aria-current', 'page');
+      expect(within(menu).getByRole('link', { name: 'Audit log' })).toBeInTheDocument();
+      await waitFor(() => expect(document.title).toBe('Not found · Agent Desk'));
     });
   });
 
-  it('BR-3: a non-admin on /platform/admins sees the forbidden state, the org bar and sends no platform request', async () => {
+  it('BR-3: a non-admin on /platform/admins sees the forbidden state, no side menu and sends no platform request', async () => {
     const paths = capture();
     await renderRoute('/platform/admins', {
       routeTree: platformTree(),
@@ -138,8 +163,10 @@ describe('the platform shell', () => {
     expect(await screen.findByRole('heading', { name: "You don't have access" })).toBeInTheDocument();
     expect(screen.getByText('This area is for platform admins.')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Go to projects' })).toHaveAttribute('href', '/projects');
-    expect(screen.getByRole('link', { name: 'Projects' })).toBeInTheDocument();
-    expect(screen.queryByRole('navigation', { name: 'Platform admin' })).toBeNull();
+    expect(screen.queryByRole('navigation', { name: 'Platform menu' })).toBeNull();
+    expect(screen.queryByRole('navigation', { name: 'Platform sections' })).toBeNull();
+    expect(screen.queryByRole('link', { name: 'Platform admins' })).toBeNull();
+    expect(screen.getAllByRole('banner')).toHaveLength(1);
     expect(paths.filter((p) => p.startsWith('/api/platform/'))).toEqual([]);
   });
 
@@ -170,7 +197,7 @@ describe('the platform shell', () => {
     // Age the cached answer past the 30 s staleTime without a refetch (no observer sees a change).
     queryClient.getQueryCache().find({ queryKey: accessKeys.platform() })?.setState({ dataUpdatedAt: 0 });
     await router.navigate({ to: '/platform' });
-    expect(await screen.findByRole('navigation', { name: 'Platform sections' })).toBeInTheDocument();
+    expect(await screen.findByRole('navigation', { name: 'Platform menu' })).toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: "You don't have access" })).toBeNull();
   });
 

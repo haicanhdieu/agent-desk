@@ -54,6 +54,21 @@
   flex-direction: column;
   gap: 18px;
 }
+/* Inside the shell's menu slot: the slot sets the width and the border. */
+.setupLeftSlot {
+  padding: 28px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+.setupExit {
+  padding: 0 4px;
+}
+.setupRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
 .setupHead {
   display: flex;
   flex-direction: column;
@@ -369,6 +384,9 @@
   display: flex;
   flex-direction: column;
   gap: 6px;
+  /* The nav takes the column's height, not its content's, so the list inside it (.skillItems) scrolls. */
+  flex-shrink: 1;
+  min-height: 0;
 }
 .skillItems {
   margin: 0;
@@ -576,6 +594,13 @@
   overflow: hidden;
   max-width: 100%;
 }
+/* Phone: a side pane takes the whole width (its inline width is a desktop size). */
+@media (max-width: 639px) {
+  .pane {
+    width: 100% !important;
+    border-left: 0;
+  }
+}
 .paneHead {
   flex: 0 0 auto;
   display: flex;
@@ -719,4 +744,74 @@
   width: 100%;
   min-width: 120px;
   justify-content: flex-start;
+}
+
+/* Phone (BR-65): the wizard is one column with 16px gutters; the aside sits below the main column and the footer wraps. */
+@media (max-width: 639px) {
+  .setupMain {
+    flex-direction: column;
+    gap: 24px;
+    padding: 24px 16px;
+    overflow: visible;
+  }
+  .setupCol {
+    flex: 0 0 auto;
+    min-width: 0;
+    max-width: 100%;
+  }
+  .setupAside {
+    width: auto;
+    flex: 0 0 auto;
+    padding-top: 0;
+  }
+  .setupFoot {
+    flex-wrap: wrap;
+  }
+  .setupTitle h1 {
+    overflow-wrap: anywhere;
+  }
+}
+
+/* Phone and narrow list column (BR-65, BR-83): the run line goes under the rule's text instead of in a column of its own,
+   so a row never overlaps itself. The list (`ruleList`, Screens.module.css) is the size container. */
+@container (max-width: 520px) {
+  .ruleRow {
+    grid-template-columns: 44px minmax(0, 1fr) 32px;
+  }
+  .stats {
+    grid-column: 2;
+    grid-row: 2;
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+  .ruleMore {
+    grid-column: 3;
+    grid-row: 1;
+  }
+}
+
+/* Phone (BR-65), Skills: the list is a bordered box above the editor, capped in height; only its items scroll. */
+@media (max-width: 639px) {
+  .skills {
+    width: 100%;
+    flex: 0 0 auto;
+    max-height: 190px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-8);
+    padding: 6px;
+  }
+  .commitBar {
+    padding: 12px 16px 0;
+  }
+  .commitRow {
+    flex-wrap: wrap;
+  }
+  .commitMsg {
+    flex: 1 1 100%;
+  }
+  .commitTo {
+    width: auto;
+    flex: 1 1 140px;
+    min-width: 0;
+  }
 }

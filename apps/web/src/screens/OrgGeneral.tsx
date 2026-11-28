@@ -1,6 +1,6 @@
 import { useEffect, useId, useRef } from 'react';
 import { Banner, Button, Field, Icon, PrefixInput, TextInput, Toast, ToastRegion } from '@/ds';
-import { SettingsSection, SlugChangeConfirm } from '@/components';
+import { PageHeader, SettingsSection, SlugChangeConfirm } from '@/components';
 import styles from './Screens.module.css';
 
 interface FieldProps {
@@ -44,6 +44,12 @@ export function OrgGeneral({
     if (nameError || slugError) formRef.current?.querySelector<HTMLInputElement>('input[aria-invalid="true"]')?.focus();
   }, [nameError, slugError]);
 
+  const errorBanner = formError && (
+    <Banner tone="err" icon={<Icon name="warning" size={18} />} title={formError.title} live="assertive" centered>
+      {formError.requestId && <span className={styles.requestId}>Request ID: {formError.requestId}</span>}
+    </Banner>
+  );
+
   if (state.kind === 'forbidden') {
     return (
       <main className={styles.emptyNotice}>
@@ -57,13 +63,8 @@ export function OrgGeneral({
 
   return (
     <>
-      <main className={styles.generalMain}>
-        <h1 tabIndex={-1}>General</h1>
-        {formError && (
-          <Banner tone="err" icon={<Icon name="warning" size={18} />} title={formError.title} live="assertive" centered>
-            {formError.requestId && <span className={styles.requestId}>Request ID: {formError.requestId}</span>}
-          </Banner>
-        )}
+      <main className={styles.shellMain}>
+        <PageHeader title="General" banner={errorBanner} />
         <form
           ref={formRef}
           noValidate

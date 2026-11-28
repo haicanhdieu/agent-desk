@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
+import { useState } from 'react';
 import { ConnectionIndicator } from './ConnectionIndicator';
 import { TerminalBar } from './TerminalBar';
 
@@ -44,3 +45,19 @@ export const TranscriptBar: Story = {
     connection: <ConnectionIndicator state="ended" label="Paused, read-only" />,
   },
 };
+
+function TwoUsableTabsDemo() {
+  const [active, setActive] = useState('term');
+  return (
+    <TerminalBar
+      views={[
+        { id: 'term', label: 'Terminal', icon: 'terminal' },
+        { id: 'tr', label: 'Transcript', icon: 'transcript' },
+      ]}
+      activeView={active}
+      onViewChange={setActive}
+      connection={<ConnectionIndicator state="live" label="Live, attached as kim-hale" />}
+    />
+  );
+}
+export const TwoUsableTabs: Story = { args: liveArgs, render: () => <TwoUsableTabsDemo /> };

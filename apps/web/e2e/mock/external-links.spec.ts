@@ -4,10 +4,12 @@ import { INVOICER_API, ORG } from './mock';
 /** Run 65 is a succeeded run on issue 153 (src/mocks/dto/runs.ts). */
 const ISSUE_RUN = 65;
 
-test('Repo on GitHub opens in a new tab and leaves the Run List open', async ({ page }) => {
+test('TC-27.1: Open repository in the menu opens the repository in a new tab and leaves the Run List open', async ({
+  page,
+}) => {
   const runsUrl = `/o/${ORG}/p/${INVOICER_API}/runs`;
   await page.goto(runsUrl);
-  const link = page.getByRole('link', { name: /Repo on GitHub/ });
+  const link = page.getByRole('navigation', { name: 'Project menu' }).getByRole('link', { name: 'Open repository' });
   await expect(link).toHaveAttribute('target', '_blank');
   await expect(link).toHaveAttribute('rel', 'noopener noreferrer');
 
@@ -15,7 +17,7 @@ test('Repo on GitHub opens in a new tab and leaves the Run List open', async ({ 
   await link.click();
   await popup;
   expect(new URL(page.url()).pathname).toBe(runsUrl);
-  await expect(page.getByRole('link', { name: /Repo on GitHub/ })).toBeVisible();
+  await expect(link).toBeVisible();
 });
 
 test('the run detail ticket link says View issue and opens in a new tab', async ({ page }) => {

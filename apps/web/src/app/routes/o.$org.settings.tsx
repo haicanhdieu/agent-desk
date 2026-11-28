@@ -1,59 +1,21 @@
 import { useSuspenseQuery } from '@tanstack/react-query';
-import { createFileRoute, Outlet, useRouterState } from '@tanstack/react-router';
+import { createFileRoute, Outlet } from '@tanstack/react-router';
 import { Forbidden, NotFound } from '@/app/boundaries';
-import { NO_PAGE_CRUMBS, ORG_SETTINGS_CRUMB, OrgSettingsLayout, TopBar } from '@/components';
 import { orgAccessQuery, toAccess } from '@/features/access/queries';
-import { orgSettingsTabs, useAppBar } from '@/features/chrome/appBar';
-import type { OrgSettingsTabKey } from '@/mocks/types';
+import { firstSettingsTab } from '@/features/chrome/appBar';
 
-// Settings area: the org top bar and the side menu with the tabs the caller may open. Without any tab: the bar and
-// the no-access state, no side menu. Access only shows or hides UI here; the API refuses each action (ADR-0036).
+// Settings area: the shell draws the bar and the org menu; each page declares its own item (`staticData.item`). Without
+// any page the caller may open, this layout shows the no-access state (the shell keeps the org menu). Access only
+// shows or hides UI here; the API refuses each action (ADR-0036).
 export const Route = createFileRoute('/o/$org/settings')({
+  staticData: { chrome: { mode: 'standard', scope: 'org' } },
   component: SettingsLayout,
-  // An unknown tab (or one not built yet) keeps the bar and the side menu.
+  // An unknown tab keeps the bar and the side menu.
   notFoundComponent: NotFound,
 });
-
-const TAB_KEYS: readonly OrgSettingsTabKey[] = ['general', 'members', 'invitations', 'audit'];
-
-function useActiveTab(): OrgSettingsTabKey | null {
-  const segment = useRouterState({ select: (s) => /^\/o\/[^/]+\/settings\/([^/]+)/.exec(s.location.pathname)?.[1] });
-  return TAB_KEYS.find((key) => key === segment) ?? null;
-}
 
 function SettingsLayout() {
   const { org } = Route.useParams();
   const { data: accessDto } = useSuspenseQuery(orgAccessQuery(org));
-  const bar = useAppBar(org);
-  const active = useActiveTab();
-  const tabs = orgSettingsTabs(org, toAccess(accessDto));
-  const hasTabs = Object.keys(tabs).length > 0;
-  return (
-    <>
-      <TopBar
-        variant="global"
-        crumbs={
-          hasTabs
-            ? [
-                { label: 'Org settings', href: `/o/${encodeURIComponent(org)}/settings` },
-                ...(active ? [{ label: ORG_SETTINGS_CRUMB[active] }] : []),
-              ]
-            : NO_PAGE_CRUMBS
-        }
-        {...(!hasTabs && { state: 'forbidden' as const })}
-        user={bar.user}
-        org={bar.org}
-        tabs="org"
-        {...(hasTabs && { active: 'settings' as const })}
-        links={{ projects: `/o/${encodeURIComponent(org)}/projects` }}
-      />
-      {hasTabs ? (
-        <OrgSettingsLayout tabs={tabs} active={active}>
-          <Outlet />
-        </OrgSettingsLayout>
-      ) : (
-        <Forbidden titled={false} />
-      )}
-    </>
-  );
+  return firstSettingsTab(toAccess(accessDto)) === null ? <Forbidden /> : <Outlet />;
 }

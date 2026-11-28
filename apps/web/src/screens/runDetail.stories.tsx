@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
+import { userEvent, within } from 'storybook/test';
 import {
   autoResumedTerminal,
-  orgSwitchFixtures,
   runDetailPrMerged,
   runDetails,
   runUsageDetails,
@@ -9,6 +9,7 @@ import {
   transcriptFixtures,
   transcriptStateFixtures,
 } from '@/mocks';
+import { ProjectShellFrame, type ProjectShellFrameProps } from './projectShellFrame';
 import { RunDetail } from './RunDetail';
 import { RunTerminalArea, type RunTerminalAreaProps } from './RunTerminalArea';
 import styles from './Screens.module.css';
@@ -29,13 +30,11 @@ const meta = {
     onStop: () => undefined,
     onCloseSession: () => undefined,
   },
-  // Under the app bar: org / project / Runs / Run N (no bell) and the account menu. Run N comes from the story's run.
+  // Inside the shell: the bar (org / project / Runs / Run N), the project menu and the page header. Run N comes from the story's run.
   render: (args) => (
-    <RunDetail
-      {...args}
-      org={{ ...orgSwitchFixtures.severalOrgsSettings, orgHref: (o) => `#${o.slug}`, createHref: '#new-org' }}
-      run={{ runsHref: '#runs', label: `Run ${args.data.run.id}` }}
-    />
+    <ProjectShellFrame page="runs" fill crumbs={runCrumbs(args.data.run.id)}>
+      <RunDetail {...args} />
+    </ProjectShellFrame>
   ),
 } satisfies Meta<typeof RunDetail>;
 export default meta;
@@ -82,7 +81,7 @@ export const RunIdleReadOnly: Story = {
 export const RunReconnect: Story = {
   decorators: artboard(1280, 800),
   globals: viewport(1280, 800),
-  args: { data: runDetails.RunReconnect, lines: terminalByRun[61], panelCollapsed: true, height: 800 },
+  args: { data: runDetails.RunReconnect, lines: terminalByRun[61], panelCollapsed: true },
 };
 export const RunSucceeded: Story = {
   decorators: artboard(1440, 900),
@@ -427,4 +426,126 @@ export const RunRunningUsageReconnecting: Story = {
   decorators: artboard(1440, 900),
   globals: viewport(1440, 900),
   args: { data: runUsageDetails.RunRunningUsageReconnecting, lines: terminalByRun[61] },
+};
+
+// The run page inside the shell: the shell draws the bar and the project menu; the page draws its header (title, facts
+// and the run actions) over the terminal and the context panel. The confirms hang under their header buttons.
+const runCrumbs = (n: number) => [{ label: 'Runs', href: '#runs' }, { label: `Run ${n}` }];
+const shellRun = (
+  data: (typeof runDetails)[keyof typeof runDetails],
+  lines: React.ComponentProps<typeof RunDetail>['lines'],
+  frame: Partial<ProjectShellFrameProps> = {},
+  props: Partial<React.ComponentProps<typeof RunDetail>> = {},
+) => (
+  <ProjectShellFrame page="runs" crumbs={runCrumbs(data.run.id)} {...frame}>
+    <RunDetail
+      data={data}
+      lines={lines}
+      onCancel={() => undefined}
+      onFinish={() => undefined}
+      onStopOpen={() => undefined}
+      onStop={() => undefined}
+      onCancelClose={() => undefined}
+      onStopClose={() => undefined}
+      onTogglePanel={() => undefined}
+      {...props}
+    />
+  </ProjectShellFrame>
+);
+
+export const RunIdle1024: Story = {
+  name: 'Run needs you at 1024px',
+  decorators: artboard(1024, 900),
+  globals: viewport(1024, 900),
+  args: { data: runDetails.RunIdle, lines: terminalByRun[62] },
+  render: () => shellRun(runDetails.RunIdle, terminalByRun[62], { collapsed: true }),
+};
+export const RunIdleSideCollapsed: Story = {
+  name: 'Run needs you, menu collapsed, actions in the page header',
+  decorators: artboard(1440, 900),
+  globals: viewport(1440, 900),
+  args: { data: runDetails.RunIdle, lines: terminalByRun[62] },
+  render: () => shellRun(runDetails.RunIdle, terminalByRun[62], { collapsed: true }),
+};
+export const RunIdleSideExpanded: Story = {
+  name: 'Run needs you, menu expanded',
+  decorators: artboard(1440, 900),
+  globals: viewport(1440, 900),
+  args: { data: runDetails.RunIdle, lines: terminalByRun[62] },
+  render: () => shellRun(runDetails.RunIdle, terminalByRun[62]),
+};
+export const RunRunningSideMenu: Story = {
+  name: 'Running, cancel confirm under the header button',
+  decorators: artboard(1440, 900),
+  globals: viewport(1440, 900),
+  args: { data: runDetails.RunRunning, lines: terminalByRun[61] },
+  render: () => shellRun(runDetails.RunRunning, terminalByRun[61], {}, { cancelConfirmOpen: true }),
+};
+export const RunRunningStopSideMenu: Story = {
+  name: 'Running, stop confirm under the header button',
+  decorators: artboard(1440, 900),
+  globals: viewport(1440, 900),
+  args: { data: runDetails.RunRunningStop, lines: terminalByRun[61] },
+  render: () => shellRun(runDetails.RunRunningStop, terminalByRun[61], {}, { stopConfirmOpen: true }),
+};
+
+// BR-60, BR-65, BR-66: the run page at 390x844. The page header wraps (the run actions on their own row), the view
+// switch swaps the terminal and the context panel, and the extra keys sit directly under a live terminal that accepts
+// typing (`onKey` given). The shell frame is the real phone shell; the board's own drawn bar is not copied.
+const phoneArtboard: NonNullable<Story['decorators']> = [
+  (S) => (
+    <div style={{ width: 390, height: 844 }}>
+      <S />
+    </div>
+  ),
+];
+const phoneRun = (
+  data: (typeof runDetails)[keyof typeof runDetails],
+  lines: React.ComponentProps<typeof RunDetail>['lines'],
+  props: Partial<React.ComponentProps<typeof RunDetail>> = {},
+) => shellRun(data, lines, { height: 844, fill: true }, { ...props });
+const openDetails = async ({ canvasElement }: { canvasElement: HTMLElement }) => {
+  await userEvent.click(within(canvasElement).getByRole('radio', { name: 'Details' }));
+};
+export const RunIdlePhone: Story = {
+  name: 'Phone: needs you, with the extra keys',
+  decorators: phoneArtboard,
+  globals: viewport(390, 844),
+  args: { data: runDetails.RunIdle, lines: terminalByRun[62] },
+  render: () => phoneRun(runDetails.RunIdle, terminalByRun[62], { onKey: () => undefined }),
+};
+export const RunIdlePhoneDetails: Story = {
+  name: 'Phone: needs you, Details view',
+  decorators: phoneArtboard,
+  globals: viewport(390, 844),
+  args: { data: runDetails.RunIdle, lines: terminalByRun[62] },
+  render: () => phoneRun(runDetails.RunIdle, terminalByRun[62], { onKey: () => undefined }),
+  play: openDetails,
+};
+/** Connection lost: the overlay shows and the key row does not (no `onKey`). */
+export const RunReconnectPhone: Story = {
+  name: 'Phone: connection lost, no keys',
+  decorators: phoneArtboard,
+  globals: viewport(390, 844),
+  args: { data: runDetails.RunReconnect, lines: terminalByRun[61] },
+  render: () => phoneRun(runDetails.RunReconnect, terminalByRun[61]),
+};
+export const RunRunningPhoneCancelConfirm: Story = {
+  name: 'Phone: running, cancel confirm full width',
+  decorators: phoneArtboard,
+  globals: viewport(390, 844),
+  args: { data: runDetails.RunRunning, lines: terminalByRun[61] },
+  render: () => phoneRun(runDetails.RunRunning, terminalByRun[61], { cancelConfirmOpen: true, onKey: () => undefined }),
+};
+/** Stopped: the saved Transcript, read-only, with no key row. */
+export const RunStoppedPhone: Story = {
+  name: 'Phone: stopped, transcript, no keys',
+  decorators: phoneArtboard,
+  globals: viewport(390, 844),
+  args: { data: runDetails.RunStopped },
+  render: () =>
+    phoneRun(runDetails.RunStopped, undefined, {
+      transcript: { state: 'ready', items: transcriptFixtures.default, hasEarlier: true },
+      onResume: () => undefined,
+    }),
 };

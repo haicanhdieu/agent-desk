@@ -26,12 +26,7 @@ export const WithSwitches: Story = {
     items: [
       {
         control: (
-          <OrgSwitch
-            {...orgSwitchFixtures.oneOrg}
-            orgHref={(o) => `/o/${o.slug}`}
-            createHref="/platform/orgs/new"
-            projectsHref="#projects"
-          />
+          <OrgSwitch {...orgSwitchFixtures.oneOrg} orgHref={(o) => `/o/${o.slug}`} createHref="/platform/orgs/new" />
         ),
       },
       { control: <ProjectSwitch project="invoicer-api" /> },

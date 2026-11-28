@@ -3,6 +3,8 @@ import userEvent from '@testing-library/user-event';
 import { composeStories } from '@storybook/react-vite';
 import { OrgGeneral, type OrgGeneralProps } from './OrgGeneral';
 import * as orgSettingsStories from './orgSettings.stories';
+import { expectShellOwnedPage } from '@/test/shellAssert';
+import { OrgShellFrame } from './orgShellFrame';
 
 const props = (over: Partial<OrgGeneralProps> = {}): OrgGeneralProps => ({
   state: { kind: 'ready' },
@@ -201,5 +203,35 @@ describe('OrgGeneral', () => {
     expect(document.querySelector('img')).toBeNull();
     expect(document.querySelector('b')).toBeNull();
     expect(screen.getByRole('dialog')).toHaveTextContent('/o/<b>old</b> becomes /o/new.');
+  });
+});
+
+describe('OrgGeneral in the shell', () => {
+  const inShell = (p: OrgGeneralProps) =>
+    render(
+      <OrgShellFrame viewer="owner" page="general">
+        <OrgGeneral {...p} />
+      </OrgShellFrame>,
+    );
+
+  it('ready draws one main with the h1 General, the Organization section and Save, no chrome of its own', () => {
+    inShell(props({ dirty: true }));
+    const main = expectShellOwnedPage('General');
+    expect(within(main).getByRole('region', { name: 'Organization' })).toBeInTheDocument();
+    expect(within(main).getByRole('button', { name: 'Save' })).toBeEnabled();
+  });
+
+  it('a form error banner sits under the h1 in the page header', () => {
+    inShell(props({ formError: { title: 'Could not save', requestId: 'req_1' } }));
+    const main = expectShellOwnedPage('General');
+    const banner = within(main).getByText('Could not save');
+    expect(
+      screen.getByRole('heading', { level: 1 }).compareDocumentPosition(banner) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+  });
+
+  it('forbidden keeps one main with the no-access h1', () => {
+    inShell(props({ state: { kind: 'forbidden' } }));
+    expectShellOwnedPage("You don't have access", { pageHeader: false });
   });
 });

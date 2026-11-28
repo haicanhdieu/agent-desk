@@ -1,5 +1,5 @@
 import { createContext, useContext, useId, useRef, useState, type ReactNode } from 'react';
-import { Avatar, Icon, Popover } from '@/ds';
+import { AppLink, Avatar, Icon, Popover } from '@/ds';
 import type { Actor } from '@/mocks/types';
 import styles from './AccountMenu.module.css';
 import { useMenuNav } from './useMenuNav';
@@ -33,7 +33,7 @@ export interface AccountMenuProps {
 
 /**
  * The user's avatar in the top bar. With a sign-out action in context it is a button opening the account menu
- * (identity, Logout); without one (static boards) it stays a plain avatar.
+ * (identity, My invitations, Logout); without one (static boards) it stays a plain avatar.
  */
 export function AccountMenu({ user }: AccountMenuProps) {
   const onSignOut = useContext(SignOutContext);
@@ -82,6 +82,9 @@ function AccountMenuButton({ login, avatar, onSignOut }: { login: string; avatar
             <span className={`mono faint ${styles.email}`}>{email || login}</span>
           </span>
           <div role="separator" className={styles.separator} />
+          <AppLink href="/invitations" role="menuitem" className={styles.item} onClick={() => setOpen(false)}>
+            <span>My invitations</span>
+          </AppLink>
           <button
             type="button"
             role="menuitem"

@@ -1,4 +1,5 @@
 import { act, fireEvent, render, screen, within } from '@testing-library/react';
+import type { ReactElement } from 'react';
 import userEvent from '@testing-library/user-event';
 import {
   invitationCards,
@@ -12,12 +13,11 @@ import { InvitationAccept, type InvitationAcceptState } from './InvitationAccept
 import { OrgInvitations, type OrgInvitationsProps } from './OrgInvitations';
 import { MyInvitations, type MyInvitationsState } from './MyInvitations';
 import { CreateOrg, type CreateOrgState, type CreateOrgValues } from './CreateOrg';
-import { OrgSettingsFrame } from './orgSettingsFrame';
-
-const settingsOrg = { ...orgSwitchFixtures.oneOrgSettings, orgHref: () => '/o/acme/projects', createHref: '/orgs/new' };
+import { OrgShellFrame } from './orgShellFrame';
+import { ShellFrame } from './shellFrame';
+import { expectShellOwnedPage, headerActions } from '@/test/shellAssert';
 
 const props = (state: MyInvitationsState) => ({
-  user,
   state,
   onAccept: vi.fn(),
   onDecline: vi.fn(),
@@ -26,7 +26,13 @@ const props = (state: MyInvitationsState) => ({
 
 describe('MyInvitations', () => {
   it('BR-37: a non-admin with no invitation sees the welcome copy and Sign out, no Create organization', async () => {
-    const p = props({ kind: 'empty', email: 'dana.ortiz@example.com', platformAdmin: false, createHref: '/orgs/new' });
+    const p = props({
+      kind: 'empty',
+      member: false,
+      email: 'dana.ortiz@example.com',
+      platformAdmin: false,
+      createHref: '/orgs/new',
+    });
     render(<MyInvitations {...p} />);
     expect(
       screen.getByRole('heading', { level: 1, name: "You're not a member of any organization" }),
@@ -42,7 +48,13 @@ describe('MyInvitations', () => {
   it('BR-34: a platform admin sees Create organization linking to createHref, and Sign out', () => {
     render(
       <MyInvitations
-        {...props({ kind: 'empty', email: 'ops@example.com', platformAdmin: true, createHref: '/orgs/new' })}
+        {...props({
+          kind: 'empty',
+          member: false,
+          email: 'ops@example.com',
+          platformAdmin: true,
+          createHref: '/orgs/new',
+        })}
       />,
     );
     expect(screen.getByText('Create an organization and invite its first owner.')).toBeInTheDocument();
@@ -50,10 +62,10 @@ describe('MyInvitations', () => {
     expect(screen.getByRole('button', { name: 'Sign out' })).toBeInTheDocument();
   });
 
-  it('lists one card per invitation under an Invitations heading and wires Accept and Decline by id', async () => {
+  it('lists one card per invitation under a My invitations heading and wires Accept and Decline by id', async () => {
     const p = props({ kind: 'list', cards: invitationCards, pending: null });
     render(<MyInvitations {...p} />);
-    expect(screen.getByRole('heading', { level: 1, name: 'Invitations' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 1, name: 'My invitations' })).toBeInTheDocument();
     expect(screen.getAllByRole('listitem')).toHaveLength(invitationCards.length);
     const second = screen.getAllByRole('listitem')[1];
     await userEvent.click(within(second).getByRole('button', { name: 'Accept' }));
@@ -97,7 +109,6 @@ describe('MyInvitations', () => {
 });
 
 const accept = (state: InvitationAcceptState) => ({
-  user,
   state,
   onAccept: vi.fn(),
   onDecline: vi.fn(),
@@ -173,18 +184,6 @@ describe('InvitationAccept', () => {
     render(<InvitationAccept {...p} />);
     await userEvent.keyboard('{Escape}');
     expect(p.onCancelDecline).toHaveBeenCalledTimes(1);
-  });
-
-  it('accepted with an org shows the org name as plain text in the top bar, and not without it', () => {
-    const state: InvitationAcceptState = { kind: 'accepted', orgName: 'Acme', orgHref: '/o/acme/projects' };
-    const { unmount } = render(<InvitationAccept {...accept(state)} />);
-    expect(within(screen.getByRole('banner')).queryByText('Acme')).not.toBeInTheDocument();
-    unmount();
-    const org = { ...orgSwitchFixtures.oneOrg, orgHref: () => '/o/acme/projects', createHref: '/orgs/new' };
-    render(<InvitationAccept {...accept(state)} org={org} />);
-    const bar = within(screen.getByRole('banner'));
-    expect(bar.getByText('Acme')).toBeInTheDocument();
-    expect(bar.queryByRole('link', { name: 'Acme' })).not.toBeInTheDocument();
   });
 
   it('BR-26: accepted shows "You already joined <Org>" with a link and no Accept or Decline', () => {
@@ -802,13 +801,13 @@ describe('CreateOrg', () => {
 });
 
 /** OrgInvitations renders the page body only: the settings layout draws the bar. */
-describe('OrgInvitations inside the settings layout', () => {
-  it('it renders no top bar of its own and keeps its table and the revoke dialog', () => {
+describe('OrgInvitations page', () => {
+  it('renders no top bar of its own and keeps its table and the revoke dialog', () => {
     const rest = listProps({
       revokeConfirm: { email: 'x@example.com', onConfirm: vi.fn(), onCancel: vi.fn() },
     });
     render(<OrgInvitations {...rest} />);
-    expect(screen.queryByRole('banner')).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Agent Desk, all projects' })).not.toBeInTheDocument();
     expect(screen.getByRole('heading', { level: 1, name: 'Invitations' })).toBeInTheDocument();
     expect(screen.getByRole('table')).toBeInTheDocument();
     expect(screen.getByRole('dialog', { name: 'Revoke invitation for x@example.com?' })).toBeInTheDocument();
@@ -817,61 +816,141 @@ describe('OrgInvitations inside the settings layout', () => {
   it('the forbidden state renders no top bar either', () => {
     const rest = listProps({ state: { kind: 'forbidden' } });
     render(<OrgInvitations {...rest} />);
-    expect(screen.queryByRole('banner')).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Agent Desk, all projects' })).not.toBeInTheDocument();
     expect(screen.getByRole('heading', { level: 1, name: "You don't have access" })).toBeInTheDocument();
   });
+});
 
-  const tabNames = () =>
-    within(screen.getByRole('navigation', { name: 'Organization settings' }))
-      .getAllByRole('link')
-      .map((a) => a.textContent);
-
-  it('the frame for an owner shows the app bar with Settings active and the full side menu', () => {
+describe('OrgInvitations in the shell', () => {
+  const inShell = (over: Partial<OrgInvitationsProps> = {}, viewer: 'owner' | 'projectAdmin' = 'owner') =>
     render(
-      <OrgSettingsFrame role="owner" active="invitations">
-        <p>Body</p>
-      </OrgSettingsFrame>,
+      <OrgShellFrame viewer={viewer} page="invitations">
+        <OrgInvitations {...listProps(over)} />
+      </OrgShellFrame>,
     );
-    const main = within(screen.getByRole('navigation', { name: 'Organization sections' }));
-    expect(main.getByRole('link', { name: 'Org settings' })).toHaveAttribute('aria-current', 'page');
-    expect(tabNames()).toEqual(['General', 'Members', 'Invitations', 'Audit log']);
-    const side = within(screen.getByRole('navigation', { name: 'Organization settings' }));
-    expect(side.getByRole('link', { name: 'Invitations' })).toHaveAttribute('aria-current', 'page');
+
+  it('ready draws one main with the h1 Invitations and Invite people in the header actions', async () => {
+    const onInvite = vi.fn();
+    inShell({ onInvite });
+    const main = expectShellOwnedPage('Invitations');
+    await userEvent.click(within(headerActions(main)).getByRole('button', { name: 'Invite people' }));
+    expect(onInvite).toHaveBeenCalledTimes(1);
+    expect(within(main).getByRole('group', { name: 'Filter by status' })).toBeInTheDocument();
   });
 
-  it('the frame for a project admin lists only Invitations', () => {
+  it('a project admin sees only the Invitations item in the Settings group of the menu', () => {
+    inShell({}, 'projectAdmin');
+    expectShellOwnedPage('Invitations');
+    const menu = screen.getByRole('navigation', { name: 'Organization menu' });
+    expect(within(menu).getByRole('link', { name: 'Invitations' })).toHaveAttribute('aria-current', 'page');
+    expect(within(menu).queryByRole('link', { name: 'Members' })).toBeNull();
+  });
+
+  it('loading keeps one main and no h1', () => {
+    inShell({ state: { kind: 'loading' } });
+    expectShellOwnedPage(null);
+  });
+
+  it('error keeps one main and no h1', () => {
+    inShell({ state: { kind: 'error', onRetry: vi.fn() } });
+    expectShellOwnedPage(null);
+  });
+
+  it('forbidden keeps one main with the no-access h1', () => {
+    inShell({ state: { kind: 'forbidden' } });
+    expectShellOwnedPage("You don't have access", { pageHeader: false });
+  });
+});
+
+describe('invitation pages in the shell', () => {
+  const email = 'dana.ortiz@example.com';
+  const withMenu = (ui: ReactElement) =>
     render(
-      <OrgSettingsFrame role="projectAdmin" active="invitations">
-        <p>Body</p>
-      </OrgSettingsFrame>,
+      <OrgShellFrame page={null} crumbs={[{ label: 'My invitations' }]}>
+        {ui}
+      </OrgShellFrame>,
     );
-    expect(tabNames()).toEqual(['Invitations']);
+  const noMenu = (ui: ReactElement) =>
+    render(<ShellFrame topBar={{ user, crumbs: [{ label: 'My invitations' }], org: noOrgBar }}>{ui}</ShellFrame>);
+  const noOrgBar = { ...orgSwitchFixtures.platformAdminNoOrg, orgHref: () => '/', createHref: '/orgs/new' };
+  const list = (state: MyInvitationsState) => <MyInvitations {...props(state)} />;
+  const empty = (member: boolean): MyInvitationsState => ({
+    kind: 'empty',
+    member,
+    email,
+    platformAdmin: false,
+    createHref: '/orgs/new',
   });
 
-  it('the frame for a member has no Settings tab and, without a side menu, no settings navigation', () => {
-    render(
-      <OrgSettingsFrame role="member" active={null} sideMenu={false}>
-        <p>Body</p>
-      </OrgSettingsFrame>,
-    );
-    expect(screen.queryByRole('link', { name: 'Org settings' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('navigation', { name: 'Organization settings' })).not.toBeInTheDocument();
-    expect(screen.getByText('Body')).toBeInTheDocument();
+  it('MyInvitations with invitations has one main and the page header h1 "My invitations"', () => {
+    withMenu(list({ kind: 'list', cards: invitationCards, pending: null }));
+    const main = expectShellOwnedPage('My invitations');
+    expect(within(main).getAllByRole('listitem')).toHaveLength(invitationCards.length);
   });
 
-  const noTabActive = () => {
-    const main = within(screen.getByRole('navigation', { name: 'Organization sections' }));
-    expect(main.getByRole('link', { name: 'Projects' })).not.toHaveAttribute('aria-current');
-    expect(main.getByRole('link', { name: 'Org settings' })).not.toHaveAttribute('aria-current');
-  };
-
-  it('BR-43: My invitations shows the org bar with no tab active', () => {
-    render(<MyInvitations {...props({ kind: 'list', cards: invitationCards, pending: null })} org={settingsOrg} />);
-    noTabActive();
+  it('BR-57: a member with none pending sees the h1 "My invitations", an h2, the email line and no buttons', () => {
+    withMenu(list(empty(true)));
+    const main = expectShellOwnedPage('My invitations');
+    expect(within(main).getByRole('heading', { level: 2, name: 'No pending invitations' })).toBeInTheDocument();
+    expect(within(main).getByText(`No invitations for ${email}.`)).toBeInTheDocument();
+    expect(within(main).queryByRole('button')).toBeNull();
+    expect(within(main).queryByRole('link')).toBeNull();
   });
 
-  it('BR-43: the invitation page shows the org bar with no tab active', () => {
-    render(<InvitationAccept {...accept({ kind: 'revoked' })} org={settingsOrg} />);
-    noTabActive();
+  it('the no-organization welcome has one main, no menu, and its sentence as the only h1', () => {
+    noMenu(list(empty(false)));
+    expect(screen.getAllByRole('banner')).toHaveLength(1);
+    expect(screen.getAllByRole('main')).toHaveLength(1);
+    expect(screen.queryByRole('navigation', { name: 'Organization menu' })).toBeNull();
+    const h1 = screen.getAllByRole('heading', { level: 1 });
+    expect(h1).toHaveLength(1);
+    expect(h1[0]).toHaveTextContent("You're not a member of any organization");
+  });
+
+  it.each([
+    ['loading', { kind: 'loading' } as MyInvitationsState],
+    ['error', { kind: 'error', requestId: 'req_1', onRetry: vi.fn() } as MyInvitationsState],
+  ])('MyInvitations %s has one main with the menu and no h1', (_n, state) => {
+    withMenu(list(state));
+    const main = expectShellOwnedPage(null);
+    if (state.kind === 'loading') expect(within(main).getByRole('status', { name: 'Loading' })).toBeInTheDocument();
+    else expect(within(main).getByRole('button', { name: 'Retry' })).toBeInTheDocument();
+  });
+
+  it('InvitationAccept loaded has one main and the h1 "Join Acme" in the page header', () => {
+    withMenu(<InvitationAccept {...accept(pending())} />);
+    const main = expectShellOwnedPage('Join Acme');
+    expect(within(main).getByRole('button', { name: 'Accept' })).toBeInTheDocument();
+  });
+
+  it('BR-8: InvitationAccept load error is the banner with the request id and Retry, no h1, one main', async () => {
+    const onRetry = vi.fn();
+    withMenu(<InvitationAccept {...accept({ kind: 'error', requestId: 'req_01JD7Q3M8V2K', onRetry })} />);
+    const main = expectShellOwnedPage(null);
+    expect(within(main).getByText(/Request ID: req_01JD7Q3M8V2K/)).toBeInTheDocument();
+    await userEvent.click(within(main).getByRole('button', { name: 'Retry' }));
+    expect(onRetry).toHaveBeenCalledTimes(1);
+  });
+
+  it('InvitationAccept loading has one main and no h1', () => {
+    withMenu(<InvitationAccept {...accept({ kind: 'loading' })} />);
+    expectShellOwnedPage(null);
+  });
+
+  it('an answered invitation keeps its title in the page header, with its action below', () => {
+    withMenu(<InvitationAccept {...accept({ kind: 'declined', invitationsHref: '/invitations' })} />);
+    const main = expectShellOwnedPage('You declined this invitation');
+    expect(within(main).getByRole('link', { name: 'Go to invitations' })).toHaveAttribute('href', '/invitations');
+  });
+
+  it('BR-56: not available is centred with no menu, one main and its title as the only h1', async () => {
+    const p = accept({ kind: 'notAvailable', email });
+    noMenu(<InvitationAccept {...p} />);
+    expect(screen.getAllByRole('banner')).toHaveLength(1);
+    expect(screen.getAllByRole('main')).toHaveLength(1);
+    expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1);
+    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('This invitation is not available');
+    await userEvent.click(screen.getByRole('button', { name: 'Sign out' }));
+    expect(p.onSignOut).toHaveBeenCalledTimes(1);
   });
 });

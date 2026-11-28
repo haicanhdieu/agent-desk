@@ -19,6 +19,8 @@ describe('root session guard', () => {
     await waitFor(() => expect(router.state.location.pathname).toBe('/sign-in'));
     expect(router.state.location.href).toBe('/sign-in?redirect=%2Fo%2Falice%2Fprojects');
     expect(await screen.findByRole('link', { name: 'Sign in with GitHub' })).toBeInTheDocument();
+    expect(screen.getByText('Proof of concept.')).toBeInTheDocument();
+    expect(screen.queryByText(/Single user per project/)).not.toBeInTheDocument();
   });
 
   it('BR-24 sends a signed-out visitor at an invitation link to sign-in with the link as a safe redirect', async () => {
@@ -106,8 +108,14 @@ describe('401 sign-out path', () => {
         ]),
       component: () => <p>Loaded</p>,
     });
+    // The start page asks for nothing: a page the router does not know would get the shell, whose own reads would
+    // hit the 401 first and use up the once-guard before the burst under test.
+    const home = createRoute({ getParentRoute: () => root, path: '/', component: () => <p>Home</p> });
     // An expired session: every /api route answers 401.
-    const { router } = await renderRoute('/', { routeTree: root.addChildren([page]), scenario: scenarios.signedOut });
+    const { router } = await renderRoute('/', {
+      routeTree: root.addChildren([home, page]),
+      scenario: scenarios.signedOut,
+    });
     const navigate = vi.spyOn(router, 'navigate');
 
     await router.navigate({ href: '/two' });

@@ -17,6 +17,13 @@
   gap: 2px;
   padding: 8px;
   text-align: left;
+  max-width: calc(100vw - 32px);
+}
+@media (max-width: 639px) {
+  .menu {
+    max-height: calc(100dvh - 128px);
+    overflow-y: auto;
+  }
 }
 .who {
   display: flex;

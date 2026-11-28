@@ -30,6 +30,7 @@ import {
   transcriptOf,
   lifecycleTexts,
   waitForStatus,
+  runHeader,
 } from './helpers';
 
 /*
@@ -324,7 +325,7 @@ test.describe('BR-35, BR-40: a rule naming an agent', () => {
     try {
       await expectRunDetailAgent(page, handle, projectId, runId, codex.name, codex.model);
       expect(await firstLine(runId)).toBe(`agentdesk: agent codex model ${codex.model} endpoint default`);
-      const header = page.getByRole('banner');
+      const header = runHeader(page);
       await expect(page.getByRole('region', { name: 'Terminal' })).toBeVisible({ timeout: 60_000 });
       await expect(header.getByText('Done', { exact: true })).toBeVisible({ timeout: 60_000 });
       await page.getByRole('region', { name: 'Terminal' }).getByRole('button', { name: 'Finish run' }).click();
@@ -347,7 +348,7 @@ test.describe('BR-35, BR-40: a rule naming an agent', () => {
     try {
       expect(await firstLine(runId)).toBe('agentdesk: agent opencode model default endpoint default');
       await expectRunDetailAgent(page, handle, projectId, runId, oc.name);
-      const header = page.getByRole('banner');
+      const header = runHeader(page);
       await expect(header.getByText('Done', { exact: true })).toBeVisible({ timeout: 60_000 });
       await page.getByRole('region', { name: 'Terminal' }).getByRole('button', { name: 'Finish run' }).click();
       await expect(header.getByText('Succeeded', { exact: true })).toBeVisible({ timeout: 30_000 });
@@ -625,7 +626,7 @@ test.describe('paused runs (short-idle stack, E2E_IDLE_END_SECONDS)', () => {
       // TC-26.2 step 2: the paused run still shows A.
       const run = await runOf(page, runId);
       await page.goto(runUrl(handle, projectId, run.number));
-      await expect(page.getByRole('banner').getByText('Paused', { exact: true })).toBeVisible({ timeout: 15_000 });
+      await expect(runHeader(page).getByText('Paused', { exact: true })).toBeVisible({ timeout: 15_000 });
       await expectRunDetailAgent(page, handle, projectId, runId, a.name);
 
       // TC-38.1 step 2: the control that resumes the paused run.
@@ -669,7 +670,7 @@ test.describe('paused runs (short-idle stack, E2E_IDLE_END_SECONDS)', () => {
       // Step 2: resume the paused run.
       const run = await runOf(page, runId);
       await page.goto(runUrl(handle, projectId, run.number));
-      await expect(page.getByRole('banner').getByText('Paused', { exact: true })).toBeVisible({ timeout: 15_000 });
+      await expect(runHeader(page).getByText('Paused', { exact: true })).toBeVisible({ timeout: 15_000 });
       await page.getByRole('button', { name: 'Resume' }).click();
 
       // Step 3: the first line, the agent's secret file, the run detail.

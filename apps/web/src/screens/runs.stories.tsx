@@ -1,32 +1,33 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
-import { AppShell, RouteLoadError, RouteSkeleton, type OrgSwitchProps, type PaginationProps } from '@/components';
+import type { ReactNode } from 'react';
+import { userEvent, waitFor, within } from 'storybook/test';
+import { EmptyState, RouteLoadError, RouteSkeleton, type PaginationProps } from '@/components';
 import {
   connectionWarnings,
   ignored,
   ignoredPrStates,
   linkedGroups,
-  orgSwitchFixtures,
   pagedIgnored,
-  pagedNeedsYou,
   pagedRuns,
+  projectSwitchFixtures,
   prStateRuns,
-  projects,
-  runDetails,
   runs,
   ticketGroups,
   tickets,
   usageCellPage2,
   usageCellPage3,
-  user,
 } from '@/mocks';
 import type { TicketGroup } from '@/mocks/types';
-import { NeedsYou as NeedsYouScreen } from './NeedsYou';
 import { Runs as RunsScreen } from './Runs';
 import { RunsProblems as RunsProblemsScreen, type RunsProblemsWarning } from './RunsProblems';
-import type { RunsFilter } from './RunsPage';
+import { RunsPage, type RunsFilter } from './RunsPage';
+import { OrgShellFrame } from './orgShellFrame';
+import { ProjectShellFrame, type ProjectShellFrameProps } from './projectShellFrame';
+import { Button } from '@/ds';
+import styles from './Screens.module.css';
 import { viewport } from './viewports';
 
-// Artboards come from canvas.json: Runs 1440x1000, RunsProblems 1440x960, NeedsYou 1440x740.
+// Artboards come from canvas.json: Runs 1440x1000, RunsProblems 1440x960.
 const meta = {
   title: 'Screens/Runs',
   parameters: { layout: 'fullscreen' },
@@ -37,26 +38,14 @@ type Story = StoryObj<typeof meta>;
 const artboard = (height: number): NonNullable<Story['decorators']> => [
   (S) => (
     <div style={{ width: 1440, height }}>
-      <AppShell height={height} topBar={null}>
+      <ProjectShellFrame page="runs" height={height} crumbs={[{ label: 'Runs' }]}>
         <S />
-      </AppShell>
+      </ProjectShellFrame>
     </div>
   ),
 ];
 
-const project = projects[0];
-/** The app bar of an owner: the org crumb with Settings, the account menu, and the Runs and Settings tabs. */
-const org: OrgSwitchProps = {
-  ...orgSwitchFixtures.severalOrgsSettings,
-  orgHref: (o) => `#${o.slug}`,
-  createHref: '#new-org',
-};
 const common = {
-  project,
-  user,
-  org,
-  links: { desk: '#desk' },
-  needsYou: 1,
   slots: { used: 2, total: 2 },
   today: 'Today: 9 runs, 1 failed',
 };
@@ -172,59 +161,11 @@ export const RunsProblemsPolling: Story = {
   ),
 };
 
-export const NeedsYou: Story = {
-  name: 'Where needs you shows up',
-  decorators: artboard(740),
-  globals: viewport(1440, 740),
-  render: () => (
-    <NeedsYouScreen project={project} projects={projects.slice(0, 3)} canResume={() => true} topBar={{ user, org }} />
-  ),
-};
-
 export const RunsProblemsEmpty: Story = {
   name: 'Runs, problems, nothing ignored',
   decorators: artboard(960),
   globals: viewport(1440, 960),
   render: () => <RunsProblemsScreen {...common} counts={{ ...counts, ignored: 0 }} ignored={[]} warnings={[]} />,
-};
-
-export const NeedsYouNone: Story = {
-  name: 'Where needs you shows up, no idle run',
-  decorators: artboard(740),
-  globals: viewport(1440, 740),
-  render: () => (
-    <NeedsYouScreen
-      project={{ ...project, needsYou: 0 }}
-      projects={projects.slice(0, 3)}
-      runs={[]}
-      topBar={{ user, org }}
-    />
-  ),
-};
-
-/** A paused run beside the idle one: the Paused badge and a Resume button. */
-export const NeedsYouPaused: Story = {
-  name: 'Where needs you shows up, a paused run',
-  decorators: artboard(740),
-  globals: viewport(1440, 740),
-  render: () => (
-    <NeedsYouScreen
-      project={project}
-      projects={projects.slice(0, 3)}
-      topBar={{ user, org }}
-      runs={[
-        {
-          run: { ...runDetails.RunPaused.run },
-          href: '/runs/64',
-          idleAt: '14:24',
-          endsAt: '14:54',
-        },
-        ...runs.filter((r) => r.id === 62).map((run) => ({ run, href: '/runs/62', idleAt: '14:13', endsAt: '14:43' })),
-      ]}
-      onResume={() => {}}
-      canResume={() => true}
-    />
-  ),
 };
 
 const noop = () => undefined;
@@ -257,7 +198,7 @@ const lastPageGroups: TicketGroup[] = [
     runs: lastPageRuns.slice(2).map((r) => ({ ...r, ticket: tickets.issue131 })),
   },
 ];
-const pagedCommon = { ...common, needsYou: 1, today: 'Today: 9 runs, 1 failed' };
+const pagedCommon = { ...common, today: 'Today: 9 runs, 1 failed' };
 const pagedCounts: Record<RunsFilter, number> = { needs_you: 1, active: 2, queued: 1, ended: 59, all: 63, ignored: 3 };
 const pagedNeedsYouRun = {
   run: runs.find((r) => r.id === 62)!,
@@ -295,7 +236,6 @@ export const RunsFlatPaged: Story = {
     <RunsScreen
       search={search}
       {...pagedCommon}
-      needsYou={0}
       slots={{ used: 0, total: 2 }}
       filter="all"
       grouped={false}
@@ -449,7 +389,6 @@ export const RunsEmpty: Story = {
     <RunsScreen
       search={search}
       {...pagedCommon}
-      needsYou={0}
       slots={{ used: 0, total: 2 }}
       filter="active"
       counts={{ needs_you: 0, active: 0, queued: 0, ended: 63, all: 63, ignored: 3 }}
@@ -471,23 +410,6 @@ export const RunsProblemsPaged: Story = {
       ignored={pagedIgnored(27).slice(20)}
       warnings={[connectionWarnings.webhookSilent, credentialWarning]}
       pagination={pagination(2, 27)}
-    />
-  ),
-};
-
-/** Page 2 of 2 of 21 runs waiting for a person: the last page holds one card. */
-export const NeedsYouPaged: Story = {
-  name: 'Needs you, run cards, page 2 of 2',
-  decorators: artboard(740),
-  globals: viewport(1440, 740),
-  render: () => (
-    <NeedsYouScreen
-      canResume={() => true}
-      topBar={{ user, org }}
-      project={{ ...project, needsYou: 21 }}
-      projects={projects.slice(0, 3).map((p) => (p.id === project.id ? { ...p, needsYou: 21 } : p))}
-      runs={pagedNeedsYou(21).slice(20)}
-      pagination={pagination(2, 21)}
     />
   ),
 };
@@ -588,4 +510,195 @@ export const RunsPageLoadingUsage: Story = {
       pagination={pagination(4, 63, true)}
     />
   ),
+};
+
+// The same page inside the shell: the project menu with its repository block beside a page that draws only its header,
+// the chips and the list.
+const runsCrumbs = [{ label: 'Runs' }];
+const idleRun = {
+  run: runs.find((r) => r.id === 62)!,
+  askedAgo: '3 minutes ago',
+  slotNote:
+    'It holds one of your 2 slots, so Run 63 is waiting. It ends on its own after 30 minutes with nobody attached.',
+  href: '/runs/62',
+};
+const shellRuns = (frame: Partial<ProjectShellFrameProps> = {}, body?: ReactNode) => (
+  <ProjectShellFrame page="runs" crumbs={runsCrumbs} {...frame}>
+    {body ?? (
+      <RunsScreen
+        search={search}
+        {...common}
+        filter="all"
+        counts={counts}
+        groups={ticketGroups}
+        needsYouRun={idleRun}
+        onFinishIdle={() => undefined}
+      />
+    )}
+  </ProjectShellFrame>
+);
+const shellPage = (children: ReactNode) => (
+  <RunsPage {...common} filter="all" counts={counts} search={search}>
+    {children}
+  </RunsPage>
+);
+const openSwitcher: Story['play'] = async ({ canvasElement }) => {
+  await userEvent.click(within(canvasElement).getByRole('button', { name: /^Switch project/ }));
+  await waitFor(() => within(canvasElement).getByRole('dialog', { name: 'Switch project' }));
+};
+
+export const RunsSideMenu: Story = {
+  name: 'Runs, full project menu',
+  globals: viewport(1440, 900),
+  render: () => shellRuns(),
+};
+export const RunsSideMenuMember: Story = {
+  name: 'Runs, project menu for a member or viewer',
+  globals: viewport(1440, 900),
+  render: () => shellRuns({ menu: 'member' }),
+};
+export const RunsSideMenuLoading: Story = {
+  name: 'Runs, project menu loading',
+  globals: viewport(1440, 900),
+  render: () => shellRuns({ menu: 'loading' }, shellPage(<RouteSkeleton />)),
+};
+export const RunsSideMenuError: Story = {
+  name: 'Runs, project menu and list failed to load',
+  globals: viewport(1440, 900),
+  render: () =>
+    shellRuns(
+      { menu: 'error' },
+      shellPage(
+        <RouteLoadError title="Internal server error" requestId="req_01JD7Q3M8V2K" onRetry={() => undefined} />,
+      ),
+    ),
+};
+export const RunsSideMenuRepoWarning: Story = {
+  name: 'Runs, repository block with a webhook warning',
+  globals: viewport(1440, 900),
+  render: () => shellRuns({ menu: 'repoWarning' }),
+};
+export const RunsSideMenuRepoError: Story = {
+  name: 'Runs, repository block with a polling error',
+  globals: viewport(1440, 900),
+  render: () => shellRuns({ menu: 'repoError' }),
+};
+export const RunsSideMenuRepoNoBranch: Story = {
+  name: 'Runs, repository block with no default branch',
+  globals: viewport(1440, 900),
+  render: () => shellRuns({ menu: 'repoNoBranch' }),
+};
+export const RunsSideProjectSwitcher: Story = {
+  name: 'Runs, project switcher open',
+  globals: viewport(1440, 900),
+  render: () => shellRuns({ switcher: projectSwitchFixtures.ready }),
+  play: openSwitcher,
+};
+export const RunsSideProjectSwitcherEmpty: Story = {
+  name: 'Runs, project switcher with no projects',
+  globals: viewport(1440, 900),
+  render: () => shellRuns({ switcher: projectSwitchFixtures.empty }),
+  play: openSwitcher,
+};
+export const RunsSideProjectSwitcherError: Story = {
+  name: 'Runs, project switcher could not load',
+  globals: viewport(1440, 900),
+  render: () => shellRuns({ switcher: projectSwitchFixtures.error }),
+  play: openSwitcher,
+};
+export const RunsSideProjectSwitcherLoading: Story = {
+  name: 'Runs, project switcher loading',
+  globals: viewport(1440, 900),
+  render: () => shellRuns({ switcher: projectSwitchFixtures.loading }),
+  play: openSwitcher,
+};
+export const RunsSideProjectSwitcherNoCreate: Story = {
+  name: 'Runs, project switcher without New project',
+  globals: viewport(1440, 900),
+  render: () => shellRuns({ switcher: projectSwitchFixtures.noCreate }),
+  play: openSwitcher,
+};
+/** A project the person cannot open: the org menu stays, the page says so. */
+export const RunsNotFoundSideMenu: Story = {
+  name: 'Runs, project not found: organization menu',
+  globals: viewport(1440, 900),
+  render: () => (
+    <OrgShellFrame viewer="owner" page={null}>
+      <main className={styles.shellMain}>
+        <EmptyState
+          title="Page not found"
+          body="This page does not exist, or it belongs to an organization you are not in."
+          action={
+            <Button variant="primary" href="#projects">
+              Go to projects
+            </Button>
+          }
+        />
+      </main>
+    </OrgShellFrame>
+  ),
+};
+
+/** The old needs-you address: the page is gone, so the project menu stays and the page says not found. */
+export const RunsNeedsYouNotFound: Story = {
+  name: 'Runs, removed needs-you address: not found',
+  globals: viewport(1440, 900),
+  render: () => (
+    <ProjectShellFrame page={null}>
+      <main className={styles.shellMain}>
+        <EmptyState
+          title="Page not found"
+          body="This page does not exist, or it belongs to an organization you are not in."
+          action={
+            <Button variant="primary" href="#projects">
+              Go to projects
+            </Button>
+          }
+        />
+      </main>
+    </ProjectShellFrame>
+  ),
+};
+
+// BR-65: Runs at 390x844 (phone boards): the header wraps, the search is full width, the chips scroll in one row and
+// each run is a card.
+const phoneArtboard: NonNullable<Story['decorators']> = [
+  (S) => (
+    <div style={{ width: 390, height: 844 }}>
+      <ProjectShellFrame page="runs" height={844} crumbs={[{ label: 'Runs' }]}>
+        <S />
+      </ProjectShellFrame>
+    </div>
+  ),
+];
+const runsPhonePage = () => (
+  <RunsScreen
+    search={search}
+    {...common}
+    filter="all"
+    counts={counts}
+    groups={ticketGroups}
+    needsYouRun={{
+      run: runs.find((r) => r.id === 62)!,
+      askedAgo: '3 minutes ago',
+      slotNote: 'It holds one of your 2 slots, so Run 63 is waiting.',
+      href: '/runs/62',
+    }}
+    onFinishIdle={() => undefined}
+  />
+);
+export const RunsPhone: Story = {
+  name: 'Phone: runs as cards',
+  decorators: phoneArtboard,
+  globals: viewport(390, 844),
+  render: runsPhonePage,
+};
+export const RunsPhoneDrawer: Story = {
+  name: 'Phone: project menu drawer',
+  decorators: phoneArtboard,
+  globals: viewport(390, 844),
+  render: runsPhonePage,
+  play: async ({ canvasElement }) => {
+    await userEvent.click(within(canvasElement).getByRole('button', { name: 'Open menu' }));
+  },
 };

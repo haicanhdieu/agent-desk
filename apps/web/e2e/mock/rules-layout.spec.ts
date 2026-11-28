@@ -90,3 +90,48 @@ test('TC-61.7: the Routing rules header, New rule and the pager stay in view; th
   await expect(newRule).toBeInViewport();
   await expect(pager).toBeInViewport();
 });
+
+// TC-6.4 (sidebar spec, page fit with the shell): at 1280x420 and at the 240 px window the page does not scroll,
+// scrolling the side menu moves no header, "New rule" or pager, and the 120 px scroll area holds.
+for (const height of [420, 240]) {
+  test(`sidebar TC-6.4: scrolling the Project menu at 1280x${height} moves no Routing rules header, New rule or pager`, async ({
+    page,
+  }) => {
+    await seedLists(page, { rules: 45 });
+    await page.setViewportSize({ width: 1280, height });
+    await page.goto(RULES);
+    const header = page.getByRole('heading', { level: 1, name: 'Routing rules' });
+    const newRule = page.getByRole('button', { name: 'New rule' });
+    const pager = page.getByRole('navigation', { name: 'Pagination' });
+    const list = page.getByRole('region', { name: 'Rules list' });
+    await expect(newRule).toBeVisible();
+    await expect(pager).toBeVisible();
+
+    const o = await pageScroll(page);
+    expect(o.scroll).toBe(o.inner);
+    const head0 = await box(header);
+    const new0 = await box(newRule);
+    const pager0 = await box(pager);
+    const list0 = await box(list);
+    expect(list0.height).toBeGreaterThanOrEqual(120);
+
+    const menu = page.getByRole('navigation', { name: 'Project menu' });
+    await expect(menu).toBeVisible();
+    const handle = await menu.evaluateHandle((el) => {
+      const scrolls = (n: HTMLElement) => ['auto', 'scroll'].includes(getComputedStyle(n).overflowY);
+      const all = [el as HTMLElement, ...Array.from(el.querySelectorAll<HTMLElement>('*'))];
+      return all.find((n) => scrolls(n) && n.scrollHeight > n.clientHeight) ?? null;
+    });
+    const scroller = handle.asElement();
+    if (!scroller) throw new Error('the Project menu has no scrolling area that overflows');
+    await scroller.evaluate((el) => el.scrollTo(0, 5000));
+    expect(await scroller.evaluate((el) => el.scrollTop)).toBeGreaterThan(0);
+
+    expect(await page.evaluate(() => window.scrollY)).toBe(0);
+    expect(await pageScroll(page)).toEqual(o);
+    expect(await box(header)).toEqual(head0);
+    expect(await box(newRule)).toEqual(new0);
+    expect(await box(pager)).toEqual(pager0);
+    expect((await box(list)).height).toBe(list0.height);
+  });
+}

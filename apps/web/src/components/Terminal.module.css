@@ -296,3 +296,15 @@
 .find[aria-current='true'] {
   background: var(--term-find-current-bg);
 }
+
+/* Below 1024px (the phone run page) the bar wraps instead of clipping: the connection, the size, Find and Copy all all stay. */
+@media (max-width: 1023px) {
+  .termbar {
+    height: auto;
+    min-height: 38px;
+    flex: 0 0 auto;
+    flex-wrap: wrap;
+    row-gap: 4px;
+    padding-block: 4px;
+  }
+}

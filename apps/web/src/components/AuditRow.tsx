@@ -13,16 +13,16 @@ export function AuditRow({ row }: { row: AuditRowView }) {
   const { when, who, what, note } = row;
   return (
     <tr>
-      <td className={styles.when}>
+      <td className={styles.when} data-label="When">
         <time dateTime={when.iso} title={when.exact}>
           {when.label} <span className="sr-only">{when.exact}</span>
         </time>
       </td>
-      <td className={styles.who}>
+      <td className={styles.who} data-label="Who">
         <span className={who.tag === 'deleted' ? styles.gone : undefined}>{who.label}</span>
         {who.tag === 'platform' && <span className={styles.tag}>Platform admin</span>}
       </td>
-      <td className={styles.whatCell}>
+      <td className={styles.whatCell} data-label="What">
         {what.kind === 'sentence' ? (
           <span className={styles.what} title={what.title}>
             {what.parts.map((part, i) =>

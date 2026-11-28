@@ -13,8 +13,7 @@ import {
 } from '@/ds';
 import { KeyValue, SetupLayout } from '@/components';
 import { connectionCopy as c, DEFAULT_POLL_INTERVAL, pollIntervals } from '@/mocks/connection';
-import type { Actor, PollInterval, TriggerMode } from '@/mocks/types';
-import type { OrgSwitchProps } from '@/components';
+import type { PollInterval, TriggerMode } from '@/mocks/types';
 import { setupSteps, type SetupNav } from './setupSteps';
 import styles from './Screens.module.css';
 
@@ -31,9 +30,6 @@ export interface Setup1Draft {
 }
 
 export interface Setup1Props extends SetupNav {
-  user: Actor;
-  /** The org crumb and menu in the top bar. */
-  org?: OrgSwitchProps;
   projectName: string;
   /** `manageUrl` is the provider's page for changing which repositories the repo's installation can access. */
   repos: { name: string; meta: string; manageUrl?: string }[];
@@ -88,9 +84,8 @@ const permissions = [
 const modes: TriggerMode[] = ['webhook', 'polling'];
 
 export function Setup1({
-  user,
-  org,
   projectName,
+  exitHref,
   repos,
   selected,
   installedOn,
@@ -150,9 +145,8 @@ export function Setup1({
 
   return (
     <SetupLayout
-      user={user}
-      org={org}
       projectName={name || projectName}
+      exitHref={exitHref}
       steps={setupSteps({ withWorkspace: true })}
       current={0}
       stepLabel="Step 1 of 5"

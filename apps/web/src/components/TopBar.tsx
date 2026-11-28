@@ -1,42 +1,28 @@
-import type { ReactNode } from 'react';
-import { Button, IconButton } from '@/ds';
+import { IconButton, PHONE, useMediaQuery } from '@/ds';
 import type { Actor } from '@/mocks/types';
 import { AccountMenu } from './AccountMenu';
 import { Brand } from './Brand';
 import { OrgSwitch, type OrgSwitchProps } from './OrgSwitch';
-import { OrgNav } from './OrgNav';
 import { ProjectSwitch, type ProjectSwitchMenu } from './ProjectSwitch';
 import { Breadcrumb, type BreadcrumbItem } from './Breadcrumb';
-import { PlatformNav, type PlatformNavProps } from './PlatformNav';
-import { ProjectNav } from './ProjectNav';
-import { pageTitle, type PageCrumb, type PageState } from './pageTitle';
-import { useDocumentTitle } from './useDocumentTitle';
+import type { PageCrumb } from './pageTitle';
 import styles from './Chrome.module.css';
 
 export interface TopBarProps {
-  /** global = org level; project; run; platform. */
-  variant: 'global' | 'project' | 'run' | 'platform';
   user: Actor;
   /** Page crumbs after the scope and project crumbs; NO_PAGE_CRUMBS when the page has none. */
   crumbs: readonly PageCrumb[];
-  /** Fixed titles for not-found and forbidden pages. */
-  state?: PageState;
-  /** The org crumb, on every level. */
+  /** The org crumb. */
   org?: OrgSwitchProps;
-  /** Which tabs the bar shows. Default: 'project' on the project variant, else 'none'. */
-  tabs?: 'org' | 'project' | 'none';
-  active?: 'projects' | 'settings' | 'runs' | 'desk';
-  /** The project crumb and, on the project bar, the repository link (absent: no link, as on the run bar). */
-  project?: { name: string; repoUrl?: string };
-  /** The project menu behind the switcher button; without it the button does nothing. */
+  /** The project crumb, with the menu behind its switcher button (without a menu the button does nothing). */
+  projectName?: string;
   projectMenu?: ProjectSwitchMenu;
-  /** The Platform sections tabs, drawn on the platform variant. */
-  platformTabs?: PlatformNavProps;
-  needsYou?: number;
-  children?: ReactNode;
-  actions?: ReactNode;
-  /** In-app hrefs; `projects` defaults to the org crumb's `projectsHref`, then "/projects"; "/runs" for Runs. The Settings tab shows only with `desk`. */
-  links?: { projects?: string; runs?: string; desk?: string };
+  /** Where the logo leads; "/projects" when absent. */
+  logoHref?: string;
+  /** Shows the "Open menu" button, which opens the side menu drawer. Absent: no button. */
+  onOpenMenu?(): void;
+  /** Whether the drawer is open (aria-expanded of the "Open menu" button). */
+  menuOpen?: boolean;
 }
 
 function toItem(c: PageCrumb): BreadcrumbItem {
@@ -49,125 +35,37 @@ export function TopBarSeparator() {
   return <span className={styles.sep} aria-hidden="true" />;
 }
 
+/** The slim bar: logo, scope and project switchers with the page crumbs, the disabled bell and the account menu. */
 export function TopBar({
-  variant,
   user,
   crumbs,
-  state,
   org,
-  tabs,
-  active,
-  project,
+  projectName,
   projectMenu,
-  platformTabs,
-  needsYou,
-  children,
-  actions,
-  links,
+  logoHref,
+  onOpenMenu,
+  menuOpen = false,
 }: TopBarProps) {
-  const projectsHref = links?.projects ?? org?.projectsHref ?? '/projects';
-  const avatar = <AccountMenu user={user} />;
-  const bell = <IconButton icon="bell" aria-label="Notifications on" />;
-  const shownTabs = tabs ?? (variant === 'project' ? 'project' : 'none');
-  const orgCrumb = org && <OrgSwitch {...org} />;
-  const projectCrumb = project && <ProjectSwitch project={project.name} menu={projectMenu} />;
+  const phone = useMediaQuery(PHONE);
 
   const items: BreadcrumbItem[] = [];
-  if (orgCrumb) items.push({ control: orgCrumb });
-  if (projectCrumb) items.push({ control: projectCrumb });
+  if (org) items.push({ control: <OrgSwitch {...org} /> });
+  if (projectName !== undefined) items.push({ control: <ProjectSwitch project={projectName} menu={projectMenu} /> });
   items.push(...crumbs.map(toItem));
-  const scope = variant === 'platform' ? 'Platform' : variant === 'global' ? org?.current?.name : project?.name;
-  useDocumentTitle(pageTitle({ crumbs, scope, state }));
-  const breadcrumb = items.length > 0 && <Breadcrumb items={items} />;
-
-  if (variant === 'run') {
-    return (
-      <header className={styles.top}>
-        <Brand withName={false} href={projectsHref} />
-        <span className={styles.sep} />
-        {breadcrumb}
-        {children && <div className={styles.runExtra}>{children}</div>}
-        <span className={styles.grow} />
-        {bell}
-        {actions}
-        {avatar}
-      </header>
-    );
-  }
-
-  const nav =
-    shownTabs === 'org' ? (
-      <OrgNav
-        active={active === 'projects' || active === 'settings' ? active : undefined}
-        projectsHref={projectsHref}
-        settingsHref={org?.settingsHref}
-      />
-    ) : shownTabs === 'project' ? (
-      <ProjectNav
-        active={active === 'desk' ? 'desk' : 'runs'}
-        needsYou={needsYou}
-        runsHref={links?.runs}
-        deskHref={links?.desk}
-      />
-    ) : null;
-
-  if (variant === 'platform') {
-    return (
-      <header className={styles.top}>
-        <Brand href={projectsHref} />
-        {breadcrumb && (
-          <>
-            <span className={styles.sep} />
-            {breadcrumb}
-          </>
-        )}
-        {platformTabs && <PlatformNav {...platformTabs} />}
-        <span className={styles.grow} />
-        {bell}
-        {avatar}
-      </header>
-    );
-  }
-
-  if (variant === 'global') {
-    return (
-      <header className={styles.top}>
-        <Brand href={projectsHref} />
-        {breadcrumb && (
-          <>
-            <span className={styles.sep} />
-            {breadcrumb}
-          </>
-        )}
-        {nav}
-        <span className={styles.grow} />
-        {bell}
-        {avatar}
-      </header>
-    );
-  }
 
   return (
-    <header className={styles.top}>
-      <Brand href={projectsHref} />
-      <span className={styles.sep} />
-      {breadcrumb}
-      {nav}
-      <span className={styles.grow} />
-      {project?.repoUrl && (
-        <Button
-          variant="ghost"
-          size="sm"
-          href={project.repoUrl}
-          icon="external"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          Repo on GitHub
-        </Button>
+    <header className={`${styles.top} ${styles.topShell}`}>
+      {onOpenMenu && <IconButton icon="menu" aria-label="Open menu" aria-expanded={menuOpen} onClick={onOpenMenu} />}
+      <Brand withName={!phone} href={logoHref ?? '/projects'} />
+      {items.length > 0 && (
+        <>
+          <span className={styles.sep} />
+          <Breadcrumb items={items} />
+        </>
       )}
-      {bell}
-      {avatar}
+      <span className={styles.grow} />
+      <IconButton icon="bell" aria-label="Notifications (coming soon)" title="Notifications (coming soon)" disabled />
+      <AccountMenu user={user} />
     </header>
   );
 }

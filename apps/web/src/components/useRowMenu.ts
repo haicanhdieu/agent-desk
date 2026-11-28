@@ -27,12 +27,26 @@ export function useRowMenu(menuHeight?: number) {
     const onPointerDown = (e: PointerEvent) => {
       if (e.target instanceof Node && !moreRef.current?.contains(e.target)) close();
     };
+    // Scroll events are delivered at the next frame: one caused by the scroll that brought the More button into view
+    // (the click's own) arrives after the menu opened, and its position is already right. Only later scrolls close it.
+    let armed = false;
+    let second = 0;
+    const first = requestAnimationFrame(() => {
+      second = requestAnimationFrame(() => {
+        armed = true;
+      });
+    });
+    const onScroll = () => {
+      if (armed) close();
+    };
     document.addEventListener('pointerdown', onPointerDown);
-    document.addEventListener('scroll', close, true);
+    document.addEventListener('scroll', onScroll, true);
     window.addEventListener('resize', close);
     return () => {
+      cancelAnimationFrame(first);
+      cancelAnimationFrame(second);
       document.removeEventListener('pointerdown', onPointerDown);
-      document.removeEventListener('scroll', close, true);
+      document.removeEventListener('scroll', onScroll, true);
       window.removeEventListener('resize', close);
     };
   }, [open]);

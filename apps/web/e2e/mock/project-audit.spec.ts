@@ -89,7 +89,7 @@ test.describe('BR-16: project Audit log', () => {
     await seedProjectSpace(page, { role: 'projectAdmin' });
     await page.clock.setFixedTime(new Date(AUDIT_MOCK_NOW));
     await page.goto(`/o/${ORG}/p/${P}/desk/agent`);
-    await page.getByRole('navigation', { name: 'Desk' }).getByRole('link', { name: 'Audit log' }).click();
+    await page.getByRole('navigation', { name: 'Project menu' }).getByRole('link', { name: 'Audit log' }).click();
     await loaded(page);
     await expect(page.getByText('Changes to this project, newest first.')).toBeVisible();
     await expect(page.getByRole('columnheader')).toHaveText(['When', 'Who', 'What']);

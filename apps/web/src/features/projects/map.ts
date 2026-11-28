@@ -77,16 +77,16 @@ export function toProject(dto: ProjectDto, connection: ConnectionStatus, org: st
   };
 }
 
-/** The top bar's project menu rows: the org's projects, the current one marked, each linking to its Runs page. */
+/** The top bar's project menu rows: the org's projects, the current one marked, each linking to `hrefFor(its id)`. */
 export function toProjectMenuItems(
   dtos: ProjectDto[],
   currentId: string,
-  runsHref: (projectId: string) => string,
+  hrefFor: (projectId: string) => string,
 ): ProjectMenuProps['items'] {
   return dtos.map((dto) => ({
     name: dto.name,
     needsYou: dto.counts.needsYou,
     current: dto.id === currentId,
-    href: runsHref(dto.id),
+    href: hrefFor(dto.id),
   }));
 }

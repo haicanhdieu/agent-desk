@@ -10,6 +10,7 @@ import { useUpdateOrg } from '@/features/orgSettings/mutations';
 import { OrgGeneral, type OrgGeneralProps } from '@/screens';
 
 export const Route = createFileRoute('/o/$org/settings/general')({
+  staticData: { chrome: { mode: 'standard', scope: 'org', item: 'general', crumb: 'General' } },
   // General needs `org:update` at org level (a project grant never gives it); the API is the authority.
   beforeLoad: ({ context: { queryClient }, params }) => requirePermission(queryClient, params.org, 'org:update'),
   component: GeneralPage,

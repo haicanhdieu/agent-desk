@@ -262,6 +262,12 @@ describe('GuardsCard', () => {
     expect(screen.getAllByRole('listitem')).toHaveLength(4);
   });
 
+  it('TC-72.3: without a change link there is no Change link and Runs, Ignored stays a link', () => {
+    render(<GuardsCard maxRunsPerTicket={10} ignoredHref="/runs?filter=ignored" />);
+    expect(screen.queryByRole('link', { name: 'Change' })).not.toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Runs, Ignored' })).toHaveAttribute('href', '/runs?filter=ignored');
+  });
+
   it('says unlimited, not "at most 0", when the limit is 0', () => {
     render(<GuardsCard maxRunsPerTicket={0} changeHref="/agent" />);
     expect(screen.getByText('unlimited')).toBeInTheDocument();
@@ -294,6 +300,13 @@ describe('SkillList', () => {
     await userEvent.click(screen.getByRole('button', { name: 'New skill' }));
     expect(onNew).toHaveBeenCalled();
     expect(screen.queryAllByRole('listitem')).toHaveLength(0);
+  });
+  it('hideHeader draws neither the Skills heading, the New skill button nor the folder line', () => {
+    render(<SkillList skills={skills} branch="main" hideHeader />);
+    expect(screen.queryByRole('heading', { name: 'Skills' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'New skill' })).toBeNull();
+    expect(screen.queryByText(/on main/)).toBeNull();
+    expect(screen.getAllByRole('link')).toHaveLength(2);
   });
   it('draws the footer under the list, outside the Skills navigation landmark', () => {
     render(<SkillList skills={skills} branch="main" footer={<p>Footer text</p>} />);
@@ -464,10 +477,9 @@ describe('SettingsSection / DangerZone / SidePane / SurfaceCard / SetupLayout', 
     expect(screen.getByText('mock')).toBeInTheDocument();
     expect(container.querySelector('figcaption')).toBeNull();
   });
-  it('SetupLayout composes the chrome, stepper, heading and footer', () => {
+  it('SetupLayout composes the stepper, heading and footer', () => {
     render(
       <SetupLayout
-        user={{ login: 'kim-hale', initials: 'KH' }}
         projectName="invoicer-api"
         steps={[{ label: 'One' }, { label: 'Add agent' }, { label: 'Three' }, { label: 'Four' }]}
         current={1}
@@ -494,7 +506,6 @@ describe('SettingsSection / DangerZone / SidePane / SurfaceCard / SetupLayout', 
     const also = vi.fn();
     render(
       <SetupLayout
-        user={{ login: 'kim-hale', initials: 'KH' }}
         projectName="invoicer-api"
         steps={[{ label: 'One' }, { label: 'Two' }]}
         current={1}
@@ -518,7 +529,6 @@ describe('SettingsSection / DangerZone / SidePane / SurfaceCard / SetupLayout', 
   it('SetupLayout without back/skip renders only next', () => {
     render(
       <SetupLayout
-        user={{ login: 'k' }}
         projectName="p"
         steps={[{ label: 'One' }]}
         current={0}

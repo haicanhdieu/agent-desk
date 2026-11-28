@@ -7,43 +7,43 @@ import { renderRoute } from '@/test/renderRoute';
 
 // Kept apart from appBar.test.tsx: that file replaces the API and auth clients, this one runs the real routes on MSW.
 describe('app bar on the suspended page (BR-51)', () => {
-  it('a platform admin of a suspended org still gets the Platform admin entry; /platform/orgs opens', async () => {
+  it('a platform admin of a suspended org still gets the Platform entry; /platform/orgs opens', async () => {
     const { user, router } = await renderRoute('/o/alice/projects', {
       scenario: () => scenarios.platform('suspendedPlatformAdmin'),
     });
     await screen.findByRole('heading', { name: 'This organization is suspended' });
     await user.click(await screen.findByRole('button', { name: /^Switch scope/ }));
     const menu = await screen.findByRole('dialog', { name: 'Scope' });
-    expect(within(menu).getByRole('link', { name: 'Platform admin' })).toHaveAttribute('href', '/platform');
+    expect(within(menu).getByRole('link', { name: 'Platform' })).toHaveAttribute('href', '/platform');
     await act(() => router.navigate({ to: '/platform/orgs' }));
     expect(await screen.findByRole('heading', { level: 1, name: 'Organizations' })).toBeInTheDocument();
     expect(router.state.location.pathname).toBe('/platform/orgs');
   });
 });
 
-describe('Manage this org in Platform', () => {
-  const openMenu = async (path: string, scenario: () => void) => {
-    const { user } = await renderRoute(path, { scenario });
-    await user.click(await screen.findByRole('button', { name: /^Switch scope/ }));
-    return within(await screen.findByRole('dialog', { name: 'Scope' }));
+describe('Manage in Platform (BR-20)', () => {
+  const orgMenu = async (scenario: () => void) => {
+    await renderRoute('/o/alice/projects', { scenario });
+    return within(await screen.findByRole('navigation', { name: 'Organization menu' }));
   };
 
-  it('a platform admin gets manageHref for the current org', async () => {
-    const menu = await openMenu('/o/alice/projects', () => scenarios.platform('platformAdminOrgs'));
-    const link = await menu.findByRole('link', { name: 'Manage this org in Platform' });
+  it('a platform admin gets the item for the current org at the bottom of the menu', async () => {
+    const menu = await orgMenu(() => scenarios.platform('platformAdminOrgs'));
+    const link = await menu.findByRole('link', { name: 'Manage in Platform' });
     expect(link.getAttribute('href')).toMatch(/^\/platform\/orgs\/[0-9a-f-]{36}$/);
   });
 
-  it('an org admin without the platform role gets no manageHref', async () => {
-    const menu = await openMenu('/o/alice/projects', () => scenarios.platform('ownerNoPlatform'));
-    expect(menu.queryByRole('link', { name: 'Manage this org in Platform' })).not.toBeInTheDocument();
-    expect(menu.queryByRole('link', { name: 'Platform admin' })).not.toBeInTheDocument();
+  it('an org admin without the platform role gets no item and no Platform entry', async () => {
+    const menu = await orgMenu(() => scenarios.platform('ownerNoPlatform'));
+    await menu.findByRole('link', { name: 'Projects' });
+    expect(menu.queryByRole('link', { name: 'Manage in Platform' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Platform' })).not.toBeInTheDocument();
   });
 
-  it('a failed GET /api/me/platform gives no Platform group and no manageHref', async () => {
+  it('a failed GET /api/me/platform gives no item', async () => {
     server.use(http.get('*/api/me/platform', () => HttpResponse.json({ title: 'boom' }, { status: 500 })));
-    const menu = await openMenu('/o/alice/projects', () => scenarios.platform('platformAdminOrgs'));
-    expect(menu.queryByRole('group', { name: 'Platform' })).not.toBeInTheDocument();
-    expect(menu.queryByRole('link', { name: 'Manage this org in Platform' })).not.toBeInTheDocument();
+    const menu = await orgMenu(() => scenarios.platform('platformAdminOrgs'));
+    await menu.findByRole('link', { name: 'Projects' });
+    expect(menu.queryByRole('link', { name: 'Manage in Platform' })).not.toBeInTheDocument();
   });
 });

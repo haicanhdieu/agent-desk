@@ -88,6 +88,35 @@
   font-size: var(--fs-13);
 }
 
+/* a page inside the shell: the shell draws the bar and the menu, the page draws only its header and body */
+.shellMain {
+  flex: 1;
+  min-width: 0;
+  padding: 24px 32px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+/* a page inside the shell that fills the height and scrolls its panels inside */
+.shellMainFill {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  padding: 24px 32px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+/* the body of a shell page that has no main of its own (the frame's main holds it) */
+.shellBody {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  min-width: 0;
+}
+
 /* projects list */
 .listMain {
   flex: 1;
@@ -219,29 +248,6 @@
 }
 
 /* runs boards */
-.runsMain {
-  flex: 1;
-  padding: 24px 32px;
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-  overflow: hidden;
-}
-.runsMainBanners {
-  gap: 14px;
-}
-.runsHead {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  flex-wrap: wrap;
-}
-.runsTitle {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-}
 .runsMeta {
   display: flex;
   align-items: center;
@@ -259,11 +265,6 @@
   font-variant-numeric: tabular-nums;
   color: var(--text);
 }
-.runsTools {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
 .chipRow {
   display: flex;
   align-items: center;
@@ -271,34 +272,6 @@
 }
 .helpLine13 {
   font-size: var(--fs-13);
-}
-
-/* needs-you board */
-.needsMain {
-  flex: 1;
-  padding: 56px 72px;
-  display: flex;
-  flex-direction: column;
-  gap: 28px;
-  height: 100%;
-}
-.needsHead {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  max-width: 760px;
-}
-.needsHead h1 {
-  font-size: var(--fs-28);
-}
-.needsIntro {
-  font-size: var(--fs-15);
-}
-.needsGrid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 24px;
-  align-items: start;
 }
 .ghSub {
   font-size: var(--fs-13);
@@ -309,6 +282,29 @@
   flex: 1;
   display: flex;
   min-height: 0;
+}
+/* run detail inside the shell: the page header over the terminal and the context panel */
+.runShellMain {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.runShellMain > header {
+  flex: 0 0 auto;
+  padding: 16px 24px;
+  border-bottom: 1px solid var(--line);
+}
+.runBody {
+  flex: 1;
+  display: flex;
+  min-height: 0;
+}
+/* wraps a header button that has a confirm, so the confirm hangs under that button */
+.runActionAnchor {
+  position: relative;
+  display: inline-flex;
 }
 
 /* desk boards */
@@ -394,11 +390,18 @@
 .rulesScroll > * {
   flex-shrink: 0;
 }
+/* The pager sits between the rule list and the guards, inside the scrolling list, and stays pinned to its bottom edge
+   until the list is scrolled down to it. */
 .rulesFoot {
-  flex: 0 0 auto;
-  padding: 0 28px 16px;
+  position: sticky;
+  bottom: 0;
+  z-index: 1;
+  padding: 8px 0;
+  background: var(--bg);
 }
 .ruleList {
+  /* The size container of the rule rows (Composites.module.css, @container). */
+  container-type: inline-size;
   border: 1px solid var(--line);
   border-radius: var(--radius-10);
   overflow: hidden;
@@ -552,10 +555,6 @@
   background: var(--panel);
 }
 
-.deskWarning {
-  padding: 12px 24px 0;
-}
-
 /* RunTranscriptStates board: the transcript in the other stopped and ended states, side by side */
 .stateGrid {
   display: grid;
@@ -656,6 +655,10 @@
 }
 
 /* invitation link page */
+/* The invitation card's content sits 16px inside its edge, as the invitations list card does. */
+.acceptCardBody {
+  padding: 16px;
+}
 .acceptActions {
   display: flex;
   align-items: center;
@@ -753,14 +756,6 @@
 }
 
 /* platform admin area: the page next to the side menu */
-.platformMain {
-  flex: 1;
-  min-width: 0;
-  padding: 24px 40px;
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
-}
 .platformLoading {
   display: flex;
   flex-direction: column;
@@ -965,4 +960,344 @@
   padding: 0;
   border: 0;
   min-width: 0;
+}
+
+/* Agent & settings and Routing rules in the shell: one main holding a column and, beside it, the full-height side pane */
+.shellSplitMain {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+}
+.shellSplitCol {
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: 0;
+  padding-top: 24px;
+}
+.shellSplitCol > header {
+  flex: 0 0 auto;
+  padding: 0 32px 16px;
+}
+
+/* invitation pages in the shell */
+.shellPending {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  max-width: 760px;
+}
+.shellNoticeActions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+/* Phone (BR-65): one column with 16px gutters. Sign in stacks the hero and "One ticket, two runs", and scrolls inside. */
+@media (max-width: 639px) {
+  .signIn {
+    grid-template-columns: minmax(0, 1fr);
+    grid-auto-rows: max-content;
+    overflow-y: auto;
+  }
+  .signInLeft {
+    padding: 24px 16px;
+    gap: 32px;
+    border-right: 0;
+    border-bottom: 1px solid var(--line);
+  }
+  .signInCopy h1 {
+    font-size: var(--fs-28);
+  }
+  .signInRight {
+    padding: 24px 16px;
+  }
+  .emptyMain,
+  .emptyNotice {
+    padding: 48px 16px;
+  }
+  .shellMain,
+  .shellMainFill {
+    padding: 24px 16px;
+  }
+  .createOrgCol,
+  .shellPending {
+    max-width: 100%;
+    min-width: 0;
+  }
+  .shellNoticeActions,
+  .acceptActions,
+  .createOrgActions {
+    flex-wrap: wrap;
+  }
+}
+
+/* Phone (BR-65): the wizard's field pairs (credential type cards, model and concurrent runs) stack. */
+@media (max-width: 639px) {
+  .stackPhone {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* Phone (BR-65), Runs: the header wraps, the search takes the full width, the status chips scroll in their own row. */
+@media (max-width: 639px) {
+  .runsMain [data-page-header-actions] {
+    flex: 1 1 100%;
+    flex-wrap: wrap;
+  }
+  .runsMain [data-page-header-actions] > :first-child:not(button) {
+    flex: 1 1 100%;
+    min-width: 0;
+  }
+  .runsMeta {
+    flex-wrap: wrap;
+    gap: 6px 14px;
+  }
+  .runsMain .chipRow {
+    justify-content: flex-start;
+    gap: 6px;
+    overflow-x: auto;
+    flex: none;
+    padding-bottom: 4px;
+  }
+  .runsMain .chipRow > * {
+    flex: none;
+  }
+  .runsMain .chipRow > [role='group'] {
+    flex-wrap: nowrap;
+  }
+}
+
+/* Run page panes: both views stay mounted below 1024px, so the hidden one is display:none and never unmounted. */
+.runPane {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+}
+/* Desktop: the wrapper adds no box, the panel keeps its own width. */
+.runSide {
+  display: contents;
+}
+.runViewSwitch {
+  flex: 0 0 auto;
+  display: flex;
+  padding: 8px 16px;
+  border-bottom: 1px solid var(--line);
+}
+.runViewSwitch > * {
+  flex: 1;
+}
+.runViewSwitch button {
+  flex: 1;
+}
+
+/* Phone and tablet (BR-60, BR-65): the page header wraps, with the run actions on their own row; the terminal fills the
+   rest, and the context panel (Details view) takes the whole width. */
+@media (max-width: 1023px) {
+  .runShellMain {
+    /* The main may be sized to the visual viewport inline (the on-screen keyboard); never taller than its slot. */
+    max-height: 100%;
+    overflow: hidden;
+  }
+  .runShellMain > header {
+    padding: 12px 16px;
+  }
+  .runShellMain [data-page-header-actions] {
+    flex: 1 1 100%;
+    flex-wrap: wrap;
+  }
+  .runSide {
+    flex: 1;
+    min-width: 0;
+    min-height: 0;
+    display: flex;
+  }
+  .runSide > aside {
+    width: 100%;
+    flex: 1 1 auto;
+    border-left: 0;
+  }
+}
+.runPane[hidden],
+.runSide[hidden] {
+  display: none;
+}
+
+/* Phone and tablet (BR-65, TC-65.36): below 1024px an open side pane takes the full content width in place of the list and
+   the pager, under the pinned page header. The list is hidden, not removed, so focus can return to its opener. The pane's
+   title and footer stay put, its body scrolls and its footer wraps. */
+@media (max-width: 1023px) {
+  .shellSplitMain[data-pane-open] {
+    flex-direction: column;
+  }
+  .shellSplitMain[data-pane-open] > .shellSplitCol {
+    flex: 0 0 auto;
+    min-height: 0;
+  }
+  .shellSplitMain[data-pane-open] > .shellSplitCol > :not(header) {
+    display: none;
+  }
+  .shellSplitMain[data-pane-open] > aside {
+    width: 100% !important;
+    flex: 1 1 0;
+    min-width: 0;
+    min-height: 0;
+    border-left: 0;
+    border-top: 1px solid var(--line);
+  }
+  .paneActions {
+    flex-wrap: wrap;
+  }
+}
+
+/* Phone (BR-65), Routing rules: one column with 16px gutters. */
+@media (max-width: 639px) {
+  .rulesCol > header {
+    padding: 0 16px 16px;
+  }
+  .rulesScroll {
+    padding: 0 16px 16px;
+  }
+}
+
+/* Phone (BR-65), Skills: the list sits above the editor with a capped height and its own scroll; the editor column keeps a
+   usable height and the page area scrolls when both do not fit. */
+@media (max-width: 639px) {
+  .skillsRow {
+    flex-direction: column;
+    gap: 12px;
+    overflow-x: hidden;
+    overflow-y: auto;
+  }
+  .skillsMain {
+    flex: 0 0 auto;
+    min-height: 640px;
+  }
+  .skillHead {
+    flex-wrap: wrap;
+    padding: 14px 16px;
+  }
+  .skillHeadText {
+    flex: 1 1 100%;
+  }
+}
+
+/* Phone and tablet (BR-65, TC-65.31): on Agent & settings the open add, edit or view pane takes the place of the tab panel
+   under the page header and the tab strip, which stay. The panel is hidden, not removed, so focus can return to its opener. */
+@media (max-width: 1023px) {
+  .shellSplitMain[data-pane-open] > .shellSplitCol > .agentTabs {
+    display: block;
+  }
+  .shellSplitMain[data-pane-open] > .shellSplitCol > [role='tabpanel'] {
+    display: none;
+  }
+}
+
+/* Phone (BR-65), Agent & settings: 16px gutters; the tab strip is one row that scrolls sideways inside itself; the Limits
+   fields are one column; the GitHub connection rows and the Danger zone stack. */
+@media (max-width: 639px) {
+  .agentSettingsMain > header {
+    padding: 0 16px 16px;
+  }
+  .agentTabs {
+    min-width: 0;
+    max-width: 100%;
+    padding: 0 16px;
+  }
+  .agentScroll {
+    padding: 0 16px 24px;
+  }
+  .agentsCol {
+    padding: 16px 16px 12px;
+  }
+  .agentSaveBar {
+    padding: 12px 16px;
+  }
+  .limitsGrid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .githubRows dl {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 2px 0;
+  }
+  .githubRows dl dd {
+    margin-bottom: 12px;
+  }
+  .dangerCol > div {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}
+
+/* Phone (BR-65, TC-65.12), Workspace setup: the page still fills the window and its content area scrolls, not the document.
+   The editor column keeps a usable height and the plugins, version history or test result come below it at full width. */
+@media (max-width: 639px) {
+  .setupDeskRow {
+    flex-direction: column;
+    overflow-x: hidden;
+    overflow-y: auto;
+  }
+  .setupDeskRow > .setupDeskMain {
+    flex: 0 0 auto;
+    min-height: 680px;
+    overflow: visible;
+  }
+  .setupDeskRow > aside {
+    width: 100%;
+    flex: 0 0 auto;
+    border-left: 0;
+    border-top: 1px solid var(--line);
+    overflow-y: visible;
+  }
+  .setupTestEditorFit {
+    min-height: 160px;
+  }
+  .setupSaveRow {
+    flex-wrap: wrap;
+  }
+  .setupSaveRow > .grow {
+    flex: 1 1 100%;
+  }
+  .setupPhaseBar {
+    flex-wrap: wrap;
+  }
+}
+
+/* Phone (BR-65, TC-65.16): the invitation status chips are one row that scrolls inside itself, not a wrapped block. */
+@media (max-width: 639px) {
+  .invitationChips {
+    overflow-x: auto;
+    padding-bottom: 4px;
+  }
+  .invitationChips > [role='group'] {
+    flex-wrap: nowrap;
+  }
+  .invitationChips > [role='group'] > * {
+    flex: none;
+  }
+}
+
+/* Phone (BR-65, TC-65.19 to TC-65.22), platform pages: the filters wrap and each control takes the full width, the
+   directory table gives up its sideways scroll (its rows are cards), and the Overview keys stack over their values. */
+@media (max-width: 639px) {
+  .platformFilters {
+    flex-wrap: wrap;
+  }
+  .platformSearch,
+  .platformAction,
+  .platformStatus {
+    width: 100%;
+    flex: 1 1 100%;
+  }
+  .platformTableScroll > table {
+    min-width: 0;
+  }
+  .platformOverview > dl {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 2px;
+  }
+  .platformOverview > dl dd {
+    margin-bottom: 10px;
+  }
 }

@@ -1,16 +1,14 @@
-import type { ReactNode } from 'react';
-import { Button } from '@/ds';
-import type { Actor } from '@/mocks/types';
-import type { OrgSwitchProps } from './OrgSwitch';
-import { TopBar } from './TopBar';
+import { useContext, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
+import { BELOW_DESKTOP, Button, useMediaQuery } from '@/ds';
+import { ShellContext } from './shellContext';
 import { Stepper, type StepperProps } from './Stepper';
 import styles from './Composites.module.css';
 
 export interface SetupLayoutProps {
-  user: Actor;
-  /** The org crumb and menu in the top bar. */
-  org?: OrgSwitchProps;
   projectName: string;
+  /** Where "Exit setup" goes; the org's Projects page by default. */
+  exitHref?: string;
   steps: StepperProps['steps'];
   current: number;
   /** Final stepper step after all are done (SetupReady). */
@@ -39,9 +37,8 @@ export interface SetupLayoutProps {
 }
 
 export function SetupLayout({
-  user,
-  org,
   projectName,
+  exitHref,
   steps,
   current,
   ready,
@@ -53,31 +50,44 @@ export function SetupLayout({
   aside,
   footer,
 }: SetupLayoutProps) {
-  const projectsHref = org?.projectsHref ?? '/projects';
+  const shell = useContext(ShellContext);
+  // Under the shell the progress goes into the shell's menu slot; without a provider it stays in place.
+  const owned = shell !== null;
+  const below = useMediaQuery(BELOW_DESKTOP);
+  const exit = (
+    <Button variant="ghost" href={exitHref ?? '/projects'}>
+      Exit setup
+    </Button>
+  );
+  const progress = (
+    <aside className={owned ? styles.setupLeftSlot : styles.setupLeft} aria-label="Setup progress">
+      <div className={styles.setupHead}>
+        <span className={styles.setupKicker}>New project</span>
+        <b className={styles.setupName}>{projectName}</b>
+      </div>
+      <Stepper steps={steps} current={current} ready={ready} />
+      <p className={styles.saved}>Progress is saved. You can leave and resume from the project list.</p>
+      {owned && !below && <div className={styles.setupExit}>{exit}</div>}
+    </aside>
+  );
+  const headerRow = owned && below;
   return (
     <>
-      <TopBar
-        variant="global"
-        crumbs={[{ label: 'Projects', href: projectsHref }, { label: 'New project' }]}
-        user={user}
-        org={org}
-        tabs="org"
-        active="projects"
-      />
+      {shell?.wizardSlot && createPortal(progress, shell.wizardSlot)}
       <div className={styles.setup}>
-        <aside className={styles.setupLeft} aria-label="Setup progress">
-          <div className={styles.setupHead}>
-            <span className={styles.setupKicker}>New project</span>
-            <b className={styles.setupName}>{projectName}</b>
-          </div>
-          <Stepper steps={steps} current={current} ready={ready} />
-          <p className={styles.saved}>Progress is saved. You can leave and resume from the project list.</p>
-        </aside>
+        {!owned && progress}
         <main className={styles.setupMain}>
           <div className={styles.setupCol}>
+            {headerRow && (
+              <div className={styles.setupRow}>
+                {stepLabel && <span className={styles.stepOf}>{stepLabel}</span>}
+                <span className={styles.spacer} />
+                {exit}
+              </div>
+            )}
             {header ?? (
               <div className={styles.setupTitle}>
-                <span className={styles.stepOf}>{stepLabel}</span>
+                {!headerRow && <span className={styles.stepOf}>{stepLabel}</span>}
                 <h1>{title}</h1>
                 <p className={styles.intro}>{intro}</p>
               </div>

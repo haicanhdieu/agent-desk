@@ -7,9 +7,9 @@ import { z } from 'zod';
 import { toastFromError } from '@/app/boundaries';
 import { WHOLE_SET } from '@/app/pagination';
 import { useNow } from '@/app/useNow';
-import type { TranscriptProps } from '@/components';
+import type { TerminalKey, TranscriptProps } from '@/components';
 import type { LiveTerminalHandle } from '@/components/LiveTerminal';
-import { Banner, Skeleton, useToast } from '@/ds';
+import { BELOW_DESKTOP, Banner, Skeleton, useMediaQuery, useToast } from '@/ds';
 import { useAccess } from '@/features/access/guards';
 import {
   scrollbackLines,
@@ -27,6 +27,7 @@ import { runsQueries, usePrStates } from '@/features/runs/queries';
 import { transcriptConnection, transcriptItems, useTranscriptReload } from '@/features/runs/transcript';
 import { useFinalLogReload, useRunEvents } from '@/features/runs/useRunEvents';
 import { useTerminal } from '@/features/runs/useTerminal';
+import { useVisualViewportHeight } from '@/features/runs/useVisualViewportHeight';
 import { TERMINAL_UNUSED_CLOSE_MS } from '@/features/runs/unusedWatch';
 import { RunDetail } from '@/screens';
 
@@ -42,6 +43,9 @@ const INACTIVE_BODY = `Nobody used this page for ${UNUSED_HOURS} hours, so the t
 const RunParam = z.string().regex(/^[1-9]\d{0,8}$/);
 
 export const Route = createFileRoute('/o/$org/p/$project/runs/$run')({
+  staticData: {
+    chrome: { mode: 'standard', scope: 'project', item: 'runs', parent: true, fill: true, startCollapsed: true },
+  },
   beforeLoad: ({ params }) => {
     if (!RunParam.safeParse(params.run).success) throw notFound();
   },
@@ -127,6 +131,11 @@ function RunDetailRoute() {
   const runTarget = { projectId, ownerUserId: dto.ownerUserId };
   const mayUpdate = access !== undefined && can(access, 'run:update', runTarget);
   const mayCancel = access !== undefined && can(access, 'run:cancel', runTarget);
+  // The extra keys (phone): only while the socket is open and writable, and only for someone who may attach to this run.
+  // Hiding is a convenience; the socket's own 4403 is the authority.
+  const mayAttach = access !== undefined && can(access, 'terminal:attach', runTarget);
+  const viewportHeight = useVisualViewportHeight(useMediaQuery(BELOW_DESKTOP));
+  const onKey = useCallback((key: TerminalKey) => termRef.current?.sendKey(key), []);
   const mapped = withDetailPrStates(
     toRunDetail(
       dto,
@@ -203,7 +212,6 @@ function RunDetailRoute() {
 
   return (
     <RunDetail
-      height="viewport"
       data={data}
       lines={stored && !transcript ? scrollbackLines(events) : undefined}
       transcript={transcript}
@@ -213,15 +221,8 @@ function RunDetailRoute() {
       reconnectOverlay={live && term.state === 'gave_up'}
       reconnectBody={live ? GAVE_UP_BODY : undefined}
       inactiveBody={live && term.state === 'inactive' ? INACTIVE_BODY : undefined}
-      projectName={page.dto.name}
-      user={page.user}
-      org={page.org}
-      projectMenu={page.projectMenu}
-      run={{ runsHref: paths.runs, label: `Run ${number}` }}
       maxRunsPerTicket={page.dto.maxRunsPerTicket}
       links={{
-        projects: paths.projects,
-        runs: paths.runs,
         ...(page.desk.skills && { skills: paths.skills }),
         ...(page.desk.rules && { rules: paths.rules }),
         ...(page.desk.setup && { setup: paths.setup }),
@@ -252,6 +253,8 @@ function RunDetailRoute() {
         },
         onCloseSession: () => closeSession.mutate(target),
       })}
+      onKey={live && term.state === 'open' && mayAttach ? onKey : undefined}
+      viewportHeight={viewportHeight}
       resuming={resume.isPending}
       stopConfirmOpen={confirmingStop && live}
       onStopClose={() => setConfirmingStop(false)}

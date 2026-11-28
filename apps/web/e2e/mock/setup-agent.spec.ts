@@ -30,13 +30,17 @@ async function startClaudeWizard(page: Page) {
 }
 
 /**
- * Resumes the Agent step of a project whose credential is already saved: save the token in the Agent step, then go
- * back to it. Client-side navigation only: a reload would reseed the mock store.
+ * Resumes the Agent step of a project whose credential is already saved: save the token in the Agent step, leave
+ * to the project list, press "Resume setup" (the project is saved on a later step) and press Back to the Agent step.
+ * Client-side navigation only: a reload would reseed the mock store.
  */
 async function resumeAgentStepWithCredential(page: Page) {
   await startClaudeWizard(page);
   await page.getByRole('textbox', { name: 'Token' }).fill(TOKEN);
   await page.getByRole('button', { name: 'Continue' }).click();
+  await expect(workspaceHeading(page)).toBeVisible();
+  await page.getByRole('link', { name: 'Exit setup' }).click();
+  await page.getByRole('link', { name: /^Resume setup for / }).click();
   await expect(workspaceHeading(page)).toBeVisible();
   await page.getByRole('link', { name: 'Back' }).click();
   await expect(agentHeading(page)).toBeVisible();
@@ -183,11 +187,7 @@ async function openAgentsTab(page: Page): Promise<void> {
   }
   await expect(page.getByRole('heading', { level: 1, name: 'Projects' })).toBeVisible();
   await page.getByRole('link', { name: 'demo', exact: true }).click();
-  await page
-    .getByRole('navigation', { name: 'Project sections' })
-    .getByRole('link', { name: 'Project settings' })
-    .click();
-  await page.getByRole('link', { name: 'Agent & settings' }).click();
+  await page.getByRole('navigation', { name: 'Project menu' }).getByRole('link', { name: 'Agent & settings' }).click();
   await expect(page.getByRole('heading', { name: 'Agent & settings', level: 1 })).toBeVisible();
   await expect(agentsList(page).first()).toBeVisible();
 }
@@ -398,10 +398,7 @@ test.describe('BR-64: no step asks for a Claude credential', () => {
     await expect(page.getByRole('heading', { name: 'Trigger your first run from GitHub', level: 1 })).toBeVisible();
     await noClaudeCredential();
 
-    await page
-      .getByRole('navigation', { name: 'Organization sections' })
-      .getByRole('link', { name: 'Projects' })
-      .click();
+    await page.getByRole('link', { name: 'Exit setup' }).click();
     const row = page
       .getByRole('heading', { level: 2, name: 'Get started' })
       .locator('..')

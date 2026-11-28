@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { IDLE_RUN, INVOICER_API, ORG, PAUSED_RUN } from './mock';
+import { IDLE_RUN, INVOICER_API, ORG, PAUSED_RUN, runHeader } from './mock';
 
 // One viewport shorter than the old fixed 900 px shell and one taller, so neither a cut-off nor a gap passes.
 const viewports = [
@@ -15,6 +15,7 @@ for (const vp of viewports) {
     await page.goto(`/o/${ORG}/p/${INVOICER_API}/runs/${PAUSED_RUN}`);
 
     const header = page.getByRole('banner');
+    const runBar = runHeader(page);
     // A paused run with nothing saved shows the Transcript area (BR-49), so the pane is named Transcript.
     const terminal = page.getByRole('region', { name: /^(Terminal|Transcript)$/ });
     const side = page.getByRole('complementary', { name: 'Run context' });
@@ -28,6 +29,7 @@ for (const vp of viewports) {
       return b;
     };
     const bar = await box(header);
+    const runBarBox = await box(runBar);
     const term = await box(terminal);
     const panel = await box(side);
 
@@ -40,10 +42,11 @@ for (const vp of viewports) {
 
     // The top bar stays at the top; the terminal and the side panel sit under it and end at the viewport's bottom.
     expect(bar.y).toBe(0);
-    expect(term.y).toBeGreaterThanOrEqual(bar.y + bar.height);
+    expect(runBarBox.y).toBeGreaterThanOrEqual(bar.y + bar.height);
+    expect(term.y).toBeGreaterThanOrEqual(runBarBox.y + runBarBox.height);
     expect(Math.round(term.y + term.height)).toBe(vp.height);
     expect(Math.round(panel.y + panel.height)).toBe(vp.height);
-    expect(panel.y).toBeGreaterThanOrEqual(bar.y + bar.height);
+    expect(panel.y).toBeGreaterThanOrEqual(runBarBox.y + runBarBox.height);
   });
 }
 

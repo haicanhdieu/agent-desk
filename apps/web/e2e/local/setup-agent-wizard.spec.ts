@@ -261,10 +261,12 @@ test.describe('BR-65, BR-50: a Codex project left after the Agent step', () => {
     await continueAgentStep(page);
     const saved = await readAgent(page, projectId);
 
-    // Leave: the projects list, then resume the project's setup step.
+    // Leave: the projects list, resume the project (it opens at its first unfinished step), then Back to the Agent step.
     await page.goto(`/o/${handle}/projects`);
     await expect(page.getByRole('heading', { level: 1, name: /^(Projects|Create your first project)$/ })).toBeVisible();
-    await page.goto(`/o/${handle}/projects/new/agent?project=${projectId}`);
+    await page.getByRole('link', { name: /^Resume setup for / }).click();
+    await expect(page.getByRole('heading', { name: 'Prepare the workspace', level: 1 })).toBeVisible();
+    await page.getByRole('link', { name: 'Back' }).click();
     await expect(agentHeading(page)).toBeVisible();
     await expect(page.getByRole('radio', { name: 'OpenAI Codex', exact: true })).toBeChecked();
     for (const label of PROVIDER_LABELS)

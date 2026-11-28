@@ -18,14 +18,6 @@
    "title": "Agent Desk PoC UI \u2014 index",
    "expand": "fill"
   },
-  "NeedsYou.dc.html": {
-   "x": 1520,
-   "y": 0,
-   "w": 1440,
-   "h": 740,
-   "title": "Needs you \u2014 surfaces outside the run page",
-   "expand": "fill"
-  },
   "SignIn.dc.html": {
    "x": 0,
    "y": 1280,
@@ -255,7 +247,7 @@
    "y": 7780,
    "w": 1440,
    "h": 900,
-   "title": "Desk \u2014 skills editor",
+   "title": "Skills, editor",
    "expand": "fill"
   },
   "DeskSkillDelete.dc.html": {
@@ -263,7 +255,7 @@
    "y": 7780,
    "w": 1440,
    "h": 900,
-   "title": "Desk \u2014 delete skill confirmation",
+   "title": "Skills, delete skill confirmation",
    "expand": "fill"
   },
   "DeskRulesAgent.dc.html": {
@@ -271,7 +263,7 @@
    "y": 7780,
    "w": 1440,
    "h": 900,
-   "title": "Desk \u2014 routing rules, agent picked (model resets to Default model)",
+   "title": "Routing rules, agent picked (model resets to Default model)",
    "expand": "fill"
   },
   "SetupWorkspace.dc.html": {
@@ -295,7 +287,7 @@
    "y": 7780,
    "w": 1440,
    "h": 900,
-   "title": "Desk \u2014 workspace setup",
+   "title": "Workspace setup",
    "expand": "fill"
   },
   "DeskSetupTest.dc.html": {
@@ -303,7 +295,7 @@
    "y": 7780,
    "w": 1440,
    "h": 900,
-   "title": "Desk \u2014 workspace setup, test failed, terminal open",
+   "title": "Workspace setup, test failed, terminal open",
    "expand": "fill"
   },
   "RunPrompt.dc.html": {
@@ -319,7 +311,7 @@
    "y": 7780,
    "w": 1440,
    "h": 900,
-   "title": "Desk \u2014 routing rules, the rule\u2019s agent was deleted",
+   "title": "Routing rules, the rule\u2019s agent was deleted",
    "expand": "fill"
   },
   "DeskRulesAgentLoading.dc.html": {
@@ -327,7 +319,7 @@
    "y": 7780,
    "w": 1440,
    "h": 900,
-   "title": "Desk \u2014 routing rules, agent list loading",
+   "title": "Routing rules, agent list loading",
    "expand": "fill"
   },
   "DeskRulesAgentLocked.dc.html": {
@@ -335,7 +327,7 @@
    "y": 7780,
    "w": 1440,
    "h": 900,
-   "title": "Desk \u2014 routing rules, no permission to list agents (locked select)",
+   "title": "Routing rules, no permission to list agents (locked select)",
    "expand": "fill"
   },
   "Pagination.dc.html": {
@@ -394,22 +386,6 @@
    "title": "Runs \u2014 ignored commands, empty",
    "expand": "fill"
   },
-  "NeedsYouPaged.dc.html": {
-   "x": 10640,
-   "y": 9160,
-   "w": 1440,
-   "h": 740,
-   "title": "Needs you \u2014 run cards, page 2 of 2",
-   "expand": "fill"
-  },
-  "NeedsYouEmpty.dc.html": {
-   "x": 12160,
-   "y": 9160,
-   "w": 1440,
-   "h": 740,
-   "title": "Needs you \u2014 empty",
-   "expand": "fill"
-  },
   "RouteLoading.dc.html": {
    "x": 13680,
    "y": 9160,
@@ -439,7 +415,7 @@
    "y": 10400,
    "w": 1440,
    "h": 900,
-   "title": "Desk \u2014 routing rules, agent names and a rule whose agent has no credential",
+   "title": "Routing rules, agent names and a rule whose agent has no credential",
    "expand": "fill"
   },
   "DeskSkillsPaged.dc.html": {
@@ -447,7 +423,7 @@
    "y": 10400,
    "w": 1440,
    "h": 900,
-   "title": "Desk \u2014 skills, page 2 of 2",
+   "title": "Skills, page 2 of 2",
    "expand": "fill"
   },
   "DeskSkillsEmpty.dc.html": {
@@ -455,7 +431,7 @@
    "y": 10400,
    "w": 1440,
    "h": 900,
-   "title": "Desk \u2014 skills, empty",
+   "title": "Skills, empty",
    "expand": "fill"
   },
   "DeskSetupPaged.dc.html": {
@@ -463,7 +439,7 @@
    "y": 10400,
    "w": 1440,
    "h": 900,
-   "title": "Desk \u2014 setup, version history page 2 of 2",
+   "title": "Workspace setup, version history page 2 of 2",
    "expand": "fill"
   },
   "DeskSetupVersionsLoading.dc.html": {
@@ -471,7 +447,7 @@
    "y": 10400,
    "w": 1440,
    "h": 900,
-   "title": "Desk \u2014 setup, version history loading",
+   "title": "Workspace setup, version history loading",
    "expand": "fill"
   },
   "DeskSetupVersionsError.dc.html": {
@@ -479,7 +455,7 @@
    "y": 10400,
    "w": 1440,
    "h": 900,
-   "title": "Desk \u2014 setup, version history failed to load",
+   "title": "Workspace setup, version history failed to load",
    "expand": "fill"
   },
   "DeskSetupVersionsEmpty.dc.html": {
@@ -487,7 +463,7 @@
    "y": 10400,
    "w": 1440,
    "h": 900,
-   "title": "Desk \u2014 setup, version history empty",
+   "title": "Workspace setup, no versions yet",
    "expand": "fill"
   },
   "RunStoppedPodLost.dc.html": {
@@ -704,6 +680,14 @@
    "w": 1440,
    "h": 900,
    "title": "Sign in \u2014 refused, no invitation",
+   "expand": "fill"
+  },
+  "SignInProofOfConcept.dc.html": {
+   "x": 6080,
+   "y": 17200,
+   "w": 1440,
+   "h": 900,
+   "title": "Sign in, shortened footer",
    "expand": "fill"
   },
   "MyInvitations.dc.html": {
@@ -1159,7 +1143,7 @@
    "y": 36400,
    "w": 1440,
    "h": 900,
-   "title": "Projects \u2014 owner or admin: Projects tab active, Settings tab in the top bar, no Settings button in the head",
+   "title": "Projects \u2014 owner or admin: Projects active in the org menu, no Settings button in the head",
    "expand": "fill"
   },
   "ProjectsEmptyChecklistSettings.dc.html": {
@@ -1167,7 +1151,7 @@
    "y": 36400,
    "w": 1440,
    "h": 900,
-   "title": "Projects \u2014 empty, owner: checklist, Projects tab active, Settings tab in the top bar",
+   "title": "Projects \u2014 empty, owner: checklist, Projects active in the org menu",
    "expand": "fill"
   },
   "OrgInvitationsSettings.dc.html": {
@@ -1519,7 +1503,7 @@
    "y": 46640,
    "w": 1440,
    "h": 900,
-   "title": "Desk \u2014 audit log, newest first",
+   "title": "Audit log (project), org owner: newest first; member changes, invitations with email and project names (one with more than 3), generic, deleted user",
    "expand": "fill"
   },
   "DeskAuditLoading.dc.html": {
@@ -1527,7 +1511,7 @@
    "y": 46640,
    "w": 1440,
    "h": 900,
-   "title": "Desk \u2014 audit log, loading",
+   "title": "Audit log (project), loading",
    "expand": "fill"
   },
   "DeskAuditEmpty.dc.html": {
@@ -1535,7 +1519,7 @@
    "y": 46640,
    "w": 1440,
    "h": 900,
-   "title": "Desk \u2014 audit log, empty",
+   "title": "Audit log (project), empty",
    "expand": "fill"
   },
   "DeskAuditError.dc.html": {
@@ -1543,7 +1527,7 @@
    "y": 46640,
    "w": 1440,
    "h": 900,
-   "title": "Desk \u2014 audit log, failed to load",
+   "title": "Audit log (project), failed to load",
    "expand": "fill"
   },
   "DeskAuditPaged.dc.html": {
@@ -1551,7 +1535,7 @@
    "y": 46640,
    "w": 1440,
    "h": 900,
-   "title": "Desk \u2014 audit log, page 2 of 2",
+   "title": "Audit log (project), page 2 of 2, older and backfilled entries",
    "expand": "fill"
   },
   "DeskAuditInvitationNoEmail.dc.html": {
@@ -1559,7 +1543,7 @@
    "y": 46640,
    "w": 1440,
    "h": 900,
-   "title": "Desk \u2014 audit log, invitation entries without the email",
+   "title": "Audit log (project), project admin of only some listed projects: invitation entries without the email, naming only the visible projects",
    "expand": "fill"
   },
   "DeskAuditInvitationExpired.dc.html": {
@@ -1567,7 +1551,7 @@
    "y": 46640,
    "w": 1440,
    "h": 900,
-   "title": "Desk \u2014 audit log, expired invitation entries",
+   "title": "Audit log (project), expired invitation entries, with and without the email (project admin); Who is the person whose new invitation expired the old one",
    "expand": "fill"
   },
   "OrgAuditInvitationProjects.dc.html": {
@@ -1591,7 +1575,7 @@
    "y": 47920,
    "w": 1440,
    "h": 900,
-   "title": "Desk \u2014 members, you, several roles, a long name",
+   "title": "Members (project), project admin: project roles only, own row has no actions, several roles, long name",
    "expand": "fill"
   },
   "DeskMembersLoading.dc.html": {
@@ -1599,7 +1583,7 @@
    "y": 47920,
    "w": 1440,
    "h": 900,
-   "title": "Desk \u2014 members, loading",
+   "title": "Members (project), loading",
    "expand": "fill"
   },
   "DeskMembersEmpty.dc.html": {
@@ -1607,7 +1591,7 @@
    "y": 47920,
    "w": 1440,
    "h": 900,
-   "title": "Desk \u2014 members, empty",
+   "title": "Members (project), empty: no one has a role on this project (org owner)",
    "expand": "fill"
   },
   "DeskMembersError.dc.html": {
@@ -1615,7 +1599,7 @@
    "y": 47920,
    "w": 1440,
    "h": 900,
-   "title": "Desk \u2014 members, failed to load",
+   "title": "Members (project), failed to load",
    "expand": "fill"
   },
   "DeskMembersPaged.dc.html": {
@@ -1623,7 +1607,7 @@
    "y": 49200,
    "w": 1440,
    "h": 900,
-   "title": "Desk \u2014 members, page 2 of 2",
+   "title": "Members (project), page 2 of 2",
    "expand": "fill"
   },
   "DeskMembersForbidden.dc.html": {
@@ -1631,7 +1615,7 @@
    "y": 49200,
    "w": 1440,
    "h": 900,
-   "title": "Desk \u2014 members URL opened by a member or viewer: no access",
+   "title": "Members URL opened by a member or viewer: no access, the project menu holds Runs only",
    "expand": "fill"
   },
   "DeskMembersRowMenu.dc.html": {
@@ -1639,7 +1623,7 @@
    "y": 49200,
    "w": 1440,
    "h": 900,
-   "title": "Desk \u2014 members, row menu on another person",
+   "title": "Members (project), row menu on another member",
    "expand": "fill"
   },
   "DeskMembersBusy.dc.html": {
@@ -1647,7 +1631,7 @@
    "y": 49200,
    "w": 1440,
    "h": 900,
-   "title": "Desk \u2014 members, a row action in flight",
+   "title": "Members (project), request in flight: row menu disabled",
    "expand": "fill"
   },
   "DeskMembersAdd.dc.html": {
@@ -1655,7 +1639,7 @@
    "y": 50480,
    "w": 1440,
    "h": 900,
-   "title": "Desk \u2014 members, add dialog, Person and Role empty",
+   "title": "Members (project), add dialog: Person and Role empty, no role preselected",
    "expand": "fill"
   },
   "DeskMembersAddSearch.dc.html": {
@@ -1663,7 +1647,7 @@
    "y": 50480,
    "w": 1440,
    "h": 900,
-   "title": "Desk \u2014 members, add dialog, server search, 20 of 23 loaded",
+   "title": "Members (project), add dialog: server search open, 20 of 23 loaded, more load on scroll",
    "expand": "fill"
   },
   "DeskMembersAddNoMatch.dc.html": {
@@ -1671,7 +1655,7 @@
    "y": 50480,
    "w": 1440,
    "h": 900,
-   "title": "Desk \u2014 members, add dialog, no match",
+   "title": "Members (project), add dialog: no member matches the search",
    "expand": "fill"
   },
   "DeskMembersAddAllAdded.dc.html": {
@@ -1679,7 +1663,7 @@
    "y": 50480,
    "w": 1440,
    "h": 900,
-   "title": "Desk \u2014 members, add dialog, everyone already has a role",
+   "title": "Members (project), add dialog: everyone in the organization already has a role here",
    "expand": "fill"
   },
   "DeskMembersAddFieldErrors.dc.html": {
@@ -1687,7 +1671,7 @@
    "y": 51760,
    "w": 1440,
    "h": 900,
-   "title": "Desk \u2014 members, add dialog, field errors",
+   "title": "Members (project), add dialog: submitted with no person and no role",
    "expand": "fill"
   },
   "DeskMembersAddSaving.dc.html": {
@@ -1695,7 +1679,7 @@
    "y": 51760,
    "w": 1440,
    "h": 900,
-   "title": "Desk \u2014 members, add dialog, saving",
+   "title": "Members (project), add dialog: saving",
    "expand": "fill"
   },
   "DeskMembersAddFormError.dc.html": {
@@ -1703,7 +1687,7 @@
    "y": 51760,
    "w": 1440,
    "h": 900,
-   "title": "Desk \u2014 members, add dialog, server error",
+   "title": "Members (project), add dialog: server error, input kept",
    "expand": "fill"
   },
   "DeskMembersAddAlreadyOnProject.dc.html": {
@@ -1711,7 +1695,7 @@
    "y": 51760,
    "w": 1440,
    "h": 900,
-   "title": "Desk \u2014 members, add dialog, already has a role",
+   "title": "Members (project), add dialog: 409, the person got a role meanwhile; Person cleared, role kept",
    "expand": "fill"
   },
   "DeskMembersAdded.dc.html": {
@@ -1719,7 +1703,7 @@
    "y": 53040,
    "w": 1440,
    "h": 900,
-   "title": "Desk \u2014 members, added, list refetched, toast",
+   "title": "Members (project), added: list refetched, toast",
    "expand": "fill"
   },
   "DeskMembersInvite.dc.html": {
@@ -1727,7 +1711,7 @@
    "y": 53040,
    "w": 1440,
    "h": 900,
-   "title": "Desk \u2014 members, invite dialog, this project fixed, project roles only",
+   "title": "Members (project), Invite people: the existing invite dialog, this project fixed, project roles only",
    "expand": "fill"
   },
   "DeskMembersInviteCreated.dc.html": {
@@ -1735,7 +1719,7 @@
    "y": 53040,
    "w": 1440,
    "h": 900,
-   "title": "Desk \u2014 members, invite dialog, invitation created",
+   "title": "Members (project), Invite people: invitation created",
    "expand": "fill"
   },
   "DeskMembersChangeRole.dc.html": {
@@ -1743,7 +1727,7 @@
    "y": 53040,
    "w": 1440,
    "h": 900,
-   "title": "Desk \u2014 members, change role dialog, current role preselected",
+   "title": "Members (project), change role dialog: Admin, Member, Viewer; current role preselected",
    "expand": "fill"
   },
   "DeskMembersChangeRoleSaving.dc.html": {
@@ -1751,7 +1735,7 @@
    "y": 54320,
    "w": 1440,
    "h": 900,
-   "title": "Desk \u2014 members, change role dialog, saving",
+   "title": "Members (project), change role dialog: saving",
    "expand": "fill"
   },
   "DeskMembersChangeRoleError.dc.html": {
@@ -1759,7 +1743,7 @@
    "y": 54320,
    "w": 1440,
    "h": 900,
-   "title": "Desk \u2014 members, change role dialog, refused (403)",
+   "title": "Members (project), change role dialog: refused (403), Banner in the dialog",
    "expand": "fill"
   },
   "DeskMembersRoleChanged.dc.html": {
@@ -1767,7 +1751,7 @@
    "y": 54320,
    "w": 1440,
    "h": 900,
-   "title": "Desk \u2014 members, role changed, list refetched, toast",
+   "title": "Members (project), role changed: list refetched, toast",
    "expand": "fill"
   },
   "DeskMembersRemoveConfirm.dc.html": {
@@ -1775,7 +1759,7 @@
    "y": 54320,
    "w": 1440,
    "h": 900,
-   "title": "Desk \u2014 members, remove from project confirmation",
+   "title": "Members (project), remove from project confirmation",
    "expand": "fill"
   },
   "DeskMembersRemoving.dc.html": {
@@ -1783,7 +1767,7 @@
    "y": 55600,
    "w": 1440,
    "h": 900,
-   "title": "Desk \u2014 members, removing",
+   "title": "Members (project), removing",
    "expand": "fill"
   },
   "DeskMembersRemoved.dc.html": {
@@ -1791,7 +1775,7 @@
    "y": 55600,
    "w": 1440,
    "h": 900,
-   "title": "Desk \u2014 members, removed, list refetched, toast",
+   "title": "Members (project), removed: list refetched, toast, focus on the heading",
    "expand": "fill"
   },
   "DeskMembersGone.dc.html": {
@@ -1799,7 +1783,7 @@
    "y": 55600,
    "w": 1440,
    "h": 900,
-   "title": "Desk \u2014 members, member removed meanwhile, error toast",
+   "title": "Members (project), member removed meanwhile: dialog closed, list refetched, error toast",
    "expand": "fill"
   },
   "PlatformAdmins.dc.html": {
@@ -1919,7 +1903,7 @@
    "y": 59440,
    "w": 1440,
    "h": 900,
-   "title": "Projects \u2014 platform admin, switcher open with Platform admin above Create organization",
+   "title": "Projects \u2014 platform admin, switcher open with Platform above Create organization",
    "expand": "fill"
   },
   "MyInvitationsEmptyPlatformAdminMenu.dc.html": {
@@ -2095,7 +2079,7 @@
    "y": 67120,
    "w": 1440,
    "h": 900,
-   "title": "Desk \u2014 workspace setup, environment",
+   "title": "Workspace setup, environment",
    "expand": "fill"
   },
   "DeskSetupEnvironmentEmpty.dc.html": {
@@ -2103,7 +2087,7 @@
    "y": 67120,
    "w": 1440,
    "h": 900,
-   "title": "Desk \u2014 workspace setup, environment, no entries yet",
+   "title": "Workspace setup, environment, no entries yet",
    "expand": "fill"
   },
   "DeskSetupEnvironmentLoading.dc.html": {
@@ -2111,7 +2095,7 @@
    "y": 67120,
    "w": 1440,
    "h": 900,
-   "title": "Desk \u2014 workspace setup, environment, loading",
+   "title": "Workspace setup, environment, loading",
    "expand": "fill"
   },
   "DeskSetupEnvironmentError.dc.html": {
@@ -2119,7 +2103,7 @@
    "y": 67120,
    "w": 1440,
    "h": 900,
-   "title": "Desk \u2014 workspace setup, environment, variables failed to load",
+   "title": "Workspace setup, environment, variables failed to load",
    "expand": "fill"
   },
   "DeskSetupEnvironmentAdding.dc.html": {
@@ -2127,7 +2111,7 @@
    "y": 67120,
    "w": 1440,
    "h": 900,
-   "title": "Desk \u2014 workspace setup, environment, adding a variable",
+   "title": "Workspace setup, environment, adding a variable",
    "expand": "fill"
   },
   "DeskSetupEnvironmentAddSecret.dc.html": {
@@ -2135,7 +2119,7 @@
    "y": 68400,
    "w": 1440,
    "h": 900,
-   "title": "Desk \u2014 workspace setup, environment, adding a secret",
+   "title": "Workspace setup, environment, adding a secret",
    "expand": "fill"
   },
   "DeskSetupEnvironmentEditing.dc.html": {
@@ -2143,7 +2127,7 @@
    "y": 68400,
    "w": 1440,
    "h": 900,
-   "title": "Desk \u2014 workspace setup, environment, editing a variable",
+   "title": "Workspace setup, environment, editing a variable",
    "expand": "fill"
   },
   "DeskSetupEnvironmentSaving.dc.html": {
@@ -2151,7 +2135,7 @@
    "y": 68400,
    "w": 1440,
    "h": 900,
-   "title": "Desk \u2014 workspace setup, environment, saving a variable",
+   "title": "Workspace setup, environment, saving a variable",
    "expand": "fill"
   },
   "DeskSetupEnvironmentSecretReplace.dc.html": {
@@ -2159,7 +2143,7 @@
    "y": 68400,
    "w": 1440,
    "h": 900,
-   "title": "Desk \u2014 workspace setup, environment, replacing a secret",
+   "title": "Workspace setup, environment, replacing a secret",
    "expand": "fill"
   },
   "DeskSetupEnvironmentRemove.dc.html": {
@@ -2167,7 +2151,7 @@
    "y": 68400,
    "w": 1440,
    "h": 900,
-   "title": "Desk \u2014 workspace setup, environment, remove a variable",
+   "title": "Workspace setup, environment, remove a variable",
    "expand": "fill"
   },
   "DeskSetupEnvironmentFieldErrors.dc.html": {
@@ -2175,7 +2159,7 @@
    "y": 69680,
    "w": 1440,
    "h": 900,
-   "title": "Desk \u2014 workspace setup, environment, reserved name and short secret",
+   "title": "Workspace setup, environment, reserved name and short secret",
    "expand": "fill"
   },
   "DeskSetupEnvironmentNameTaken.dc.html": {
@@ -2183,7 +2167,7 @@
    "y": 69680,
    "w": 1440,
    "h": 900,
-   "title": "Desk \u2014 workspace setup, environment, name already exists",
+   "title": "Workspace setup, environment, name already exists",
    "expand": "fill"
   },
   "DeskSetupEnvironmentLimit.dc.html": {
@@ -2191,7 +2175,7 @@
    "y": 69680,
    "w": 1440,
    "h": 900,
-   "title": "Desk \u2014 workspace setup, environment, limit reached",
+   "title": "Workspace setup, environment, limit reached",
    "expand": "fill"
   },
   "DeskSetupEnvironmentSaveError.dc.html": {
@@ -2199,7 +2183,7 @@
    "y": 69680,
    "w": 1440,
    "h": 900,
-   "title": "Desk \u2014 workspace setup, environment, save failed",
+   "title": "Workspace setup, environment, save failed",
    "expand": "fill"
   },
   "DeskSetupEnvironmentGone.dc.html": {
@@ -2207,7 +2191,7 @@
    "y": 69680,
    "w": 1440,
    "h": 900,
-   "title": "Desk \u2014 workspace setup, environment, entry no longer exists",
+   "title": "Workspace setup, environment, entry no longer exists",
    "expand": "fill"
   },
   "DeskSetupEnvironmentPaged.dc.html": {
@@ -2215,7 +2199,7 @@
    "y": 70960,
    "w": 1440,
    "h": 900,
-   "title": "Desk \u2014 workspace setup, environment, both lists on page 2",
+   "title": "Workspace setup, environment, both lists on page 2",
    "expand": "fill"
   },
   "DeskSetupEnvironmentAdded.dc.html": {
@@ -2223,7 +2207,7 @@
    "y": 70960,
    "w": 1440,
    "h": 900,
-   "title": "Desk \u2014 workspace setup, environment, added to another page",
+   "title": "Workspace setup, environment, added to another page",
    "expand": "fill"
   },
   "DeskSetupEnvironmentReadOnly.dc.html": {
@@ -2231,7 +2215,7 @@
    "y": 70960,
    "w": 1440,
    "h": 900,
-   "title": "Desk \u2014 workspace setup, environment, read-only",
+   "title": "Workspace setup, environment, read-only",
    "expand": "fill"
   },
   "DeskSetupEnvironmentSecretsReadOnly.dc.html": {
@@ -2239,7 +2223,7 @@
    "y": 70960,
    "w": 1440,
    "h": 900,
-   "title": "Desk \u2014 workspace setup, environment, secrets read-only",
+   "title": "Workspace setup, environment, secrets read-only",
    "expand": "fill"
   },
   "DeskSetupEnvironmentTesting.dc.html": {
@@ -2247,7 +2231,7 @@
    "y": 70960,
    "w": 1440,
    "h": 900,
-   "title": "Desk \u2014 workspace setup, environment, while a test runs",
+   "title": "Workspace setup, environment, while a test runs",
    "expand": "fill"
   },
   "PlatformOrgEdit.dc.html": {
@@ -2743,7 +2727,7 @@
    "y": 83760,
    "w": 1440,
    "h": 900,
-   "title": "Desk \u2014 agents, Agents tab",
+   "title": "Agent and settings, Agents tab",
    "expand": "fill"
   },
   "DeskAgentListEmpty.dc.html": {
@@ -2751,7 +2735,7 @@
    "y": 83760,
    "w": 1440,
    "h": 900,
-   "title": "Desk \u2014 agents, no agents yet",
+   "title": "Agent and settings, Agents tab, no agents yet",
    "expand": "fill"
   },
   "DeskAgentListError.dc.html": {
@@ -2759,7 +2743,7 @@
    "y": 83760,
    "w": 1440,
    "h": 900,
-   "title": "Desk \u2014 agents, list could not load (other tabs unaffected)",
+   "title": "Agent and settings, Agents tab, list could not load (other tabs unaffected)",
    "expand": "fill"
   },
   "DeskAgentListLoading.dc.html": {
@@ -2767,7 +2751,7 @@
    "y": 83760,
    "w": 1440,
    "h": 900,
-   "title": "Desk \u2014 agents, list loading",
+   "title": "Agent and settings, Agents tab, list loading",
    "expand": "fill"
   },
   "DeskAgentListPaged.dc.html": {
@@ -2775,7 +2759,7 @@
    "y": 83760,
    "w": 1440,
    "h": 900,
-   "title": "Desk \u2014 agents, second page of the list",
+   "title": "Agent and settings, Agents tab, second page of the list",
    "expand": "fill"
   },
   "DeskAgentListProjectAdmin.dc.html": {
@@ -2783,7 +2767,7 @@
    "y": 83760,
    "w": 1440,
    "h": 900,
-   "title": "Desk \u2014 agents, project admin sees three tabs and no Danger zone",
+   "title": "Agent and settings, Agents tab, project admin sees three tabs and no Danger zone",
    "expand": "fill"
   },
   "DeskAgentListReadOnly.dc.html": {
@@ -2791,7 +2775,7 @@
    "y": 83760,
    "w": 1440,
    "h": 900,
-   "title": "Desk \u2014 agents, read-only view",
+   "title": "Agent and settings, Agents tab, read-only view",
    "expand": "fill"
   },
   "DeskAgentListTesting.dc.html": {
@@ -2799,7 +2783,7 @@
    "y": 83760,
    "w": 1440,
    "h": 900,
-   "title": "Desk \u2014 agents, testing one row",
+   "title": "Agent and settings, Agents tab, testing one row",
    "expand": "fill"
   },
   "DeskAgentRowMenu.dc.html": {
@@ -2807,7 +2791,7 @@
    "y": 85040,
    "w": 1440,
    "h": 900,
-   "title": "Desk \u2014 agents, row menu open",
+   "title": "Agent and settings, Agents tab, row menu open",
    "expand": "fill"
   },
   "DeskAgentTestFailed.dc.html": {
@@ -2815,7 +2799,7 @@
    "y": 85040,
    "w": 1440,
    "h": 900,
-   "title": "Desk \u2014 agents, test connection failed",
+   "title": "Agent and settings, Agents tab, test connection failed",
    "expand": "fill"
   },
   "DeskAgentDefaultChanged.dc.html": {
@@ -2823,7 +2807,7 @@
    "y": 85040,
    "w": 1440,
    "h": 900,
-   "title": "Desk \u2014 agents, default changed",
+   "title": "Agent and settings, Agents tab, default changed",
    "expand": "fill"
   },
   "DeskAgentAdd.dc.html": {
@@ -2831,7 +2815,7 @@
    "y": 85040,
    "w": 1440,
    "h": 900,
-   "title": "Desk \u2014 agents, add agent, no provider picked yet",
+   "title": "Agent and settings, Agents tab, add agent, no provider picked yet",
    "expand": "fill"
   },
   "DeskAgentAddForm.dc.html": {
@@ -2839,7 +2823,7 @@
    "y": 85040,
    "w": 1440,
    "h": 900,
-   "title": "Desk \u2014 agents, add agent, Claude Code",
+   "title": "Agent and settings, Agents tab, add agent, Claude Code",
    "expand": "fill"
   },
   "DeskAgentAddCodex.dc.html": {
@@ -2847,7 +2831,7 @@
    "y": 85040,
    "w": 1440,
    "h": 900,
-   "title": "Desk \u2014 agents, add agent, OpenAI Codex (sign-in file, no API address)",
+   "title": "Agent and settings, Agents tab, add agent, OpenAI Codex (sign-in file, no API address)",
    "expand": "fill"
   },
   "DeskAgentAddOpenCode.dc.html": {
@@ -2855,7 +2839,7 @@
    "y": 85040,
    "w": 1440,
    "h": 900,
-   "title": "Desk \u2014 agents, add agent, OpenCode (works without signing in; credentials file or own endpoint and key)",
+   "title": "Agent and settings, Agents tab, add agent, OpenCode (works without signing in; credentials file or own endpoint and key)",
    "expand": "fill"
   },
   "DeskAgentAddFieldErrors.dc.html": {
@@ -2863,7 +2847,7 @@
    "y": 85040,
    "w": 1440,
    "h": 900,
-   "title": "Desk \u2014 agents, add agent, field errors",
+   "title": "Agent and settings, Agents tab, add agent, field errors",
    "expand": "fill"
   },
   "DeskAgentAddPartial.dc.html": {
@@ -2871,7 +2855,7 @@
    "y": 86320,
    "w": 1440,
    "h": 900,
-   "title": "Desk \u2014 agents, agent saved, credential not saved",
+   "title": "Agent and settings, Agents tab, agent saved, credential not saved",
    "expand": "fill"
   },
   "DeskAgentAddSaving.dc.html": {
@@ -2879,7 +2863,7 @@
    "y": 86320,
    "w": 1440,
    "h": 900,
-   "title": "Desk \u2014 agents, add agent, saving the credential",
+   "title": "Agent and settings, Agents tab, add agent, saving the credential",
    "expand": "fill"
   },
   "DeskAgentEdit.dc.html": {
@@ -2887,7 +2871,7 @@
    "y": 86320,
    "w": 1440,
    "h": 900,
-   "title": "Desk \u2014 agents, edit the default agent",
+   "title": "Agent and settings, Agents tab, edit the default agent",
    "expand": "fill"
   },
   "DeskAgentEditWork.dc.html": {
@@ -2895,7 +2879,7 @@
    "y": 86320,
    "w": 1440,
    "h": 900,
-   "title": "Desk \u2014 agents, edit a second Claude agent (own address, own credential)",
+   "title": "Agent and settings, Agents tab, edit a second Claude agent (own address, own credential)",
    "expand": "fill"
   },
   "DeskAgentEditCodex.dc.html": {
@@ -2903,7 +2887,7 @@
    "y": 86320,
    "w": 1440,
    "h": 900,
-   "title": "Desk \u2014 agents, edit a Codex agent (no address, no max turns)",
+   "title": "Agent and settings, Agents tab, edit a Codex agent (no address, no max turns)",
    "expand": "fill"
   },
   "DeskAgentEditOpenCode.dc.html": {
@@ -2911,7 +2895,7 @@
    "y": 86320,
    "w": 1440,
    "h": 900,
-   "title": "Desk \u2014 agents, edit an OpenCode agent (credentials file replaced by an API endpoint and key)",
+   "title": "Agent and settings, Agents tab, edit an OpenCode agent (credentials file replaced by an API endpoint and key)",
    "expand": "fill"
   },
   "DeskAgentEditAddressChanged.dc.html": {
@@ -2919,7 +2903,7 @@
    "y": 86320,
    "w": 1440,
    "h": 900,
-   "title": "Desk \u2014 agents, API address changed, credential needed again",
+   "title": "Agent and settings, Agents tab, API address changed, credential needed again",
    "expand": "fill"
   },
   "DeskAgentEditReplace.dc.html": {
@@ -2927,7 +2911,7 @@
    "y": 86320,
    "w": 1440,
    "h": 900,
-   "title": "Desk \u2014 agents, replace the credential",
+   "title": "Agent and settings, Agents tab, replace the credential",
    "expand": "fill"
   },
   "DeskAgentEditNoCredential.dc.html": {
@@ -2935,7 +2919,7 @@
    "y": 87600,
    "w": 1440,
    "h": 900,
-   "title": "Desk \u2014 agents, edit an agent with no credential yet",
+   "title": "Agent and settings, Agents tab, edit an agent with no credential yet",
    "expand": "fill"
   },
   "DeskAgentEditSaving.dc.html": {
@@ -2943,7 +2927,7 @@
    "y": 87600,
    "w": 1440,
    "h": 900,
-   "title": "Desk \u2014 agents, edit, saving",
+   "title": "Agent and settings, Agents tab, edit, saving",
    "expand": "fill"
   },
   "DeskAgentEditGone.dc.html": {
@@ -2951,7 +2935,7 @@
    "y": 87600,
    "w": 1440,
    "h": 900,
-   "title": "Desk \u2014 agents, edit, the agent was deleted meanwhile",
+   "title": "Agent and settings, Agents tab, edit, the agent was deleted meanwhile",
    "expand": "fill"
   },
   "DeskAgentEditModelFallback.dc.html": {
@@ -2959,7 +2943,7 @@
    "y": 87600,
    "w": 1440,
    "h": 900,
-   "title": "Desk \u2014 agents, edit, model list could not load, typed model",
+   "title": "Agent and settings, Agents tab, edit, model list could not load, typed model",
    "expand": "fill"
   },
   "DeskAgentEditModelLoading.dc.html": {
@@ -2967,7 +2951,7 @@
    "y": 87600,
    "w": 1440,
    "h": 900,
-   "title": "Desk \u2014 agents, edit, model list loading",
+   "title": "Agent and settings, Agents tab, edit, model list loading",
    "expand": "fill"
   },
   "DeskAgentDelete.dc.html": {
@@ -2975,7 +2959,7 @@
    "y": 87600,
    "w": 1440,
    "h": 900,
-   "title": "Desk \u2014 agents, delete confirm",
+   "title": "Agent and settings, Agents tab, delete confirm",
    "expand": "fill"
   },
   "DeskAgentDeleteBlocked.dc.html": {
@@ -2983,7 +2967,7 @@
    "y": 87600,
    "w": 1440,
    "h": 900,
-   "title": "Desk \u2014 agents, delete refused: a rule uses it",
+   "title": "Agent and settings, Agents tab, delete refused: a rule uses it",
    "expand": "fill"
   },
   "DeskAgentDeleteBlockedRuns.dc.html": {
@@ -2991,7 +2975,7 @@
    "y": 87600,
    "w": 1440,
    "h": 900,
-   "title": "Desk \u2014 agents, delete refused: a run is still open",
+   "title": "Agent and settings, Agents tab, delete refused: a run is still open",
    "expand": "fill"
   },
   "DeskAgentDeleteError.dc.html": {
@@ -2999,7 +2983,7 @@
    "y": 88880,
    "w": 1440,
    "h": 900,
-   "title": "Desk \u2014 agents, delete failed",
+   "title": "Agent and settings, Agents tab, delete failed",
    "expand": "fill"
   },
   "DeskAgentDeleting.dc.html": {
@@ -3007,7 +2991,7 @@
    "y": 88880,
    "w": 1440,
    "h": 900,
-   "title": "Desk \u2014 agents, deleting",
+   "title": "Agent and settings, Agents tab, deleting",
    "expand": "fill"
   },
   "DeskAgentGitHub.dc.html": {
@@ -3015,7 +2999,7 @@
    "y": 88880,
    "w": 1440,
    "h": 900,
-   "title": "Desk \u2014 GitHub connection tab",
+   "title": "Agent and settings, GitHub connection tab",
    "expand": "fill"
   },
   "DeskAgentGitHubPolling.dc.html": {
@@ -3023,7 +3007,7 @@
    "y": 88880,
    "w": 1440,
    "h": 900,
-   "title": "Desk \u2014 GitHub connection tab, polling",
+   "title": "Agent and settings, GitHub connection tab, polling",
    "expand": "fill"
   },
   "DeskAgentGitHubCheckingNow.dc.html": {
@@ -3031,7 +3015,7 @@
    "y": 88880,
    "w": 1440,
    "h": 900,
-   "title": "Desk \u2014 GitHub connection tab, checking now",
+   "title": "Agent and settings, GitHub connection tab, checking now",
    "expand": "fill"
   },
   "DeskAgentGitHubCheckRefused.dc.html": {
@@ -3039,7 +3023,7 @@
    "y": 88880,
    "w": 1440,
    "h": 900,
-   "title": "Desk \u2014 GitHub connection tab, check refused",
+   "title": "Agent and settings, GitHub connection tab, check refused",
    "expand": "fill"
   },
   "DeskAgentGitHubTriggerError.dc.html": {
@@ -3047,7 +3031,7 @@
    "y": 88880,
    "w": 1440,
    "h": 900,
-   "title": "Desk \u2014 GitHub connection tab, saving the trigger mode failed",
+   "title": "Agent and settings, GitHub connection tab, saving the trigger mode failed",
    "expand": "fill"
   },
   "DeskAgentGitHubLoading.dc.html": {
@@ -3055,7 +3039,7 @@
    "y": 88880,
    "w": 1440,
    "h": 900,
-   "title": "Desk \u2014 GitHub connection tab, loading",
+   "title": "Agent and settings, GitHub connection tab, loading",
    "expand": "fill"
   },
   "DeskAgentGitHubError.dc.html": {
@@ -3063,7 +3047,7 @@
    "y": 90160,
    "w": 1440,
    "h": 900,
-   "title": "Desk \u2014 GitHub connection tab, could not load",
+   "title": "Agent and settings, GitHub connection tab, could not load",
    "expand": "fill"
   },
   "DeskAgentLimits.dc.html": {
@@ -3071,7 +3055,7 @@
    "y": 90160,
    "w": 1440,
    "h": 900,
-   "title": "Desk \u2014 Limits tab, project-wide",
+   "title": "Agent and settings, Limits tab, project-wide",
    "expand": "fill"
   },
   "DeskAgentLimitsSaving.dc.html": {
@@ -3079,7 +3063,7 @@
    "y": 90160,
    "w": 1440,
    "h": 900,
-   "title": "Desk \u2014 Limits tab, saving",
+   "title": "Agent and settings, Limits tab, saving",
    "expand": "fill"
   },
   "DeskAgentLimitsFieldErrors.dc.html": {
@@ -3087,7 +3071,7 @@
    "y": 90160,
    "w": 1440,
    "h": 900,
-   "title": "Desk \u2014 Limits tab, field errors",
+   "title": "Agent and settings, Limits tab, field errors",
    "expand": "fill"
   },
   "DeskAgentLimitsError.dc.html": {
@@ -3095,7 +3079,7 @@
    "y": 90160,
    "w": 1440,
    "h": 900,
-   "title": "Desk \u2014 Limits tab, the save failed",
+   "title": "Agent and settings, Limits tab, the save failed",
    "expand": "fill"
   },
   "DeskAgentLimitsReadOnly.dc.html": {
@@ -3103,13 +3087,940 @@
    "y": 90160,
    "w": 1440,
    "h": 900,
-   "title": "Desk \u2014 Limits tab, read-only",
+   "title": "Agent and settings, Limits tab, read-only",
+   "expand": "fill"
+  },
+  "ProjectsSideMenu.dc.html": {
+   "x": 0,
+   "y": 91440,
+   "w": 1440,
+   "h": 900,
+   "title": "Projects, organization menu (owner)",
+   "expand": "fill"
+  },
+  "ProjectsMemberSideMenu.dc.html": {
+   "x": 1520,
+   "y": 91440,
+   "w": 1440,
+   "h": 900,
+   "title": "Projects, organization menu (member or viewer)",
+   "expand": "fill"
+  },
+  "ProjectsSideMenuPlatformAdmin.dc.html": {
+   "x": 3040,
+   "y": 91440,
+   "w": 1440,
+   "h": 900,
+   "title": "Projects, menu with Manage in Platform (platform admin)",
+   "expand": "fill"
+  },
+  "ProjectsSideOneOrg.dc.html": {
+   "x": 4560,
+   "y": 91440,
+   "w": 1440,
+   "h": 900,
+   "title": "One organization: plain organization name",
+   "expand": "fill"
+  },
+  "ProjectsSideSwitcherOpen.dc.html": {
+   "x": 6080,
+   "y": 91440,
+   "w": 1440,
+   "h": 900,
+   "title": "Organization switcher open",
+   "expand": "fill"
+  },
+  "ProjectsSideSwitcherLoading.dc.html": {
+   "x": 7600,
+   "y": 91440,
+   "w": 1440,
+   "h": 900,
+   "title": "Organization switcher, list loading",
+   "expand": "fill"
+  },
+  "ProjectsSideSwitcherError.dc.html": {
+   "x": 9120,
+   "y": 91440,
+   "w": 1440,
+   "h": 900,
+   "title": "Organization switcher, list could not load",
+   "expand": "fill"
+  },
+  "ProjectsSideSwitcherOneOrgHeld.dc.html": {
+   "x": 10640,
+   "y": 91440,
+   "w": 1440,
+   "h": 900,
+   "title": "Organization switcher held open with one organization",
+   "expand": "fill"
+  },
+  "ProjectsSideAccountMenu.dc.html": {
+   "x": 0,
+   "y": 92720,
+   "w": 1440,
+   "h": 900,
+   "title": "Account menu with My invitations",
+   "expand": "fill"
+  },
+  "ProjectsResumeSetup.dc.html": {
+   "x": 1520,
+   "y": 92720,
+   "w": 1440,
+   "h": 900,
+   "title": "Projects, a row with Resume setup",
+   "expand": "fill"
+  },
+  "OrgMembersSideMenu.dc.html": {
+   "x": 3040,
+   "y": 92720,
+   "w": 1440,
+   "h": 900,
+   "title": "Organization members, side menu (owner)",
+   "expand": "fill"
+  },
+  "OrgMembersSideMenuCollapsed.dc.html": {
+   "x": 4560,
+   "y": 92720,
+   "w": 1440,
+   "h": 900,
+   "title": "Organization members, menu collapsed",
+   "expand": "fill"
+  },
+  "OrgMembersSideMenuError.dc.html": {
+   "x": 6080,
+   "y": 92720,
+   "w": 1440,
+   "h": 900,
+   "title": "Organization members, menu could not load",
+   "expand": "fill"
+  },
+  "OrgMembersSideMenuLoading.dc.html": {
+   "x": 7600,
+   "y": 92720,
+   "w": 1440,
+   "h": 900,
+   "title": "Organization members, menu loading",
+   "expand": "fill"
+  },
+  "OrgInvitationsSettingsSideMenuProjectAdmin.dc.html": {
+   "x": 9120,
+   "y": 92720,
+   "w": 1440,
+   "h": 900,
+   "title": "Organization invitations, menu for an admin of projects only",
+   "expand": "fill"
+  },
+  "OrgAuditForbiddenSideMenu.dc.html": {
+   "x": 10640,
+   "y": 92720,
+   "w": 1440,
+   "h": 900,
+   "title": "No access, organization menu",
+   "expand": "fill"
+  },
+  "PlatformOrgsSideMenu.dc.html": {
+   "x": 0,
+   "y": 94000,
+   "w": 1440,
+   "h": 900,
+   "title": "Platform organizations, platform menu",
+   "expand": "fill"
+  },
+  "PlatformAdminsForbiddenNoMenu.dc.html": {
+   "x": 1520,
+   "y": 94000,
+   "w": 1440,
+   "h": 900,
+   "title": "Platform area without the role: no menu",
+   "expand": "fill"
+  },
+  "PlatformOrgMembersSideMenuError.dc.html": {
+   "x": 3040,
+   "y": 94000,
+   "w": 1440,
+   "h": 900,
+   "title": "Platform, one organization: could not load",
+   "expand": "fill"
+  },
+  "PlatformOrgMembersSideMenuLoading.dc.html": {
+   "x": 4560,
+   "y": 94000,
+   "w": 1440,
+   "h": 900,
+   "title": "Platform, one organization: menu loading",
+   "expand": "fill"
+  },
+  "PlatformOrgOverviewSideMenuNotFound.dc.html": {
+   "x": 6080,
+   "y": 94000,
+   "w": 1440,
+   "h": 900,
+   "title": "Platform, organization not found: platform menu",
+   "expand": "fill"
+  },
+  "PlatformOrgOverviewSideMenuSuspended.dc.html": {
+   "x": 7600,
+   "y": 94000,
+   "w": 1440,
+   "h": 900,
+   "title": "Platform, one suspended organization: overview",
+   "expand": "fill"
+  },
+  "PlatformOrgProjectsSideMenu.dc.html": {
+   "x": 9120,
+   "y": 94000,
+   "w": 1440,
+   "h": 900,
+   "title": "Platform, one organization: projects (Name first)",
+   "expand": "fill"
+  },
+  "CreateOrgSideMenu.dc.html": {
+   "x": 10640,
+   "y": 94000,
+   "w": 1440,
+   "h": 900,
+   "title": "Create organization, platform menu",
+   "expand": "fill"
+  },
+  "RunsSideMenu.dc.html": {
+   "x": 0,
+   "y": 95280,
+   "w": 1440,
+   "h": 900,
+   "title": "Runs, full project menu",
+   "expand": "fill"
+  },
+  "RunsSideMenuError.dc.html": {
+   "x": 1520,
+   "y": 95280,
+   "w": 1440,
+   "h": 900,
+   "title": "Runs, project menu could not load",
+   "expand": "fill"
+  },
+  "RunsSideMenuLoading.dc.html": {
+   "x": 3040,
+   "y": 95280,
+   "w": 1440,
+   "h": 900,
+   "title": "Runs, project menu loading",
+   "expand": "fill"
+  },
+  "RunsSideMenuMember.dc.html": {
+   "x": 4560,
+   "y": 95280,
+   "w": 1440,
+   "h": 900,
+   "title": "Runs, project menu for a member or viewer",
+   "expand": "fill"
+  },
+  "RunsSideMenuRepoError.dc.html": {
+   "x": 6080,
+   "y": 95280,
+   "w": 1440,
+   "h": 900,
+   "title": "Runs, repository block error",
+   "expand": "fill"
+  },
+  "RunsSideMenuRepoNoBranch.dc.html": {
+   "x": 7600,
+   "y": 95280,
+   "w": 1440,
+   "h": 900,
+   "title": "Runs, repository block with no default branch",
+   "expand": "fill"
+  },
+  "RunsSideMenuRepoWarning.dc.html": {
+   "x": 9120,
+   "y": 95280,
+   "w": 1440,
+   "h": 900,
+   "title": "Runs, repository block warning",
+   "expand": "fill"
+  },
+  "RunsSideProjectSwitcher.dc.html": {
+   "x": 10640,
+   "y": 95280,
+   "w": 1440,
+   "h": 900,
+   "title": "Project switcher open",
+   "expand": "fill"
+  },
+  "RunsSideProjectSwitcherEmpty.dc.html": {
+   "x": 0,
+   "y": 96560,
+   "w": 1440,
+   "h": 900,
+   "title": "Project switcher, no projects",
+   "expand": "fill"
+  },
+  "RunsSideProjectSwitcherError.dc.html": {
+   "x": 1520,
+   "y": 96560,
+   "w": 1440,
+   "h": 900,
+   "title": "Project switcher, could not load",
+   "expand": "fill"
+  },
+  "RunsSideProjectSwitcherLoading.dc.html": {
+   "x": 3040,
+   "y": 96560,
+   "w": 1440,
+   "h": 900,
+   "title": "Project switcher, loading",
+   "expand": "fill"
+  },
+  "RunsSideProjectSwitcherNoCreate.dc.html": {
+   "x": 4560,
+   "y": 96560,
+   "w": 1440,
+   "h": 900,
+   "title": "Project switcher without New project",
+   "expand": "fill"
+  },
+  "RunsNotFoundSideMenu.dc.html": {
+   "x": 6080,
+   "y": 96560,
+   "w": 1440,
+   "h": 900,
+   "title": "Project out of scope: not found with the organization menu",
+   "expand": "fill"
+  },
+  "RunsNeedsYouNotFound.dc.html": {
+   "x": 16720,
+   "y": 96560,
+   "w": 1440,
+   "h": 900,
+   "title": "Removed needs-you address: not found with the project menu",
+   "expand": "fill"
+  },
+  "DeskRulesForbiddenSideMenu.dc.html": {
+   "x": 7600,
+   "y": 96560,
+   "w": 1440,
+   "h": 900,
+   "title": "Routing rules URL opened without access: project menu, no active item",
+   "expand": "fill"
+  },
+  "DeskSkillsSideMenu.dc.html": {
+   "x": 9120,
+   "y": 96560,
+   "w": 1440,
+   "h": 900,
+   "title": "Skills in the shell: project menu, page header and skill list",
+   "expand": "fill"
+  },
+  "DeskSetupSideMenu.dc.html": {
+   "x": 10640,
+   "y": 96560,
+   "w": 1440,
+   "h": 900,
+   "title": "Workspace setup in the shell: project menu, page header and editor",
+   "expand": "fill"
+  },
+  "DeskRulesSideMenu.dc.html": {
+   "x": 12160,
+   "y": 96560,
+   "w": 1440,
+   "h": 900,
+   "title": "Routing rules in the shell: project menu, page header and rule list",
+   "expand": "fill"
+  },
+  "DeskRulesSideMenuSetupWarning.dc.html": {
+   "x": 13680,
+   "y": 96560,
+   "w": 1440,
+   "h": 900,
+   "title": "Routing rules in the shell: setup warning first in the list",
+   "expand": "fill"
+  },
+  "DeskAgentSideMenu.dc.html": {
+   "x": 15200,
+   "y": 96560,
+   "w": 1440,
+   "h": 900,
+   "title": "Agent and settings in the shell: project menu, page header, tab strip and agent list",
+   "expand": "fill"
+  },
+  "RunIdle1024.dc.html": {
+   "x": 0,
+   "y": 97840,
+   "w": 1024,
+   "h": 900,
+   "title": "Run needs you at 1024px",
+   "expand": "fill"
+  },
+  "RunIdleSideCollapsed.dc.html": {
+   "x": 1520,
+   "y": 97840,
+   "w": 1440,
+   "h": 900,
+   "title": "Run needs you, menu collapsed, actions in the page header",
+   "expand": "fill"
+  },
+  "RunIdleSideExpanded.dc.html": {
+   "x": 3040,
+   "y": 97840,
+   "w": 1440,
+   "h": 900,
+   "title": "Run needs you, menu expanded",
+   "expand": "fill"
+  },
+  "RunRunningSideMenu.dc.html": {
+   "x": 4560,
+   "y": 97840,
+   "w": 1440,
+   "h": 900,
+   "title": "Running, cancel confirm under the header button",
+   "expand": "fill"
+  },
+  "RunRunningStopSideMenu.dc.html": {
+   "x": 6080,
+   "y": 97840,
+   "w": 1440,
+   "h": 900,
+   "title": "Running, stop confirm under the header button",
+   "expand": "fill"
+  },
+  "Setup3ExitSetup.dc.html": {
+   "x": 7600,
+   "y": 97840,
+   "w": 1440,
+   "h": 900,
+   "title": "Skills step in the shell: stepper in the menu slot with Exit setup",
+   "expand": "fill"
+  },
+  "Setup4ExitSetup.dc.html": {
+   "x": 9120,
+   "y": 97840,
+   "w": 1440,
+   "h": 900,
+   "title": "First rule step in the shell: stepper in the menu slot with Exit setup",
+   "expand": "fill"
+  },
+  "SetupReadyExitSetup.dc.html": {
+   "x": 10640,
+   "y": 97840,
+   "w": 1440,
+   "h": 900,
+   "title": "Ready step in the shell: stepper in the menu slot with Exit setup",
+   "expand": "fill"
+  },
+  "Setup3PreviewDialog.dc.html": {
+   "x": 12160,
+   "y": 97840,
+   "w": 1440,
+   "h": 900,
+   "title": "Skills step in the shell: template preview dialog",
+   "expand": "fill"
+  },
+  "InvitationAcceptSideMenu.dc.html": {
+   "x": 0,
+   "y": 99120,
+   "w": 1440,
+   "h": 900,
+   "title": "Invitation in the shell: organization menu and page header",
+   "expand": "fill"
+  },
+  "InvitationAcceptErrorSideMenu.dc.html": {
+   "x": 1520,
+   "y": 99120,
+   "w": 1440,
+   "h": 900,
+   "title": "Invitation load error in the shell: banner with Retry, no title, menu kept",
+   "expand": "fill"
+  },
+  "InvitationAcceptNotAvailableNoMenu.dc.html": {
+   "x": 3040,
+   "y": 99120,
+   "w": 1440,
+   "h": 900,
+   "title": "Invitation not available in the shell: centred, no menu",
+   "expand": "fill"
+  },
+  "MyInvitationsSideMenu.dc.html": {
+   "x": 4560,
+   "y": 99120,
+   "w": 1440,
+   "h": 900,
+   "title": "My invitations in the shell: organization menu and page header",
+   "expand": "fill"
+  },
+  "MyInvitationsEmptyNoOrg.dc.html": {
+   "x": 6080,
+   "y": 99120,
+   "w": 1440,
+   "h": 900,
+   "title": "My invitations with no organization: centred welcome, no menu",
+   "expand": "fill"
+  },
+  "MyInvitationsEmptySideSwitcherHeld.dc.html": {
+   "x": 7600,
+   "y": 99120,
+   "w": 1440,
+   "h": 900,
+   "title": "No organization: switcher held open after the list arrives",
+   "expand": "fill"
+  },
+  "RouteErrorSideMenu.dc.html": {
+   "x": 9120,
+   "y": 99120,
+   "w": 1440,
+   "h": 900,
+   "title": "Server error in the shell: project menu and banner with Retry",
+   "expand": "fill"
+  },
+  "RouteErrorCrashSideMenu.dc.html": {
+   "x": 0,
+   "y": 100400,
+   "w": 1440,
+   "h": 900,
+   "title": "Crash in the shell: project menu and message with request id",
+   "expand": "fill"
+  },
+  "RouteErrorNoMenu.dc.html": {
+   "x": 1520,
+   "y": 100400,
+   "w": 1440,
+   "h": 900,
+   "title": "Server error in the shell with no menu",
+   "expand": "fill"
+  },
+  "RouteErrorNotFoundNoMenu.dc.html": {
+   "x": 3040,
+   "y": 100400,
+   "w": 1440,
+   "h": 900,
+   "title": "Not found in the shell with no menu",
+   "expand": "fill"
+  },
+  "RouteLoadingSideMenu.dc.html": {
+   "x": 4560,
+   "y": 100400,
+   "w": 1440,
+   "h": 900,
+   "title": "Page loading in the shell: project menu and skeleton",
+   "expand": "fill"
+  },
+  "OrgSuspendedNoMenu.dc.html": {
+   "x": 6080,
+   "y": 100400,
+   "w": 1440,
+   "h": 900,
+   "title": "Suspended organization in the shell: no menu, switcher kept",
+   "expand": "fill"
+  },
+  "OrgSuspendedPlainName.dc.html": {
+   "x": 7600,
+   "y": 100400,
+   "w": 1440,
+   "h": 900,
+   "title": "Suspended only organization in the shell: plain org name",
+   "expand": "fill"
+  },
+  "MyInvitationsEmptyMember.dc.html": {
+   "x": 9120,
+   "y": 100400,
+   "w": 1440,
+   "h": 900,
+   "title": "My invitations in the shell: member with none pending",
+   "expand": "fill"
+  },
+  "SignInPhone.dc.html": {
+   "x": 0,
+   "y": 101460,
+   "w": 390,
+   "h": 844,
+   "title": "Phone: sign in",
+   "expand": "fill"
+  },
+  "CreateOrgPhone.dc.html": {
+   "x": 470,
+   "y": 101460,
+   "w": 390,
+   "h": 844,
+   "title": "Phone: create organization",
+   "expand": "fill"
+  },
+  "InvitationAcceptPhone.dc.html": {
+   "x": 940,
+   "y": 101460,
+   "w": 390,
+   "h": 844,
+   "title": "Phone: invitation link",
+   "expand": "fill"
+  },
+  "MyInvitationsPhone.dc.html": {
+   "x": 1410,
+   "y": 101460,
+   "w": 390,
+   "h": 844,
+   "title": "Phone: my invitations",
+   "expand": "fill"
+  },
+  "OrgSuspendedPhone.dc.html": {
+   "x": 1880,
+   "y": 101460,
+   "w": 390,
+   "h": 844,
+   "title": "Phone: organization suspended",
+   "expand": "fill"
+  },
+  "RouteErrorPhone.dc.html": {
+   "x": 2350,
+   "y": 101460,
+   "w": 390,
+   "h": 844,
+   "title": "Phone: page failed to load",
+   "expand": "fill"
+  },
+  "ProjectsPhone.dc.html": {
+   "x": 0,
+   "y": 102460,
+   "w": 390,
+   "h": 844,
+   "title": "Phone: projects",
+   "expand": "fill"
+  },
+  "ProjectsPhoneDrawer.dc.html": {
+   "x": 470,
+   "y": 102460,
+   "w": 390,
+   "h": 844,
+   "title": "Phone: projects, menu drawer open",
+   "expand": "fill"
+  },
+  "ProjectsPhoneSwitcher.dc.html": {
+   "x": 940,
+   "y": 102460,
+   "w": 390,
+   "h": 844,
+   "title": "Phone: projects, organization switcher open",
+   "expand": "fill"
+  },
+  "Setup1Phone.dc.html": {
+   "x": 1410,
+   "y": 102460,
+   "w": 390,
+   "h": 844,
+   "title": "Phone: setup 1, connect repository",
+   "expand": "fill"
+  },
+  "Setup2Phone.dc.html": {
+   "x": 1880,
+   "y": 102460,
+   "w": 390,
+   "h": 844,
+   "title": "Phone: setup 2, add agent, nothing picked",
+   "expand": "fill"
+  },
+  "Setup2AgentPickedPhone.dc.html": {
+   "x": 2350,
+   "y": 102460,
+   "w": 390,
+   "h": 844,
+   "title": "Phone: setup 2, OpenCode, API endpoint and key",
+   "expand": "fill"
+  },
+  "Setup2AgentRejectedPhone.dc.html": {
+   "x": 0,
+   "y": 103560,
+   "w": 390,
+   "h": 844,
+   "title": "Phone: setup 2, the test failed, Continue anyway",
+   "expand": "fill"
+  },
+  "Setup3Phone.dc.html": {
+   "x": 470,
+   "y": 103560,
+   "w": 390,
+   "h": 980,
+   "title": "Phone: setup 3, skills",
+   "expand": "fill"
+  },
+  "Setup3PhoneDrawer.dc.html": {
+   "x": 940,
+   "y": 103560,
+   "w": 390,
+   "h": 844,
+   "title": "Phone: setup 3, skills, stepper drawer open",
+   "expand": "fill"
+  },
+  "Setup3PreviewDialogPhone.dc.html": {
+   "x": 1410,
+   "y": 103560,
+   "w": 390,
+   "h": 844,
+   "title": "Phone: setup 3, template preview dialog",
+   "expand": "fill"
+  },
+  "Setup4Phone.dc.html": {
+   "x": 1880,
+   "y": 103560,
+   "w": 390,
+   "h": 844,
+   "title": "Phone: setup 4, first rule",
+   "expand": "fill"
+  },
+  "SetupReadyPhone.dc.html": {
+   "x": 2350,
+   "y": 103560,
+   "w": 390,
+   "h": 844,
+   "title": "Phone: setup, ready",
+   "expand": "fill"
+  },
+  "RunsPhone.dc.html": {
+   "x": 0,
+   "y": 104660,
+   "w": 390,
+   "h": 844,
+   "title": "Phone: runs as cards",
+   "expand": "fill"
+  },
+  "RunsPhoneDrawer.dc.html": {
+   "x": 470,
+   "y": 104660,
+   "w": 390,
+   "h": 844,
+   "title": "Phone: project menu drawer",
+   "expand": "fill"
+  },
+  "RunIdlePhone.dc.html": {
+   "x": 940,
+   "y": 104660,
+   "w": 390,
+   "h": 844,
+   "title": "Phone: run needs you, terminal with extra keys",
+   "expand": "fill"
+  },
+  "RunIdlePhoneDetails.dc.html": {
+   "x": 1410,
+   "y": 104660,
+   "w": 390,
+   "h": 844,
+   "title": "Phone: run needs you, Details view",
+   "expand": "fill"
+  },
+  "RunReconnectPhone.dc.html": {
+   "x": 1880,
+   "y": 104660,
+   "w": 390,
+   "h": 844,
+   "title": "Phone: run, connection lost",
+   "expand": "fill"
+  },
+  "RunRunningPhoneCancelConfirm.dc.html": {
+   "x": 2350,
+   "y": 104660,
+   "w": 390,
+   "h": 844,
+   "title": "Phone: run, cancel confirm",
+   "expand": "fill"
+  },
+  "RunStoppedPhone.dc.html": {
+   "x": 0,
+   "y": 105760,
+   "w": 390,
+   "h": 844,
+   "title": "Phone: run stopped, transcript",
+   "expand": "fill"
+  },
+  "DeskRulesPhone.dc.html": {
+   "x": 470,
+   "y": 105760,
+   "w": 390,
+   "h": 844,
+   "title": "Phone: routing rules, one column",
+   "expand": "fill"
+  },
+  "DeskRulesPromptPhone.dc.html": {
+   "x": 940,
+   "y": 105760,
+   "w": 390,
+   "h": 844,
+   "title": "Phone: routing rule pane in place of the list",
+   "expand": "fill"
+  },
+  "DeskSkillsPhone.dc.html": {
+   "x": 1410,
+   "y": 105760,
+   "w": 390,
+   "h": 844,
+   "title": "Phone: skills, list above the editor",
+   "expand": "fill"
+  },
+  "DeskAgentPhone.dc.html": {
+   "x": 1880,
+   "y": 105760,
+   "w": 390,
+   "h": 844,
+   "title": "Phone: agents, rows stacked under the tab strip",
+   "expand": "fill"
+  },
+  "DeskAgentAddPhone.dc.html": {
+   "x": 2350,
+   "y": 105760,
+   "w": 390,
+   "h": 844,
+   "title": "Phone: add agent, pane in place of the list",
+   "expand": "fill"
+  },
+  "DeskAgentEditPhone.dc.html": {
+   "x": 0,
+   "y": 106860,
+   "w": 390,
+   "h": 844,
+   "title": "Phone: edit agent, pane in place of the list",
+   "expand": "fill"
+  },
+  "DeskAgentRowMenuPhone.dc.html": {
+   "x": 470,
+   "y": 106860,
+   "w": 390,
+   "h": 844,
+   "title": "Phone: agent row menu inside the window",
+   "expand": "fill"
+  },
+  "DeskAgentDeletePhone.dc.html": {
+   "x": 940,
+   "y": 106860,
+   "w": 390,
+   "h": 844,
+   "title": "Phone: delete agent dialog, full width",
+   "expand": "fill"
+  },
+  "DeskAgentGitHubPhone.dc.html": {
+   "x": 1410,
+   "y": 106860,
+   "w": 390,
+   "h": 844,
+   "title": "Phone: GitHub connection, rows stacked, strip scrolled to the tab",
+   "expand": "fill"
+  },
+  "DeskAgentLimitsPhone.dc.html": {
+   "x": 1880,
+   "y": 106860,
+   "w": 390,
+   "h": 844,
+   "title": "Phone: limits, one column with Save limits pinned",
+   "expand": "fill"
+  },
+  "DeskSetupPhone.dc.html": {
+   "x": 2350,
+   "y": 106860,
+   "w": 390,
+   "h": 844,
+   "title": "Phone: workspace setup",
+   "expand": "fill"
+  },
+  "OrgGeneralPhone.dc.html": {
+   "x": 0,
+   "y": 107960,
+   "w": 390,
+   "h": 844,
+   "title": "Phone: organization general, one column",
+   "expand": "fill"
+  },
+  "OrgMembersPhone.dc.html": {
+   "x": 0,
+   "y": 109060,
+   "w": 390,
+   "h": 844,
+   "title": "Phone: members as cards with labels",
+   "expand": "fill"
+  },
+  "OrgInvitationsSettingsPhone.dc.html": {
+   "x": 500,
+   "y": 109060,
+   "w": 390,
+   "h": 844,
+   "title": "Phone: invitations as cards, status chips scroll",
+   "expand": "fill"
+  },
+  "OrgAuditPhone.dc.html": {
+   "x": 1000,
+   "y": 109060,
+   "w": 390,
+   "h": 844,
+   "title": "Phone: audit log as cards with labels",
+   "expand": "fill"
+  },
+  "DeskMembersPhone.dc.html": {
+   "x": 1500,
+   "y": 109060,
+   "w": 390,
+   "h": 844,
+   "title": "Phone: project members as cards with labels",
+   "expand": "fill"
+  },
+  "DeskAuditPhone.dc.html": {
+   "x": 2000,
+   "y": 109060,
+   "w": 390,
+   "h": 844,
+   "title": "Phone: project audit log as cards with labels",
+   "expand": "fill"
+  },
+  "PlatformOrgsPhone.dc.html": {
+   "x": 0,
+   "y": 110160,
+   "w": 390,
+   "h": 844,
+   "title": "Phone: organizations as cards, filters wrap",
+   "expand": "fill"
+  },
+  "PlatformAdminsPhone.dc.html": {
+   "x": 500,
+   "y": 110160,
+   "w": 390,
+   "h": 844,
+   "title": "Phone: platform admins as cards",
+   "expand": "fill"
+  },
+  "PlatformAuditPhone.dc.html": {
+   "x": 1000,
+   "y": 110160,
+   "w": 390,
+   "h": 844,
+   "title": "Phone: platform audit log as cards, filters wrap",
+   "expand": "fill"
+  },
+  "PlatformOrgOverviewPhone.dc.html": {
+   "x": 1500,
+   "y": 110160,
+   "w": 390,
+   "h": 844,
+   "title": "Phone: organization overview, keys over values, header actions wrap",
+   "expand": "fill"
+  },
+  "PlatformOrgProjectsPhone.dc.html": {
+   "x": 2000,
+   "y": 110160,
+   "w": 390,
+   "h": 844,
+   "title": "Phone: organization projects as cards",
+   "expand": "fill"
+  },
+  "PlatformOrgMembersPhone.dc.html": {
+   "x": 0,
+   "y": 111260,
+   "w": 390,
+   "h": 844,
+   "title": "Phone: organization members as cards",
+   "expand": "fill"
+  },
+  "PlatformOrgInvitationsPhone.dc.html": {
+   "x": 500,
+   "y": 111260,
+   "w": 390,
+   "h": 844,
+   "title": "Phone: organization invitations as cards, status chips scroll",
    "expand": "fill"
   }
  },
  "order": [
   "Main.dc.html",
-  "NeedsYou.dc.html",
   "SignIn.dc.html",
   "ProjectsEmpty.dc.html",
   "Projects.dc.html",
@@ -3249,8 +4160,6 @@
   "RunsPagedLinkedPrOnly.dc.html",
   "RunsPagedLinkedIssueOnly.dc.html",
   "RunsPageLoadingLinked.dc.html",
-  "NeedsYouPaged.dc.html",
-  "NeedsYouEmpty.dc.html",
   "RouteLoading.dc.html",
   "RouteError.dc.html",
   "ProjectsPaged.dc.html",
@@ -3272,6 +4181,7 @@
   "ProjectsOrgSwitchOpen.dc.html",
   "ProjectsSwitching.dc.html",
   "SignInNoInvitation.dc.html",
+  "SignInProofOfConcept.dc.html",
   "MyInvitations.dc.html",
   "MyInvitationsAccepting.dc.html",
   "MyInvitationsEmpty.dc.html",
@@ -3494,7 +4404,123 @@
   "PlatformOrgInvitationsPaged.dc.html",
   "PlatformOrgInvitationsInvite.dc.html",
   "PlatformOrgInvitationsResending.dc.html",
-  "PlatformOrgInvitationsCopyFailed.dc.html"
+  "PlatformOrgInvitationsCopyFailed.dc.html",
+  "ProjectsSideMenu.dc.html",
+  "ProjectsMemberSideMenu.dc.html",
+  "ProjectsSideMenuPlatformAdmin.dc.html",
+  "ProjectsSideOneOrg.dc.html",
+  "ProjectsSideSwitcherOpen.dc.html",
+  "ProjectsSideSwitcherLoading.dc.html",
+  "ProjectsSideSwitcherError.dc.html",
+  "ProjectsSideSwitcherOneOrgHeld.dc.html",
+  "ProjectsSideAccountMenu.dc.html",
+  "ProjectsResumeSetup.dc.html",
+  "OrgMembersSideMenu.dc.html",
+  "OrgMembersSideMenuCollapsed.dc.html",
+  "OrgMembersSideMenuError.dc.html",
+  "OrgMembersSideMenuLoading.dc.html",
+  "OrgInvitationsSettingsSideMenuProjectAdmin.dc.html",
+  "OrgAuditForbiddenSideMenu.dc.html",
+  "PlatformOrgsSideMenu.dc.html",
+  "PlatformAdminsForbiddenNoMenu.dc.html",
+  "PlatformOrgMembersSideMenuError.dc.html",
+  "PlatformOrgMembersSideMenuLoading.dc.html",
+  "PlatformOrgOverviewSideMenuNotFound.dc.html",
+  "PlatformOrgOverviewSideMenuSuspended.dc.html",
+  "PlatformOrgProjectsSideMenu.dc.html",
+  "CreateOrgSideMenu.dc.html",
+  "RunsSideMenu.dc.html",
+  "RunsSideMenuError.dc.html",
+  "RunsSideMenuLoading.dc.html",
+  "RunsSideMenuMember.dc.html",
+  "RunsSideMenuRepoError.dc.html",
+  "RunsSideMenuRepoNoBranch.dc.html",
+  "RunsSideMenuRepoWarning.dc.html",
+  "RunsSideProjectSwitcher.dc.html",
+  "RunsSideProjectSwitcherEmpty.dc.html",
+  "RunsSideProjectSwitcherError.dc.html",
+  "RunsSideProjectSwitcherLoading.dc.html",
+  "RunsSideProjectSwitcherNoCreate.dc.html",
+  "RunsNotFoundSideMenu.dc.html",
+  "RunsNeedsYouNotFound.dc.html",
+  "DeskRulesForbiddenSideMenu.dc.html",
+  "DeskSkillsSideMenu.dc.html",
+  "DeskSetupSideMenu.dc.html",
+  "DeskRulesSideMenu.dc.html",
+  "DeskRulesSideMenuSetupWarning.dc.html",
+  "DeskAgentSideMenu.dc.html",
+  "RunIdle1024.dc.html",
+  "RunIdleSideCollapsed.dc.html",
+  "RunIdleSideExpanded.dc.html",
+  "RunRunningSideMenu.dc.html",
+  "RunRunningStopSideMenu.dc.html",
+  "Setup3ExitSetup.dc.html",
+  "Setup4ExitSetup.dc.html",
+  "SetupReadyExitSetup.dc.html",
+  "Setup3PreviewDialog.dc.html",
+  "InvitationAcceptSideMenu.dc.html",
+  "InvitationAcceptErrorSideMenu.dc.html",
+  "InvitationAcceptNotAvailableNoMenu.dc.html",
+  "MyInvitationsSideMenu.dc.html",
+  "MyInvitationsEmptyNoOrg.dc.html",
+  "MyInvitationsEmptySideSwitcherHeld.dc.html",
+  "RouteErrorSideMenu.dc.html",
+  "RouteErrorCrashSideMenu.dc.html",
+  "RouteErrorNoMenu.dc.html",
+  "RouteErrorNotFoundNoMenu.dc.html",
+  "RouteLoadingSideMenu.dc.html",
+  "OrgSuspendedNoMenu.dc.html",
+  "OrgSuspendedPlainName.dc.html",
+  "MyInvitationsEmptyMember.dc.html",
+  "SignInPhone.dc.html",
+  "CreateOrgPhone.dc.html",
+  "InvitationAcceptPhone.dc.html",
+  "MyInvitationsPhone.dc.html",
+  "OrgSuspendedPhone.dc.html",
+  "RouteErrorPhone.dc.html",
+  "ProjectsPhone.dc.html",
+  "ProjectsPhoneDrawer.dc.html",
+  "ProjectsPhoneSwitcher.dc.html",
+  "Setup1Phone.dc.html",
+  "Setup2Phone.dc.html",
+  "Setup2AgentPickedPhone.dc.html",
+  "Setup2AgentRejectedPhone.dc.html",
+  "Setup3Phone.dc.html",
+  "Setup3PhoneDrawer.dc.html",
+  "Setup3PreviewDialogPhone.dc.html",
+  "Setup4Phone.dc.html",
+  "SetupReadyPhone.dc.html",
+  "RunsPhone.dc.html",
+  "RunsPhoneDrawer.dc.html",
+  "RunIdlePhone.dc.html",
+  "RunIdlePhoneDetails.dc.html",
+  "RunReconnectPhone.dc.html",
+  "RunRunningPhoneCancelConfirm.dc.html",
+  "RunStoppedPhone.dc.html",
+  "DeskRulesPhone.dc.html",
+  "DeskRulesPromptPhone.dc.html",
+  "DeskSkillsPhone.dc.html",
+  "DeskAgentPhone.dc.html",
+  "DeskAgentAddPhone.dc.html",
+  "DeskAgentEditPhone.dc.html",
+  "DeskAgentRowMenuPhone.dc.html",
+  "DeskAgentDeletePhone.dc.html",
+  "DeskAgentGitHubPhone.dc.html",
+  "DeskAgentLimitsPhone.dc.html",
+  "DeskSetupPhone.dc.html",
+  "OrgGeneralPhone.dc.html",
+  "OrgMembersPhone.dc.html",
+  "OrgInvitationsSettingsPhone.dc.html",
+  "OrgAuditPhone.dc.html",
+  "DeskMembersPhone.dc.html",
+  "DeskAuditPhone.dc.html",
+  "PlatformOrgsPhone.dc.html",
+  "PlatformAdminsPhone.dc.html",
+  "PlatformAuditPhone.dc.html",
+  "PlatformOrgOverviewPhone.dc.html",
+  "PlatformOrgProjectsPhone.dc.html",
+  "PlatformOrgMembersPhone.dc.html",
+  "PlatformOrgInvitationsPhone.dc.html"
  ],
  "notes": {
   "t-intro": {
