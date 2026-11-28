@@ -910,7 +910,7 @@ describe('DeskSkills in the shell', () => {
     expect(within(header).getByText('.claude/skills/ or .agent/skills/ on main')).toBeInTheDocument();
   });
 
-  it('has no skill History link and, empty, no second New skill button', () => {
+  it('has no placeholder History link and, empty, no second New skill button', () => {
     const { unmount } = inShell(<DeskSkills frame={deskFrame} skills={skills} activeName="code-build" />);
     expect(screen.queryByRole('link', { name: 'History' })).toBeNull();
     unmount();
@@ -925,10 +925,10 @@ describe('DeskSkills in the shell', () => {
     expect(within(header).getByText('Workspace setup needs attention')).toBeInTheDocument();
   });
 
-  it('outside the shell the skill History link is gone too', () => {
+  it('outside the shell History stays disabled until the repository file is known', () => {
     render(<DeskSkills frame={deskFrame} skills={skills} activeName="code-build" />);
     expect(screen.queryByRole('link', { name: 'History' })).toBeNull();
-    expect(screen.queryByRole('button', { name: 'History' })).toBeNull();
+    expect(screen.getByRole('button', { name: 'History' })).toBeDisabled();
   });
 });
 
