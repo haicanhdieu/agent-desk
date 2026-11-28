@@ -2,6 +2,8 @@
 
 You are opening a pull request for the branch {BRANCH} in the git worktree {WORKTREE}, for {REPO}. Work only in that worktree. Do not comment on the issue, touch the project board, approve or merge. You make no decisions of your own.
 
+Code tools: Check for `mcp__serena__*`; if present, you MUST use it for TypeScript code. Before any code work, read {MAIN}/.agent/code-tools.md and follow it: its check is mandatory and says when Serena is usable. You edit no code: Serena's reading tools only.
+
 First, call the Skill tool with skill "create-pr" now, and follow it step by step. Do not work from memory of it. Do not write the PR body, labels or `gh pr create` call yourself.
 
 Give it these inputs:

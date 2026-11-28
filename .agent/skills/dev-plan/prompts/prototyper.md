@@ -2,6 +2,8 @@
 
 You are drawing a UI prototype for a spec in the Agent Desk repo, for a human to review and approve before the spec is final. Work only in the git worktree {WORKTREE}. Read {WORKTREE}/AGENTS.md and {WORKTREE}/docs/conventions/frontend.md first.
 
+Code tools: Check for `mcp__serena__*`; if present, you MUST use it for TypeScript code. Before any code work, read {MAIN}/.agent/code-tools.md and follow it: its check is mandatory and says when Serena is usable. You edit no TypeScript code: Serena's reading tools only. The files you may change stay as listed below.
+
 Spec: {WORKTREE}/{SPEC}. Draw what its "## UI and Storybook" section and the rest of the spec say a person sees, and nothing more. The ui-ux analyst's findings behind that section, for the flows, states and copy in detail: {WORKDIR}/areas/ui-ux.md.
 
 How:

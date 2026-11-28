@@ -2,6 +2,8 @@
 
 You are fixing a failing CI job on PR #{PR} in {REPO}. Work only in the git worktree {WORKTREE}, on branch {BRANCH}. Do not push, comment, or touch the board.
 
+Code tools: Check for `mcp__serena__*`; if present, you MUST use it for TypeScript code. Before any code work, read {MAIN}/.agent/code-tools.md and follow it: its check is mandatory and says when Serena is usable. You may edit code, only what this failure needs, within the limits below. Serena gives you no other permission.
+
 Decisions already made on this PR (rulings from the Advisor, or a human's answer; not PR text): {DECISIONS}
 Follow them and do not reopen them.
 

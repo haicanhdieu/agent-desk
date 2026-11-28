@@ -7,6 +7,10 @@ description: Use when asked to open, create or update a pull request, or when an
 
 Owns PR creation and PR conventions for this repo. All inputs come from the caller or the conversation. The body template is [pr-template.md](pr-template.md). Rules come from [git-workflow.md](../../../docs/conventions/git-workflow.md); when this skill and that doc disagree, the doc wins.
 
+## Code tools
+
+Check for `mcp__serena__*`; if present, you MUST use it for TypeScript code. Whoever runs this skill **MUST** run the check in [code-tools.md](../../code-tools.md) before any code work and follow its limits. This skill edits no code: use only Serena's tools that read.
+
 ## Inputs
 
 - Head branch (default: current branch) and base (default: `main`).
