@@ -10,7 +10,7 @@ interface Disposable {
 export interface FakeXtermOptions {
   disableStdin?: boolean;
   screenReaderMode?: boolean;
-  theme?: Record<string, string | undefined>;
+  theme?: Record<string, string | string[] | undefined>;
   [key: string]: unknown;
 }
 

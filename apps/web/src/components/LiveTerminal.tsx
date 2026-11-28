@@ -106,6 +106,9 @@ export default function LiveTerminal({
       disableStdin: noInput,
       cursorBlink: !noInput,
       scrollback: SCROLLBACK_LINES,
+      // Programs like OpenCode and Claude Code own the mouse, so a plain drag goes to them. xterm selects on a modifier
+      // drag instead: Shift, and on macOS Option only with this on.
+      macOptionClickForcesSelection: true,
     });
     const fit = new FitAddon();
     term.loadAddon(fit);
