@@ -113,7 +113,7 @@ export function RunsPage({
   // The bar and the menu are the shell's: the page draws its header (title, facts, search and grouping, the setup
   // warnings), the chips and the list. There is no repository button; the repository is in the menu.
   return (
-    <main className={styles.shellMain}>
+    <main className={`${styles.shellMain} ${styles.runsMain}`}>
       <PageHeader title="Runs" meta={meta} actions={tools} banner={banners} />
       {chipRow}
       {children}

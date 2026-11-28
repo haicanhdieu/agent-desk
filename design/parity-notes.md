@@ -766,3 +766,21 @@ Six boards are registered: `SignInPhone`, `CreateOrgPhone`, `InvitationAcceptPho
 
 - Agent call: the phone stories reuse the desktop stories' frames at a 390x844 viewport, so the bar, menu and drawer are the real phone shell; the board's own drawn bar is not copied.
 - Agent call: below 640px the shared `shellMain` padding is 24px 16px (a 16px gutter for every page in the shell), not only for these pages.
+
+## Sidebar navigation shell: phone Projects and the wizard (Task 47)
+
+Twelve boards are registered: `ProjectsPhone`, `ProjectsPhoneDrawer`, `ProjectsPhoneSwitcher`, `Setup1Phone`, `Setup2Phone`, `Setup2AgentPickedPhone`, `Setup2AgentRejectedPhone`, `Setup3Phone`, `Setup3PhoneDrawer`, `Setup3PreviewDialogPhone`, `Setup4Phone` and `SetupReadyPhone`, 470 in all. PARITY was not run in this session (no browser), so no pair was checked; the twelve boards are unchecked. `scripts/parity.mjs` needed no change: it reads the board list from `canvas.json` and `storyIds.ts`.
+
+- Agent call: `ProjectRow` cells carry `data-label` (GitHub, Needs you, Running, Queued, Last run), so the phone card shows them; the name cell and the actions cell have none. The name cell stacks the name over the repository below 640px.
+- Agent call: below 640px `SetupLayout` is one column (`setupMain` 24px 16px, the aside under the main column, the footer wraps), and the credential type cards and the model and concurrent runs pair of step 2 stack (`stackPhone`, used only there, so the Agent & settings limits grid is left to Task 57).
+- Agent call: `Setup3Phone` is drawn 980px tall as its board is; the other eleven are 390x844.
+- Agent call: the phone wizard stories reuse the desktop screens inside the shell frame at 390px, so the drawer and the bar are the real shell; the board's own drawn bar is not copied.
+
+## Sidebar navigation shell: phone Runs list (Task 48)
+
+Two boards are registered: `RunsPhone` and `RunsPhoneDrawer`, 472 in all. PARITY was not run in this session (no browser), so no pair was checked; the two boards are unchecked. `scripts/parity.mjs` needed no change: it reads the board list from `canvas.json` and `storyIds.ts`.
+
+- Agent call: run and ignored-command cells carry `data-label` (Status, Ticket, Rule, Triggered by, Started, Duration, Usage; Time, Ticket, Command, Author, Why nothing ran), so the existing card table shows them; the run link cell and the actions cell have none.
+- Agent call: below 640px the Runs page header's actions wrap with the search on its own full-width line, and the status chips plus Ignored scroll sideways in one row inside `chipRow`.
+- Agent call: below 640px the tree connector is hidden and the ticket group header is a card of its own with its title on its own line.
+- Agent call: the phone stories reuse the desktop Runs screen inside the project shell frame at 390px, so the bar and the drawer are the real shell; the board's own drawn bar is not copied.

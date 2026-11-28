@@ -7,6 +7,7 @@ import {
   ORG,
   SESSION_MOCK_NOW,
   holdReads,
+  seedAgents,
   seedOnboarding,
   seedPlatform,
   seedProjectSpace,
@@ -373,5 +374,266 @@ test.describe('BR-65: entry, invitation and error pages at 390', () => {
     await expect(menu).toBeVisible();
     inside(await boxOf(menu), 390, 844);
     await expect(menu.getByRole('menuitem', { name: 'Logout' })).toBeVisible();
+  });
+});
+
+const TOKEN = 'sk-ant-oat01-e2e-not-a-real-token';
+const CODEX_FILE = '{"tokens":{"access_token":"e2e-not-a-real-token"}}';
+const ENDPOINT = 'https://llm.harbor-labs.com/v1';
+const pickAgent = (page: Page, label: string) => page.getByRole('radio', { name: label, exact: true }).check();
+const cont = (page: Page) => page.getByRole('button', { name: 'Continue', exact: true });
+const heading = (page: Page, name: string) => page.getByRole('heading', { name, level: 1 });
+const selectedTab = (page: Page) =>
+  page.getByRole('tablist', { name: 'Agent and project settings' }).getByRole('tab', { selected: true });
+
+/** The wizard's one column fits the window and each named control is inside it, enabled and not covered. */
+async function expectUsable(page: Page, controls: Locator[]): Promise<void> {
+  await expectPageFits(page, 390);
+  for (const c of controls) {
+    await c.scrollIntoViewIfNeeded();
+    await expect(c).toBeVisible();
+    await expect(c).toBeEnabled();
+    const b = await boxOf(c);
+    expect(b.x).toBeGreaterThanOrEqual(15);
+    expect(390 - (b.x + b.width)).toBeGreaterThanOrEqual(15);
+  }
+}
+
+/** Wizard step 1 (a new project) through the projects list, then Continue to the Agent step. */
+async function toAgentStep(page: Page): Promise<void> {
+  await page.goto(`/o/${ORG}/projects`);
+  await page.getByRole('link', { name: 'New project' }).click();
+  await expect(heading(page, 'Connect a repository')).toBeVisible();
+  await expectPageFits(page, 390);
+  await page.getByRole('radio', { name: 'dev/demo' }).check();
+  await page.getByRole('button', { name: 'Continue' }).click();
+  await expect(heading(page, 'Add your agent')).toBeVisible();
+}
+
+test.describe('BR-65: Projects and the wizard at 390', () => {
+  test.use({ viewport: { width: 390, height: 844 } });
+
+  test('TC-65.2: project rows are cards with Resume setup before More, and New project is usable', async ({ page }) => {
+    await seedShell(page, 'unfinishedProjects');
+    await page.goto(`/o/${ORG}/projects`);
+    await expect(page.getByRole('link', { name: 'invoicer-api', exact: true })).toBeVisible();
+    await expectPageFits(page, 390);
+    await expectUsable(page, [page.getByRole('link', { name: 'New project' })]);
+    const row = page.getByRole('row').filter({ has: page.getByRole('link', { name: 'invoicer-api', exact: true }) });
+    expect(await row.evaluate((el) => getComputedStyle(el).display)).toBe('block');
+    // name, repository, connection, counts and last run, in that order, each cell with its label.
+    await expect(row.getByRole('link', { name: 'invoicer-api', exact: true })).toBeVisible();
+    await expect(row.getByText('harbor-labs/invoicer-api', { exact: true })).toBeVisible();
+    const labels = await row
+      .locator('td[data-label]')
+      .evaluateAll((cells) => cells.map((c) => getComputedStyle(c, '::before').content));
+    expect(labels).toEqual(['"GitHub"', '"Needs you"', '"Running"', '"Queued"', '"Last run"']);
+    const resume = row.getByRole('link', { name: 'Resume setup for invoicer-api' });
+    const more = row.getByRole('button', { name: 'More for invoicer-api' });
+    await expect(resume).toBeVisible();
+    await expect(more).toBeVisible();
+    const [rb, mb] = [await boxOf(resume), await boxOf(more)];
+    expect(rb.x < mb.x || rb.y < mb.y).toBe(true);
+    expect(overlaps(rb, mb)).toBe(false);
+    await more.click();
+    inside(await boxOf(page.getByRole('dialog', { name: 'Actions for invoicer-api' })), 390, 844);
+  });
+
+  test('TC-28.4: More, Agent & settings opens the Agents tab with no tab in the address', async ({ page }) => {
+    await page.goto(`/o/${ORG}/projects`);
+    await page.getByRole('button', { name: 'More for invoicer-api' }).click();
+    await page
+      .getByRole('dialog', { name: 'Actions for invoicer-api' })
+      .getByRole('link', { name: 'Agent & settings' })
+      .click();
+    await expect(selectedTab(page)).toHaveText('Agents');
+    await expect(page).toHaveURL(/\/desk\/agent$/);
+  });
+
+  test('TC-65.38: the card switch-to-polling link opens the GitHub connection tab', async ({ page }) => {
+    await page.goto(`/o/${ORG}/projects`);
+    const link = page.getByRole('link', { name: 'Switch to polling for docs-site' });
+    await expectUsable(page, [link]);
+    await link.click();
+    await expect(selectedTab(page)).toHaveText('GitHub connection');
+  });
+
+  test('TC-65.3: the Agent step stacks its cards, wraps ten chips and every pick can be filled', async ({ page }) => {
+    await toAgentStep(page);
+    await page.evaluate(() => document.fonts.ready);
+    const cards = ['Claude Code', 'OpenAI Codex', 'OpenCode'].map((n) =>
+      page.getByRole('radio', { name: n, exact: true }),
+    );
+    const boxes = [];
+    for (const c of cards) boxes.push(await boxOf(c.locator('xpath=ancestor::label[1]')));
+    // Stacked: each card below the one before it, all the same left edge.
+    expect(boxes[1]!.y).toBeGreaterThan(boxes[0]!.y + boxes[0]!.height - 1);
+    expect(boxes[2]!.y).toBeGreaterThan(boxes[1]!.y + boxes[1]!.height - 1);
+    expect(Math.abs(boxes[0]!.x - boxes[2]!.x)).toBeLessThanOrEqual(1);
+    const chips = page.getByRole('img', { name: /, coming soon$/ });
+    await expect(chips).toHaveCount(10);
+    // Wrapped: every chip lies inside the 16px gutters, and they take more than one line.
+    const chipBoxes: Box[] = [];
+    for (let i = 0; i < 10; i += 1) chipBoxes.push(await boxOf(chips.nth(i)));
+    for (const b of chipBoxes) {
+      expect(b.x).toBeGreaterThanOrEqual(16 - 1);
+      expect(390 - (b.x + b.width)).toBeGreaterThanOrEqual(16 - 1);
+    }
+    expect(new Set(chipBoxes.map((b) => Math.round(b.y))).size).toBeGreaterThan(1);
+    await expectPageFits(page, 390);
+
+    await pickAgent(page, 'Claude Code');
+    await page.getByRole('textbox', { name: 'Token' }).fill(TOKEN);
+    await expectUsable(page, [page.getByRole('textbox', { name: 'Token' }), page.getByLabel('Default model')]);
+
+    await pickAgent(page, 'OpenAI Codex');
+    await expectPageFits(page, 390);
+    await page.getByRole('textbox', { name: 'auth.json contents' }).fill(CODEX_FILE);
+    await expectUsable(page, [page.getByRole('textbox', { name: 'auth.json contents' })]);
+
+    await pickAgent(page, 'OpenCode');
+    // The credential-type cards stack too: one left edge, each below the one before.
+    const typeBoxes: Box[] = [];
+    const typeRadios = page.getByRole('radiogroup', { name: 'Credential type' }).getByRole('radio');
+    for (let i = 0; i < (await typeRadios.count()); i += 1)
+      typeBoxes.push(await boxOf(typeRadios.nth(i).locator('xpath=ancestor::label[1]')));
+    expect(typeBoxes.length).toBeGreaterThan(1);
+    typeBoxes.forEach((b, i) => {
+      expect(Math.abs(b.x - typeBoxes[0]!.x)).toBeLessThanOrEqual(1);
+      if (i > 0) expect(b.y).toBeGreaterThan(typeBoxes[i - 1]!.y + typeBoxes[i - 1]!.height - 1);
+    });
+    await pickAgent(page, 'API endpoint and key');
+    await page.getByRole('textbox', { name: 'API endpoint' }).fill(ENDPOINT);
+    await page.getByRole('textbox', { name: 'API key' }).fill('e2e-not-a-real-key');
+    await page.getByLabel('Model name').fill('qwen3-coder');
+    await expectUsable(page, [
+      page.getByRole('textbox', { name: 'API endpoint' }),
+      page.getByRole('textbox', { name: 'API key' }),
+      page.getByLabel('Model name'),
+      page.getByRole('link', { name: 'Back' }),
+      cont(page),
+    ]);
+    await cont(page).click();
+    await expect(heading(page, 'Prepare the workspace')).toBeVisible();
+  });
+
+  test('TC-65.4: skill templates, Preview, Back, Skip and the commit button are usable', async ({ page }) => {
+    await toAgentStep(page);
+    await pickAgent(page, 'Claude Code');
+    await page.getByRole('textbox', { name: 'Token' }).fill(TOKEN);
+    await cont(page).click();
+    await expect(heading(page, 'Prepare the workspace')).toBeVisible();
+    await page.getByRole('button', { name: 'Save and continue' }).click();
+    await expect(heading(page, 'Start from skill templates')).toBeVisible();
+    // Pick a template (a card to tick), then continue.
+    const template = page.getByRole('checkbox').first();
+    await template.check();
+    await expectUsable(page, [
+      template.locator('xpath=ancestor::label[1]'),
+      page.getByRole('button', { name: /^Preview/ }).first(),
+      page.getByRole('link', { name: 'Back' }),
+      page.getByRole('button', { name: 'Skip' }),
+      page.getByRole('button', { name: 'Commit 2 skills and continue' }),
+    ]);
+    await page.getByRole('button', { name: 'Commit 2 skills and continue' }).click();
+    await expect(heading(page, 'Add your first rule')).toBeVisible();
+  });
+
+  test('TC-65.5: the rule step and the Ready step fit and Go to runs opens Runs', async ({ page }) => {
+    await toAgentStep(page);
+    await pickAgent(page, 'Claude Code');
+    await page.getByRole('textbox', { name: 'Token' }).fill(TOKEN);
+    await cont(page).click();
+    await page.getByRole('button', { name: 'Save and continue' }).click();
+    await page.getByRole('button', { name: 'Commit 2 skills and continue' }).click();
+    await expect(heading(page, 'Add your first rule')).toBeVisible();
+    const finish = page.getByRole('button', { name: 'Save rules and finish' });
+    await expectUsable(page, [finish]);
+    await finish.click();
+    await expect(heading(page, 'Trigger your first run from GitHub')).toBeVisible();
+    const goToRuns = page.getByRole('link', { name: 'Go to runs' });
+    await expectUsable(page, [goToRuns]);
+    await goToRuns.click();
+    await expect(heading(page, 'Runs')).toBeVisible();
+  });
+
+  test('TC-65.33: the rejected banner and the wrapped footer fit, and Continue anyway opens step 3', async ({
+    page,
+  }) => {
+    await seedAgents(page, 'testRejected');
+    await toAgentStep(page);
+    await pickAgent(page, 'OpenAI Codex');
+    await page.getByRole('textbox', { name: 'auth.json contents' }).fill(CODEX_FILE);
+    await cont(page).click();
+    await expect(page.getByText('Credential rejected', { exact: true })).toBeVisible();
+    await expect(heading(page, 'Add your agent')).toBeVisible();
+    await expectUsable(page, [
+      page.getByRole('link', { name: 'Back' }),
+      cont(page),
+      page.getByRole('button', { name: 'Continue anyway' }),
+    ]);
+    await page.getByRole('button', { name: 'Continue anyway' }).click();
+    await expect(heading(page, 'Prepare the workspace')).toBeVisible();
+  });
+});
+
+test.describe('BR-65: Runs at 390', () => {
+  test.use({ viewport: { width: 390, height: 844 } });
+
+  test('TC-65.6: the header wraps, search is full width, chips scroll in their own row and rows are cards', async ({
+    page,
+  }) => {
+    await seedShell(page, 'memberOwnsRuns');
+    await page.goto(`/o/${ORG}/p/${INVOICER_API}/runs`);
+    await expect(heading(page, 'Runs')).toBeVisible();
+    await expect(page.getByRole('table').first()).toBeVisible();
+    await expectPageFits(page, 390);
+
+    // Search is full width: the box spans the page's content width, on its own line above the grouping button.
+    const search = page.getByRole('searchbox', { name: 'Search runs' });
+    const grouped = page.getByRole('button', { name: 'Grouped by ticket' });
+    const [sb, gb] = [await boxOf(search), await boxOf(grouped)];
+    expect(sb.width).toBeGreaterThanOrEqual(390 - 2 * 16 - 1);
+    expect(gb.y).toBeGreaterThanOrEqual(sb.y + sb.height - 1);
+    await search.fill('a');
+    await search.fill('');
+
+    // Chips: one row that scrolls inside itself; the page does not widen.
+    const chips = page.getByRole('group', { name: 'Filter by status' });
+    const row = chips.locator('xpath=..');
+    const chipBoxes = [];
+    const chipButtons = row.getByRole('button');
+    for (let i = 0; i < (await chipButtons.count()); i += 1) chipBoxes.push(await boxOf(chipButtons.nth(i)));
+    expect(chipBoxes.length).toBeGreaterThan(4);
+    for (const b of chipBoxes) expect(Math.abs(b.y - chipBoxes[0]!.y)).toBeLessThanOrEqual(1);
+    expect(await row.evaluate((el) => el.scrollWidth > el.clientWidth)).toBe(true);
+    expect(await row.evaluate((el) => getComputedStyle(el).overflowX)).toBe('auto');
+    await row.evaluate((el) => el.scrollTo({ left: el.scrollWidth }));
+    const last = row.getByRole('button', { name: /^Ignored/ });
+    await expect(last).toBeVisible();
+    inside(await boxOf(last), 390, 844);
+    const needsYou = chips.getByRole('button', { name: /^Needs you/ });
+    await needsYou.scrollIntoViewIfNeeded();
+    await needsYou.click();
+    await expect(needsYou).toHaveAttribute('aria-pressed', 'true');
+    await chips.getByRole('button', { name: /^All/ }).scrollIntoViewIfNeeded();
+    await chips.getByRole('button', { name: /^All/ }).click();
+    await expectPageFits(page, 390);
+
+    // Rows are cards: each run row is a block with labelled cells, and the run opens from its card.
+    const card = page
+      .locator('tbody tr')
+      .filter({ has: page.getByRole('link', { name: /^Run \d+$/ }) })
+      .first();
+    expect(await card.evaluate((el) => getComputedStyle(el).display)).toBe('block');
+    const labels = await card
+      .locator('td[data-label]')
+      .evaluateAll((cells) => cells.map((c) => getComputedStyle(c, '::before').content));
+    expect(labels).toEqual(['"Status"', '"Ticket"', '"Rule"', '"Triggered by"', '"Started"', '"Duration"', '"Usage"']);
+    const cb = await boxOf(card);
+    expect(cb.x).toBeGreaterThanOrEqual(15);
+    expect(390 - (cb.x + cb.width)).toBeGreaterThanOrEqual(15);
+    await card.getByRole('link', { name: /^Run \d+$/ }).click();
+    await expect(page).toHaveURL(/\/runs\/\d+$/);
   });
 });

@@ -1029,3 +1029,39 @@
     flex-wrap: wrap;
   }
 }
+
+/* Phone (BR-65): the wizard's field pairs (credential type cards, model and concurrent runs) stack. */
+@media (max-width: 639px) {
+  .stackPhone {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* Phone (BR-65), Runs: the header wraps, the search takes the full width, the status chips scroll in their own row. */
+@media (max-width: 639px) {
+  .runsMain [data-page-header-actions] {
+    flex: 1 1 100%;
+    flex-wrap: wrap;
+  }
+  .runsMain [data-page-header-actions] > :first-child:not(button) {
+    flex: 1 1 100%;
+    min-width: 0;
+  }
+  .runsMeta {
+    flex-wrap: wrap;
+    gap: 6px 14px;
+  }
+  .runsMain .chipRow {
+    justify-content: flex-start;
+    gap: 6px;
+    overflow-x: auto;
+    flex: none;
+    padding-bottom: 4px;
+  }
+  .runsMain .chipRow > * {
+    flex: none;
+  }
+  .runsMain .chipRow > [role='group'] {
+    flex-wrap: nowrap;
+  }
+}

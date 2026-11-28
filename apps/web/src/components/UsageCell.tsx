@@ -5,7 +5,7 @@ import styles from './UsageCell.module.css';
 export function UsageCell({ usage }: { usage?: UsageCellView }) {
   const view: UsageCellView = usage ?? { text: '—', title: 'No usage data', srSuffix: 'No usage data' };
   return (
-    <td className={styles.cell} title={view.title}>
+    <td className={styles.cell} data-label="Usage" title={view.title}>
       {view.text}
       <span className="sr-only">{view.srSuffix}</span>
     </td>

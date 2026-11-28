@@ -659,3 +659,46 @@ export const RunsNeedsYouNotFound: Story = {
     </ProjectShellFrame>
   ),
 };
+
+// BR-65: Runs at 390x844 (phone boards): the header wraps, the search is full width, the chips scroll in one row and
+// each run is a card.
+const phoneArtboard: NonNullable<Story['decorators']> = [
+  (S) => (
+    <div style={{ width: 390, height: 844 }}>
+      <ProjectShellFrame page="runs" height={844} crumbs={[{ label: 'Runs' }]}>
+        <S />
+      </ProjectShellFrame>
+    </div>
+  ),
+];
+const runsPhonePage = () => (
+  <RunsScreen
+    search={search}
+    {...common}
+    filter="all"
+    counts={counts}
+    groups={ticketGroups}
+    needsYouRun={{
+      run: runs.find((r) => r.id === 62)!,
+      askedAgo: '3 minutes ago',
+      slotNote: 'It holds one of your 2 slots, so Run 63 is waiting.',
+      href: '/runs/62',
+    }}
+    onFinishIdle={() => undefined}
+  />
+);
+export const RunsPhone: Story = {
+  name: 'Phone: runs as cards',
+  decorators: phoneArtboard,
+  globals: viewport(390, 844),
+  render: runsPhonePage,
+};
+export const RunsPhoneDrawer: Story = {
+  name: 'Phone: project menu drawer',
+  decorators: phoneArtboard,
+  globals: viewport(390, 844),
+  render: runsPhonePage,
+  play: async ({ canvasElement }) => {
+    await userEvent.click(within(canvasElement).getByRole('button', { name: 'Open menu' }));
+  },
+};

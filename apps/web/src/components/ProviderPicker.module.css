@@ -55,3 +55,12 @@
   color: var(--muted);
   font-size: var(--fs-12_5);
 }
+
+/* Phone (BR-65): cards stay stacked, long names and the chips wrap inside the column. */
+@media (max-width: 639px) {
+  .name,
+  .chip {
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+}

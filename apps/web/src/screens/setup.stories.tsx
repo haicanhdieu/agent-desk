@@ -573,3 +573,114 @@ export const SetupReadyExitSetup: Story = wizardStory({
     />
   ),
 });
+
+// BR-65: the wizard at 390x844 (phone boards). The stepper is in the menu drawer; the page is one column with the
+// footer wrapping and the aside under the main column.
+const phoneWizard = (story: Story): Story => ({ ...wizardStory(story), globals: story.globals ?? viewport(390, 844) });
+const PhoneFrame = ({ height = 844, children }: { height?: number; children: ReactNode }) => (
+  <WizardFrame height={height}>{children}</WizardFrame>
+);
+const openMenu: Story['play'] = async ({ canvasElement }) => {
+  await userEvent.click(within(canvasElement).getByRole('button', { name: 'Open menu' }));
+};
+
+export const Setup1Phone: Story = phoneWizard({
+  name: 'Phone: setup 1, connect repository',
+  render: () => (
+    <PhoneFrame>
+      <Setup1Screen {...setup1} pingAt="14:01:37" exitHref="#projects" />
+    </PhoneFrame>
+  ),
+});
+export const Setup2Phone: Story = phoneWizard({
+  name: 'Phone: setup 2, add agent, nothing picked',
+  render: () => (
+    <PhoneFrame>
+      <Setup2Screen {...setup2Props} exitHref="#projects" />
+    </PhoneFrame>
+  ),
+});
+/** OpenCode with an endpoint and key: the longest form. */
+export const Setup2AgentPickedPhone: Story = phoneWizard({
+  name: 'Phone: setup 2, OpenCode, API endpoint and key',
+  render: () => (
+    <PhoneFrame>
+      <Setup2Screen {...setup2Props} exitHref="#projects" />
+    </PhoneFrame>
+  ),
+  play: async ({ canvasElement }) => {
+    const c = within(canvasElement);
+    await pickRadio(c, 'OpenCode');
+    await pickRadio(c, 'API endpoint and key');
+  },
+});
+export const Setup2AgentRejectedPhone: Story = phoneWizard({
+  name: 'Phone: setup 2, the test failed, Continue anyway',
+  render: () => (
+    <PhoneFrame>
+      <Setup2Screen
+        {...setup2Props}
+        exitHref="#projects"
+        onContinueAnyway={() => undefined}
+        testFailed={{
+          status: 'Credential rejected',
+          message: 'The provider refused the saved credential. Replace it, then test again.',
+        }}
+      />
+    </PhoneFrame>
+  ),
+  play: async ({ canvasElement }) => {
+    const c = within(canvasElement);
+    await pickRadio(c, 'Claude Code');
+    await pickRadio(c, 'API key');
+  },
+});
+export const Setup3Phone: Story = phoneWizard({
+  name: 'Phone: setup 3, skills',
+  globals: viewport(390, 980),
+  render: () => <PhoneFrame height={980}>{wizardSkills}</PhoneFrame>,
+});
+export const Setup3PhoneDrawer: Story = phoneWizard({
+  name: 'Phone: setup 3, skills, stepper drawer open',
+  render: () => <PhoneFrame>{wizardSkills}</PhoneFrame>,
+  play: openMenu,
+});
+export const Setup3PreviewDialogPhone: Story = phoneWizard({
+  name: 'Phone: setup 3, template preview dialog',
+  render: () => <PhoneFrame>{wizardSkills}</PhoneFrame>,
+  play: async ({ canvasElement }) => {
+    await userEvent.click(within(canvasElement).getAllByRole('button', { name: /^Preview / })[0]);
+  },
+});
+export const Setup4Phone: Story = phoneWizard({
+  name: 'Phone: setup 4, first rule',
+  render: () => (
+    <PhoneFrame>
+      <Setup4Screen
+        projectName={projectName}
+        repo={repo}
+        rule={rule}
+        skills={['code-build', 'code-review']}
+        followUp={{ command: 'code-review', target: 'pr', skill: 'code-review', enabled: true }}
+        maxRunsPerTicket={agentSettings.maxRunsPerTicket}
+        promptPreview={{ state: 'ready', systemLines: promptSystemLines }}
+        modelList={liveModels}
+        defaultAgentName="Claude"
+        exitHref="#projects"
+      />
+    </PhoneFrame>
+  ),
+});
+export const SetupReadyPhone: Story = phoneWizard({
+  name: 'Phone: setup, ready',
+  render: () => (
+    <PhoneFrame>
+      <SetupReadyScreen
+        {...ready}
+        lastEvent={{ mode: 'webhook', at: 'ping, 14:01:37' }}
+        summary={readySummary(connectionCopy.triggerSummary('webhook'))}
+        exitHref="#projects"
+      />
+    </PhoneFrame>
+  ),
+});

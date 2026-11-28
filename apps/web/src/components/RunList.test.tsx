@@ -329,3 +329,47 @@ describe('NeedsYouBanner', () => {
     expect(screen.getByText('Issue #142')).toBeInTheDocument();
   });
 });
+
+describe('BR-65: phone card labels', () => {
+  it('each run cell but the run link and the actions carries its label for the card layout', () => {
+    const { container } = inTable(<RunRow run={run} tree="none" href="/r" />);
+    const cells = Array.from(container.querySelectorAll('td'));
+    expect(cells.map((c) => c.getAttribute('data-label'))).toEqual([
+      null,
+      'Status',
+      'Ticket',
+      'Rule',
+      'Triggered by',
+      'Started',
+      'Duration',
+      'Usage',
+      null,
+    ]);
+  });
+
+  it('each ignored command cell but the actions one carries its label', async () => {
+    const { IgnoredRow } = await import('./IgnoredRow');
+    const { container } = inTable(
+      <IgnoredRow
+        item={{
+          at: '14:02',
+          ticket: { kind: 'issue', number: 7 },
+          command: '/x',
+          author: 'ana',
+          reason: 'No rule',
+          detail: 'none matched',
+          href: '#',
+        }}
+      />,
+    );
+    const cells = Array.from(container.querySelectorAll('td'));
+    expect(cells.map((c) => c.getAttribute('data-label'))).toEqual([
+      'Time',
+      'Ticket',
+      'Command',
+      'Author',
+      'Why nothing ran',
+      null,
+    ]);
+  });
+});

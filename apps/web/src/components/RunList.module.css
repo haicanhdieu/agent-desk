@@ -275,3 +275,31 @@ a.fchip:hover {
     max-width: none;
   }
 }
+
+/* Phone (BR-65), Runs: a run is one card, the ticket group header is a card of its own, and the tree connector goes. */
+@media (max-width: 639px) {
+  .cards .tree {
+    display: none;
+  }
+  .cards .grpRow {
+    flex-wrap: wrap;
+  }
+  .cards .grpTitle {
+    flex: 1 1 100%;
+    white-space: normal;
+  }
+  .cards tr.needs td:first-child {
+    box-shadow: none;
+  }
+  .cards tr.needs {
+    border-color: var(--idle);
+  }
+  .cards .rule,
+  .cards .ticketTitle {
+    max-width: 100%;
+  }
+  .cards .actions {
+    justify-content: flex-end;
+    flex-wrap: wrap;
+  }
+}

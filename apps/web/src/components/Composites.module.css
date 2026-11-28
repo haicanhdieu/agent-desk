@@ -745,3 +745,29 @@
   min-width: 120px;
   justify-content: flex-start;
 }
+
+/* Phone (BR-65): the wizard is one column with 16px gutters; the aside sits below the main column and the footer wraps. */
+@media (max-width: 639px) {
+  .setupMain {
+    flex-direction: column;
+    gap: 24px;
+    padding: 24px 16px;
+    overflow: visible;
+  }
+  .setupCol {
+    flex: 0 0 auto;
+    min-width: 0;
+    max-width: 100%;
+  }
+  .setupAside {
+    width: auto;
+    flex: 0 0 auto;
+    padding-top: 0;
+  }
+  .setupFoot {
+    flex-wrap: wrap;
+  }
+  .setupTitle h1 {
+    overflow-wrap: anywhere;
+  }
+}

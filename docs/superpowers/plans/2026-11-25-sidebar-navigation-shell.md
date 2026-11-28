@@ -1627,11 +1627,11 @@ export function useShellData(input: ShellInput): ShellData;
 - Boards: `ProjectsPhone`, `ProjectsPhoneDrawer`, `ProjectsPhoneSwitcher`, `Setup1Phone`, `Setup2Phone`, `Setup2AgentPickedPhone` (OpenCode with endpoint and key, the longest form), `Setup2AgentRejectedPhone` (the "Continue anyway" footer), `Setup3Phone`, `Setup3PhoneDrawer`, `Setup3PreviewDialogPhone`, `Setup4Phone`, `SetupReadyPhone` (expected count 470). `Setup2Phone` is the phone form of the multi-agent `Setup2DefaultAgent`.
 - Covers: TC-28.4, TC-65.2 to TC-65.5, TC-65.33, TC-65.38.
 
-- [ ] **Step 0: Multi-agent gate.** Run both checks in "Multi-agent gate". If either fails, stop: write no code and report which check failed.
+- [x] **Step 0: Multi-agent gate.** Run both checks in "Multi-agent gate". If either fails, stop: write no code and report which check failed.
 - [ ] **Step 1: Write** "TC-28.4" (the card's "More", "Agent & settings": the "Agents" tab, no `tab` in the address), "TC-65.2", "TC-65.3" (step 2 "Add your agent"; three stacked cards; ten "Coming soon" chips; pick Claude Code, OpenAI Codex and OpenCode and fill each one's fields), "TC-65.4", "TC-65.5", "TC-65.33" (a rejected test with the multi-agent mock scenario, then "Continue anyway") and "TC-65.38" (the card's switch-to-polling link lands on "GitHub connection"; this is also MA TC-60.3 at 390). Where a case ends on Agent & settings, the fit check is on the page it starts from and the destination is checked for its selected tab only; its phone fit is Task 57's cases. Run. Expected: FAIL.
-- [ ] **Step 2: Implement:** project cards show name, repository, connection, counts, last run, then "Resume setup" before "More"; radio cards stack, the footer ("Back", "Continue", "Continue anyway") wraps, the aside sits below the main column. On wizard step 2 the provider cards and the credential type cards stack, the "Coming soon" chips wrap and the authentication control fits or wraps. A group past about 800 lines is split into projects and wizard.
+- [x] **Step 2: Implement:** project cards show name, repository, connection, counts, last run, then "Resume setup" before "More"; radio cards stack, the footer ("Back", "Continue", "Continue anyway") wraps, the aside sits below the main column. On wizard step 2 the provider cards and the credential type cards stack, the "Coming soon" chips wrap and the authentication control fits or wraps. A group past about 800 lines is split into projects and wizard.
 - [ ] **Step 3: Stories and REG;** run MOCK `phone-pages`, tests, PARITY. Expected: PASS.
-- [ ] **Step 4: Commit** `feat(web): phone layouts for projects and the wizard`.
+- [x] **Step 4: Commit** `feat(web): phone layouts for projects and the wizard`.
 
 ### Task 48: Phone, the Runs list (after the multi-agent gate)
 
@@ -1648,11 +1648,11 @@ export function useShellData(input: ShellInput): ShellData;
 
 - Boards: `RunsPhone`, `RunsPhoneDrawer` (expected count 472). Covers: TC-65.6.
 
-- [ ] **Step 0: Multi-agent gate.** Run both checks in "Multi-agent gate". If either fails, stop: write no code and report which check failed.
+- [x] **Step 0: Multi-agent gate.** Run both checks in "Multi-agent gate". If either fails, stop: write no code and report which check failed.
 - [ ] **Step 1: Write** "TC-65.6". Run. Expected: FAIL.
-- [ ] **Step 2: Implement:** header wraps, search full width, status chips scroll in one row, rows are cards.
+- [x] **Step 2: Implement:** header wraps, search full width, status chips scroll in one row, rows are cards.
 - [ ] **Step 3: Stories and REG;** run, PARITY. Expected: PASS.
-- [ ] **Step 4: Commit** `feat(web): phone layout for the runs list`.
+- [x] **Step 4: Commit** `feat(web): phone layout for the runs list`.
 
 ### Task 49: Phone run page with extra terminal keys (BR-60, BR-66, BR-67, BR-69) (after the multi-agent gate)
 

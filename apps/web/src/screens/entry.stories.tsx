@@ -569,3 +569,26 @@ export const RouteErrorPhone: Story = phoneStory({
   name: 'Phone: page failed to load',
   render: () => inProject(<RouteLoadError title="Internal server error" requestId="req_01JD7Q3M8V2K" onRetry={noop} />),
 });
+
+// BR-65: Projects at 390x844 (phone boards): rows are cards with "Resume setup" before "More".
+const projectsPhonePage = () => (
+  <OrgShellFrame viewer="owner" page="projects" org={severalOrgs} crumbs={projectsCrumbs} height={844}>
+    {projectsPage({ resume: true })}
+  </OrgShellFrame>
+);
+export const ProjectsPhone: Story = phoneStory({
+  name: 'Phone: projects',
+  render: projectsPhonePage,
+});
+export const ProjectsPhoneDrawer: Story = phoneStory({
+  name: 'Phone: projects, menu drawer open',
+  render: projectsPhonePage,
+  play: async ({ canvasElement }) => {
+    await userEvent.click(within(canvasElement).getByRole('button', { name: 'Open menu' }));
+  },
+});
+export const ProjectsPhoneSwitcher: Story = phoneStory({
+  name: 'Phone: projects, organization switcher open',
+  render: projectsPhonePage,
+  play: openSwitch,
+});

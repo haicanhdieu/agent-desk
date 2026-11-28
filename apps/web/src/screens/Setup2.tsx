@@ -242,7 +242,11 @@ export function Setup2({
             <Field label="Credential type" labelAs="span">
               {({ labelId }) => (
                 <>
-                  <div className={styles.grid2Gap10} role="radiogroup" aria-labelledby={labelId}>
+                  <div
+                    className={`${styles.grid2Gap10} ${styles.stackPhone}`}
+                    role="radiogroup"
+                    aria-labelledby={labelId}
+                  >
                     {cap.credentialTypes.map((t) => (
                       <RadioCard
                         key={t.type}
@@ -307,7 +311,7 @@ export function Setup2({
               {testFailed.message}
             </Banner>
           )}
-          <div className={styles.grid2Gap16}>
+          <div className={`${styles.grid2Gap16} ${styles.stackPhone}`}>
             <ModelPicker
               label="Default model"
               list={list}

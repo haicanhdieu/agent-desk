@@ -69,11 +69,11 @@ export function RunRow({ run, tree, href, actions }: RunRowProps) {
           Run {run.id}
         </AppLink>
       </td>
-      <td>
+      <td data-label="Status">
         <StatusBadge status={run.status} variant={idle ? 'pill' : 'text'} />
         {run.statusNote && <div className={styles.note}>{run.statusNote}</div>}
       </td>
-      <td>
+      <td data-label="Ticket">
         <TicketRef
           kind={ticket.kind}
           number={ticket.number}
@@ -88,13 +88,13 @@ export function RunRow({ run, tree, href, actions }: RunRowProps) {
           </div>
         )}
       </td>
-      <td className={styles.rule}>
+      <td className={styles.rule} data-label="Rule">
         {run.command ? <span title={run.command}>{run.command}</span> : <span className={styles.faint}>—</span>}
         <div className={styles.agentLine} title={`${run.agent} · ${run.model}`}>
           {run.agent} · {run.model}
         </div>
       </td>
-      <td className={styles.actor}>
+      <td className={styles.actor} data-label="Triggered by">
         <span className={styles.actorRow}>
           <Avatar
             size="sm"
@@ -104,8 +104,12 @@ export function RunRow({ run, tree, href, actions }: RunRowProps) {
           {triggeredBy.login}
         </span>
       </td>
-      <td className={`${styles.num} ${styles.muted}`}>{run.startedAt}</td>
-      <td className={styles.num}>{run.duration ?? <span className={styles.faint}>—</span>}</td>
+      <td className={`${styles.num} ${styles.muted}`} data-label="Started">
+        {run.startedAt}
+      </td>
+      <td className={styles.num} data-label="Duration">
+        {run.duration ?? <span className={styles.faint}>—</span>}
+      </td>
       <UsageCell usage={run.usage} />
       <td className={styles.actions}>{actions}</td>
     </tr>

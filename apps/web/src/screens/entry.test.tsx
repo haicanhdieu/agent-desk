@@ -56,6 +56,24 @@ describe('Projects', () => {
     expect(screen.queryByRole('table')).not.toBeInTheDocument();
   });
 
+  it('BR-65: each project card cell but the actions one carries its label for the phone card layout', () => {
+    render(<Projects projects={projects} newHref="/new" resumeHref={() => '/resume'} />);
+    const row = screen.getAllByRole('row')[1];
+    const cells = within(row).getAllByRole('cell');
+    expect(cells.map((c) => c.getAttribute('data-label'))).toEqual([
+      null,
+      'GitHub',
+      'Needs you',
+      'Running',
+      'Queued',
+      'Last run',
+      null,
+    ]);
+    const end = cells[6];
+    const buttons = within(end).getAllByRole('link').concat(within(end).getAllByRole('button'));
+    expect(buttons.map((b) => b.textContent)).toContain('Resume setup');
+  });
+
   it('has one main landmark, an h1 and a New project link', () => {
     render(<Projects projects={projects} newHref="/new" canCreate />);
     expect(screen.getAllByRole('main')).toHaveLength(1);

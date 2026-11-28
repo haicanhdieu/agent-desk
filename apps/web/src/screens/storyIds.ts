@@ -478,6 +478,20 @@ export const boardStories = {
   MyInvitationsPhone: { title: invitations, exportName: 'MyInvitationsPhone' },
   OrgSuspendedPhone: { title: entry, exportName: 'OrgSuspendedPhone' },
   RouteErrorPhone: { title: entry, exportName: 'RouteErrorPhone' },
+  ProjectsPhone: { title: entry, exportName: 'ProjectsPhone' },
+  ProjectsPhoneDrawer: { title: entry, exportName: 'ProjectsPhoneDrawer' },
+  ProjectsPhoneSwitcher: { title: entry, exportName: 'ProjectsPhoneSwitcher' },
+  Setup1Phone: { title: setup, exportName: 'Setup1Phone' },
+  Setup2Phone: { title: setup, exportName: 'Setup2Phone' },
+  Setup2AgentPickedPhone: { title: setup, exportName: 'Setup2AgentPickedPhone' },
+  Setup2AgentRejectedPhone: { title: setup, exportName: 'Setup2AgentRejectedPhone' },
+  Setup3Phone: { title: setup, exportName: 'Setup3Phone' },
+  Setup3PhoneDrawer: { title: setup, exportName: 'Setup3PhoneDrawer' },
+  Setup3PreviewDialogPhone: { title: setup, exportName: 'Setup3PreviewDialogPhone' },
+  Setup4Phone: { title: setup, exportName: 'Setup4Phone' },
+  SetupReadyPhone: { title: setup, exportName: 'SetupReadyPhone' },
+  RunsPhone: { title: runs, exportName: 'RunsPhone' },
+  RunsPhoneDrawer: { title: runs, exportName: 'RunsPhoneDrawer' },
 } as const satisfies Record<string, BoardStory>;
 
 export type BoardName = keyof typeof boardStories;

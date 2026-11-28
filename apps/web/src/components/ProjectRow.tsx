@@ -40,7 +40,7 @@ export function ProjectRow({
           {p.repo}
         </span>
       </td>
-      <td className={styles.connection}>
+      <td className={styles.connection} data-label="GitHub">
         {tone === 'ok' && (
           <span className={styles.okRow}>
             <span title="status: succeeded" className={styles.glyph}>
@@ -80,7 +80,7 @@ export function ProjectRow({
           </InlineStatus>
         )}
       </td>
-      <td>
+      <td data-label="Needs you">
         {p.needsYou > 0 ? (
           <StatusBadge status="idle" variant="pill">
             {p.needsYou} {p.needsYou === 1 ? 'run' : 'runs'}
@@ -89,9 +89,15 @@ export function ProjectRow({
           <span className={styles.noneText}>None</span>
         )}
       </td>
-      <td className="num">{p.running}</td>
-      <td className="num">{p.queued}</td>
-      <td className={styles.lastRun}>{p.lastRun}</td>
+      <td className="num" data-label="Running">
+        {p.running}
+      </td>
+      <td className="num" data-label="Queued">
+        {p.queued}
+      </td>
+      <td className={styles.lastRun} data-label="Last run">
+        {p.lastRun}
+      </td>
       <td className={styles.end}>
         {resumeHref !== undefined && (
           <Button size="sm" href={resumeHref} aria-label={`Resume setup for ${p.name}`}>

@@ -3673,6 +3673,118 @@
    "h": 844,
    "title": "Phone: page failed to load",
    "expand": "fill"
+  },
+  "ProjectsPhone.dc.html": {
+   "x": 0,
+   "y": 102460,
+   "w": 390,
+   "h": 844,
+   "title": "Phone: projects",
+   "expand": "fill"
+  },
+  "ProjectsPhoneDrawer.dc.html": {
+   "x": 470,
+   "y": 102460,
+   "w": 390,
+   "h": 844,
+   "title": "Phone: projects, menu drawer open",
+   "expand": "fill"
+  },
+  "ProjectsPhoneSwitcher.dc.html": {
+   "x": 940,
+   "y": 102460,
+   "w": 390,
+   "h": 844,
+   "title": "Phone: projects, organization switcher open",
+   "expand": "fill"
+  },
+  "Setup1Phone.dc.html": {
+   "x": 1410,
+   "y": 102460,
+   "w": 390,
+   "h": 844,
+   "title": "Phone: setup 1, connect repository",
+   "expand": "fill"
+  },
+  "Setup2Phone.dc.html": {
+   "x": 1880,
+   "y": 102460,
+   "w": 390,
+   "h": 844,
+   "title": "Phone: setup 2, add agent, nothing picked",
+   "expand": "fill"
+  },
+  "Setup2AgentPickedPhone.dc.html": {
+   "x": 2350,
+   "y": 102460,
+   "w": 390,
+   "h": 844,
+   "title": "Phone: setup 2, OpenCode, API endpoint and key",
+   "expand": "fill"
+  },
+  "Setup2AgentRejectedPhone.dc.html": {
+   "x": 0,
+   "y": 103560,
+   "w": 390,
+   "h": 844,
+   "title": "Phone: setup 2, the test failed, Continue anyway",
+   "expand": "fill"
+  },
+  "Setup3Phone.dc.html": {
+   "x": 470,
+   "y": 103560,
+   "w": 390,
+   "h": 980,
+   "title": "Phone: setup 3, skills",
+   "expand": "fill"
+  },
+  "Setup3PhoneDrawer.dc.html": {
+   "x": 940,
+   "y": 103560,
+   "w": 390,
+   "h": 844,
+   "title": "Phone: setup 3, skills, stepper drawer open",
+   "expand": "fill"
+  },
+  "Setup3PreviewDialogPhone.dc.html": {
+   "x": 1410,
+   "y": 103560,
+   "w": 390,
+   "h": 844,
+   "title": "Phone: setup 3, template preview dialog",
+   "expand": "fill"
+  },
+  "Setup4Phone.dc.html": {
+   "x": 1880,
+   "y": 103560,
+   "w": 390,
+   "h": 844,
+   "title": "Phone: setup 4, first rule",
+   "expand": "fill"
+  },
+  "SetupReadyPhone.dc.html": {
+   "x": 2350,
+   "y": 103560,
+   "w": 390,
+   "h": 844,
+   "title": "Phone: setup, ready",
+   "expand": "fill"
+  },
+  "RunsPhone.dc.html": {
+   "x": 0,
+   "y": 104660,
+   "w": 390,
+   "h": 844,
+   "title": "Phone: runs as cards",
+   "expand": "fill"
+  },
+  "RunsPhoneDrawer.dc.html": {
+   "x": 470,
+   "y": 104660,
+   "w": 390,
+   "h": 844,
+   "title": "Phone: project menu drawer",
+   "expand": "fill"
   }
  },
  "order": [
@@ -4133,7 +4245,21 @@
   "InvitationAcceptPhone.dc.html",
   "MyInvitationsPhone.dc.html",
   "OrgSuspendedPhone.dc.html",
-  "RouteErrorPhone.dc.html"
+  "RouteErrorPhone.dc.html",
+  "ProjectsPhone.dc.html",
+  "ProjectsPhoneDrawer.dc.html",
+  "ProjectsPhoneSwitcher.dc.html",
+  "Setup1Phone.dc.html",
+  "Setup2Phone.dc.html",
+  "Setup2AgentPickedPhone.dc.html",
+  "Setup2AgentRejectedPhone.dc.html",
+  "Setup3Phone.dc.html",
+  "Setup3PhoneDrawer.dc.html",
+  "Setup3PreviewDialogPhone.dc.html",
+  "Setup4Phone.dc.html",
+  "SetupReadyPhone.dc.html",
+  "RunsPhone.dc.html",
+  "RunsPhoneDrawer.dc.html"
  ],
  "notes": {
   "t-intro": {
