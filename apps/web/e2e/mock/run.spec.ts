@@ -456,6 +456,9 @@ test('OpenCode paints its own background: its cells show the terminal background
   // Only that colour changes: OpenCode's panel colour (palette 235, #262626) keeps xterm's own value.
   await printInTerminal(page, '\x1b[2;1H\x1b[48;5;235m      ');
   expect(await pixelAt(page, box.x + 6, box.y + 26)).toBe('rgb(38, 38, 38)');
+  // The entries before it stay empty too, so they keep xterm's own colours rather than drawing black (231 is white).
+  await printInTerminal(page, '\x1b[3;1H\x1b[48;5;231m      ');
+  expect(await pixelAt(page, box.x + 6, box.y + 46)).toBe('rgb(255, 255, 255)');
 });
 
 /** The run detail Usage section (spec 2026-11-24-run-token-usage-cost, BR-2 to BR-6, BR-11, BR-15, BR-17). */

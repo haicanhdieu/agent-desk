@@ -45,7 +45,8 @@ function token(styles: CSSStyleDeclaration, name: string): string | undefined {
 /**
  * OpenCode paints every cell with its own near-black background, which tmux hands the browser as palette colour 232
  * (#080808). Left alone it draws as a darker box inside the pane; it takes the terminal background instead. The
- * extended palette starts at colour 16, so colour 232 is entry 216.
+ * extended palette starts at colour 16, so colour 232 is entry 216. xterm has no background-only slot, so this also
+ * applies when colour 232 is a foreground: text in that colour on the terminal background is invisible.
  */
 const OPENCODE_BACKGROUND_ENTRY = 232 - 16;
 
