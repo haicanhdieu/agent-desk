@@ -1,4 +1,5 @@
 .app {
+  --bar-h: 52px;
   position: relative;
   /* clip, not hidden: hidden makes .app a scroll container, and the sticky .top would stick to it, not the viewport. */
   overflow: clip;
@@ -29,19 +30,20 @@
   flex: 1;
   min-height: 0;
 }
-/* The inline side menu: sticky under the 52px bar with its own scroll; the extra bottom padding keeps its last item
-   above the fold, since the box is as tall as the window while its top sits under the bar. */
+/* The inline side menu: sticky under the bar with its own scroll. Filling the height below the bar keeps the nav's
+   right border running to the bottom of the window even when its links are short. */
 .menuSlot {
   position: sticky;
-  top: 52px;
+  top: var(--bar-h);
   align-self: flex-start;
   flex: 0 0 auto;
   display: flex;
   flex-direction: column;
-  max-height: 100vh;
-  max-height: 100dvh;
+  height: calc(100vh - var(--bar-h));
+  height: calc(100dvh - var(--bar-h));
+  max-height: calc(100vh - var(--bar-h));
+  max-height: calc(100dvh - var(--bar-h));
   box-sizing: border-box;
-  padding-bottom: 52px;
   overflow-y: auto;
   background: var(--bg);
 }
@@ -52,8 +54,8 @@
 .appFixed .menuSlot {
   position: static;
   align-self: stretch;
+  height: auto;
   max-height: none;
-  padding-bottom: 0;
 }
 .wizardSlot {
   display: flex;
@@ -70,8 +72,8 @@
 }
 
 .top {
-  height: 52px;
-  flex: 0 0 52px;
+  height: var(--bar-h);
+  flex: 0 0 var(--bar-h);
   display: flex;
   align-items: center;
   gap: 14px;
