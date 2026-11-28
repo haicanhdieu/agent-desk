@@ -19,6 +19,18 @@ beforeEach(async () => {
 });
 
 describe('fake board', () => {
+  it('concurrent addTicket calls on one store keep every ticket (parallel e2e tests add tickets at once)', async () => {
+    const store = new FakeStore(dir, clock);
+    const numbers = Array.from({ length: 20 }, (_, i) => i + 1);
+    await Promise.all(
+      numbers.map((n) =>
+        store.addTicket({ repoPath: 'dev/demo', number: n, kind: 'issue', title: `T${n}`, labels: [] }),
+      ),
+    );
+    const stored = (await store.listTickets()).map((x) => x.number).sort((a, b) => a - b);
+    expect(stored).toEqual(numbers);
+  });
+
   it('prStates returns the stored state for PR tickets; unset, issues and unknown refs are left out', async () => {
     const store = new FakeStore(dir, clock);
     const board = new FakeBoardAdapter(store, clock);

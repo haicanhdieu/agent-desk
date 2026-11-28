@@ -69,6 +69,9 @@ export const sha1 = (s: string): string => createHash('sha1').update(s).digest('
  * File-backed state shared by the api and worker processes. Logs are append-only (a single O_APPEND write per line);
  * whole-file documents are written to a unique temp file and renamed into place, so readers never see partial data.
  */
+/** The last queued tickets.json write per file in this process (see `addTicket`). */
+const ticketWrites = new Map<string, Promise<void>>();
+
 export class FakeStore {
   constructor(
     readonly dir: string,
@@ -126,9 +129,22 @@ export class FakeStore {
     return TicketsFile.parse(JSON.parse(raw)).tickets;
   }
 
+  /**
+   * Read-modify-write of the whole tickets.json: adds are queued per file in this process, so concurrent adds (the
+   * parallel e2e tests) cannot overwrite each other. Writes from another process are not serialised here.
+   */
   async addTicket(t: StoredTicket): Promise<void> {
-    const all = (await this.listTickets()).filter((x) => !(x.repoPath === t.repoPath && x.number === t.number));
-    await this.atomicWrite(this.path('tickets.json'), JSON.stringify({ tickets: [...all, t] }, null, 2));
+    const file = this.path('tickets.json');
+    const previous = ticketWrites.get(file) ?? Promise.resolve();
+    const next = previous.then(async () => {
+      const all = (await this.listTickets()).filter((x) => !(x.repoPath === t.repoPath && x.number === t.number));
+      await this.atomicWrite(file, JSON.stringify({ tickets: [...all, t] }, null, 2));
+    });
+    ticketWrites.set(
+      file,
+      next.catch(() => undefined),
+    );
+    return next;
   }
 
   async getTicket(repoPath: string, number: number): Promise<StoredTicket | undefined> {
