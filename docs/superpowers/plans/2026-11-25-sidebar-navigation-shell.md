@@ -1540,10 +1540,10 @@ export function useShellData(input: ShellInput): ShellData;
 - Consumes: `buildCast`, `disposeCast`, `secondOrg` (`rbac-cast.ts`: owner, admin D, project admin A of P1, members B and C, viewer V), `asPlatformAdmin`, `openSideMenu`.
 - Covers on the real API: BR-12, BR-13, BR-16 to BR-21, BR-31, BR-32, BR-34.
 
-- [ ] **Step 0: Multi-agent gate.** Run both checks in "Multi-agent gate". If either fails, stop: write no code and report which check failed.
-- [ ] **Step 1: Write** "TC-12.1", "TC-12.2", "TC-12.3", "TC-12.5", "TC-13.1", "TC-13.2", "TC-13.3", "TC-16.1", "TC-17.1", "TC-17.2", "TC-18.1", "TC-19.1", "TC-20.1", "TC-20.2", "TC-21.1", "TC-21.2", "TC-21.5", "TC-31.1", "TC-31.3", "TC-32.1", "TC-32.2", "TC-34.1", "TC-34.2". Name-privacy cases assert the other org's distinctive name appears nowhere in the page text or title.
+- [x] **Step 0: Multi-agent gate.** Run both checks in "Multi-agent gate". If either fails, stop: write no code and report which check failed.
+- [x] **Step 1: Write** "TC-12.1", "TC-12.2", "TC-12.3", "TC-12.5", "TC-13.1", "TC-13.2", "TC-13.3", "TC-16.1", "TC-17.1", "TC-17.2", "TC-18.1", "TC-19.1", "TC-20.1", "TC-20.2", "TC-21.1", "TC-21.2", "TC-21.5", "TC-31.1", "TC-31.3", "TC-32.1", "TC-32.2", "TC-34.1", "TC-34.2". Name-privacy cases assert the other org's distinctive name appears nowhere in the page text or title.
 - [ ] **Step 2: Run** LOCAL `side-nav-access`. Expected: PASS.
-- [ ] **Step 3: Commit** `test(web): organization and platform menu access e2e`.
+- [x] **Step 3: Commit** `test(web): organization and platform menu access e2e`.
 
 ### Task 44: Local e2e, project and run access by role (after the multi-agent gate)
 
@@ -1560,10 +1560,10 @@ export function useShellData(input: ShellInput): ShellData;
 - Consumes: as Task 43, plus `signInAndStartProject`, `waitForStatus`, `commentOnNewTicket`.
 - Covers on the real API: BR-22 to BR-25, BR-29, BR-39, BR-41, BR-42, BR-48, BR-49, BR-51, BR-68, BR-82.
 
-- [ ] **Step 0: Multi-agent gate.** Run both checks in "Multi-agent gate". If either fails, stop: write no code and report which check failed.
-- [ ] **Step 1: Write** "TC-22.1", "TC-22.2", "TC-23.1", "TC-23.2", "TC-24.1", "TC-24.2", "TC-25.3" (`expect.poll`: badge appears and clears with no reload), "TC-29.1", "TC-29.2", "TC-29.4", "TC-39.4" (same terminal socket through expand and collapse: one WebSocket in `page.on('websocket')`), "TC-41.1", "TC-42.1", "TC-42.2", "TC-42.3", "TC-42.4", "TC-48.1", "TC-48.2", "TC-49.1", "TC-49.2", "TC-51.1", "TC-51.2", "TC-51.5", "TC-51.7" (agents created with the local agent helpers), "TC-68.1", "TC-82.1", "TC-82.3", "TC-82.4".
+- [x] **Step 0: Multi-agent gate.** Run both checks in "Multi-agent gate". If either fails, stop: write no code and report which check failed.
+- [x] **Step 1: Write** "TC-22.1", "TC-22.2", "TC-23.1", "TC-23.2", "TC-24.1", "TC-24.2", "TC-25.3" (`expect.poll`: badge appears and clears with no reload), "TC-29.1", "TC-29.2", "TC-29.4", "TC-39.4" (same terminal socket through expand and collapse: one WebSocket in `page.on('websocket')`), "TC-41.1", "TC-42.1", "TC-42.2", "TC-42.3", "TC-42.4", "TC-48.1", "TC-48.2", "TC-49.1", "TC-49.2", "TC-51.1", "TC-51.2", "TC-51.5", "TC-51.7" (agents created with the local agent helpers), "TC-68.1", "TC-82.1", "TC-82.3", "TC-82.4".
 - [ ] **Step 2: Run** LOCAL `side-nav-project-access`. Expected: PASS.
-- [ ] **Step 3: Commit** `test(web): project and run access e2e`.
+- [x] **Step 3: Commit** `test(web): project and run access e2e`.
 
 **Phone tasks (45 to 53 and 57).** On multi-agent pages they add only narrow-width layouts to the existing components, with a 390px story for each component whose layout changes; fill pages use the extra check under "Fit". Each changes CSS and presentational code so its pages work at 390px (spec "Other phone layouts"): no horizontal page scroll, every desktop action available, one column with 16px gutters. Each page's case in `phone-pages.spec.ts` runs at 390 with `hasTouch`, asserts `scrollWidth <= clientWidth`, its controls and popovers inside the viewport, nothing overlapped or zero width, and uses the page's main action (geometry, never screenshots). Test first: write the case, run MOCK `phone-pages`, see it fail, implement, see it pass. Each adds its 390 stories from `@/mocks`, matching the listed boards, registers them (REG) and runs PARITY. A group over about 800 lines is split by page.
 
