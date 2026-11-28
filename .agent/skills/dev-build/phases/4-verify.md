@@ -8,14 +8,14 @@ Two parts, in this order: **Gates** (fix until green), then **Self-review** (exa
 
 Run after the last builder, and again after every fix. Green means all of these on the same head:
 
-1. **E2E verifier**, only when Triage's `E2E REQUIREMENTS` names a file (a spec or plan with a `## E2E requirements` section, as `dev-plan` writes). Spawn it first, alone in the worktree, and wait. `E2E_FILES` is the file. It runs the e2e specs this unit adds or changes (its diff against `<base>`). **Never skip it**, for any reason (a red unit test, a long stack start, a hurry). In a unit it may commit fixes to e2e test code only.
+1. **E2E verifier**, only when Triage's `E2E REQUIREMENTS` names a file (a spec or plan with a `## E2E requirements` section, as `dev-plan` writes). Spawn it first, alone in the worktree, and wait. `E2E_FILES` is the file. It runs the e2e specs this unit adds or changes (its diff against `<base>`). **Never skip it**, for any reason (a red unit test, a long stack start, a hurry). It only runs and reports: it edits and commits nothing, test code included.
 2. Then, on the HEAD the E2E verifier reported, run **`verify.sh`** yourself ([below](#run-verifysh)): `fix`, lint and typecheck per touched package, and the tests scoped to the change. Run it even when the E2E verifier found product bugs, so the builder gets every failure at once.
 
 **No repeated checks.** Builders run only the tests they wrote. `verify.sh` is the one local gate; the PR agent reuses its result (create-pr preflight) and reruns nothing on the same head. Full suites and integration shards are CI's job.
 
 ### Fix until green (no round cap)
 
-Any red result goes back to the builder that owns the code, then the gates run again on the new head. Repeat until every check is green. There is no round cap, because green is required.
+Any red result, product or test, goes back to the builder that owns the code (`medium` tier, `medium` effort; never the E2E verifier), then the gates run again on the new head. On a new head, a fresh E2E verifier gets `RERUN: none` and runs every listed spec; results from an older head never count. Repeat until every check is green. There is no round cap, because green is required.
 
 **Classify every failure against the requirement first** ([common.md](../prompts/common.md), "Requirement beats code"). A failing unit or e2e test is one of:
 
@@ -48,12 +48,10 @@ Always run the third line, even if the first two went wrong. A test that passes 
 
 ## Read the E2E verifier's reply
 
-- **PRODUCT_BUG:** goes to the builder that owns the code, like a `verify.sh` failure (fixed, not assessed), with the case id, its Expected text, the verbatim error and the file:line. Then the gates run again.
-- **TEST_FIXES:** for each commit, open its diff (`git -C <worktree> show <sha>`) and the case. It touches only `apps/web/e2e/`, it moves the test toward the case's Given/Steps/Expected, and it does not loosen an assertion, delete a test, add skip/fixme/only or an unexplained timeout. A fix that fails this check is a product bug hidden by the test: revert it through the builder (`git revert <sha>`) and send the original failure as a PRODUCT_BUG.
-- **TEST_ISSUE_UNFIXED:** a failed agent; spawn the E2E verifier once more with the error, then it is a stop condition for the Advisor.
+- **PRODUCT_BUG and TEST_ISSUE:** the label is only a hint. For each one, open the case, the assertion and the code, and decide the class yourself ([Fix until green](#fix-until-green-no-round-cap)). Then it goes to the builder that owns the code, like a `verify.sh` failure (fixed, not assessed), with your class, the case id, its Expected text, the verbatim error and the file:line. Then the gates run again.
 - **ENV_ISSUE / ENV_BLOCKED:** a failed check, never passed. Spawn the E2E verifier once more with the evidence; still failing is a stop condition for the Advisor (it may rule how to free the stack; it never waives the run).
 - **A partial run** (`NOT RUN` is not `none`, a `TEST LIST` title has no passed or failed line in `RESULTS`, or `MEMORY` shows a command that ended early with tests left): red, never "remaining cases not run". Memory, a killed process, a pod restart or a slow machine is never a reason to accept it. Spawn the E2E verifier again with the unrun titles in `RERUN`. Repeat until every test has a result; these re-runs are part of the same gates run. If the same single test still dies from memory alone on a fresh stack, it is a stop condition for the Advisor, which may rule how to make it fit (stop other processes, reorder the work, split the spec through the builder) but never waives it. If the run itself was resumed after a crash during this phase, spawn the E2E verifier for every test without a result on the current HEAD.
-- Its `HEAD` must equal `git -C <worktree> rev-parse HEAD` and the HEAD `verify.sh` ran on; `STACK STOPPED` and `TREE CLEAN AFTER` are `yes`.
+- Its `HEAD` must equal `git -C <worktree> rev-parse HEAD`, the HEAD you spawned it on and the HEAD `verify.sh` ran on (a commit by the verifier is rejected: revert it through the builder, then run the gates again); `STACK STOPPED` and `TREE CLEAN AFTER` are `yes`.
 
 Then all of these hold, or the gates are red:
 
@@ -63,11 +61,15 @@ Then all of these hold, or the gates are red:
 
 A failing e2e spec means the product is wrong until someone shows, by quoting the case, that the spec departs from it. Never accept "the test was wrong" on the word of the builder or the E2E verifier: open the case and the assertion.
 
+## Check e2e test fixes
+
+Applies to every builder commit that fixes an e2e test: for a failing spec, a test bug or an `E2E` finding, in a unit or a fix unit. Find them in git (`git -C <worktree> log --stat <head before the fix>..HEAD`; for a fix unit, `<base>..HEAD`), not only in the reply's `TEST FIXES`. For each, open its diff (`git -C <worktree> show <sha>`) and the case. It touches only `apps/web/e2e/`, it moves the test toward the case's Given/Steps/Expected, and it does not loosen an assertion, delete a test, add skip/fixme/only or an unexplained timeout. A fix that fails this check is a product bug hidden by the test: revert it through the builder (`git revert <sha>`) and send the original failure as a product bug.
+
 ## B. Self-review: at most 2 rounds, no Advisor
 
 Starts only on green gates. It is two rounds and then the unit is done: a third round or an Advisor call is never added.
 
-1. **Round 1.** Spawn the **Self-reviewer** (`ROUND: 1`, `SINCE: none`) on the unit's whole diff against `<base>`. It reads from git only. With E2E requirements it gets `E2E_FILES` and `E2E_SCOPE` and checks each rule and case in scope against the e2e specs and the product code; never pass `none` to drop that step when Triage named a file. `SENSITIVE` is `yes` when the unit's changed files hit a [sensitive path](../../../../docs/conventions/git-workflow.md#sensitive-paths) (`git -C <worktree> diff --name-only <base>...HEAD`; [`dev-review/scripts/flags.sh`](../../dev-review/scripts/flags.sh) `sensitive()` helps; when in doubt, yes), and then effort is `high`.
+1. **Round 1.** Spawn the **Self-reviewer** (`ROUND: 1`, `SINCE: none`) on the unit's whole diff against `<base>`. It reads from git only. With E2E requirements it gets `E2E_FILES` and `E2E_SCOPE` and checks each rule and case in scope against the e2e specs and the product code; never pass `none` to drop that step when Triage named a file. `SENSITIVE` is `yes` when the unit's changed files hit a [sensitive path](../../../../docs/conventions/git-workflow.md#sensitive-paths) (`git -C <worktree> diff --name-only <base>...HEAD`; [`dev-review/scripts/flags.sh`](../../dev-review/scripts/flags.sh) `sensitive()` helps; when in doubt, yes).
 2. **Judge the findings, then fix them all** ([Findings](#findings) below). Then run **A** again until green. Note the head as `SINCE`.
 3. **Round 2.** Spawn a fresh Self-reviewer (`ROUND: 2`, `SINCE: <that head>`, plus the scratchpad file of round 1 findings and how each was resolved). It reviews only what changed since round 1.
 4. Judge and fix its findings the same way, run **A** again until green, and the unit is **done**. Nothing is re-reviewed after that.

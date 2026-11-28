@@ -30,12 +30,20 @@ No devbox or Docker (a runner pod)? Run `pnpm env:detect` first and follow its `
 
 ## Code tools
 
-These apply when `mcp__serena__*` tools are available (runner pods with Serena on, [runner-pod.md](docs/runbooks/runner-pod.md) §6). Without them, ignore this section. Subagents follow it too.
+**NEVER skip Serena. Agents keep forgetting this section; it is mandatory, not a suggestion.** Serena is the `mcp__serena__*` MCP server (runner pods with Serena on, [runner-pod.md](docs/runbooks/runner-pod.md) §6). Without it, ignore the rest of this section. Subagents follow it too.
+
+**At the start of every session, before reading or editing any code:**
+
+1. **Check whether Serena exists.** Look for `mcp__serena__*` tools in your tool list. If they are listed by name only, run `ToolSearch` with `select:mcp__serena__get_symbols_overview,mcp__serena__find_symbol,mcp__serena__find_referencing_symbols,mcp__serena__rename_symbol,mcp__serena__replace_symbol_body` (or the keyword `serena`) to load them.
+2. **If Serena exists, you MUST use it for all TypeScript code work for the whole session.** Using `Read`, `grep` or `Edit` on `.ts`/`.tsx` code instead of Serena is a rule violation, even for "small" or "quick" changes.
+3. **If Serena does not exist,** say so in your first message ("Serena not available, using plain tools") and carry on.
 
 - **MUST** use Serena for TypeScript code: `get_symbols_overview` before reading a whole file, `find_symbol` to find or read a definition, `find_referencing_symbols` for callers, and `rename_symbol` or `replace_symbol_body` for symbol-wide edits.
-- Use plain search and file reads for text, config and docs, and when a Serena call fails or returns nothing.
-- If the tools are listed by name only, load them with `ToolSearch` first.
-- When you start a subagent that reads or edits code, tell it to follow this section.
+- **MUST NOT** read a whole `.ts`/`.tsx` file with `Read`, or search code with `grep`, when a Serena call can do it.
+- Use plain search and file reads only for text, config and docs, and when a Serena call fails or returns nothing (say which call failed).
+- **Before each code read or edit, self-check:** "Am I using Serena?" If not, stop and switch.
+- When you start a subagent that reads or edits code, **MUST** paste this section's rule into its prompt: "Check for `mcp__serena__*`; if present, you MUST use it for TypeScript code."
+- Use Serena only when its project is the checkout you are working in; otherwise treat it as not available. Never switch its project.
 - Serena line numbers are 0-based.
 
 ## Rules ([docs/conventions/](docs/conventions/README.md))

@@ -24,7 +24,6 @@ Everything in [SKILL.md](../SKILL.md), [reference/decisions.md](../reference/dec
 - Units running at once: **3**.
 - Self-review rounds per unit: **exactly 2**, then done. No Advisor, no extra round.
 - Gates (lint, types, unit tests, e2e): **no cap**, fix until green. Stuck check: the same check failing the same way after 3 fix attempts goes to the Advisor.
-- Advisor calls: **8 per run**, shared by all units.
 - Technical failure of an agent: spawn it **once** more with the error; a second failure goes to the Advisor.
 
 A hit stuck check or technical failure is a stop condition: ask the Advisor ([reference/decisions.md](../reference/decisions.md)); block ([Blocking](#blocking-and-resume)) only on its `needs_human`. A decided ruling grants one extra attempt of that kind. Counters restart on a resumed run.
@@ -66,7 +65,7 @@ It cuts the unit branch from the current `origin/<integration>`, so it builds on
 3. **Integration-test check.** The Docker-only integration tests and the patch-coverage gate can't run locally. Grep `*.int.test.ts` (and snapshots) for assertions that encode behavior this unit changed; fix those through an Implementer of this unit (then phase 4 A again) before the unit is done.
 4. **Merge into the integration branch, locally.** One unit: skip this step; the unit is done. Two or more: check every gate yourself on the current head, right before merging:
    - the last gates run on the unit head was green and self-review round 2 is done; the unit worktree is clean;
-   - the unit contains the integration head: `git -C <unit worktree> fetch origin <integration>` then `git -C <unit worktree> merge-base --is-ancestor origin/<integration> HEAD`. If not (a parallel unit merged first): `git -C <unit worktree> merge --no-edit origin/<integration>`. Clean → gates again (phase 4 A), then back here. Conflict → `git -C <unit worktree> merge --abort`, then a fresh Implementer of this unit with the task "Merge `origin/<integration>` into this branch and resolve the conflicts, keeping both sides' intent; if the two sides want different behavior, stop and say so", then gates again.
+   - the unit contains the integration head: `git -C <unit worktree> fetch origin <integration>` then `git -C <unit worktree> merge-base --is-ancestor origin/<integration> HEAD`. If not (a parallel unit merged first): `git -C <unit worktree> merge --no-edit origin/<integration>`. Clean → gates again (phase 4 A), then back here. Conflict → `git -C <unit worktree> merge --abort`, then a fresh Implementer of this unit, at tier `low`, effort `medium` (this holds for any merge conflict in a run), with the task "Merge `origin/<integration>` into this branch and resolve the conflicts, keeping both sides' intent; if the two sides want different behavior, stop and say so", then gates again.
 
    A merge, clean or conflicted, adds no review round: self-review is done after round 2.
 
@@ -92,12 +91,12 @@ Two or more units: continue only when every unit in `UNITS` (and every fix unit)
 
 On the integration worktree, with `<base>` = `origin/main`, run **phase 4 A only** (gates; no Self-reviewer, because `dev-review` owns the whole-branch review):
 
-- With E2E requirements, the **E2E verifier** runs first with `INTEGRATION: yes` (it runs the e2e specs of the whole branch and sorts failures, but commits nothing there). Never skip it.
+- With E2E requirements, the **E2E verifier** runs first, as in phase 4 A (`low` tier, `medium` effort; it runs the e2e specs of the whole branch and reports, and commits nothing). Never skip it.
 - Run `verify.sh <integration worktree> origin/main --coverage` (full unit coverage per touched package).
 
 "Unavailable" is not passed: block.
 
-Red: nobody edits the integration branch. Classify each failure against the requirement ([phase 4](4-verify.md) A), find the owning unit (`git -C <integration worktree> log --oneline origin/main..HEAD -- <file>` shows the unit commit), and add fix unit `<owner id>r<k>` whose one task is the verbatim failing command and its last output lines, with its class (product or test) and the requirement it fails; a TEST_ISSUE_UNFIXED becomes a fix unit whose one task is the E2E verifier's cause and proposed test change. Run it through M2 and M3 like any unit (build, gates, two self-review rounds, merge), then M5 again. Repeat until green; the stuck check of the Caps section applies. Never open the final PR over a red gate.
+Red: nobody edits the integration branch. Classify each failure against the requirement ([phase 4](4-verify.md) A), find the owning unit (`git -C <integration worktree> log --oneline origin/main..HEAD -- <file>` shows the unit commit), and add fix unit `<owner id>r<k>` whose one task is the verbatim failing command and its last output lines, with its class (product or test, which you decide; the E2E verifier's label is only a hint) and the requirement it fails; for an e2e failure add the case id and the verifier's file:line and cause. Its builder is `medium` tier, `medium` effort, and its e2e test commits get [Check e2e test fixes](4-verify.md#check-e2e-test-fixes). Run it through M2 and M3 like any unit (build, gates, two self-review rounds, merge), then M5 again. Repeat until green; the stuck check of the Caps section applies. Never open the final PR over a red gate.
 
 ## M6. Open the final PR
 

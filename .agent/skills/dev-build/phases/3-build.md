@@ -12,7 +12,7 @@ Spawn them as [prompts/README.md](../prompts/README.md) says.
 `SKILLS:` is self-reported, not proof alone.
 
 1. `SKILLS:`: a Fixer lists `superpowers:systematic-debugging` then `superpowers:test-driven-development`; an Implementer lists `superpowers:test-driven-development`.
-2. Git evidence: `git -C <worktree> log --stat <base>..HEAD` (`<base>` = `origin/main` for the first task, else the previous task's commit). A Fixer's diff has a new regression test; an Implementer's has tests for the task's behaviors. Source changes with no tests did not follow TDD. ([Phase 4](4-verify.md) also proves the regression test fails without the fix.)
+2. Git evidence: `git -C <worktree> log --stat <base>..HEAD` (`<base>` = `origin/main` for the first task, else the previous task's commit). A Fixer's diff has a new regression test; an Implementer's has tests for the task's behaviors. Source changes with no tests did not follow TDD. A builder that fixes only test bugs (a re-spawn or a fix unit) changes tests alone and needs no new regression test. For any commit that fixes an e2e test, also run [Check e2e test fixes](4-verify.md#check-e2e-test-fixes). ([Phase 4](4-verify.md) also proves the regression test fails without the fix.)
 
 If either fails, even when the diff looks fine, spawn the builder once more with `NOTE: You did not load <skill>. Load it now with the Skill tool as your first action, follow it, and redo what does not comply. Your reply is rejected again if SKILLS lacks it.` Never accept the work as is, and never fix or finish it yourself. A second miss is a technical failure.
 

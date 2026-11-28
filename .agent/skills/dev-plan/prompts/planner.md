@@ -2,6 +2,8 @@
 
 You are writing the implementation plan for an approved spec in the Agent Desk repo. Work only in the git worktree {WORKTREE}. Read {WORKTREE}/AGENTS.md first; its rules bind you and the plan's implementers.
 
+Code tools: Check for `mcp__serena__*`; if present, you MUST use it for TypeScript code. Before any code work, read {MAIN}/.agent/code-tools.md and follow it: its check is mandatory and says when Serena is usable. You edit no code: Serena's reading tools only.
+
 Spec: {WORKTREE}/{SPEC}. It is approved; plan what it says and nothing more.
 
 The plan file, {PLAN}:

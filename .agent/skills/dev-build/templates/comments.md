@@ -6,7 +6,7 @@ Post with `gh issue comment <n> --body-file <file>`. Plain everyday language, sh
 
 ## Needs clarification
 
-One form, one question ([AGENTS.md › Talking to humans](../../../../AGENTS.md#talking-to-humans): one question per message, answerable in 30 seconds); the next run asks the next gap. First header: Triage blocks on a gap, or a Fixer can't reproduce the bug. Second header: everything else (the Advisor's `HUMAN QUESTION`, an Advisor verdict you rejected, the Advisor cap or a repeat, a technical failure). Either way the run ends at **Blocked**.
+One form, one question ([AGENTS.md › Talking to humans](../../../../AGENTS.md#talking-to-humans): one question per message, answerable in 30 seconds); the next run asks the next gap. First header: Triage blocks on a gap, or a Fixer can't reproduce the bug. Second header: everything else (the Advisor's `HUMAN QUESTION`, an Advisor verdict you rejected, a repeat, a technical failure). Either way the run ends at **Blocked**.
 
 ```markdown
 **dev-build: I can't start this yet. The requirement isn't clear enough to build without guessing.**

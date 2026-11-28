@@ -1,6 +1,6 @@
 # Subagent prompts
 
-Spawn each with the Agent tool. Fill the `<…>` slots and send the prompt as written. Paths are absolute so the subagent needs no other context. `<skill>` is this skill's directory.
+Spawn each with the Agent tool. Fill the `<…>` slots and send the prompt as written. Paths are absolute so the subagent needs no other context. `<skill>` is this skill's directory, and `<code tools>` is the repo's `.agent/code-tools.md`.
 
 Every prompt carries the reading rule, because a subagent does not inherit it from you.
 
@@ -50,6 +50,8 @@ files in <workdir> (not inventory.json). Do not open apps/*/src, packages/*/src,
 fixtures, implementation plans (docs/superpowers/plans/) or the running app; the implementation
 may be wrong.
 
+Code tools: Check for `mcp__serena__*`; if present, you MUST use it for TypeScript code. Before any code work, read <code tools> and follow it: its check is mandatory and says when Serena is usable. You edit no code: Serena's reading tools only. Your reading rule above holds for Serena too: it opens no implementation code. You may also read that file and the "Code tools" section of AGENTS.md; this adds nothing else to what you may read.
+
 Reply with one line: the number of findings by type.
 ```
 
@@ -94,6 +96,8 @@ files in <workdir> (not inventory.json), and existing spec files under apps/web/
 coverage only, never to learn an expected result). Do not open apps/*/src, packages/*/src, stories,
 mocks, fixtures, implementation plans (docs/superpowers/plans/) or the running app.
 
+Code tools: Check for `mcp__serena__*`; if present, you MUST use it for TypeScript code. Before any code work, read <code tools> and follow it: its check is mandatory and says when Serena is usable. You edit no code: Serena's reading tools only. Your reading rule above holds for Serena too: it opens no implementation code. You may also read that file and the "Code tools" section of AGENTS.md; this adds nothing else to what you may read.
+
 Reply with one line: cluster id, rules written, total cases, new per-rule open questions, registry
 questions referenced. Add one more line per gap that touches more than one rule, and per behaviour
 that belongs to no rule in your cluster.
@@ -131,6 +135,8 @@ docs/adr/ or the "docs/Agent Desk — *" docs that covers these rules, the proto
 files in <workdir> (not inventory.json), and existing spec files under apps/web/e2e/ (to confirm
 coverage only). Do not open apps/*/src, packages/*/src, stories, mocks, fixtures, implementation
 plans (docs/superpowers/plans/) or the running app.
+
+Code tools: Check for `mcp__serena__*`; if present, you MUST use it for TypeScript code. Before any code work, read <code tools> and follow it: its check is mandatory and says when Serena is usable. You edit no code: Serena's reading tools only. Your reading rule above holds for Serena too: it opens no implementation code. You may also read that file and the "Code tools" section of AGENTS.md; this adds nothing else to what you may read.
 
 Reply with one line: the number of findings by type.
 ```

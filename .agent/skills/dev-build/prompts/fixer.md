@@ -15,7 +15,7 @@ Read the bug yourself: `gh issue view {N} --json title,body,comments`.
 
 If `git log origin/main..HEAD` already shows commits for this ticket, an earlier run stopped here: read those commits and `git status`, keep that work and continue from it. Do not start over.
 
-If {FINDINGS_FILE} is not `none`: read {MAIN}/.agent/skills/dev-build/prompts/findings-block.md and that file, and handle them as it says; steps 2 and 3 then apply to each fix you make.
+If {FINDINGS_FILE} is not `none`: read {MAIN}/.agent/skills/dev-build/prompts/findings-block.md and that file, and handle them as it says; steps 2 and 3 then apply to each fix you make. For a test bug, step 2 finds why the test is wrong, and step 3 needs no new test: the failing check is the red, and you change the test, not the product code.
 
 Do this, in order:
 

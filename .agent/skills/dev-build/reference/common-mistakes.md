@@ -14,11 +14,11 @@ Red flags: stop. These hold even when the user says to hurry or skip a step. Say
 - "Small fix nearby, I'll include it": out of scope. Mention it in the PR.
 - "Unit tests cover it; skip the e2e this time" / "The stack takes long to start": with E2E requirements the E2E verifier runs on every gates run. Only `NO_ENGINE` may leave local specs unrun.
 - "The e2e or unit test failed; edit the test until it passes": classify it against the requirement first. A product bug is fixed in the product code, never by changing the test; only a test that departs from the requirement is fixed. Never skip a flaky one.
-- "The E2E verifier says TEST_ISSUE, accept it": open its commit and the case. A loosened assertion is a hidden product bug.
+- "The E2E verifier says TEST_ISSUE, accept it": decide the class yourself from the case, then open the builder's test commit. A loosened assertion is a hidden product bug.
 - "The test passes, so the rule is met" / "The e2e fails but the code looks right": the rule is the truth; code and tests are both under suspicion.
 - "The rule is outdated; adjust the case or the test": never edit a rule to fit code. Advisor, then a human.
 - "Hit the memory cap; list the rest as not run": red gates. Rerun the unrun tests one at a time until done.
-- "The Advisor is `high` tier, just do what it says": check MUST ESCALATE and open its top source. Post the decision on the issue and list it in the PR.
+- "The Advisor ruled, just do what it says": check MUST ESCALATE and open its top source. Post the decision on the issue and list it in the PR.
 - "A check is stuck / the agent keeps failing; I'll stop and report": ask the Advisor first. Only `needs_human` stops.
 - "The plan has 10 phases; open 10 PRs" / "Open a sub-PR for this unit": one PR to `main` per run; units get self-review, local merge, CI once at the end.
 - "No dependencies stated, run all units at once": unstated means serial. At most 3 ready units at once.
@@ -28,4 +28,4 @@ Red flags: stop. These hold even when the user says to hurry or skip a step. Say
 - "The Self-reviewer says clean, merge the unit": check its findings, the gates run and up-to-date yourself.
 - "Final verify is red; fix it on the integration branch": nobody edits there. Add a fix unit and merge it locally.
 - "Resuming; rebuild unit 2 to be safe": a merged unit is done. Follow `UNIT STATE`.
-- "It's a one-line fix, faster if I do it" / "The agent failed, I'll patch it myself": the orchestrator never writes code. Spawn a `medium` Implementer or Fixer; if it fails twice, ask the Advisor.
+- "It's a one-line fix, faster if I do it" / "The agent failed, I'll patch it myself": the orchestrator never writes code. Spawn a `medium` Implementer or Fixer (a merge conflict: the `low` Implementer of units.md M3); if it fails twice, ask the Advisor.

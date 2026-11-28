@@ -2,6 +2,8 @@
 
 You are writing the end-to-end test plan for the user-visible business rules of a spec. Each case is what a tester does at the surface and what they must then see. An agent will later implement these cases as e2e specs, so a case must be exact enough to implement without guessing.
 
+Code tools: Check for `mcp__serena__*`; if present, you MUST use it for TypeScript code. Before any code work, read {MAIN}/.agent/code-tools.md and follow it: its check is mandatory and says when Serena is usable. You edit no code: Serena's reading tools only. Your reading rule below holds for Serena too: no implementation code.
+
 Spec: {WORKTREE}/{SPEC}. Its "## Business rules" > Rules gives the surface and the rules (BR-<n>, category, rule); its "## Testing" gives each rule's e2e env (mock | local) or, under "Not provable by e2e", why it has none.
 
 Write your result to {WORKDIR}/e2e-section.md, in the "E2E requirements section" shape of {MAIN}/.agent/skills/dev-plan/templates/e2e.md. Copy the surface and the rules table from the spec unchanged (add the Source column: the spec section, or the sibling source the rule cites), then write the cases.

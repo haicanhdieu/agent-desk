@@ -46,6 +46,10 @@ When a detail is missing, resolve it in this order, and stop at the first that a
 
 Never fill a gap from the code, from the app, or from what seems likely.
 
+## Code tools
+
+Check for `mcp__serena__*`; if present, you MUST use it for TypeScript code. You and every subagent **MUST** run the check in [code-tools.md](../../code-tools.md) before any code work and follow its limits. The hard rule above holds for Serena too: it never opens implementation code. No role here edits code: Serena's reading tools only. Each subagent gets this from its prompt in [agent-prompts.md](agent-prompts.md).
+
 ## Who does what
 
 Subagents are plain spawns of the Agent tool; there is nothing else to orchestrate them. Each runs once and writes one file. Spawn each on the tier (model from `.agent/models.json`) and effort [agent-prompts.md](agent-prompts.md) gives it, never on the session model by default.
