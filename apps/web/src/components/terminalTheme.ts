@@ -1,3 +1,4 @@
+import type { AgentKind } from '@agentdesk/contracts';
 import type { ITheme } from '@xterm/xterm';
 
 // The live terminal's xterm theme, read from the design tokens (ds/tokens.css) at runtime: xterm draws with concrete
@@ -50,15 +51,15 @@ function token(styles: CSSStyleDeclaration, name: string): string | undefined {
  */
 const OPENCODE_BACKGROUND_ENTRY = 232 - 16;
 
-/** xterm's theme from the tokens in effect on `el`. */
-export function terminalTheme(el: Element): ITheme {
+/** xterm's theme from the tokens in effect on `el`; the colour 232 remap is only for OpenCode's terminal. */
+export function terminalTheme(el: Element, agentKind?: AgentKind | null): ITheme {
   const styles = getComputedStyle(el);
   const theme: ITheme = {};
   for (const [key, name] of Object.entries(TOKENS)) {
     const value = token(styles, name);
     if (value !== undefined) Object.assign(theme, { [key]: value });
   }
-  if (theme.background !== undefined) {
+  if (agentKind === 'opencode' && theme.background !== undefined) {
     // An empty entry is not a colour: xterm keeps its own palette colour there.
     theme.extendedAnsi = Array.from({ length: OPENCODE_BACKGROUND_ENTRY + 1 }, (_, i) =>
       i === OPENCODE_BACKGROUND_ENTRY ? (theme.background ?? '') : '',

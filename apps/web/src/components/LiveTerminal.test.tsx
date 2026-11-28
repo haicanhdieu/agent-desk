@@ -31,7 +31,7 @@ describe('LiveTerminal', () => {
   it('draws the colour OpenCode paints its background with as the terminal background', () => {
     document.documentElement.style.setProperty('--term', '#0f1216');
     try {
-      render(<LiveTerminal />);
+      render(<LiveTerminal agentKind="opencode" />);
     } finally {
       document.documentElement.style.removeProperty('--term');
     }
@@ -39,6 +39,19 @@ describe('LiveTerminal', () => {
     expect(ansi?.[216]).toBe('#0f1216');
     expect(ansi?.[215]).toBe(''); // the neighbours keep xterm's own palette (an unparsable entry falls back to it)
   });
+
+  it.each([['claude' as const], [undefined]])(
+    'keeps xterm colour 232 when the run agent is %s, not OpenCode',
+    (agentKind) => {
+      document.documentElement.style.setProperty('--term', '#0f1216');
+      try {
+        render(<LiveTerminal {...(agentKind !== undefined && { agentKind })} />);
+      } finally {
+        document.documentElement.style.removeProperty('--term');
+      }
+      expect(FakeXterm.latest().options.theme?.['extendedAnsi']).toBeUndefined();
+    },
+  );
 
   it('a terminal mounted hidden sends no resize', () => {
     const onResize = vi.fn();

@@ -176,6 +176,7 @@ const run61: RunSummary = {
 const run62: RunSummary = {
   ...base,
   id: 62,
+  provider: 'opencode',
   status: 'idle',
   statusNote: 'Waiting 3m. Auto-finish after 30m unattended',
   command: '/code-review',

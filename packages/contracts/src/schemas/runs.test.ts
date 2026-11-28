@@ -16,7 +16,7 @@ const run = {
   skillName: 'triage',
   prompt: null,
   finalPrompt: null,
-  agent: { id: ID, name: 'a', model: 'm' },
+  agent: { id: ID, name: 'a', model: 'm', provider: 'claude' },
   ticket: { ref: 'r#1', kind: 'issue', number: 1, title: 't', url: 'https://example.test/1', labels: [] },
   args: null,
   status: 'paused',
@@ -304,9 +304,18 @@ describe('run usage on the DTOs', () => {
 
 describe('RunDto agent id and failure code', () => {
   it('carries the agent id, null when the agent row is gone', () => {
-    const r = RunDto.safeParse({ ...run, agent: { id: null, name: 'a', model: 'm' } });
+    const r = RunDto.safeParse({ ...run, agent: { id: null, name: 'a', model: 'm', provider: null } });
     expect(r.success && r.data.agent.id).toBeNull();
-    expect(RunDto.safeParse({ ...run, agent: { name: 'a', model: 'm' } }).success).toBe(false);
+    expect(RunDto.safeParse({ ...run, agent: { name: 'a', model: 'm', provider: null } }).success).toBe(false);
+  });
+
+  it('carries the agent provider, null when the agent row is gone, and refuses an unknown or missing one', () => {
+    const r = RunDto.safeParse({ ...run, agent: { id: ID, name: 'a', model: 'm', provider: 'opencode' } });
+    expect(r.success && r.data.agent.provider).toBe('opencode');
+    expect(RunDto.safeParse({ ...run, agent: { id: ID, name: 'a', model: 'm', provider: 'nope' } }).success).toBe(
+      false,
+    );
+    expect(RunDto.safeParse({ ...run, agent: { id: ID, name: 'a', model: 'm' } }).success).toBe(false);
   });
 
   it('carries a structured failure code, null otherwise', () => {

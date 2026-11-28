@@ -48,6 +48,8 @@ export type RunSummary = {
   skill: string;
   agent: string;
   model: string;
+  /** The agent's provider; absent is Claude. */
+  provider?: AgentKind;
   ticket: Ticket;
   triggeredBy: Actor;
   startedAt: string;
