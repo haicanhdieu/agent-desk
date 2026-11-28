@@ -56,7 +56,7 @@ export interface DeskSkillsProps {
   folders?: string[];
   /** The project's default branch, where changes land. Null when it is not known; defaults to `main` (stories). */
   defaultBranch?: string | null;
-  /** Where History opens the selected skill's file; absent when the connected repo has no browser URL. */
+  /** Where History opens the selected skill's file; absent when the connected repo has no browser URL; History is then not drawn. */
   historyHref?: string;
   /** A submission is in flight (Submit changes disabled). */
   committing?: boolean;
@@ -160,17 +160,7 @@ function SkillEditor({
           >
             History
           </Button>
-        ) : (
-          <Button
-            variant="ghost"
-            size="sm"
-            icon="external"
-            disabled
-            title="History is unavailable until the connected repository and its default branch are known"
-          >
-            History
-          </Button>
-        )}
+        ) : null}
         <IconButton icon="trash" aria-label="Delete skill" onClick={() => onDelete?.(skill.name)} />
       </div>
       {view === 'edit' && (

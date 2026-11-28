@@ -836,7 +836,12 @@ test('TC-27.2: the top bar has no repository button or link on Runs, a run page 
   }
 });
 
-test('TC-44.3: a skill open on Skills has no History control', async ({ page }) => {
+test('TC-44.3: a skill open on Skills, with no repository file URL, has no History control', async ({ page }) => {
+  await page.route(`**/api/projects/${P1}`, async (route) => {
+    const response = await route.fetch();
+    const project = (await response.json()) as Record<string, unknown>;
+    await route.fulfill({ response, json: { ...project, skillFileBaseUrl: null } });
+  });
   await page.goto(deskUrl('skills'));
   // The skill is open: its source editor and its h2 are there before the absence checks mean anything.
   await expect(page.getByRole('textbox', { name: 'SKILL.md source' })).toBeVisible();

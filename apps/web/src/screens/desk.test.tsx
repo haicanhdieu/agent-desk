@@ -191,11 +191,10 @@ describe('DeskSkills', () => {
     expect(link).toHaveAttribute('rel', 'noopener noreferrer');
   });
 
-  it('disables History with an explanation when the file URL is unknown', () => {
+  it('draws no History control when the file URL is unknown', () => {
     render(<DeskSkills frame={deskFrame} skills={skills} activeName="code-build" />);
-    const button = screen.getByRole('button', { name: 'History' });
-    expect(button).toBeDisabled();
-    expect(button).toHaveAttribute('title', expect.stringContaining('connected repository'));
+    expect(screen.queryByRole('link', { name: 'History' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'History' })).toBeNull();
   });
 
   const submission = {
@@ -910,7 +909,7 @@ describe('DeskSkills in the shell', () => {
     expect(within(header).getByText('.claude/skills/ or .agent/skills/ on main')).toBeInTheDocument();
   });
 
-  it('has no placeholder History link and, empty, no second New skill button', () => {
+  it('has no History control without a file URL and, empty, no second New skill button', () => {
     const { unmount } = inShell(<DeskSkills frame={deskFrame} skills={skills} activeName="code-build" />);
     expect(screen.queryByRole('link', { name: 'History' })).toBeNull();
     unmount();
@@ -925,10 +924,10 @@ describe('DeskSkills in the shell', () => {
     expect(within(header).getByText('Workspace setup needs attention')).toBeInTheDocument();
   });
 
-  it('outside the shell History stays disabled until the repository file is known', () => {
+  it('outside the shell History is absent until the repository file is known', () => {
     render(<DeskSkills frame={deskFrame} skills={skills} activeName="code-build" />);
     expect(screen.queryByRole('link', { name: 'History' })).toBeNull();
-    expect(screen.getByRole('button', { name: 'History' })).toBeDisabled();
+    expect(screen.queryByRole('button', { name: 'History' })).toBeNull();
   });
 });
 

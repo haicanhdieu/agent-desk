@@ -101,7 +101,7 @@ describe('desk skills route', () => {
     );
   });
 
-  it('History is disabled when the connected repo has no file prefix', async () => {
+  it('History is absent when the connected repo has no file prefix', async () => {
     await renderRoute(`${base}/skills`, {
       scenario: () => {
         const row = mockDb.state.projects.find((p) => p.id === projectId);
@@ -109,10 +109,9 @@ describe('desk skills route', () => {
         row.skillFileBaseUrl = null;
       },
     });
-    const history = () => screen.getByRole('button', { name: 'History' });
     expect(await screen.findByRole('heading', { level: 2, name: 'code-build' })).toBeInTheDocument();
-    expect(history()).toBeDisabled();
-    expect(history()).toHaveAttribute('title', expect.stringContaining('connected repository'));
+    expect(screen.queryByRole('link', { name: 'History' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'History' })).toBeNull();
   });
 
   it('History uses a non-GitHub provider file prefix from the API', async () => {
