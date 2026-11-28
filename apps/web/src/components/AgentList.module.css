@@ -8,6 +8,7 @@
 }
 .head {
   display: flex;
+  flex-wrap: wrap;
   align-items: flex-start;
   justify-content: space-between;
   gap: 16px;
@@ -16,6 +17,7 @@
   display: flex;
   flex-direction: column;
   gap: 4px;
+  flex: 1 1 200px;
   min-width: 0;
 }
 .title {
@@ -81,4 +83,9 @@
 }
 .dialogText {
   margin: 0;
+}
+
+/* The agent's name in the delete dialog's title may be one long word. */
+.dialogName {
+  overflow-wrap: anywhere;
 }

@@ -6,6 +6,7 @@ import type { AgentPaneAgent } from '@/mocks/types';
 import { AgentPane } from './AgentPane';
 import { toModelList } from './ModelPicker';
 import type { ProviderPickerOption } from './ProviderPicker';
+import { viewport } from '@/screens/viewports';
 
 const providers: ProviderPickerOption[] = [
   ...providerPickerOptions.runnable.map((o) => ({ kind: o.kind, label: o.label, logo: o.logo, available: true })),
@@ -201,3 +202,15 @@ export const EditGone: Story = { args: { mode: 'edit', agent: named('Claude - Wo
 
 // View pane
 export const ReadOnly: Story = { args: { mode: 'view', agent: named('Claude - Work'), modelList: live } };
+
+/** Phone (BR-65): the pane is the full width; its footer wraps with the note on its own line. */
+export const PhoneAdd: Story = {
+  globals: viewport(390, 844),
+  play: async ({ canvasElement }) => {
+    await userEvent.click(within(canvasElement).getByRole('radio', { name: 'OpenCode' }));
+  },
+};
+export const PhoneEdit: Story = {
+  args: { mode: 'edit', agent: agentPaneAgents[0], modelList: live },
+  globals: viewport(390, 844),
+};

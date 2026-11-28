@@ -9,6 +9,7 @@ import { defaultTriggerState, mockDb } from '@/mocks/msw/db';
 import { applyProjectSpace, type ProjectSpaceRole } from '@/mocks/msw/projectSpaceScenarios';
 import { server } from '@/mocks/msw/node';
 import { scenarios } from '@/mocks/msw/scenarios';
+import { setViewportWidth } from '@/test/fakeMatchMedia';
 import { renderRoute } from '@/test/renderRoute';
 
 const projectId = ids.project.invoicerApi;
@@ -1101,6 +1102,20 @@ describe('desk agent route: agents', () => {
     await user.keyboard('{Escape}');
     await waitFor(() => expect(screen.queryByRole('heading', { level: 2, name: 'Edit agent' })).toBeNull());
     await waitFor(() => expect(edit).toHaveFocus());
+  });
+
+  it('TC-62.5: Escape on the open menu drawer closes the drawer, not the pane, and keeps what was typed', async () => {
+    act(() => setViewportWidth(390));
+    const { user } = await openAgents();
+    await user.click(screen.getByRole('button', { name: 'Add agent' }));
+    await user.click(await screen.findByRole('radio', { name: 'OpenCode' }));
+    await user.type(screen.getByLabelText('Name'), 'OpenCode - Phone');
+    await user.click(screen.getByRole('button', { name: 'Open menu' }));
+    await screen.findByRole('dialog', { name: 'Main menu' });
+    await user.keyboard('{Escape}');
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Main menu' })).toBeNull());
+    expect(screen.getByRole('heading', { level: 2, name: 'Add agent' })).toBeInTheDocument();
+    expect(screen.getByLabelText('Name')).toHaveValue('OpenCode - Phone');
   });
 
   it('a reader without agent:update sees the read-only pane and no write controls', async () => {

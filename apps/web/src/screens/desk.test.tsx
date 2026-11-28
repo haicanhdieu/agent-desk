@@ -524,6 +524,70 @@ describe('DeskAgent', () => {
     expect(screen.getByLabelText('End idle runs after')).toHaveValue(String(base.limits.idleEndMinutes));
   });
 
+  describe('the selected tab is scrolled into view in the strip (TC-65.34)', () => {
+    const original = Element.prototype.scrollIntoView;
+    const shown: { tab: string | null; options: unknown }[] = [];
+    beforeEach(() => {
+      shown.length = 0;
+      Element.prototype.scrollIntoView = function (this: Element, options?: boolean | ScrollIntoViewOptions) {
+        shown.push({ tab: this.textContent, options });
+      };
+    });
+    afterEach(() => {
+      Element.prototype.scrollIntoView = original;
+    });
+    const nearest = { block: 'nearest', inline: 'nearest' };
+
+    it('scrolls the tab the screen opens on', () => {
+      render(<DeskAgent {...base} onDeleteProject={vi.fn()} tab="danger" />);
+      expect(shown.at(-1)).toEqual({ tab: 'Danger zone', options: nearest });
+    });
+
+    it('scrolls the tab the caller changes to', () => {
+      const { rerender } = render(<DeskAgent {...base} onDeleteProject={vi.fn()} tab="agents" />);
+      expect(shown.at(-1)).toEqual({ tab: 'Agents', options: nearest });
+      rerender(<DeskAgent {...base} onDeleteProject={vi.fn()} tab="limits" />);
+      expect(shown.at(-1)).toEqual({ tab: 'Limits', options: nearest });
+    });
+
+    it('scrolls the tab that is clicked when the screen keeps its own tab', async () => {
+      render(<DeskAgent {...base} />);
+      await userEvent.click(screen.getByRole('tab', { name: 'GitHub connection' }));
+      expect(shown.at(-1)).toEqual({ tab: 'GitHub connection', options: nearest });
+    });
+
+    it('Arrow, Home and End still move between the tabs', async () => {
+      render(<DeskAgent {...base} onDeleteProject={vi.fn()} />);
+      screen.getByRole('tab', { name: 'Agents' }).focus();
+      await userEvent.keyboard('{ArrowRight}');
+      expect(screen.getByRole('tab', { name: 'GitHub connection' })).toHaveAttribute('aria-selected', 'true');
+      await userEvent.keyboard('{End}');
+      expect(screen.getByRole('tab', { name: 'Danger zone' })).toHaveAttribute('aria-selected', 'true');
+      expect(shown.at(-1)).toEqual({ tab: 'Danger zone', options: nearest });
+      await userEvent.keyboard('{Home}');
+      expect(screen.getByRole('tab', { name: 'Agents' })).toHaveAttribute('aria-selected', 'true');
+      expect(screen.getByRole('tab', { name: 'Agents' })).toHaveFocus();
+    });
+  });
+
+  it('marks the main while the add or edit pane is open, so a narrow window shows the pane in place of the list (BR-65)', () => {
+    const pane = {
+      mode: 'edit' as const,
+      kinds: agentKindViews,
+      providers: [],
+      agent: agentPaneAgents[0],
+      modelList: toModelList({ status: 'success' as const, data: agentModelsFixtures.live }, null),
+      onClose: vi.fn(),
+    };
+    const { rerender } = render(<DeskAgent {...base} />);
+    expect(screen.getByRole('main')).not.toHaveAttribute('data-pane-open');
+    rerender(<DeskAgent {...base} pane={pane} />);
+    expect(screen.getByRole('main')).toHaveAttribute('data-pane-open', 'true');
+    // The list and the tab strip stay in the page (hidden or kept by the layout), so focus can return to the opener.
+    expect(screen.getByRole('button', { name: `Edit ${agentRowViews[0].name}` })).toBeInTheDocument();
+    expect(screen.getByRole('tablist', { name: 'Agent and project settings' })).toBeInTheDocument();
+  });
+
   it('the panel is the one scroll area: focusable, named, and the Pagination sits outside it (BR-61)', () => {
     render(<DeskAgent {...base} agents={{ ...agentList, pagination: { ...agentList.pagination, total: 45 } }} />);
     const scroll = screen.getByRole('region', { name: 'Agents list' });

@@ -107,7 +107,8 @@ function DeskAgentPage() {
   useEffect(() => {
     if (!paneOpen || paneBusy || rowActions.deleteDialog) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') closePane();
+      // A modal on top (the menu drawer below 1024px) takes the key: Escape closes it and the pane keeps what was typed.
+      if (e.key === 'Escape' && !document.querySelector('[role="dialog"][aria-modal="true"]')) closePane();
     };
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);

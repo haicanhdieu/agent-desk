@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { TabPanel, Tabs } from '@/ds';
 import {
   AgentPane,
@@ -145,9 +145,18 @@ export function DeskAgent({
     onTriggerChange?.(next);
   };
 
+  // The strip scrolls sideways inside itself on a phone: keep the selected tab in view without moving the page.
+  const stripRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    stripRef.current
+      ?.querySelector<HTMLElement>('[role="tab"][aria-selected="true"]')
+      ?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+  }, [active]);
+
+  const paneOpen = active === 'agents' && pane !== undefined;
   const lead = frame.warning ? <SetupWarningBanner warning={frame.warning} /> : undefined;
   const strip = (
-    <div className={styles.agentTabs}>
+    <div ref={stripRef} className={styles.agentTabs}>
       <Tabs tabs={tabs} value={active} onChange={changeTab} label="Agent and project settings" idPrefix={TAB_PREFIX} />
     </div>
   );
@@ -192,13 +201,13 @@ export function DeskAgent({
   );
   // The shell draws the bar and the menu: one main holding the column (header, tabs, panel) and the side pane.
   return (
-    <main className={styles.shellSplitMain}>
+    <main className={styles.shellSplitMain} data-pane-open={paneOpen || undefined}>
       <div className={`${styles.agentSettingsMain} ${styles.shellSplitCol}`}>
         <PageHeader title="Agent & settings" />
         {strip}
         {panels}
       </div>
-      {active === 'agents' && pane && <AgentPane key={`${pane.mode}-${pane.agent?.id ?? 'new'}`} {...pane} />}
+      {paneOpen && <AgentPane key={`${pane.mode}-${pane.agent?.id ?? 'new'}`} {...pane} />}
     </main>
   );
 }

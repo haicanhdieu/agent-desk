@@ -803,3 +803,15 @@ Three boards are registered: `DeskRulesPhone`, `DeskRulesPromptPhone` and `DeskS
 - Agent call: below 640px the skills list is a bordered box above the editor, capped at 190px with its own scroll; the editor column keeps 640px and the page area scrolls; the editor, preview and diff keep at least 240px; the commit bar wraps.
 - Agent call: `DeskRulesPromptPhone` opens the custom prompt rule `/triage`; the phone stories reuse the desktop screens inside the project shell frame at 390px, so the bar and the menu are the real shell.
 - No `.tsx` change was needed in `SkillList`, `CommitBar` or the `RuleForm` stories: the layouts are CSS only.
+
+## Sidebar navigation shell: phone Agent & settings (Task 57)
+
+Seven boards are registered: `DeskAgentPhone`, `DeskAgentAddPhone`, `DeskAgentEditPhone`, `DeskAgentRowMenuPhone`, `DeskAgentDeletePhone`, `DeskAgentGitHubPhone` and `DeskAgentLimitsPhone`, 487 in all. PARITY was not run in this session (no browser), so no pair was checked; the seven boards are unchecked. `scripts/parity.mjs` needed no change: it reads the board list from `canvas.json` and `storyIds.ts`. There is no Danger zone board and no new desktop board.
+
+- Agent call: below 1024px an open add, edit or view pane takes the full width under the page header and the tab strip, and the tab panel is `display:none` (the list stays in the page, so focus returns to its opener); `DeskAgent` marks its main with `data-pane-open`.
+- Agent call: below 640px an agent row stacks after the logo (name and Default chip, subline, model, status, then Edit and the row menu). From 1024 to 1279px with a pane open the rows stack the same way, because the list column is then under 300px (the rule is keyed to `data-pane-open`, not to a container query, so the row menu's fixed popover keeps its viewport placement).
+- Agent call: the selected tab is scrolled into view with `{ block: 'nearest', inline: 'nearest' }` when the screen opens on or changes to a tab; Arrow, Home and End are unchanged.
+- Agent call: the 256-character agent name is cut with an ellipsis in the row (its full text is the title) and wraps in the delete dialog title.
+- Agent call: Escape on the open menu drawer no longer also closes an open agent pane (TC-62.5): the pane's Escape handler ignores the key while a modal dialog is open.
+- Agent call: the new shell scenario `phoneLongAgentName` gives invoicer-api 30 agents with the third named with 256 characters.
+- No copy, state or behaviour of the multi-agent work changed apart from the Escape case above.

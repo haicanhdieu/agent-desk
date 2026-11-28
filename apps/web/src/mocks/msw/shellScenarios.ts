@@ -1,6 +1,6 @@
 import type { SkillDto } from '@agentdesk/contracts';
 import { roleFixtures } from '../dto/access';
-import { agentsFixture } from '../dto/agents';
+import { agentsFixture, manyAgents } from '../dto/agents';
 import { agentListId, ids } from '../dto/ids';
 import { defaultTriggerState, mockDb, type InvitationRow, type MockState } from './db';
 import { applyOnboardingScenario } from './onboardingScenarios';
@@ -40,6 +40,7 @@ export const SHELL_SCENARIOS = [
   'memberOwnsRuns',
   'memberOthersRuns',
   'phoneLongNames',
+  'phoneLongAgentName',
 ] as const;
 export type ShellScenario = (typeof SHELL_SCENARIOS)[number];
 
@@ -335,6 +336,18 @@ const seeders: Record<ShellScenario, () => void> = {
         repoPath: `acme/project-${i}`,
       });
     }
+  },
+  // Alice owns her org; invoicer-api has 30 agents (two pages of 20), the third one named with 256 characters. The first is
+  // the default; the others have no rule and no open run, so they can be deleted.
+  phoneLongAgentName() {
+    applyOnboardingScenario('singleOrg');
+    const rows = manyAgents(30);
+    const third = rows[2];
+    if (third) third.name = `Long ${'agent-name-'.repeat(30)}`.slice(0, 256);
+    state().agents = [
+      ...state().agents.filter((a) => a.projectId !== P1),
+      ...rows.map((a) => ({ ...a, projectId: P1 })),
+    ];
   },
   // An org and a project alice is not in: they must show nowhere.
   foreignOrg() {

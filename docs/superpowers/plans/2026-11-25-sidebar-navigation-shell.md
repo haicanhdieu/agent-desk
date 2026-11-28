@@ -1741,13 +1741,13 @@ it.each([
 - Boards: `DeskAgentPhone`, `DeskAgentAddPhone`, `DeskAgentEditPhone`, `DeskAgentRowMenuPhone`, `DeskAgentDeletePhone`, `DeskAgentGitHubPhone` (no dead controls, the strip scrolled to the tab), `DeskAgentLimitsPhone` (pinned "Save limits") (expected count 487). There is no Danger zone board and no new desktop board.
 - Covers: TC-62.5, TC-65.13, TC-65.28 to TC-65.32, TC-65.34, TC-65.35.
 
-- [ ] **Step 0: Multi-agent gate.** Run both checks in "Multi-agent gate". If either fails, stop: write no code and report which check failed.
+- [x] **Step 0: Multi-agent gate.** Run both checks in "Multi-agent gate". If either fails, stop: write no code and report which check failed.
 - [ ] **Step 1: Write failing tests.** In `desk.test.tsx`: when the screen opens on, or changes to, a tab, the selected tab is scrolled into view (a spy on `scrollIntoView` with `block: 'nearest', inline: 'nearest'`), and Arrow, Home and End still work as before. In `phone-pages.spec.ts`: "TC-65.13", "TC-65.28", "TC-65.29", "TC-65.30", "TC-65.31", "TC-65.32", "TC-65.34", "TC-65.35", each with the fill-page fit check. In `drawer.spec.ts` (Task 42): "TC-62.5" (the add pane with a typed name and fake token; after each step the pane is open, the values are kept and the address is unchanged).
 - [ ] **Step 2: Run** VITEST `src/screens/desk.test.tsx` and MOCK `phone-pages drawer`. Expected: FAIL on the new cases (TC-62.5 may already pass; then keep it as a regression test and say so).
-- [ ] **Step 3: Implement narrow layouts only:** the tab strip is one row that scrolls sideways inside itself and never wraps or widens the page; below 640px agent rows stack (logo, name, Default chip; subline; model; status; "Edit" and the row menu) with nothing hidden; the row menu popover and the toast stay on screen; below 1024px the add, edit and view pane replaces the list; the delete dialog is full width; provider cards and credential cards stack, "Coming soon" chips wrap, the authentication control fits or wraps; Limits is one column with wrapping unit controls; GitHub connection key and value rows stack; Danger zone is one column. No copy, state or behaviour of the multi-agent work changes.
-- [ ] **Step 4: Stories** at 390 for each component whose layout changed and for the seven boards; register them (REG).
+- [x] **Step 3: Implement narrow layouts only:** the tab strip is one row that scrolls sideways inside itself and never wraps or widens the page; below 640px agent rows stack (logo, name, Default chip; subline; model; status; "Edit" and the row menu) with nothing hidden; the row menu popover and the toast stay on screen; below 1024px the add, edit and view pane replaces the list; the delete dialog is full width; provider cards and credential cards stack, "Coming soon" chips wrap, the authentication control fits or wraps; Limits is one column with wrapping unit controls; GitHub connection key and value rows stack; Danger zone is one column. No copy, state or behaviour of the multi-agent work changes.
+- [x] **Step 4: Stories** at 390 for each component whose layout changed and for the seven boards; register them (REG).
 - [ ] **Step 5: Run** the test, coverage, story smoke and axe tests, MOCK `phone-pages drawer`, PARITY. Expected: PASS. A diff past about 800 lines is split by page (tabs and list; panes and dialog).
-- [ ] **Step 6: Commit** `feat(web): phone layout for agent settings`.
+- [x] **Step 6: Commit** `feat(web): phone layout for agent settings`.
 
 ### Task 51: Phone, Workspace setup and General (after the multi-agent gate)
 

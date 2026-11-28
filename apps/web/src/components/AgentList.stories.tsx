@@ -4,6 +4,7 @@ import { fn, userEvent, within } from 'storybook/test';
 import { agentRowView, agentRowViews, manyAgents } from '@/mocks';
 import type { AgentRowView } from '@/mocks/types';
 import { AgentList } from './AgentList';
+import { viewport } from '@/screens/viewports';
 
 const noop = () => undefined;
 const paging = {
@@ -82,4 +83,13 @@ export const DefaultChanged: Story = {
     await userEvent.click(c.getByRole('button', { name: `Actions for ${agentRowViews[1].name}` }));
     await userEvent.click(c.getByRole('button', { name: 'Set as default' }));
   },
+};
+
+/** Phone (BR-65): stacked rows, the heading and Add agent wrap, the pager stays under the rows. */
+export const Phone: Story = { args: { pagination: { ...paging, total: 24 } }, globals: viewport(390, 844) };
+export const PhoneLoading: Story = { args: { rows: [], state: 'loading' }, globals: viewport(390, 844) };
+export const PhoneEmpty: Story = { args: { rows: [], state: 'empty' }, globals: viewport(390, 844) };
+export const PhoneError: Story = {
+  args: { rows: [], state: 'error', error: { requestId: 'req_8f3a21' } },
+  globals: viewport(390, 844),
 };

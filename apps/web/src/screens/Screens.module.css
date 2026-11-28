@@ -1182,3 +1182,50 @@
     flex: 1 1 100%;
   }
 }
+
+/* Phone and tablet (BR-65, TC-65.31): on Agent & settings the open add, edit or view pane takes the place of the tab panel
+   under the page header and the tab strip, which stay. The panel is hidden, not removed, so focus can return to its opener. */
+@media (max-width: 1023px) {
+  .shellSplitMain[data-pane-open] > .shellSplitCol > .agentTabs {
+    display: block;
+  }
+  .shellSplitMain[data-pane-open] > .shellSplitCol > [role='tabpanel'] {
+    display: none;
+  }
+}
+
+/* Phone (BR-65), Agent & settings: 16px gutters; the tab strip is one row that scrolls sideways inside itself; the Limits
+   fields are one column; the GitHub connection rows and the Danger zone stack. */
+@media (max-width: 639px) {
+  .agentSettingsMain > header {
+    padding: 0 16px 16px;
+  }
+  .agentTabs {
+    min-width: 0;
+    max-width: 100%;
+    padding: 0 16px;
+  }
+  .agentScroll {
+    padding: 0 16px 24px;
+  }
+  .agentsCol {
+    padding: 16px 16px 12px;
+  }
+  .agentSaveBar {
+    padding: 12px 16px;
+  }
+  .limitsGrid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .githubRows dl {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 2px 0;
+  }
+  .githubRows dl dd {
+    margin-bottom: 12px;
+  }
+  .dangerCol > div {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}

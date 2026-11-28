@@ -13,7 +13,7 @@ import {
 
 /*
  * The side menu below 1024px (spec 2026-11-25-sidebar-navigation-shell-design.md "E2E requirements": BR-59 the menu
- * button, BR-61 drawer content and picking, BR-62 dismissal). TC-62.5 needs the phone add pane and is in phone-pages.
+ * button, BR-61 drawer content and picking, BR-62 dismissal).
  * Every case runs at 390 wide with touch, except where it sets another width. The end state of each transition is
  * awaited with web assertions, never a sleep.
  */
@@ -262,5 +262,46 @@ test.describe('BR-62: drawer dismissal', () => {
     await expect(drawer(page)).toHaveCount(0);
     await expect(orgMenu(page)).toBeVisible();
     await expect(openMenu(page)).toHaveCount(0);
+  });
+});
+
+test.describe('BR-62: the drawer keeps the page behind it', () => {
+  test('TC-62.5: an open add pane with typed values survives Escape, a widening to 1024 and a narrowing back', async ({
+    page,
+  }) => {
+    const agentUrl = `/o/${ORG}/p/${INVOICER_API}/desk/agent`;
+    await page.goto(agentUrl);
+    await expect(page.getByRole('heading', { name: 'Agent & settings', level: 1 })).toBeVisible();
+    await page.getByRole('button', { name: 'Add agent' }).click();
+    const pane = page.getByRole('complementary', { name: 'Add agent' });
+    await pane.getByRole('radio', { name: 'Claude Code', exact: true }).check();
+    await pane.getByLabel('Name', { exact: true }).fill('Claude - Phone');
+    await pane.getByLabel('Subscription token', { exact: true }).fill('sk-ant-oat01-e2e-not-a-real-token');
+    const address = new URL(page.url()).pathname + new URL(page.url()).search;
+
+    /** The pane is open, what was typed is still there and the address is the one it was. */
+    const expectPaneKept = async (): Promise<void> => {
+      await expect(pane).toBeVisible();
+      await expect(pane.getByLabel('Name', { exact: true })).toHaveValue('Claude - Phone');
+      await expect(pane.getByLabel('Subscription token', { exact: true })).toHaveValue(
+        'sk-ant-oat01-e2e-not-a-real-token',
+      );
+      expect(new URL(page.url()).pathname + new URL(page.url()).search).toBe(address);
+    };
+
+    await openDrawer(page);
+    await page.keyboard.press('Escape');
+    await expect(drawer(page)).toHaveCount(0);
+    await expectPaneKept();
+
+    await openDrawer(page);
+    await page.setViewportSize({ width: 1024, height: 844 });
+    await expect(drawer(page)).toHaveCount(0);
+    await expect(orgMenu(page).or(projectMenu(page))).toBeVisible();
+    await expectPaneKept();
+
+    await page.setViewportSize({ width: 390, height: 844 });
+    await expect(openMenu(page)).toBeVisible();
+    await expectPaneKept();
   });
 });

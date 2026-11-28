@@ -500,6 +500,13 @@ export const boardStories = {
   DeskRulesPhone: { title: desk, exportName: 'DeskRulesPhone' },
   DeskRulesPromptPhone: { title: desk, exportName: 'DeskRulesPromptPhone' },
   DeskSkillsPhone: { title: desk, exportName: 'DeskSkillsPhone' },
+  DeskAgentPhone: { title: desk, exportName: 'DeskAgentPhone' },
+  DeskAgentAddPhone: { title: desk, exportName: 'DeskAgentAddPhone' },
+  DeskAgentEditPhone: { title: desk, exportName: 'DeskAgentEditPhone' },
+  DeskAgentRowMenuPhone: { title: desk, exportName: 'DeskAgentRowMenuPhone' },
+  DeskAgentDeletePhone: { title: desk, exportName: 'DeskAgentDeletePhone' },
+  DeskAgentGitHubPhone: { title: desk, exportName: 'DeskAgentGitHubPhone' },
+  DeskAgentLimitsPhone: { title: desk, exportName: 'DeskAgentLimitsPhone' },
 } as const satisfies Record<string, BoardStory>;
 
 export type BoardName = keyof typeof boardStories;

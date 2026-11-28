@@ -144,6 +144,12 @@
   align-items: center;
   gap: 8px;
 }
+/* Phone: a number with its unit wraps in a narrow column instead of widening it. */
+@media (max-width: 639px) {
+  .unit {
+    flex-wrap: wrap;
+  }
+}
 .unit > input {
   width: 90px;
 }

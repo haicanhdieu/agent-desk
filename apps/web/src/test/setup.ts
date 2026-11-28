@@ -45,6 +45,8 @@ Object.defineProperty(globalThis, 'IntersectionObserver', {
 
 // jsdom has no scrolling; the router's scroll handling calls it on every navigation.
 window.scrollTo = () => undefined;
+// jsdom has no scrollIntoView; a test that cares replaces it with a spy.
+Element.prototype.scrollIntoView = () => undefined;
 
 // jsdom has no matchMedia: `useMediaQuery` reads the width set with `setViewportWidth` (default 1440).
 installFakeMatchMedia();

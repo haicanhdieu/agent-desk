@@ -1745,7 +1745,7 @@ export const DeskAgentSideMenu: Story = deskShellStory({
 // BR-65, BR-83: Routing rules and Skills at 390x844 (phone boards). The rules are one column with their run line under
 // the rule's text; an open rule pane takes the place of the list under the page header; the skills list sits above the
 // editor with its own scroll. The real shell frame draws the bar and the menu, not the board's own copy.
-const deskPhoneArtboard = (page: 'rules' | 'skills', crumb: string): NonNullable<Story['decorators']> => [
+const deskPhoneArtboard = (page: 'rules' | 'skills' | 'agents', crumb: string): NonNullable<Story['decorators']> => [
   (S) => (
     <div style={{ width: 390, height: 844 }}>
       <ProjectShellFrame page={page} fill height={844} crumbs={[{ label: crumb }]}>
@@ -1783,3 +1783,57 @@ export const DeskSkillsPhone: Story = {
   globals: viewport(390, 844),
   render: () => <DeskSkillsScreen {...skillsProps} />,
 };
+
+// BR-65: Agent & settings at 390x844 (phone boards). The tab strip is one row that scrolls inside itself, the agent rows
+// stack, an open add or edit pane takes the place of the list under the strip, the delete dialog and the row menu stay
+// inside the window, and Limits is one column with Save limits pinned. The real shell frame draws the bar and the menu.
+const agentPhone = (name: string, props: Partial<DeskAgentProps>, play?: Story['play']): Story => ({
+  name,
+  decorators: deskPhoneArtboard('agents', 'Agent & settings'),
+  globals: viewport(390, 844),
+  render: () => (
+    <DeskAgentScreen frame={deskFrame} limits={agentLimits} github={agentGithub} agents={agentList()} {...props} />
+  ),
+  play,
+});
+
+export const DeskAgentPhone: Story = agentPhone('Phone: agents, rows stacked under the tab strip', {
+  tab: 'agents',
+  agents: agentList({
+    rows: [
+      ...agentRowViews.slice(0, 2),
+      { ...agentRowViews[2], name: `Agent ${'with-a-very-long-name-'.repeat(11)}`.slice(0, 256) },
+      ...agentRowViews.slice(3, 5),
+    ],
+    pagination: paging(24),
+  }),
+});
+export const DeskAgentAddPhone: Story = agentPhone(
+  'Phone: add agent, pane in place of the list',
+  { tab: 'agents', pane: agentPane() },
+  async ({ canvasElement }) => pickRadio(within(canvasElement), 'OpenCode'),
+);
+export const DeskAgentEditPhone: Story = agentPhone('Phone: edit agent, pane in place of the list', {
+  tab: 'agents',
+  pane: editPane('Claude - Personal'),
+});
+export const DeskAgentRowMenuPhone: Story = agentPhone(
+  'Phone: agent row menu inside the window',
+  { tab: 'agents' },
+  async ({ canvasElement }) => {
+    await userEvent.click(within(canvasElement).getByRole('button', { name: `Actions for ${agentRowViews[1].name}` }));
+  },
+);
+export const DeskAgentDeletePhone: Story = agentPhone('Phone: delete agent dialog, full width', {
+  tab: 'agents',
+  ...toDelete({ ...deleteBase, state: 'confirm' }),
+});
+export const DeskAgentGitHubPhone: Story = agentPhone(
+  'Phone: GitHub connection, rows stacked, strip scrolled to the tab',
+  {
+    tab: 'github',
+  },
+);
+export const DeskAgentLimitsPhone: Story = agentPhone('Phone: limits, one column with Save limits pinned', {
+  tab: 'limits',
+});

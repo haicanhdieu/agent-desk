@@ -3,6 +3,7 @@ import { fn, userEvent, within } from 'storybook/test';
 import { agentRowViews } from '@/mocks';
 import type { AgentRowView } from '@/mocks/types';
 import { AgentRow } from './AgentRow';
+import { viewport } from '@/screens/viewports';
 
 const meta = {
   title: 'Components/AgentRow',
@@ -65,4 +66,12 @@ export const DefaultMenuOpen: Story = {
 export const OnlyAgentMenuOpen: Story = {
   args: { agent: named('Claude - Personal'), onlyAgent: true },
   play: RowMenuOpen.play,
+};
+
+/** Phone (BR-65): the row stacks (name and Default chip, subline, model, status, Edit and the menu) in a 390px window. */
+export const Phone: Story = { args: { agent: named('Claude - Personal') }, globals: viewport(390, 844) };
+/** Phone: a 256-character name is cut with an ellipsis and does not widen the row. */
+export const PhoneLongName: Story = {
+  args: { agent: { ...named('Claude - Work'), name: 'A-very-long-agent-name-'.repeat(11).slice(0, 256) } },
+  globals: viewport(390, 844),
 };

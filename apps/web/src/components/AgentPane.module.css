@@ -92,3 +92,18 @@
 .connectionRow > button {
   margin-left: auto;
 }
+
+/* Phone (BR-65): the footer wraps, with its note on a line of its own, so Cancel and Save agent stay reachable. */
+@media (max-width: 639px) {
+  .footer {
+    flex-wrap: wrap;
+  }
+  .footNote {
+    flex: 1 1 100%;
+  }
+  .providerStatic,
+  .help {
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+}

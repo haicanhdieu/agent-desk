@@ -138,7 +138,9 @@ export function GitHubPanel({
         )}
         {state === 'ready' && (
           <>
-            <KeyValue termWidth={150} items={rows} />
+            <div className={styles.githubRows}>
+              <KeyValue termWidth={150} items={rows} />
+            </div>
             {mode === 'polling' && (
               <div className={styles.deskActions}>
                 <Button variant="ghost" size="sm" icon="refresh" onClick={onCheckNow} disabled={checkingNow}>
@@ -392,12 +394,14 @@ export function DangerPanel({ onDeleteProject, lead }: { onDeleteProject(): void
   return (
     <PanelScroll label="Danger zone" lead={lead}>
       <SettingsSection nested title="Danger zone">
-        <DangerZone
-          title="Delete project"
-          body={deleteProjectBody}
-          actionLabel="Delete project"
-          onAction={() => setConfirming(true)}
-        />
+        <div className={styles.dangerCol}>
+          <DangerZone
+            title="Delete project"
+            body={deleteProjectBody}
+            actionLabel="Delete project"
+            onAction={() => setConfirming(true)}
+          />
+        </div>
         <Dialog
           open={confirming}
           title="Delete project"

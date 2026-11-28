@@ -1082,3 +1082,391 @@ test.describe('BR-65: Skills at 390', () => {
     await expectFillPageFits(page, skillsAreas);
   });
 });
+
+/*
+ * Agent & settings at 390 (TC-65.13, TC-65.28 to TC-65.32, TC-65.34, TC-65.35). The page fills the window: the page itself
+ * never scrolls, the open tab's panel or the pane body does, so every fit check also reads the scroll areas. The scenario
+ * `manyAgents` lists 30 agents; the shell scenario `phoneLongAgentName` lists 30 with the third named with 256 characters.
+ */
+const agentPath = `/o/${ORG}/p/${INVOICER_API}/desk/agent`;
+const AGENT_TABS = ['Agents', 'GitHub connection', 'Limits', 'Danger zone'] as const;
+
+const tabStrip = (page: Page): Locator => page.getByRole('tablist', { name: 'Agent and project settings' });
+const agentTab = (page: Page, name: string): Locator => tabStrip(page).getByRole('tab', { name, exact: true });
+const agentsList = (page: Page): Locator => page.getByRole('region', { name: 'Agents list' });
+const agentRows = (page: Page): Locator => agentsList(page).getByRole('listitem');
+const agentPaneOf = (page: Page, name: 'Add agent' | 'Edit agent'): Locator =>
+  page.getByRole('complementary', { name });
+const longNamed = (page: Page): Locator => agentRows(page).filter({ has: page.locator('[title^="Long agent-name-"]') });
+const agentHeading = (page: Page): Locator => page.getByRole('heading', { level: 1, name: 'Agent & settings' });
+
+async function openAgentPage(page: Page, search = ''): Promise<void> {
+  await page.goto(`${agentPath}${search}`);
+  await expect(agentHeading(page)).toBeVisible();
+}
+
+/** The scroll areas of a tab: the panel and the region inside it that holds the content. */
+const tabAreas = (page: Page, name: string): Locator[] => [
+  page.getByRole('tabpanel'),
+  page.getByRole('region', { name: name === 'Agents' ? 'Agents list' : name, exact: true }),
+];
+
+/** The strip is one row: its tabs share a line, and the strip stays inside the window (it scrolls inside itself). */
+async function expectStripOneRow(page: Page, width: number): Promise<void> {
+  const strip = await boxOf(tabStrip(page));
+  expect(strip.x).toBeGreaterThanOrEqual(-1);
+  expect(strip.x + strip.width).toBeLessThanOrEqual(width + 1);
+  const tabs = tabStrip(page).getByRole('tab');
+  const ys: number[] = [];
+  for (let i = 0; i < (await tabs.count()); i += 1) ys.push((await boxOf(tabs.nth(i))).y);
+  expect(Math.max(...ys) - Math.min(...ys)).toBeLessThanOrEqual(1);
+}
+
+/** Opens a tab from the strip, scrolling the strip sideways as a person would, and checks the fit. */
+async function openTabFromStrip(page: Page, name: string): Promise<void> {
+  const tab = agentTab(page, name);
+  await tab.scrollIntoViewIfNeeded();
+  await tab.click();
+  await expect(tab).toHaveAttribute('aria-selected', 'true');
+  await expectStripOneRow(page, 390);
+  await expectFillPageFits(page, tabAreas(page, name));
+}
+
+/** "Save limits" stays pinned under the scrolling panel and inside the window; the save works. */
+async function saveLimits(page: Page): Promise<void> {
+  const idle = page.getByLabel('End idle runs after');
+  await idle.scrollIntoViewIfNeeded();
+  await idle.fill('90');
+  const save = page.getByRole('button', { name: 'Save limits' });
+  const [panel, button] = [await boxOf(page.getByRole('region', { name: 'Limits', exact: true })), await boxOf(save)];
+  expect(button.y).toBeGreaterThanOrEqual(panel.y + panel.height - 1);
+  expect(button.y + button.height).toBeLessThanOrEqual(844 + 1);
+  expect(button.x + button.width).toBeLessThanOrEqual(390 + 1);
+  await save.click();
+  await expect(page.getByText('Limits saved')).toBeVisible();
+}
+
+/** The names of the controls a part of the page shows: boxed, not hidden (scroll areas still count). */
+async function shownControls(roots: Locator[]): Promise<string[]> {
+  const names = new Set<string>();
+  for (const root of roots) {
+    const found = await root.evaluate((el) => {
+      const sel = 'button, a[href], [role="tab"], [role="radio"], input, select, textarea';
+      const out: string[] = [];
+      for (const node of Array.from(el.querySelectorAll(sel))) {
+        const r = node.getBoundingClientRect();
+        if (r.width <= 0 || r.height <= 0 || getComputedStyle(node).visibility === 'hidden') continue;
+        const label = node.id ? document.querySelector(`label[for="${CSS.escape(node.id)}"]`)?.textContent : null;
+        const text =
+          node.getAttribute('aria-label') ||
+          (node as HTMLElement).innerText ||
+          label ||
+          node.getAttribute('placeholder') ||
+          node.getAttribute('title') ||
+          node.getAttribute('name') ||
+          node.tagName.toLowerCase();
+        out.push(text.trim().replace(/\s+/g, ' '));
+      }
+      return out;
+    });
+    for (const name of found) names.add(name);
+  }
+  return [...names].sort();
+}
+
+/** Fit rule: every control the same part shows at 1440 is also shown at 390, in the same state. */
+async function expectPhoneKeepsControls(page: Page, roots: () => Locator[]): Promise<void> {
+  const phone = await shownControls(roots());
+  expect(phone.length).toBeGreaterThan(0);
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await expect(roots()[0]).toBeVisible();
+  const desktop = await shownControls(roots());
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(roots()[0]).toBeVisible();
+  expect(phone).toEqual(expect.arrayContaining(desktop));
+}
+
+/** Every visible part of a pane is reachable by scrolling its body and lies inside the window's width. */
+async function expectPaneControlsReachable(pane: Locator, width: number): Promise<void> {
+  const controls = pane.locator('input:visible, select:visible, textarea:visible, button:visible');
+  const count = await controls.count();
+  expect(count).toBeGreaterThan(0);
+  for (let i = 0; i < count; i += 1) {
+    const control = controls.nth(i);
+    await control.scrollIntoViewIfNeeded();
+    const b = await boxOf(control);
+    expect(b.width).toBeGreaterThan(0);
+    expect(b.x).toBeGreaterThanOrEqual(-1);
+    expect(b.x + b.width).toBeLessThanOrEqual(width + 1);
+    expect(b.y + b.height).toBeLessThanOrEqual(844 + 1);
+  }
+}
+
+/** The pane is open in place of the list, under the heading and the strip, at the full content width. */
+async function expectAgentPaneInPlaceOfList(page: Page, pane: Locator, width: number): Promise<void> {
+  await expect(pane).toBeVisible();
+  const [box, strip] = [await boxOf(pane), await boxOf(tabStrip(page))];
+  expect(box.x).toBeLessThanOrEqual(1);
+  expect(box.width).toBeGreaterThanOrEqual(width - 1);
+  expect(box.y).toBeGreaterThanOrEqual(strip.y + strip.height - 1);
+  await expect(agentsList(page)).toBeHidden();
+  await expect(agentHeading(page)).toBeVisible();
+  await expectFillPageFits(page, [paneBodyOf(pane)]);
+}
+
+test.describe('BR-65: Agent & settings at 390', () => {
+  test.use({ viewport: { width: 390, height: 844 } });
+
+  test('TC-65.13: the four tabs open from a strip that scrolls inside itself; Save limits is pinned and Delete project is reachable', async ({
+    page,
+  }) => {
+    await openAgentPage(page);
+    await expect(tabStrip(page).getByRole('tab')).toHaveText([...AGENT_TABS]);
+    await expectStripOneRow(page, 390);
+    await expectFillPageFits(page, tabAreas(page, 'Agents'));
+    for (const name of AGENT_TABS) {
+      await openTabFromStrip(page, name);
+      await expectPhoneKeepsControls(page, () => [tabStrip(page), page.getByRole('tabpanel')]);
+    }
+
+    await openTabFromStrip(page, 'Limits');
+    const field = await boxOf(page.getByLabel('Run time limit', { exact: true }));
+    const other = await boxOf(page.getByLabel('End idle runs after'));
+    expect(other.y).toBeGreaterThan(field.y);
+    expect(Math.abs(other.x - field.x)).toBeLessThanOrEqual(1);
+    await saveLimits(page);
+
+    await openTabFromStrip(page, 'Danger zone');
+    const remove = page.getByRole('tabpanel').getByRole('button', { name: 'Delete project', exact: true });
+    await remove.scrollIntoViewIfNeeded();
+    const removeBox = await boxOf(remove);
+    expect(removeBox.x + removeBox.width).toBeLessThanOrEqual(390 + 1);
+    await remove.click();
+    const confirm = page.getByRole('dialog', { name: 'Delete project' });
+    await expect(confirm).toBeVisible();
+    expect((await boxOf(confirm)).width).toBeGreaterThanOrEqual(390 - 1);
+    await confirm.getByRole('button', { name: 'Cancel' }).click();
+    await expect(confirm).toBeHidden();
+  });
+
+  test('TC-65.28: a project admin reaches three tabs, no Danger zone, and the Limits save works', async ({ page }) => {
+    await seedShell(page, 'adminP1ViewerP2');
+    await openAgentPage(page);
+    await expect(tabStrip(page).getByRole('tab')).toHaveText(['Agents', 'GitHub connection', 'Limits']);
+    await expect(agentTab(page, 'Danger zone')).toHaveCount(0);
+    for (const name of ['Agents', 'GitHub connection', 'Limits']) {
+      await openTabFromStrip(page, name);
+      await expectPhoneKeepsControls(page, () => [tabStrip(page), page.getByRole('tabpanel')]);
+    }
+    await saveLimits(page);
+  });
+
+  test('TC-65.29: stacked rows keep everything the 1440 rows show; the 256-character name, pager and row menu fit', async ({
+    page,
+  }) => {
+    await seedShell(page, 'phoneLongAgentName');
+    await openAgentPage(page);
+    await expect(longNamed(page)).toHaveCount(1);
+    await expectFillPageFits(page, tabAreas(page, 'Agents'));
+
+    // "Add agent" is usable: enabled and inside the 16px gutters.
+    const add = page.getByRole('button', { name: 'Add agent' });
+    await add.scrollIntoViewIfNeeded();
+    await expect(add).toBeEnabled();
+    const addBox = await boxOf(add);
+    expect(addBox.x).toBeGreaterThanOrEqual(16 - 1);
+    expect(addBox.x + addBox.width).toBeLessThanOrEqual(390 - 16 + 1);
+    expect(addBox.y).toBeGreaterThanOrEqual(-1);
+    expect(addBox.y + addBox.height).toBeLessThanOrEqual(844 + 1);
+
+    // Rows are stacked: the name, then the model, then the actions, one under the other and inside the window.
+    const long = longNamed(page);
+    await long.scrollIntoViewIfNeeded();
+    const parts = [
+      long.locator('[title^="Long agent-name-"]'),
+      long.locator('.model'),
+      long.getByRole('button', { name: /^Edit Long agent-name-/ }),
+    ];
+    const boxes: Box[] = [];
+    for (const part of parts) boxes.push(await boxOf(part));
+    expect(boxes[1].y).toBeGreaterThan(boxes[0].y + boxes[0].height - 1);
+    expect(boxes[2].y).toBeGreaterThan(boxes[1].y + boxes[1].height - 1);
+    for (const b of boxes) {
+      expect(b.x).toBeGreaterThanOrEqual(-1);
+      expect(b.x + b.width).toBeLessThanOrEqual(390 + 1);
+    }
+
+    // Everything the rows show at 390 is what they show at 1440.
+    await agentsList(page).evaluate((el) => el.scrollTo(0, 0));
+    const phoneText = await agentRows(page).allInnerTexts();
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await expect(agentRows(page).first()).toBeVisible();
+    expect(await agentRows(page).allInnerTexts()).toEqual(phoneText);
+    await page.setViewportSize({ width: 390, height: 844 });
+
+    // Next page and back.
+    const pager = page.getByRole('navigation', { name: 'Pagination' });
+    await pager.scrollIntoViewIfNeeded();
+    const next = pager.getByRole('button', { name: 'Next' });
+    const nextBox = await boxOf(next);
+    expect(nextBox.x + nextBox.width).toBeLessThanOrEqual(390 + 1);
+    expect(nextBox.y + nextBox.height).toBeLessThanOrEqual(844 + 1);
+    await next.click();
+    await expect(agentRows(page)).toHaveCount(10);
+    await expectFillPageFits(page, tabAreas(page, 'Agents'));
+    await pager.getByRole('button', { name: 'Previous' }).click();
+    await expect(agentRows(page)).toHaveCount(20);
+
+    // The long-named agent's row menu: all three entries, inside the window.
+    await long.scrollIntoViewIfNeeded();
+    await long.getByRole('button', { name: /^Actions for Long agent-name-/ }).click();
+    const menu = page.getByRole('dialog', { name: /^Actions for Long agent-name-/ });
+    await expect(menu).toBeVisible();
+    const menuBox = await boxOf(menu);
+    expect(menuBox.x).toBeGreaterThanOrEqual(-1);
+    expect(menuBox.x + menuBox.width).toBeLessThanOrEqual(390 + 1);
+    expect(menuBox.y).toBeGreaterThanOrEqual(-1);
+    expect(menuBox.y + menuBox.height).toBeLessThanOrEqual(844 + 1);
+    for (const entry of ['Test connection', 'Set as default', 'Delete']) {
+      await expect(menu.getByRole('button', { name: entry, exact: true })).toBeVisible();
+    }
+  });
+
+  test('TC-65.30: the delete dialog is full width with both buttons reachable and the agent leaves the list', async ({
+    page,
+  }) => {
+    await seedAgents(page, 'manyAgents');
+    await openAgentPage(page);
+    await agentsList(page).getByRole('button', { name: 'Actions for Agent 02', exact: true }).click();
+    await page.getByRole('button', { name: 'Delete', exact: true }).click();
+    const dialog = page.getByRole('dialog', { name: 'Delete agent Agent 02?' });
+    await expect(dialog).toBeVisible();
+    const box = await boxOf(dialog);
+    expect(box.x).toBeLessThanOrEqual(1);
+    expect(box.width).toBeGreaterThanOrEqual(390 - 1);
+    expect(box.y + box.height).toBeLessThanOrEqual(844 + 1);
+    for (const name of ['Keep agent', 'Delete agent']) {
+      const b = await boxOf(dialog.getByRole('button', { name, exact: true }));
+      expect(b.width).toBeGreaterThan(0);
+      expect(b.x).toBeGreaterThanOrEqual(-1);
+      expect(b.x + b.width).toBeLessThanOrEqual(390 + 1);
+    }
+    await expectFillPageFits(page, tabAreas(page, 'Agents'));
+    await expectPhoneKeepsControls(page, () => [dialog]);
+    await dialog.getByRole('button', { name: 'Delete agent', exact: true }).click();
+    await expect(dialog).toBeHidden();
+    await expect(agentsList(page).getByText('Agent 02', { exact: true })).toHaveCount(0);
+  });
+
+  test('TC-65.31: the OpenCode add pane takes the list place, keeps its title and footer, and saves the agent', async ({
+    page,
+  }) => {
+    await openAgentPage(page);
+    await page.getByRole('button', { name: 'Add agent' }).click();
+    const pane = agentPaneOf(page, 'Add agent');
+    await expectAgentPaneInPlaceOfList(page, pane, 390);
+    await pane.getByRole('radio', { name: 'OpenCode', exact: true }).check();
+    await pane.getByRole('radio', { name: 'API endpoint and key', exact: true }).click();
+    await pane.getByLabel('Name', { exact: true }).fill('OpenCode - Phone');
+    await pane.getByLabel('API endpoint', { exact: true }).fill('https://llm.harbor-labs.example/v1');
+    await pane.getByLabel('API key', { exact: true }).fill('e2e-not-a-real-key');
+    await expectPaneControlsReachable(pane, 390);
+    await expectPhoneKeepsControls(page, () => [pane]);
+
+    // The title and the footer stay put while the body scrolls.
+    const title = pane.getByRole('heading', { level: 2, name: 'Add agent' });
+    const save = pane.getByRole('button', { name: 'Save agent' });
+    const [title0, save0] = [await boxOf(title), await boxOf(save)];
+    await paneBodyOf(pane).evaluate((el) => el.scrollTo(0, el.scrollHeight));
+    expect((await boxOf(title)).y).toBe(title0.y);
+    expect((await boxOf(save)).y).toBe(save0.y);
+    await expectFillPageFits(page, [paneBodyOf(pane)]);
+
+    await save.click();
+    await expect(pane).toBeHidden();
+    await expect(agentsList(page).getByText('OpenCode - Phone', { exact: true })).toBeVisible();
+  });
+
+  test('TC-65.32: the edit pane takes the list place, every control is reachable, and the new name shows in the list', async ({
+    page,
+  }) => {
+    await openAgentPage(page);
+    await page.getByRole('button', { name: 'Edit Claude - Personal', exact: true }).click();
+    const pane = agentPaneOf(page, 'Edit agent');
+    await expectAgentPaneInPlaceOfList(page, pane, 390);
+    await expectPaneControlsReachable(pane, 390);
+    await expectPhoneKeepsControls(page, () => [pane]);
+    const testButton = pane.getByRole('button', { name: 'Test connection', exact: true });
+    await testButton.scrollIntoViewIfNeeded();
+    expect((await boxOf(testButton)).width).toBeGreaterThan(0);
+    await pane.getByLabel('Name', { exact: true }).fill('Claude - Phone');
+    await pane.getByRole('button', { name: 'Save agent' }).click();
+    await expect(pane).toBeHidden();
+    await expect(agentsList(page).getByText('Claude - Phone', { exact: true })).toBeVisible();
+  });
+
+  test('TC-65.34: ?tab=danger opens with the Danger zone tab in view and the page not wider than the window', async ({
+    page,
+  }) => {
+    await openAgentPage(page, '?tab=danger');
+    const tab = agentTab(page, 'Danger zone');
+    await expect(tab).toHaveAttribute('aria-selected', 'true');
+    // In view without the person scrolling the strip: the tab lies inside the strip's visible box.
+    await expect
+      .poll(async () => {
+        const [t, strip] = [await boxOf(tab), await boxOf(tabStrip(page))];
+        return t.x >= strip.x - 1 && t.x + t.width <= strip.x + strip.width + 1;
+      })
+      .toBe(true);
+    await expectFillPageFits(page, tabAreas(page, 'Danger zone'));
+  });
+});
+
+test.describe('BR-65: the Agent & settings pane at 390, 1023 and 1024', () => {
+  test('TC-65.35: below 1024 the pane replaces the list and Cancel returns focus; at 1024 the list and pane sit together', async ({
+    page,
+  }) => {
+    await seedAgents(page, 'manyAgents');
+    await page.setViewportSize({ width: 390, height: 844 });
+    await openAgentPage(page);
+    const edit = page.getByRole('button', { name: 'Edit Agent 02', exact: true });
+    for (const width of [390, 1023]) {
+      await page.setViewportSize({ width, height: 844 });
+      await edit.scrollIntoViewIfNeeded();
+      await edit.click();
+      const pane = agentPaneOf(page, 'Edit agent');
+      await expectAgentPaneInPlaceOfList(page, pane, width);
+      const footer = pane.getByRole('button', { name: 'Save agent' });
+      await footer.scrollIntoViewIfNeeded();
+      expect((await boxOf(footer)).y + (await boxOf(footer)).height).toBeLessThanOrEqual(844 + 1);
+      await pane.getByRole('button', { name: 'Cancel', exact: true }).click();
+      await expect(pane).toBeHidden();
+      await expect(edit).toBeFocused();
+    }
+
+    // 1024 with the side menu expanded: menu, list and pane show together, the rows do not overlap.
+    await page.setViewportSize({ width: 1024, height: 844 });
+    const expand = page.getByRole('button', { name: 'Expand menu' });
+    if (await expand.isVisible()) await expand.click();
+    await expect(page.getByRole('button', { name: 'Collapse menu' })).toBeVisible();
+    await edit.click();
+    const pane = agentPaneOf(page, 'Edit agent');
+    await expect(pane).toBeVisible();
+    await expect(agentsList(page)).toBeVisible();
+    expect((await boxOf(agentsList(page))).width).toBeGreaterThan(0);
+    const rows: Box[] = [];
+    for (let i = 0; i < 3; i += 1) rows.push(await boxOf(agentRows(page).nth(i)));
+    rows.forEach((a, i) => rows.slice(i + 1).forEach((b) => expect(overlaps(a, b)).toBe(false)));
+    const row = agentRows(page).nth(1);
+    const rowParts: Box[] = [];
+    for (const part of [
+      row.getByRole('button', { name: /^Edit / }),
+      row.getByRole('button', { name: /^Actions for / }),
+    ]) {
+      rowParts.push(await boxOf(part));
+    }
+    expect(overlaps(rowParts[0], rowParts[1])).toBe(false);
+    await pane.getByRole('button', { name: 'Cancel', exact: true }).click();
+    await expect(pane).toBeHidden();
+  });
+});

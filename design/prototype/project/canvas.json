@@ -3849,6 +3849,62 @@
    "h": 844,
    "title": "Phone: skills, list above the editor",
    "expand": "fill"
+  },
+  "DeskAgentPhone.dc.html": {
+   "x": 1880,
+   "y": 105760,
+   "w": 390,
+   "h": 844,
+   "title": "Phone: agents, rows stacked under the tab strip",
+   "expand": "fill"
+  },
+  "DeskAgentAddPhone.dc.html": {
+   "x": 2350,
+   "y": 105760,
+   "w": 390,
+   "h": 844,
+   "title": "Phone: add agent, pane in place of the list",
+   "expand": "fill"
+  },
+  "DeskAgentEditPhone.dc.html": {
+   "x": 0,
+   "y": 106860,
+   "w": 390,
+   "h": 844,
+   "title": "Phone: edit agent, pane in place of the list",
+   "expand": "fill"
+  },
+  "DeskAgentRowMenuPhone.dc.html": {
+   "x": 470,
+   "y": 106860,
+   "w": 390,
+   "h": 844,
+   "title": "Phone: agent row menu inside the window",
+   "expand": "fill"
+  },
+  "DeskAgentDeletePhone.dc.html": {
+   "x": 940,
+   "y": 106860,
+   "w": 390,
+   "h": 844,
+   "title": "Phone: delete agent dialog, full width",
+   "expand": "fill"
+  },
+  "DeskAgentGitHubPhone.dc.html": {
+   "x": 1410,
+   "y": 106860,
+   "w": 390,
+   "h": 844,
+   "title": "Phone: GitHub connection, rows stacked, strip scrolled to the tab",
+   "expand": "fill"
+  },
+  "DeskAgentLimitsPhone.dc.html": {
+   "x": 1880,
+   "y": 106860,
+   "w": 390,
+   "h": 844,
+   "title": "Phone: limits, one column with Save limits pinned",
+   "expand": "fill"
   }
  },
  "order": [
@@ -4331,7 +4387,14 @@
   "RunStoppedPhone.dc.html",
   "DeskRulesPhone.dc.html",
   "DeskRulesPromptPhone.dc.html",
-  "DeskSkillsPhone.dc.html"
+  "DeskSkillsPhone.dc.html",
+  "DeskAgentPhone.dc.html",
+  "DeskAgentAddPhone.dc.html",
+  "DeskAgentEditPhone.dc.html",
+  "DeskAgentRowMenuPhone.dc.html",
+  "DeskAgentDeletePhone.dc.html",
+  "DeskAgentGitHubPhone.dc.html",
+  "DeskAgentLimitsPhone.dc.html"
  ],
  "notes": {
   "t-intro": {

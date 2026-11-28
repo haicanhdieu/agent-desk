@@ -65,6 +65,7 @@ it('the key and every scenario name', () => {
     'memberOwnsRuns',
     'memberOthersRuns',
     'phoneLongNames',
+    'phoneLongAgentName',
   ]);
   expect(parseShellScenario('longNames')).toBe('longNames');
   expect(parseShellScenario('nope')).toBeUndefined();
@@ -234,6 +235,22 @@ describe('the defining facts', () => {
     expect(long.length).toBeGreaterThanOrEqual(8);
     expect(new Set(long.map((p) => p.name)).size).toBe(long.length);
     expect((await session())?.user.email.length).toBeGreaterThanOrEqual(50);
+  });
+
+  it('phoneLongAgentName: an owner whose invoicer-api has more than one page of agents and one named with 256 characters on the first page', async () => {
+    apply('phoneLongAgentName');
+    const first = await api.agents.list({ params: { projectId: P1 }, query: { page: 1, pageSize: 20 } });
+    expect(first.total).toBeGreaterThan(20);
+    const long = first.items.filter((a) => a.name.length === 256);
+    expect(long).toHaveLength(1);
+    expect(long[0]?.isDefault).toBe(false);
+    expect(
+      first.items.filter((a) => !a.isDefault && a.usage.rules === 0 && a.usage.blockingRuns === 0).length,
+    ).toBeGreaterThan(1);
+    const names = (await api.agents.list({ params: { projectId: P1 }, query: { page: 2, pageSize: 20 } })).items.map(
+      (a) => a.name,
+    );
+    expect(new Set([...first.items.map((a) => a.name), ...names]).size).toBe(first.total);
   });
 
   it('auditOnly: audit:read is the only right', async () => {
